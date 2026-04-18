@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useSolanaWallet } from '../../hooks/useSolanaWallet';
 import { useRpsGame } from '@rps/solana-client';
 
 export default function TestSmartContractIntegration() {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey } = useSolanaWallet();
   const [testResults, setTestResults] = useState<string[]>([]);
   
   // Test with a dummy game ID

@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useSolanaWallet } from '../../../hooks/useSolanaWallet';
 import { useRpsGame } from '@rps/solana-client';
 import { useParams } from 'next/navigation';
 
 export default function TestPage() {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey } = useSolanaWallet();
   const { id } = useParams<{ id: string }>();
   const gamePda = id as string;
   const [testResults, setTestResults] = useState<string[]>([]);

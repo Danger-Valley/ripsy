@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{clear_board, errors::ErrorCode, events::GameCreated, Game, Phase};
+use crate::{events::GameCreated, state::Game};
 
 #[derive(Accounts)]
 #[instruction(nonce: [u8; 32])]
@@ -10,7 +10,7 @@ pub struct CreateGame<'info> {
         seeds = [b"game", payer.key().as_ref(), &nonce],
         bump,
         payer = payer,
-        space = Game::SIZE,
+        space = Game::DISCRIMINATOR.len() + Game::INIT_SPACE,
     )]
     pub game: Account<'info, Game>,
 
@@ -21,17 +21,9 @@ pub struct CreateGame<'info> {
 
 pub fn create_game(ctx: Context<CreateGame>, nonce: [u8; 32]) -> Result<()> {
     let game = &mut ctx.accounts.game;
-    let payer = &ctx.accounts.payer;
+    let payer = &ctx.accounts.payer.key();
 
-    game.player0 = payer.key();
-    game.player1 = Pubkey::default();
-    game.winner = None;
-    game.phase = Phase::Created as u8;
-    game.is_player1_turn = false;
-
-    clear_board(game);
-
-    game.nonce = nonce;
+    game.init_board(payer, nonce);
 
     emit!(GameCreated {
         creator: payer.key()

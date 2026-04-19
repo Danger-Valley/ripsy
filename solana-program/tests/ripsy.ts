@@ -1,6 +1,6 @@
 import { playWithTiebreak } from './playWithTiebreak';
 
-describe('solana-icq-rps', () => {
+describe('Ripsy', () => {
   it('game full flow', async () => {
     await playWithTiebreak();
   });

@@ -1,7 +1,7 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
 import { Keypair } from '@solana/web3.js';
-import { SolanaIcqRps } from '../target/types/solana_icq_rps';
+import { Ripsy } from '../target/types/ripsy';
 import { airdropIfNeeded } from './pdas';
 import { buildFullLineupWithFlag, toIdx, u8 } from './cells';
 const { randomBytes } = require('crypto');
@@ -16,7 +16,7 @@ export interface GameSetupReturn {
 export const setupGame = async (): Promise<GameSetupReturn> => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-  const program = anchor.workspace.solanaIcqRps as Program<SolanaIcqRps>;
+  const program = anchor.workspace.Ripsy as Program<Ripsy>;
   const conn = provider.connection;
 
   const p0 = (provider.wallet as anchor.Wallet).publicKey;

@@ -1,5 +1,5 @@
 export const WIDTH = 7;
-export const HEIGHT = 6;
+export const HEIGHT = 7;
 export const CELLS = WIDTH * HEIGHT;
 
 export const Piece = {

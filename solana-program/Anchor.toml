@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-solana_icq_rps = "3ueExHyxLr7ahqcBEzse3L21rTaWQ91rLtVnZLsx4ngA"
+ripsy = "3ueExHyxLr7ahqcBEzse3L21rTaWQ91rLtVnZLsx4ngA"
 
 [registry]
 url = "https://api.apr.dev"

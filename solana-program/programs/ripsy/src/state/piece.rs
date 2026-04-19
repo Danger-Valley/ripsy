@@ -10,6 +10,22 @@ pub enum Piece {
     Trap = 5,
 }
 
+impl Piece {
+    pub fn rps(attacker: Piece, defender: Piece) -> i8 {
+        use Piece::*;
+        
+        if attacker == defender {
+            return 0;
+        }
+        match (attacker, defender) {
+            (Rock, Scissors) => 1,
+            (Scissors, Paper) => 1,
+            (Paper, Rock) => 1,
+            _ => -1,
+        }
+    }
+}
+
 impl From<u8> for Piece {
     fn from(v: u8) -> Self {
         match v {
@@ -20,18 +36,5 @@ impl From<u8> for Piece {
             5 => Self::Trap,
             _ => Self::Empty,
         }
-    }
-}
-
-pub fn rps(attacker: Piece, defender: Piece) -> i8 {
-    use Piece::*;
-    if attacker == defender {
-        return 0;
-    }
-    match (attacker, defender) {
-        (Rock, Scissors) => 1,
-        (Scissors, Paper) => 1,
-        (Paper, Rock) => 1,
-        _ => -1,
     }
 }

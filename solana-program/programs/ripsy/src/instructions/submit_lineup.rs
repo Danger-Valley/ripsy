@@ -1,7 +1,11 @@
-use crate::errors::ErrorCode;
-use crate::events::{GameStarted, LineupSubmitted};
-use crate::state::*;
 use anchor_lang::prelude::*;
+
+use crate::{
+    constants::{HEIGHT, WIDTH},
+    errors::ErrorCode,
+    events::{GameStarted, LineupSubmitted},
+    state::{BoardCellOwner, Game, Phase, Piece, _y, is_p0_spawn, is_p1_spawn, validate_cell},
+};
 
 #[derive(Accounts)]
 pub struct SubmitLineup<'info> {
@@ -82,7 +86,7 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
     }
 
     let mut flag_count = 0usize;
-    let mut flag_idx: u8 = 0;
+    //let mut flag_idx: u8 = 0;
     let mut trap_count: usize = 0;
     let mut trap_idx: u8 = 0;
 
@@ -90,7 +94,7 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
         let p = Piece::from(pieces[i]);
         if p == Piece::Flag {
             flag_count += 1;
-            flag_idx = idx;
+            //flag_idx = idx;
         }
         if p == Piece::Trap {
             trap_count += 1;

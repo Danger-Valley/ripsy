@@ -2,18 +2,12 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Invalid game id")]
-    InvalidGameId,
     #[msg("Not allowed to join game")]
     NotAllowedJoinGame,
-    #[msg("Place flag deadline passed")]
-    PlaceFlagDeadlinePassed,
     #[msg("Bad cell")]
     BadCell,
     #[msg("Bad phase")]
     BadPhase,
-    #[msg("No such game")]
-    NoGame,
     #[msg("Cell already taken")]
     CellTaken,
     #[msg("Not a participant")]
@@ -22,10 +16,6 @@ pub enum ErrorCode {
     Player0BadRow,
     #[msg("Player1: bad row")]
     Player1BadRow,
-    #[msg("Player0 flag already placed")]
-    Player0FlagAlreadyPlaced,
-    #[msg("Player1 flag already placed")]
-    Player1FlagAlreadyPlaced,
     #[msg("Player0 lineup already placed")]
     Player0LineupAlreadyPlaced,
     #[msg("Player1 lineup already placed")]

@@ -1,7 +1,11 @@
-use crate::errors::ErrorCode;
-use crate::events::{Battle, GameOver, MoveMade, TieStarted};
-use crate::state::*;
 use anchor_lang::prelude::*;
+
+use crate::{
+    constants::{HEIGHT, WIDTH},
+    errors::ErrorCode,
+    events::{Battle, MoveMade, TieStarted},
+    state::{BoardCellOwner, Game, Phase, Piece, _x, _y, validate_cell},
+};
 
 #[derive(Accounts)]
 pub struct MovePiece<'info> {
@@ -50,7 +54,7 @@ fn do_move_piece(g: &mut Game, signer: &Signer, from_idx: u8, to_idx: u8) -> Res
 
     validate_cell(from_idx)?;
     validate_cell(to_idx)?;
-    require!(_adjacent_orth(from_idx, to_idx), ErrorCode::InvalidMove);
+    require!(adjacent_orth(from_idx, to_idx), ErrorCode::InvalidMove);
 
     let current = if g.is_player1_turn {
         g.player1
@@ -100,7 +104,7 @@ fn do_move_piece(g: &mut Game, signer: &Signer, from_idx: u8, to_idx: u8) -> Res
             from_idx,
             to_idx
         });
-        return end_turn_or_win(g, !g.is_player1_turn);
+        return g.end_turn_or_win(!g.is_player1_turn);
     }
 
     require!(dest_owner != me_owner, ErrorCode::CannotStackOwnPiece);
@@ -131,7 +135,7 @@ fn do_move_piece(g: &mut Game, signer: &Signer, from_idx: u8, to_idx: u8) -> Res
                 outcome: -1,
             });
 
-            return finish(g, trap_owner_pubkey, "flag_walked_into_trap");
+            return g.finish(trap_owner_pubkey, "flag_walked_into_trap");
         }
 
         emit!(Battle {
@@ -148,7 +152,7 @@ fn do_move_piece(g: &mut Game, signer: &Signer, from_idx: u8, to_idx: u8) -> Res
             to_idx,
         });
 
-        return end_turn_or_win(g, !g.is_player1_turn);
+        return g.end_turn_or_win(!g.is_player1_turn);
     }
 
     if defender == Piece::Flag {
@@ -171,8 +175,7 @@ fn do_move_piece(g: &mut Game, signer: &Signer, from_idx: u8, to_idx: u8) -> Res
             outcome: 1
         });
 
-        return finish(
-            g,
+        return g.finish(
             if me_owner == BoardCellOwner::P0 {
                 g.player0
             } else {
@@ -182,7 +185,7 @@ fn do_move_piece(g: &mut Game, signer: &Signer, from_idx: u8, to_idx: u8) -> Res
         );
     }
 
-    let outcome = rps(attacker, defender);
+    let outcome = Piece::rps(attacker, defender);
 
     if outcome == 0 {
         g.tie_pending = true;
@@ -235,15 +238,18 @@ fn do_move_piece(g: &mut Game, signer: &Signer, from_idx: u8, to_idx: u8) -> Res
         }
     }
 
+    g.end_turn_or_win(!g.is_player1_turn)?;
+
     emit!(MoveMade {
         player: me,
         from_idx,
         to_idx
     });
-    end_turn_or_win(g, !g.is_player1_turn)
+
+    Ok(())
 }
 
-fn _adjacent_orth(from_idx: u8, to_idx: u8) -> bool {
+fn adjacent_orth(from_idx: u8, to_idx: u8) -> bool {
     let fy = _y(from_idx);
     let fx = _x(from_idx);
     let ty = _y(to_idx);
@@ -251,28 +257,4 @@ fn _adjacent_orth(from_idx: u8, to_idx: u8) -> bool {
     let dy = if fy > ty { fy - ty } else { ty - fy };
     let dx = if fx > tx { fx - tx } else { tx - fx };
     (dx + dy) == 1
-}
-
-pub fn end_turn_or_win(g: &mut Game, opponent_turn: bool) -> Result<()> {
-    if g.live_player0 == 0 || g.live_player1 == 0 {
-        let winner = if g.live_player0 == 0 {
-            g.player1
-        } else {
-            g.player0
-        };
-        finish(g, winner, "no_pieces_left")?;
-        return Ok(());
-    }
-    g.is_player1_turn = opponent_turn;
-    Ok(())
-}
-
-fn finish(g: &mut Game, winner: Pubkey, reason: &str) -> Result<()> {
-    g.phase = Phase::Finished as u8;
-    g.winner = Some(winner);
-    emit!(GameOver {
-        winner,
-        reason: reason.to_string()
-    });
-    Ok(())
 }

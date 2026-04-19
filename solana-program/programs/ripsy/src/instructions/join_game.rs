@@ -1,6 +1,10 @@
-use crate::events::GameJoined;
-use crate::{errors::ErrorCode, Game, Phase};
 use anchor_lang::prelude::*;
+
+use crate::{
+    errors::ErrorCode,
+    events::GameJoined,
+    state::{Game, Phase},
+};
 
 #[derive(Accounts)]
 pub struct JoinGame<'info> {

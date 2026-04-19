@@ -1,5 +1,6 @@
-use crate::{Choice, Piece};
 use anchor_lang::prelude::*;
+
+use crate::state::{Choice, Piece};
 
 #[event]
 pub struct GameCreated {
@@ -12,17 +13,11 @@ pub struct GameJoined {
 }
 
 #[event]
-pub struct FlagPlaced {
-    pub id: u32,
-    pub player: Pubkey,
-    pub idx: u8,
-}
-
-#[event]
 pub struct LineupSubmitted {
     pub player: Pubkey,
     pub count: u8,
 }
+
 #[event]
 pub struct GameStarted {
     pub p0: Pubkey,
@@ -35,6 +30,7 @@ pub struct MoveMade {
     pub from_idx: u8,
     pub to_idx: u8,
 }
+
 #[event]
 pub struct Battle {
     pub from_idx: u8,
@@ -43,11 +39,13 @@ pub struct Battle {
     pub defender: Piece,
     pub outcome: i8,
 }
+
 #[event]
 pub struct TieStarted {
     pub from_idx: u8,
     pub to_idx: u8,
 }
+
 #[event]
 pub struct GameOver {
     pub winner: Pubkey,
@@ -59,6 +57,7 @@ pub struct TieChoice {
     pub player: Pubkey,
     pub choice: Choice,
 }
+
 #[event]
 pub struct TieResolved {
     pub outcome: i8,

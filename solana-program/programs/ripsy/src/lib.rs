@@ -1,28 +1,28 @@
+#![allow(unexpected_cfgs)]
+#![allow(deprecated)]
+
 use anchor_lang::prelude::*;
 
 pub mod state;
-pub use state::*;
-
 pub mod instructions;
-pub use instructions::*;
-
 pub mod errors;
 pub mod events;
+pub mod constants;
+
+use instructions::*;
 
 declare_id!("3ueExHyxLr7ahqcBEzse3L21rTaWQ91rLtVnZLsx4ngA");
 
 #[program]
-pub mod solana_icq_rps {
+pub mod ripsy {
     use super::*;
 
     pub fn create_game(ctx: Context<CreateGame>, nonce: [u8; 32]) -> Result<()> {
-        create_game::create_game(ctx, nonce)?;
-        Ok(())
+        instructions::create_game(ctx, nonce)
     }
 
     pub fn join_game(ctx: Context<JoinGame>) -> Result<()> {
-        join_game::join_game(ctx)?;
-        Ok(())
+        instructions::join_game(ctx)
     }
 
     pub fn submit_lineup(
@@ -30,7 +30,7 @@ pub mod solana_icq_rps {
         positions: Vec<u8>,
         pieces: Vec<u8>,
     ) -> Result<()> {
-        submit_lineup::submit_lineup(ctx, positions, pieces)
+        instructions::submit_lineup(ctx, positions, pieces)
     }
     pub fn submit_lineup_xy(
         ctx: Context<SubmitLineupXy>,
@@ -38,11 +38,11 @@ pub mod solana_icq_rps {
         ys: Vec<u8>,
         pieces: Vec<u8>,
     ) -> Result<()> {
-        submit_lineup::submit_lineup_xy(ctx, xs, ys, pieces)
+        instructions::submit_lineup_xy(ctx, xs, ys, pieces)
     }
 
     pub fn move_piece(ctx: Context<MovePiece>, from_idx: u8, to_idx: u8) -> Result<()> {
-        move_piece::move_piece(ctx, from_idx, to_idx)
+        instructions::move_piece(ctx, from_idx, to_idx)
     }
 
     pub fn move_piece_xy(
@@ -52,10 +52,10 @@ pub mod solana_icq_rps {
         to_x: u8,
         to_y: u8,
     ) -> Result<()> {
-        move_piece::move_piece_xy(ctx, from_x, from_y, to_x, to_y)
+        instructions::move_piece_xy(ctx, from_x, from_y, to_x, to_y)
     }
 
     pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
-        choose_weapon::choose_weapon(ctx, choice)
+        instructions::choose_weapon(ctx, choice)
     }
 }

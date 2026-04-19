@@ -1,8 +1,10 @@
-use crate::end_turn_or_win;
-use crate::errors::ErrorCode;
-use crate::events::{Battle, GameOver, MoveMade, TieChoice, TieResolved};
-use crate::state::*;
 use anchor_lang::prelude::*;
+
+use crate::{
+    errors::ErrorCode,
+    events::{TieChoice, TieResolved},
+    state::{BoardCellOwner, Choice, Game, Phase, Piece},
+};
 
 #[derive(Accounts)]
 pub struct ChooseWeapon<'info> {
@@ -41,22 +43,17 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
     let t_from = g.tie_from as usize;
     let t_to = g.tie_to as usize;
 
-    let attacker_owner = if g.is_player1_turn {
-        BoardCellOwner::P1
+    let (attacker_owner, defender_owner) = if g.is_player1_turn {
+        (BoardCellOwner::P1, BoardCellOwner::P0)
     } else {
-        BoardCellOwner::P0
-    };
-    let defender_owner = if attacker_owner == BoardCellOwner::P0 {
-        BoardCellOwner::P1
-    } else {
-        BoardCellOwner::P0
+        (BoardCellOwner::P0, BoardCellOwner::P1)
     };
 
     let attacker_piece = Piece::from(g.board_pieces[t_from]);
 
     let p0_choice = Choice::from(g.choice0);
     let p1_choice = Choice::from(g.choice1);
-    let outcome = rps_choice(p0_choice, p1_choice);
+    let outcome = Choice::rps_choice(p0_choice, p1_choice);
 
     emit!(TieResolved {
         outcome,
@@ -132,5 +129,5 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
     g.choice1 = Choice::None as u8;
 
     let pass_to_opponent = !g.is_player1_turn;
-    end_turn_or_win(g, pass_to_opponent)
+    g.end_turn_or_win(pass_to_opponent)
 }

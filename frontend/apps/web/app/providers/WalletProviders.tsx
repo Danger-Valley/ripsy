@@ -1,26 +1,47 @@
 "use client";
-import { ReactNode, useMemo } from 'react';
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
-import { BackpackWalletAdapter } from '@solana/wallet-adapter-backpack';
-import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
-import '@solana/wallet-adapter-react-ui/styles.css';
+import { ReactNode, useMemo } from "react";
+import { AppProvider } from "@solana/connector/react";
+import { getDefaultConfig, getDefaultMobileConfig } from "@solana/connector/headless";
+
+const appName = "RPS Arena";
 
 export function WalletProviders({ children }: { children: ReactNode }) {
-  const endpoint = 'https://api.devnet.solana.com';
-  const wallets = useMemo(
-    () => [new PhantomWalletAdapter(), new BackpackWalletAdapter(), new SolflareWalletAdapter()],
-    []
+  const connectorConfig = useMemo(
+    () =>
+      getDefaultConfig({
+        appName,
+        appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        autoConnect: true,
+        enableMobile: true,
+        clusters: [
+          {
+            id: "solana:devnet" as const,
+            label: "Devnet",
+            url: "https://api.devnet.solana.com",
+          },
+        ],
+        wallets: {
+          allowList: ["Phantom", "Solflare", "Backpack"],
+          featured: ["Phantom", "Solflare", "Backpack"],
+        },
+      }),
+    [],
   );
+
+  const mobile = useMemo(
+    () =>
+      getDefaultMobileConfig({
+        appName,
+        appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+      }),
+    [],
+  );
+
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>{children}</WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+    <AppProvider connectorConfig={connectorConfig} mobile={mobile}>
+      {children}
+    </AppProvider>
   );
 }
 
 export default WalletProviders;
-

@@ -1,13 +1,13 @@
 "use client";
 import { useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useSolanaWallet } from '../hooks/useSolanaWallet';
+import { WalletMultiButton } from '../components/WalletMultiButton';
 import { useRpsGame } from '@rps/solana-client';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
 export default function DemoPage() {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey } = useSolanaWallet();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [gamePda, setGamePda] = useState<string | null>(null);

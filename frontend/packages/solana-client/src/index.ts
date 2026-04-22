@@ -1,6 +1,12 @@
 import * as anchor from '@coral-xyz/anchor';
 import { AnchorProvider, Program } from '@coral-xyz/anchor';
-import { Connection, PublicKey, Keypair, Transaction, SystemProgram } from '@solana/web3.js';
+import {
+  address,
+  createSolanaRpc,
+  getAddressEncoder,
+  getProgramDerivedAddress,
+} from '@solana/kit';
+import { Connection, PublicKey, SystemProgram } from '@solana/web3.js';
 import { SolanaIcqRps } from './types';
 import {
   WIDTH,
@@ -60,13 +66,19 @@ export class RpsGameClient {
     );
   }
 
-  // Get game PDA (now uses payer's public key as seed)
-  public gamePda(payer: PublicKey, nonce: Buffer): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('game'), payer.toBuffer(), nonce],
-      this.program.programId,
-    );
-    return pda;
+  /** Derives the game PDA using {@link getProgramDerivedAddress} (@solana/kit). */
+  public async gamePda(payer: PublicKey, nonce: Buffer): Promise<PublicKey> {
+    const programAddress = address(this.program.programId.toBase58());
+    const encoder = getAddressEncoder();
+    const [pda] = await getProgramDerivedAddress({
+      programAddress,
+      seeds: [
+        Buffer.from('game'),
+        encoder.encode(address(payer.toBase58())),
+        nonce,
+      ],
+    });
+    return new PublicKey(pda);
   }
 
   // Create a new game
@@ -84,17 +96,18 @@ export class RpsGameClient {
       console.log('Program ID:', this.program.programId.toString());
       console.log('RPC URL:', this.connection.rpcEndpoint);
       
-      // Check wallet balance
-      const balance = await this.connection.getBalance(this.provider.wallet.publicKey!);
-      console.log('Wallet balance:', balance / 1e9, 'SOL');
-      
-      if (balance < 0.01 * 1e9) {
+      const rpc = createSolanaRpc(this.connection.rpcEndpoint);
+      const walletAddr = address(this.provider.wallet.publicKey!.toBase58());
+      const { value: lamports } = await rpc.getBalance(walletAddr).send();
+      console.log('Wallet balance:', Number(lamports) / 1e9, 'SOL');
+
+      if (lamports < BigInt(Math.floor(0.01 * 1e9))) {
         throw new Error('Insufficient SOL balance. Need at least 0.01 SOL for transaction fees.');
       }
       
       const nonce = randomBytes(32);
 
-      const gamePda = this.gamePda(this.provider.wallet.publicKey!, nonce);
+      const gamePda = await this.gamePda(this.provider.wallet.publicKey!, nonce);
       console.log('Game PDA:', gamePda.toString());
 
       // Call the create_game instruction on the smart contract

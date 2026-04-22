@@ -1,13 +1,13 @@
 "use client";
-import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useSolanaWallet } from './hooks/useSolanaWallet';
+import { WalletMultiButton } from './components/WalletMultiButton';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useRpsGame } from '@rps/solana-client';
 
 export default function HomePage() {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey } = useSolanaWallet();
   const router = useRouter();
   const [isCreatingGame, setIsCreatingGame] = useState(false);
   const [isCreatingPrivateGame, setIsCreatingPrivateGame] = useState(false);
@@ -75,6 +75,7 @@ export default function HomePage() {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
+      backgroundColor: '#0e1419',
       gap: 16
     }}>
       <h1 style={{ margin: 0, color: '#66fcf1' }}>xArena</h1>

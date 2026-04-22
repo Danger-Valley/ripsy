@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useTransactionSigner } from '@solana/connector/react';
+import { useConnectorClient } from '@solana/connector';
 import { AnchorProvider } from '@coral-xyz/anchor';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction } from '@solana/web3.js';
 import { RpsGameClient, Phase, Choice, Piece, Owner, isEmptyAddress } from '../index';
 import idl from '../idl/solana_icq_rps.json';
 
@@ -55,94 +56,66 @@ export interface UseRpsGameReturn {
 }
 
 export function useRpsGame(gamePda?: string): UseRpsGameReturn {
-  const { wallet, publicKey, connected, signTransaction, signAllTransactions } = useWallet();
+  const { isConnected, account } = useWallet();
+  const { signer, ready } = useTransactionSigner();
+  const connectorClient = useConnectorClient();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gameClient, setGameClient] = useState<RpsGameClient | null>(null);
 
-  // Initialize game client when wallet connects
+  // Initialize game client when wallet connects (ConnectorKit signer + Kit-backed Connection)
   useEffect(() => {
-    if (connected && wallet && publicKey) {
-      try {
-        console.log('Initializing game client...');
-        console.log('Wallet connected:', connected);
-        console.log('Wallet adapter:', wallet.adapter);
-        console.log('Wallet adapter methods:', {
-          signTransaction: typeof (wallet.adapter as any).signTransaction,
-          signAllTransactions: typeof (wallet.adapter as any).signAllTransactions,
-          connected: wallet.adapter.connected,
-          publicKey: wallet.adapter.publicKey?.toString()
-        });
-        console.log('useWallet methods:', {
-          signTransaction: typeof signTransaction,
-          signAllTransactions: typeof signAllTransactions,
-          connected: connected,
-          publicKey: publicKey?.toString()
-        });
-        console.log('Public key:', publicKey.toString());
-        
-        const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
-        
-        // Create a minimal wallet object using useWallet methods
-        const walletObj = {
-          publicKey: publicKey,
-          signTransaction: async (tx: any) => {
-            console.log('Signing transaction with useWallet...');
-            try {
-              if (!signTransaction) {
-                throw new Error('signTransaction not available');
-              }
-              const signedTx = await signTransaction(tx);
-              console.log('Transaction signed successfully');
-              return signedTx;
-            } catch (error) {
-              console.error('Error signing transaction:', error);
-              throw error;
-            }
-          },
-          signAllTransactions: async (txs: any[]) => {
-            console.log('Signing multiple transactions with useWallet...');
-            try {
-              if (!signAllTransactions) {
-                throw new Error('signAllTransactions not available');
-              }
-              const signedTxs = await signAllTransactions(txs);
-              console.log('All transactions signed successfully');
-              return signedTxs;
-            } catch (error) {
-              console.error('Error signing transactions:', error);
-              throw error;
-            }
-          },
-        };
-        
-        const provider = new AnchorProvider(
-          connection,
-          walletObj as any,
-          { 
-            commitment: 'confirmed',
-            preflightCommitment: 'confirmed'
-          }
-        );
-        
-        console.log('Provider created:', provider);
-        
-        // Use the imported IDL
-        const client = new RpsGameClient(provider, idl as any);
-        setGameClient(client);
-        setError(null);
-        console.log('Game client initialized successfully');
-      } catch (err) {
-        console.error('Failed to initialize game client:', err);
-        setError(`Failed to initialize game client: ${err}`);
-      }
-    } else {
-      console.log('Wallet not ready:', { connected, wallet: !!wallet, publicKey: !!publicKey });
+    if (!isConnected || !account || !ready || !signer) {
+      console.log('Wallet not ready:', {
+        isConnected,
+        account: !!account,
+        ready,
+        signer: !!signer,
+      });
+      setGameClient(null);
+      setGameState(null);
+      return;
+    }
+
+    try {
+      console.log('Initializing game client...');
+      console.log('Connected account:', account);
+
+      const endpoint =
+        connectorClient?.getRpcUrl() ?? 'https://api.devnet.solana.com';
+      const connection = new Connection(endpoint, 'confirmed');
+
+      const walletObj = {
+        publicKey: new PublicKey(account),
+        signTransaction: async (tx: Transaction) => {
+          const signed = await signer.signTransaction(tx);
+          return signed as Transaction;
+        },
+        signAllTransactions: async (txs: Transaction[]) => {
+          const signed = await signer.signAllTransactions(txs);
+          return signed as Transaction[];
+        },
+      };
+
+      const provider = new AnchorProvider(connection, walletObj as any, {
+        commitment: 'confirmed',
+        preflightCommitment: 'confirmed',
+      });
+
+      console.log('Provider created:', provider);
+
+      const client = new RpsGameClient(provider, idl as any);
+      setGameClient(client);
+      setError(null);
+      console.log('Game client initialized successfully');
+    } catch (err) {
+      console.error('Failed to initialize game client:', err);
+      setError(`Failed to initialize game client: ${err}`);
       setGameClient(null);
       setGameState(null);
     }
-  }, [connected, wallet, publicKey]);
+  }, [isConnected, account, ready, signer, connectorClient]);
 
   // Load game state when gamePda changes
   useEffect(() => {
@@ -161,7 +134,6 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
       const gamePdaKey = new PublicKey(gamePda);
       const state = await gameClient.getGameState(gamePdaKey);
       
-      // Print game board for debugging
       console.log('=== LOADING GAME STATE ===');
       console.log('Game PDA:', gamePda);
       
@@ -171,7 +143,6 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
         phase: state.phase as Phase
       });
       
-      // Print the game board after setting state
       console.log('=== GAME STATE LOADED ===');
       console.log('Owners:', state.owners);
       console.log('Pieces:', state.pieces);
@@ -201,7 +172,6 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     try {
       const { gamePda } = await gameClient.createGame();
       
-      // Fetch the actual game state from the smart contract
       await loadGameState();
       
       return { gamePda: gamePda.toString() };
@@ -212,7 +182,7 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, publicKey, loading]);
+  }, [gameClient, loading, loadGameState]);
 
   const joinGame = useCallback(async (gamePda: string) => {
     if (!gameClient) {
@@ -230,7 +200,6 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     } catch (err) {
       console.error('Join game error:', err);
       
-      // Handle specific error cases
       let errorMsg = '';
       if (err instanceof Error) {
         if (err.message.includes('already been processed')) {
@@ -246,7 +215,7 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
         errorMsg = `Failed to join game: ${err}`;
       }
       setError(errorMsg);
-      throw err; // Re-throw the error so the caller can handle it
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -268,7 +237,7 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     } catch (err) {
       const errorMsg = `Failed to place flag: ${err}`;
       setError(errorMsg);
-      throw err; // Re-throw the error so the caller can handle it
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -290,7 +259,7 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     } catch (err) {
       const errorMsg = `Failed to submit lineup: ${err}`;
       setError(errorMsg);
-      throw err; // Re-throw the error so the caller can handle it
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -312,7 +281,7 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     } catch (err) {
       const errorMsg = `Failed to submit custom lineup: ${err}`;
       setError(errorMsg);
-      throw err; // Re-throw the error so the caller can handle it
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -334,7 +303,7 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     } catch (err) {
       const errorMsg = `Failed to move piece: ${err}`;
       setError(errorMsg);
-      throw err; // Re-throw the error so the caller can handle it
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -356,7 +325,7 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     } catch (err) {
       const errorMsg = `Failed to choose weapon: ${err}`;
       setError(errorMsg);
-      throw err; // Re-throw the error so the caller can handle it
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -380,15 +349,19 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     return gameClient?.isValidMove(fromX, fromY, toX, toY, gameState.owners, gameState.pieces) || false;
   }, [gameClient, gameState]);
 
-  // Computed values
-  const isPlayer0 = gameState?.p0?.toString() === publicKey?.toString() && !isEmptyAddress(gameState?.p0?.toString());
-  const isPlayer1 = gameState?.p1?.toString() === publicKey?.toString() && !isEmptyAddress(gameState?.p1?.toString());
+  const isPlayer0 =
+    !!account &&
+    gameState?.p0?.toString() === account &&
+    !isEmptyAddress(gameState?.p0?.toString());
+  const isPlayer1 =
+    !!account &&
+    gameState?.p1?.toString() === account &&
+    !isEmptyAddress(gameState?.p1?.toString());
   const isMyTurn = gameState ? isPlayerTurn(isPlayer1) : false;
 
-  // Debug logging
-  if (gameState && publicKey) {
+  if (gameState && account) {
     console.log('Hook player detection:', {
-      userAddress: publicKey.toString(),
+      userAddress: account,
       p0: gameState.p0?.toString(),
       p1: gameState.p1?.toString(),
       isEmptyP0: isEmptyAddress(gameState.p0?.toString()),

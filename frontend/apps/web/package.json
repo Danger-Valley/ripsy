@@ -11,26 +11,23 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@rive-app/react-canvas": "^4.23.4",
+    "@rive-app/react-canvas": "^4.28.1",
     "@rps/core": "*",
     "@rps/solana-client": "*",
-    "@solana/wallet-adapter-backpack": "^0.1.14",
-    "@solana/wallet-adapter-phantom": "^0.9.28",
-    "@solana/wallet-adapter-react": "^0.15.39",
-    "@solana/wallet-adapter-react-ui": "^0.9.39",
-    "@solana/wallet-adapter-solflare": "^0.6.32",
-    "@solana/web3.js": "^1.98.4",
-    "next": "^15.0.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "sonner": "^1.5.0"
+    "@solana/addresses": "^6.8.0",
+    "@solana/connector": "^0.2.4",
+    "@walletconnect/universal-provider": "^2.23.9",
+    "next": "^15.5.15",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
-    "@types/node": "20.11.17",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "eslint": "8.57.0",
-    "eslint-config-next": "^15.0.0",
-    "typescript": "5.4.5"
+    "@types/node": "^20.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^15.5.15",
+    "typescript": "^5.9.3"
   }
 }

@@ -2,7 +2,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useRiveFile } from '@rive-app/react-canvas';
 import { useParams } from 'next/navigation';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useSolanaWallet } from '../../hooks/useSolanaWallet';
 import RpsFigure, { Weapon, WEAPON_NAMES } from './RpsFigure';
 import WeaponSelectionPopup from './WeaponSelectionPopup';
 import { useRpsGame, Phase, Choice, Piece, Owner, toIdx, toXY } from '@rps/solana-client';
@@ -28,7 +28,7 @@ export default function GamePageSmartContract() {
   // Load shared Rive file once and share across all figures
   const { riveFile, status: riveStatus } = useRiveFile({ src: '/figures/fig1.riv' });
   const { id } = useParams<{ id: string }>();
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey } = useSolanaWallet();
   
   // Use game PDA from URL (id is the game's Public Derived Address)
   const gamePda = id as string;

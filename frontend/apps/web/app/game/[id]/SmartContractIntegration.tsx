@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useSolanaWallet } from '../../hooks/useSolanaWallet';
 import { useRpsGame, Phase, Choice, Piece, Owner, toIdx, toXY } from '@rps/solana-client';
 
 interface SmartContractIntegrationProps {
@@ -12,7 +12,7 @@ export default function SmartContractIntegration({
   gamePda, 
   onGameStateUpdate 
 }: SmartContractIntegrationProps) {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey } = useSolanaWallet();
   const [isInitialized, setIsInitialized] = useState(false);
   
   const {

@@ -183,12 +183,6 @@ export default function SmartContractIntegration({
     return {
       live0: gameState.live0,
       live1: gameState.live1,
-      flagPos0: gameState.flagPos0,
-      flagPos1: gameState.flagPos1,
-      choiceMade0: gameState.choiceMade0,
-      choiceMade1: gameState.choiceMade1,
-      choice0: gameState.choice0,
-      choice1: gameState.choice1
     };
   };
 

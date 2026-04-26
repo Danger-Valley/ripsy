@@ -87,6 +87,10 @@ export const printBoard = (owners: Owner[], pieces: Piece[]) => {
         ? 'F'
         : p === Piece.Trap
         ? 'T'
+        : o === Owner.P0
+        ? '1'
+        : o === Owner.P1
+        ? '2'
         : ' . ';
     return o === Owner.P0 ? ` ${base.toLowerCase()} ` : ` ${base} `;
   };
@@ -113,14 +117,8 @@ export const decodeGame = (raw: any) => {
     pieces,
     live0: Number(raw.livePlayer0),
     live1: Number(raw.livePlayer1),
-    flagPos0: Number(raw.flagPos0),
-    flagPos1: Number(raw.flagPos1),
     tiePending: Boolean(raw.tiePending),
     tieFrom: toXY(Number(raw.tieFrom)),
     tieTo: toXY(Number(raw.tieTo)),
-    choiceMade0: Boolean(raw.choiceMade0),
-    choiceMade1: Boolean(raw.choiceMade1),
-    choice0: Number(raw.choice0) as Choice,
-    choice1: Number(raw.choice1) as Choice,
   };
 };

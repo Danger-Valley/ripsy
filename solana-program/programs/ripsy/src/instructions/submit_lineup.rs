@@ -4,36 +4,34 @@ use crate::{
     constants::{HEIGHT, WIDTH},
     errors::ErrorCode,
     events::{GameStarted, LineupSubmitted},
-    state::{BoardCellOwner, Game, Phase, Piece, _y, is_p0_spawn, is_p1_spawn, validate_cell},
+    state::{BoardCellOwner, Game, Phase, Piece, PlayerData},
 };
 
 #[derive(Accounts)]
-pub struct SubmitLineup<'info> {
-    #[account(mut)]
+pub struct SubmitLineupXY<'info> {
+    #[account(
+        mut,
+        seeds = [b"game", game.player0.as_ref(), game.nonce.as_ref()],
+        bump = game.bump,
+    )]
     pub game: Account<'info, Game>,
-    pub signer: Signer<'info>,
-}
 
-pub fn submit_lineup(
-    ctx: Context<SubmitLineup>,
-    positions: Vec<u8>,
-    pieces: Vec<u8>,
-) -> Result<()> {
-    do_submit_lineup(
-        &mut ctx.accounts.game,
-        &ctx.accounts.signer,
-        &positions,
-        &pieces,
-    )
-}
+    #[account(
+        mut,
+        has_one = game,
+        seeds = [b"player_data", game.key().as_ref(), player.key().as_ref()],
+        bump = player_data.bump,
+    )]
+    pub player_data: Account<'info, PlayerData>,
 
-#[derive(Accounts)]
-pub struct SubmitLineupXy<'info> {
-    pub inner: SubmitLineup<'info>,
+    #[account(
+        constraint = player.key() == game.player0 || player.key() == game.player1 @ErrorCode::NotParticipant,
+    )]
+    pub player: Signer<'info>,
 }
 
 pub fn submit_lineup_xy(
-    ctx: Context<SubmitLineupXy>,
+    ctx: Context<SubmitLineupXY>,
     xs: Vec<u8>,
     ys: Vec<u8>,
     pieces: Vec<u8>,
@@ -48,16 +46,21 @@ pub fn submit_lineup_xy(
         pos.push(ys[i] * WIDTH + xs[i]);
     }
     do_submit_lineup(
-        &mut ctx.accounts.inner.game,
-        &ctx.accounts.inner.signer,
+        &mut ctx.accounts.game,
+        &ctx.accounts.player.key(),
+        &mut ctx.accounts.player_data,
         &pos,
         &pieces,
     )
 }
 
-// -------- core logic --------
-
-fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u8]) -> Result<()> {
+fn do_submit_lineup(
+    g: &mut Game, 
+    player: &Pubkey,
+    player_data: &mut PlayerData,
+    positions: &[u8], 
+    pieces: &[u8]
+) -> Result<()> {
     match g.phase() {
         Phase::Created | Phase::Joined | Phase::LineupP0Set | Phase::LineupP1Set => {}
         _ => return err!(ErrorCode::BadPhase),
@@ -68,9 +71,8 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
     );
     require!(!positions.is_empty(), ErrorCode::LineupPositionsEmpty);
 
-    let s = signer.key();
-    let is_p0 = s == g.player0;
-    let is_p1 = s == g.player1;
+    let is_p0 = player == &g.player0;
+    let is_p1 = player == &g.player1;
     require!(is_p0 || is_p1, ErrorCode::NotParticipant);
 
     if is_p0 {
@@ -86,7 +88,6 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
     }
 
     let mut flag_count = 0usize;
-    //let mut flag_idx: u8 = 0;
     let mut trap_count: usize = 0;
     let mut trap_idx: u8 = 0;
 
@@ -94,7 +95,6 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
         let p = Piece::from(pieces[i]);
         if p == Piece::Flag {
             flag_count += 1;
-            //flag_idx = idx;
         }
         if p == Piece::Trap {
             trap_count += 1;
@@ -106,7 +106,7 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
     require!(trap_count <= 1, ErrorCode::TooManyTraps);
 
     if trap_count == 1 {
-        let trap_y = _y(trap_idx);
+        let trap_y = Game::_y(trap_idx);
 
         if is_p0 {
             require!(trap_y == 4 || trap_y == 5, ErrorCode::TrapBadRow);
@@ -116,17 +116,17 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
     }
 
     for (i, &idx) in positions.iter().enumerate() {
-        validate_cell(idx)?;
+        Game::validate_cell(idx)?;
         let cell = idx as usize;
         require!(
             g.board_cells_owner[cell] == BoardCellOwner::None as u8
-                && g.board_pieces[cell] == Piece::Empty as u8,
+                && player_data.board_pieces[cell] == Piece::Empty as u8,
             ErrorCode::CellTaken
         );
         if is_p0 {
-            require!(is_p0_spawn(idx), ErrorCode::Player0BadRow);
+            require!(Game::is_p0_spawn(idx), ErrorCode::Player0BadRow);
         } else {
-            require!(is_p1_spawn(idx), ErrorCode::Player1BadRow);
+            require!(Game::is_p1_spawn(idx), ErrorCode::Player1BadRow);
         }
 
         let p = Piece::from(pieces[i]);
@@ -143,19 +143,11 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
         } else {
             BoardCellOwner::P1 as u8
         };
-        g.board_pieces[cell] = p as u8;
+        player_data.board_pieces[cell] = p as u8;
         if is_p0 {
             g.live_player0 = g.live_player0.saturating_add(1);
         } else {
             g.live_player1 = g.live_player1.saturating_add(1);
-        }
-
-        if p == Piece::Flag {
-            if is_p0 {
-                g.flag_pos0 = idx;
-            } else {
-                g.flag_pos1 = idx;
-            }
         }
     }
 
@@ -182,7 +174,7 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
     }
 
     emit!(LineupSubmitted {
-        player: s,
+        player: *player,
         count: positions.len() as u8
     });
     if g.phase() == Phase::Active {
@@ -192,5 +184,6 @@ fn do_submit_lineup(g: &mut Game, signer: &Signer, positions: &[u8], pieces: &[u
             p1: g.player1
         });
     }
+
     Ok(())
 }

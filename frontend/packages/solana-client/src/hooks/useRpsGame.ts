@@ -14,15 +14,9 @@ export interface GameState {
   pieces: Piece[];
   live0: number;
   live1: number;
-  flagPos0: number;
-  flagPos1: number;
   tiePending: boolean;
   tieFrom: { x: number; y: number };
   tieTo: { x: number; y: number };
-  choiceMade0: boolean;
-  choiceMade1: boolean;
-  choice0: Choice;
-  choice1: Choice;
   p0: string;
   p1: string;
   winner: string | null;

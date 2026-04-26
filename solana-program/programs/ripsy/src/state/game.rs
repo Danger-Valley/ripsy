@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::constants::{CELLS, WIDTH};
 use crate::errors::ErrorCode;
 use crate::events::GameOver;
-use crate::state::{BoardCellOwner, Choice, Phase, Piece};
+use crate::state::{BoardCellOwner, Phase, Piece};
 
 #[account]
 #[derive(InitSpace)]
@@ -20,29 +20,20 @@ pub struct Game {
     pub live_player0: u16,
     pub live_player1: u16,
 
-    pub flag_pos0: u8,
-    pub flag_pos1: u8,
-
-    // tie state
     pub tie_pending: bool,
     pub tie_from: u8,
     pub tie_to: u8,
-    pub choice_made0: bool,
-    pub choice_made1: bool,
-    pub choice0: u8,
-    pub choice1: u8,
 
     pub nonce: [u8; 32],
+
+    pub bump: u8,
 }
 
 impl Game {
-    pub fn phase(&self) -> Phase {
-        Phase::from(self.phase)
-    }
-
-    pub fn init_board(&mut self, payer: &Pubkey, nonce: [u8; 32]) {
-        self.player0 = *payer;
+    pub fn init(&mut self, player: &Pubkey, nonce: [u8; 32], bump: u8) {
+        self.player0 = *player;
         self.nonce = nonce;
+        self.bump = bump;
 
         self.player1 = Pubkey::default();
         self.winner = None;
@@ -52,18 +43,16 @@ impl Game {
         self.board_pieces = [Piece::Empty as u8; CELLS];
         self.live_player0 = 0;
         self.live_player1 = 0;
-        self.flag_pos0 = 255;
-        self.flag_pos1 = 255;
         self.tie_pending = false;
         self.tie_from = 0;
         self.tie_to = 0;
-        self.choice_made0 = false;
-        self.choice_made1 = false;
-        self.choice0 = Choice::None as u8;
-        self.choice1 = Choice::None as u8;
     }
 
-    pub fn end_turn_or_win(&mut self, opponent_turn: bool) -> Result<()> {
+    pub fn phase(&self) -> Phase {
+        Phase::from(self.phase)
+    }
+
+    pub fn end_turn_or_win(&mut self) -> Result<()> {
         if self.live_player0 == 0 || self.live_player1 == 0 {
             let winner = if self.live_player0 == 0 {
                 self.player1
@@ -71,9 +60,11 @@ impl Game {
                 self.player0
             };
             self.finish(winner, "no_pieces_left")?;
+
             return Ok(());
         }
-        self.is_player1_turn = opponent_turn;
+
+        self.is_player1_turn = !self.is_player1_turn;
 
         Ok(())
     }
@@ -85,25 +76,39 @@ impl Game {
             winner,
             reason: reason.to_string()
         });
+
         Ok(())
+    }
+
+    pub fn validate_cell(idx: u8) -> Result<()> {
+        require!((idx as usize) < CELLS, ErrorCode::BadCell);
+        Ok(())
+    }
+
+    pub fn _y(idx: u8) -> u8 {
+        idx / WIDTH
+    }
+    pub fn _x(idx: u8) -> u8 {
+        idx % WIDTH
+    }
+
+    pub fn is_p1_spawn(idx: u8) -> bool {
+        Self::_y(idx) <= 1
+    }
+
+    pub fn is_p0_spawn(idx: u8) -> bool {
+        Self::_y(idx) >= 4
+    }
+
+    pub fn adjacent_orth(from_idx: u8, to_idx: u8) -> bool {
+        let fy = Self::_y(from_idx);
+        let fx = Self::_x(from_idx);
+        let ty = Self::_y(to_idx);
+        let tx = Self::_x(to_idx);
+        let dy = if fy > ty { fy - ty } else { ty - fy };
+        let dx = if fx > tx { fx - tx } else { tx - fx };
+        (dx + dy) == 1
     }
 }
 
-pub fn validate_cell(idx: u8) -> Result<()> {
-    require!((idx as usize) < CELLS, ErrorCode::BadCell);
-    Ok(())
-}
 
-pub fn _y(idx: u8) -> u8 {
-    idx / WIDTH
-}
-pub fn _x(idx: u8) -> u8 {
-    idx % WIDTH
-}
-
-pub fn is_p1_spawn(idx: u8) -> bool {
-    _y(idx) <= 1
-}
-pub fn is_p0_spawn(idx: u8) -> bool {
-    _y(idx) >= 4
-}

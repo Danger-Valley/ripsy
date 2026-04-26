@@ -12,3 +12,6 @@ pub use phase::*;
 
 pub mod piece;
 pub use piece::*;
+
+pub mod player_data;
+pub use player_data::*;

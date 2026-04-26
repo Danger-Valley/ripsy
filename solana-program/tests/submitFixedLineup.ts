@@ -8,7 +8,7 @@ import {
 } from './cells';
 
 export const submitFixedLineup = async (): Promise<GameSetupReturn> => {
-  const { program, p0, p1, game } = await setupGame();
+  const { program, p0, p1, game, playerData0, playerData1 } = await setupGame();
   console.log('setup done');
 
   // lineup p1
@@ -22,7 +22,7 @@ export const submitFixedLineup = async (): Promise<GameSetupReturn> => {
 
   await program.methods
     .submitLineupXy(u8(xs1), u8(ys1), u8(pcs1))
-    .accountsStrict({ inner: { game, signer: p1.publicKey } })
+    .accountsStrict({ game, playerData: playerData1, player: p1.publicKey })
     .signers([p1])
     .rpc();
 
@@ -30,5 +30,5 @@ export const submitFixedLineup = async (): Promise<GameSetupReturn> => {
   let gDec = decodeGame(g);
   printBoard(gDec.owners, gDec.pieces);
 
-  return { program, p0, p1, game };
+  return { program, p0, p1, game, playerData0, playerData1 };
 };

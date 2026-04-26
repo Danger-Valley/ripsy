@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+
 pub enum Choice {
     None = 0,
     Rock = 1,
@@ -21,6 +22,10 @@ impl Choice {
             (Paper, Rock) => 1,
             _ => -1,
         }
+    }
+
+    pub fn is_selected(&self) -> bool {
+        !matches!(self, Choice::None)
     }
 }
 

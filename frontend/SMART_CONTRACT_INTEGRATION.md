@@ -70,8 +70,6 @@ interface GameState {
   pieces: Piece[]
   live0: number
   live1: number
-  flagPos0: number
-  flagPos1: number
   tiePending: boolean
   // ... more fields
 }

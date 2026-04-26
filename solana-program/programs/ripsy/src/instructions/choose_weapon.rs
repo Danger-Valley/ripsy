@@ -2,57 +2,80 @@ use anchor_lang::prelude::*;
 
 use crate::{
     errors::ErrorCode,
-    events::{TieChoice, TieResolved},
-    state::{BoardCellOwner, Choice, Game, Phase, Piece},
+    events::TieResolved,
+    state::{BoardCellOwner, Choice, Game, Phase, Piece, PlayerData},
 };
 
 #[derive(Accounts)]
 pub struct ChooseWeapon<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"game", game.player0.as_ref(), game.nonce.as_ref()],
+        bump = game.bump,
+    )]
     pub game: Account<'info, Game>,
-    pub signer: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = game,
+        seeds = [b"player_data", game.key().as_ref(), opponent.key().as_ref()],
+        bump = opponent_data.bump,
+    )]
+    pub opponent_data: Account<'info, PlayerData>,
+
+    #[account(
+        constraint = player.key() == game.player0 || player.key() == game.player1 @ErrorCode::NotParticipant,
+        constraint = opponent.key() != player.key(),
+    )]
+    pub opponent: SystemAccount<'info>,
+
+    #[account(
+        mut,
+        has_one = game,
+        seeds = [b"player_data", game.key().as_ref(), player.key().as_ref()],
+        bump = player_data.bump,
+    )]
+    pub player_data: Account<'info, PlayerData>,
+
+    #[account(
+        constraint = player.key() == game.player0 || player.key() == game.player1 @ErrorCode::NotParticipant,
+    )]
+    pub player: Signer<'info>,
 }
 
 pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
     let g = &mut ctx.accounts.game;
-    let me = ctx.accounts.signer.key();
+    let player = ctx.accounts.player.key();
+    let player_data = &mut ctx.accounts.player_data;
+    let opponent_data = &mut ctx.accounts.opponent_data;
 
     require!(g.phase() == Phase::Active, ErrorCode::GameNotActive);
     require!(g.tie_pending, ErrorCode::NoTiePending);
 
-    if me == g.player0 {
-        require!(!g.choice_made0, ErrorCode::AlreadyChose);
-        g.choice0 = Choice::from(choice) as u8;
-        g.choice_made0 = true;
-    } else if me == g.player1 {
-        require!(!g.choice_made1, ErrorCode::AlreadyChose);
-        g.choice1 = Choice::from(choice) as u8;
-        g.choice_made1 = true;
-    } else {
-        return err!(ErrorCode::NotParticipant);
-    }
-    emit!(TieChoice {
-        player: me,
-        choice: Choice::from(choice)
-    });
+    require!(!player_data.choice.is_selected(), ErrorCode::AlreadyChose);
+    player_data.choice = Choice::from(choice);
 
-    if !(g.choice_made0 && g.choice_made1) {
+    if !(player_data.choice.is_selected() && opponent_data.choice.is_selected()) {
         return Ok(());
     }
 
     let t_from = g.tie_from as usize;
     let t_to = g.tie_to as usize;
 
-    let (attacker_owner, defender_owner) = if g.is_player1_turn {
-        (BoardCellOwner::P1, BoardCellOwner::P0)
+    let is_p1 = player == g.player1;
+    let is_attacker_p1 = if g.board_cells_owner[t_from] == BoardCellOwner::P1 as u8 {
+        true
     } else {
-        (BoardCellOwner::P0, BoardCellOwner::P1)
+        false
+    };
+    let is_attacker = is_attacker_p1 == is_p1;
+
+    let (p0_choice, p1_choice) = if is_attacker {
+        (player_data.choice, opponent_data.choice)
+    } else {
+        (opponent_data.choice, player_data.choice)
     };
 
-    let attacker_piece = Piece::from(g.board_pieces[t_from]);
-
-    let p0_choice = Choice::from(g.choice0);
-    let p1_choice = Choice::from(g.choice1);
     let outcome = Choice::rps_choice(p0_choice, p1_choice);
 
     emit!(TieResolved {
@@ -61,73 +84,67 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
         p1_choice
     });
 
-    let attacker_is_p1 = g.is_player1_turn;
-
-    let attacker_wins = if attacker_is_p1 {
-        outcome == -1
-    } else {
-        outcome == 1
-    };
     let is_tie = outcome == 0;
-
-    if attacker_wins {
-        if defender_owner == BoardCellOwner::P0 {
-            g.live_player0 = g.live_player0.saturating_sub(1);
+    if !is_tie {
+        let attacker_wins = if is_attacker_p1 {
+            outcome == -1
         } else {
-            g.live_player1 = g.live_player1.saturating_sub(1);
-        }
+            outcome == 1
+        };
 
-        g.board_cells_owner[t_to] = BoardCellOwner::None as u8;
-        g.board_pieces[t_to] = Piece::Empty as u8;
-
-        g.board_cells_owner[t_from] = BoardCellOwner::None as u8;
-        g.board_pieces[t_from] = Piece::Empty as u8;
-
-        g.board_cells_owner[t_to] = attacker_owner as u8;
-        g.board_pieces[t_to] = attacker_piece as u8;
-
-        if attacker_piece == Piece::Flag {
-            if attacker_owner == BoardCellOwner::P0 {
-                g.flag_pos0 = g.tie_to;
+        if attacker_wins {
+            g.board_cells_owner[t_to] = if is_attacker_p1 {
+                BoardCellOwner::P1 as u8
             } else {
-                g.flag_pos1 = g.tie_to;
+                BoardCellOwner::P0 as u8
+            };
+
+            let attacker_piece = if is_attacker {
+                player_data.choice
+            } else {
+                opponent_data.choice
+            };
+
+            if is_attacker {
+                player_data.board_pieces[t_to] = attacker_piece as u8;
+                opponent_data.board_pieces[t_to] = Piece::Empty as u8;
+            } else {
+                opponent_data.board_pieces[t_to] = attacker_piece as u8;
+                player_data.board_pieces[t_to] = Piece::Empty as u8;
+            }
+
+            g.board_pieces[t_to] = attacker_piece as u8;
+
+            if is_attacker_p1 {
+                g.live_player0 = g.live_player0.saturating_sub(1);
+            } else {
+                g.live_player1 = g.live_player1.saturating_sub(1);
+            }
+        } else {
+            if is_attacker {
+                g.board_pieces[t_to] = opponent_data.board_pieces[t_to];
+            } else {
+                g.board_pieces[t_to] = player_data.board_pieces[t_to];
+            }
+
+            if is_attacker_p1 {
+                g.live_player1 = g.live_player1.saturating_sub(1);
+            } else {
+                g.live_player0 = g.live_player0.saturating_sub(1);
             }
         }
-    } else if is_tie {
+
         g.board_cells_owner[t_from] = BoardCellOwner::None as u8;
+
         g.board_pieces[t_from] = Piece::Empty as u8;
+        player_data.board_pieces[t_from] = Piece::Empty as u8;
+        opponent_data.board_pieces[t_from] = Piece::Empty as u8;
 
-        g.board_cells_owner[t_to] = BoardCellOwner::None as u8;
-        g.board_pieces[t_to] = Piece::Empty as u8;
-
-        if attacker_owner == BoardCellOwner::P0 {
-            g.live_player0 = g.live_player0.saturating_sub(1);
-        } else {
-            g.live_player1 = g.live_player1.saturating_sub(1);
-        }
-        if defender_owner == BoardCellOwner::P0 {
-            g.live_player0 = g.live_player0.saturating_sub(1);
-        } else {
-            g.live_player1 = g.live_player1.saturating_sub(1);
-        }
-    } else {
-        // програв атакер — прибрати його фігуру
-        g.board_cells_owner[t_from] = BoardCellOwner::None as u8;
-        g.board_pieces[t_from] = Piece::Empty as u8;
-
-        if attacker_owner == BoardCellOwner::P0 {
-            g.live_player0 = g.live_player0.saturating_sub(1);
-        } else {
-            g.live_player1 = g.live_player1.saturating_sub(1);
-        }
+        g.tie_pending = false;
     }
 
-    g.tie_pending = false;
-    g.choice_made0 = false;
-    g.choice_made1 = false;
-    g.choice0 = Choice::None as u8;
-    g.choice1 = Choice::None as u8;
+    player_data.choice = Choice::None;
+    opponent_data.choice = Choice::None;
 
-    let pass_to_opponent = !g.is_player1_turn;
-    g.end_turn_or_win(pass_to_opponent)
+    g.end_turn_or_win()
 }

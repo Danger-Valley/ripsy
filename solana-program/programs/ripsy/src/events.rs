@@ -53,12 +53,6 @@ pub struct GameOver {
 }
 
 #[event]
-pub struct TieChoice {
-    pub player: Pubkey,
-    pub choice: Choice,
-}
-
-#[event]
 pub struct TieResolved {
     pub outcome: i8,
     pub p0_choice: Choice,

@@ -10,6 +10,8 @@ export interface GameSetupReturn {
   program: anchor.Program<any>;
   p0: anchor.web3.PublicKey;
   p1: anchor.web3.Keypair;
+  playerData0: anchor.web3.PublicKey;
+  playerData1: anchor.web3.PublicKey;
   game: anchor.web3.PublicKey;
 }
 
@@ -31,12 +33,23 @@ export const setupGame = async (): Promise<GameSetupReturn> => {
     program.programId,
   );
 
+  const [playerData0] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from('player_data'), game.toBuffer(), p0.toBuffer()],
+    program.programId,
+  );
+
+  const [playerData1] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from('player_data'), game.toBuffer(), p1.publicKey.toBuffer()],
+    program.programId,
+  );
+
   // create
   await program.methods
     .createGame([...nonce])
     .accountsStrict({
       game,
-      payer: p0,
+      player: p0,
+      playerData: playerData0,
       systemProgram: anchor.web3.SystemProgram.programId,
     })
     .rpc();
@@ -52,15 +65,24 @@ export const setupGame = async (): Promise<GameSetupReturn> => {
 
   await program.methods
     .submitLineupXy(u8(xs0), u8(ys0), u8(pcs0))
-    .accountsStrict({ inner: { game, signer: p0 } })
+    .accountsStrict({
+      game, 
+      player: p0,
+      playerData: playerData0,
+    })
     .rpc();
 
   // join
   await program.methods
     .joinGame()
-    .accountsStrict({ game, joiner: p1.publicKey })
+    .accountsStrict({
+      game,
+      player: p1.publicKey,
+      playerData: playerData1,
+      systemProgram: anchor.web3.SystemProgram.programId,
+    })
     .signers([p1])
     .rpc();
 
-  return { program, p0, p1, game };
+  return { program, p0, p1, game, playerData0, playerData1 };
 };

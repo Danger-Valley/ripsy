@@ -25,15 +25,8 @@ pub mod ripsy {
         instructions::join_game(ctx)
     }
 
-    pub fn submit_lineup(
-        ctx: Context<SubmitLineup>,
-        positions: Vec<u8>,
-        pieces: Vec<u8>,
-    ) -> Result<()> {
-        instructions::submit_lineup(ctx, positions, pieces)
-    }
     pub fn submit_lineup_xy(
-        ctx: Context<SubmitLineupXy>,
+        ctx: Context<SubmitLineupXY>,
         xs: Vec<u8>,
         ys: Vec<u8>,
         pieces: Vec<u8>,
@@ -41,12 +34,8 @@ pub mod ripsy {
         instructions::submit_lineup_xy(ctx, xs, ys, pieces)
     }
 
-    pub fn move_piece(ctx: Context<MovePiece>, from_idx: u8, to_idx: u8) -> Result<()> {
-        instructions::move_piece(ctx, from_idx, to_idx)
-    }
-
     pub fn move_piece_xy(
-        ctx: Context<MovePiece>,
+        ctx: Context<MovePieceXY>,
         from_x: u8,
         from_y: u8,
         to_x: u8,

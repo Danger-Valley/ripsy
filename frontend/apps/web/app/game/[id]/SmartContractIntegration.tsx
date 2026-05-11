@@ -21,7 +21,6 @@ export default function SmartContractIntegration({
     error,
     createGame,
     joinGame,
-    placeFlag,
     submitLineup,
     movePiece,
     chooseWeapon,
@@ -64,16 +63,6 @@ export default function SmartContractIntegration({
 
   // Smart contract actions that can be called from the parent component
   const smartContractActions = {
-    placeFlag: async (x: number, y: number) => {
-      try {
-        await placeFlag(x, y);
-        await refreshGameState();
-      } catch (err) {
-        console.error('Failed to place flag:', err);
-        throw err;
-      }
-    },
-    
     submitLineup: async (isP0: boolean, flagPos: number) => {
       try {
         await submitLineup(isP0, flagPos);

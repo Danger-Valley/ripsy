@@ -40,7 +40,6 @@ export default function GamePageSmartContract() {
     error,
     createGame,
     joinGame,
-    placeFlag,
     submitLineup,
     movePiece,
     chooseWeapon,
@@ -295,9 +294,6 @@ export default function GamePageSmartContract() {
         break;
       case Phase.Joined:
         // Show flag placement UI
-        break;
-      case Phase.FlagsPlaced:
-        // Show lineup submission UI
         break;
       case Phase.Active:
         // Game is active, show game board

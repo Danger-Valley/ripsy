@@ -48,7 +48,6 @@ The `@rps/solana-client` package provides:
 // Game lifecycle
 await createGame()
 await joinGame(gameId)
-await placeFlag(x, y)
 await submitLineup(isP0, flagPos)
 
 // Gameplay
@@ -79,9 +78,8 @@ interface GameState {
 
 1. **Created** - Game created, waiting for second player
 2. **Joined** - Both players joined, place flags
-3. **FlagsPlaced** - Flags placed, submit lineups
-4. **Active** - Game active, make moves
-5. **Finished** - Game completed
+3. **Active** - Game active, make moves
+4. **Finished** - Game completed
 
 ## 🔄 Integration Examples
 
@@ -170,7 +168,6 @@ const { gameState, ... } = useRipsyGame(gameId, { debug: true });
 ### RpsGameClient Methods
 - `createGame()` - Create new game
 - `joinGame(gamePda)` - Join existing game
-- `placeFlag(gamePda, x, y)` - Place flag
 - `submitLineup(gamePda, isP0, flagPos)` - Submit lineup
 - `movePiece(gamePda, fromX, fromY, toX, toY)` - Move piece
 - `chooseWeapon(gamePda, choice)` - Choose weapon for tie
@@ -183,7 +180,6 @@ const { gameState, ... } = useRipsyGame(gameId, { debug: true });
 - `error` - Error message
 - `createGame()` - Create game action
 - `joinGame(gameId)` - Join game action
-- `placeFlag(x, y)` - Place flag action
 - `submitLineup(isP0, flagPos)` - Submit lineup action
 - `movePiece(fromX, fromY, toX, toY)` - Move piece action
 - `chooseWeapon(choice)` - Choose weapon action

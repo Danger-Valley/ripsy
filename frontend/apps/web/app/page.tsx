@@ -165,7 +165,7 @@ export default function HomePage() {
           <p>1. Connect your Solana wallet</p>
           <p>2. Click &quot;Start Game&quot; to create a new game</p>
           <p>3. Share the game ID with friends to invite them</p>
-          <p>4. Place your flag and set up your pieces</p>
+          <p>4. Set up your pieces</p>
           <p>5. Battle with Rock, Paper, Scissors strategy!</p>
         </div>
       </div>

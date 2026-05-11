@@ -8,7 +8,7 @@ import { aD } from 'node_modules/@solana/connector/dist/standard-shim-BB0Lkg_C';
 export const RipsyProvider = ({ children }: { children: ReactNode }) => {
   const { address } = useAccount();
   const connectorClient = useConnectorClient();
-  const { signer, ready } = useTransactionSigner();
+  const { signer } = useTransactionSigner();
   const { id: gamePda } = useParams();
 
   const gameClient = useMemo(() => {
@@ -16,7 +16,7 @@ export const RipsyProvider = ({ children }: { children: ReactNode }) => {
     console.log("User address: ", address)
 
     return new RipsyGameClient(connectorClient, address, signer, gamePda as string);
-  }, [address, connectorClient, signer, ready, gamePda]);
+  }, [address, connectorClient, signer, gamePda]);
 
   return (
     <RipsyContext.Provider value={{ gameClient }}>

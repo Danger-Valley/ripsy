@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useSolanaWallet } from '../../hooks/useSolanaWallet';
-import { useRpsGame, Phase, Choice, Piece, Owner, toIdx, toXY } from '@rps/solana-client';
+import { useRipsyGame, Phase, Choice, Piece, Owner, toIdx, toXY } from '@rps/solana-client';
 
 interface SmartContractIntegrationProps {
   gamePda: string;
@@ -32,7 +32,7 @@ export default function SmartContractIntegration({
     isPlayer0,
     isPlayer1,
     isMyTurn,
-  } = useRpsGame(gamePda);
+  } = useRipsyGame(gamePda);
 
   // Initialize game when component mounts
   useEffect(() => {

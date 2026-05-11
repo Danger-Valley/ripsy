@@ -18,7 +18,8 @@
     "@solana/addresses": "^6.8.0",
     "@solana/connector": "^0.2.4",
     "@solana/kit": "^6.8.0",
-    "@solana/web3.js": "^1.98.4",
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.13.0",
+    "@solana/wallet-adapter-react": "^0.15.39",
     "sonner": "^2.0.7"
   },
   "peerDependencies": {

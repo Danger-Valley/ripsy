@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   useWalletConnectors,
   useConnectWallet,
@@ -16,6 +16,17 @@ export function WalletMultiButton({ style }: Props) {
   const connectors = useWalletConnectors();
   const { connect, isConnecting, error, resetError } = useConnectWallet();
   const { disconnect, isDisconnecting } = useDisconnectWallet();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!mounted) {
+    return (
+      <button type="button" disabled style={style}>
+        Connect Wallet
+      </button>
+    );
+  }
 
   if (isConnected && account) {
     const short = `${account.slice(0, 4)}…${account.slice(-4)}`;

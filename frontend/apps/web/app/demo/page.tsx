@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useSolanaWallet } from '../hooks/useSolanaWallet';
 import { WalletMultiButton } from '../components/WalletMultiButton';
-import { useRpsGame } from '@rps/solana-client';
+import { useRipsyGame } from '@rps/solana-client';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
@@ -14,7 +14,7 @@ export default function DemoPage() {
   const [isCreating, setIsCreating] = useState(false);
   
   // Initialize smart contract integration
-  const { createGame, loading, error } = useRpsGame();
+  const { createGame, loading, error } = useRipsyGame();
 
   const handleCreateGame = async () => {
     if (!connected || !publicKey) {

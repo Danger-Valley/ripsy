@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useSolanaWallet } from '../../../hooks/useSolanaWallet';
-import { useRpsGame } from '@rps/solana-client';
+import { useRipsyGame } from '@rps/solana-client';
 import { useParams } from 'next/navigation';
 
 export default function TestPage() {
@@ -17,7 +17,7 @@ export default function TestPage() {
     createGame, 
     joinGame,
     refreshGameState 
-  } = useRpsGame(gamePda);
+  } = useRipsyGame(gamePda);
 
   const addTestResult = (result: string) => {
     setTestResults(prev => [...prev, `${new Date().toLocaleTimeString()}: ${result}`]);

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useSolanaWallet } from '../../hooks/useSolanaWallet';
-import { useRpsGame } from '@rps/solana-client';
+import { useRipsyGame } from '@rps/solana-client';
 
 export default function TestSmartContractIntegration() {
   const { connected, publicKey } = useSolanaWallet();
@@ -15,7 +15,7 @@ export default function TestSmartContractIntegration() {
     createGame, 
     joinGame,
     refreshGameState 
-  } = useRpsGame('test-game-1');
+  } = useRipsyGame('test-game-1');
 
   const addTestResult = (result: string) => {
     setTestResults(prev => [...prev, `${new Date().toLocaleTimeString()}: ${result}`]);

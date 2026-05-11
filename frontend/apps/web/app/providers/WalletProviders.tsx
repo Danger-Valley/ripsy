@@ -2,6 +2,7 @@
 import { ReactNode, useMemo } from "react";
 import { AppProvider } from "@solana/connector/react";
 import { getDefaultConfig, getDefaultMobileConfig } from "@solana/connector/headless";
+import { RipsyProvider } from "./RipsyProvider";
 
 const appName = "RPS Arena";
 
@@ -21,8 +22,8 @@ export function WalletProviders({ children }: { children: ReactNode }) {
           },
         ],
         wallets: {
-          allowList: ["Phantom", "Solflare", "Backpack"],
-          featured: ["Phantom", "Solflare", "Backpack"],
+          allowList: ["Phantom"], //, "Solflare", "Backpack"
+          featured: ["Phantom"],
         },
       }),
     [],
@@ -39,7 +40,9 @@ export function WalletProviders({ children }: { children: ReactNode }) {
 
   return (
     <AppProvider connectorConfig={connectorConfig} mobile={mobile}>
-      {children}
+      <RipsyProvider>
+        {children}
+      </RipsyProvider>
     </AppProvider>
   );
 }

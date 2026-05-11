@@ -1,19 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet, useTransactionSigner } from '@solana/connector/react';
 import { useConnectorClient } from '@solana/connector';
-import { AnchorProvider } from '@coral-xyz/anchor';
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
-import { RpsGameClient, Phase, Choice, Piece, Owner, isEmptyAddress } from '../index';
-import idl from '../idl/solana_icq_rps.json';
+import * as anchor from '@coral-xyz/anchor';
+import { RipsyGameClient, Phase, Choice, Piece, Owner, isEmptyAddress } from '../index';
+import { useRipsyContext } from '../context';
 
 export interface GameState {
-  gamePda: PublicKey;
+  gamePda: anchor.web3.PublicKey;
   phase: Phase;
   isP1Turn: boolean;
   owners: Owner[];
   pieces: Piece[];
   live0: number;
   live1: number;
+  attacker: number,
+  defender: number,
+  outcome: number,
+  playerChoice: Choice;
   tiePending: boolean;
   tieFrom: { x: number; y: number };
   tieTo: { x: number; y: number };
@@ -22,41 +25,46 @@ export interface GameState {
   winner: string | null;
 }
 
-export interface UseRpsGameReturn {
+export interface useRipsyGameReturn {
   // Game state
   gameState: GameState | null;
   loading: boolean;
   error: string | null;
-  
+
   // Game actions
   createGame: () => Promise<{ gamePda: string }>;
   joinGame: (gamePda: string) => Promise<void>;
-  placeFlag: (x: number, y: number) => Promise<void>;
   submitLineup: (isP0: boolean, flagPos: number) => Promise<void>;
   submitCustomLineup: (xs: number[], ys: number[], pieces: number[]) => Promise<void>;
   movePiece: (fromX: number, fromY: number, toX: number, toY: number) => Promise<void>;
   chooseWeapon: (choice: Choice) => Promise<void>;
-  
+  finishGame: () => Promise<void>;
+  finishPlayerData: () => Promise<void>;
+
   // Game utilities
   refreshGameState: () => Promise<void>;
   isPlayerTurn: (isPlayer1: boolean) => boolean;
   getAvailableMoves: (fromX: number, fromY: number) => { x: number; y: number }[];
   isValidMove: (fromX: number, fromY: number, toX: number, toY: number) => boolean;
-  
+  isPlayerChoice: () => boolean;
+  isInitialized: boolean;
+
   // Game info
   isPlayer0: boolean;
   isPlayer1: boolean;
   isMyTurn: boolean;
 }
 
-export function useRpsGame(gamePda?: string): UseRpsGameReturn {
+export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
   const { isConnected, account } = useWallet();
   const { signer, ready } = useTransactionSigner();
   const connectorClient = useConnectorClient();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [gameClient, setGameClient] = useState<RpsGameClient | null>(null);
+  const { gameClient } = useRipsyContext();
+  const [isInitialized, setIsInitialized] = useState(false);
+  const initializingRef = useRef(false);
 
   // Initialize game client when wallet connects (ConnectorKit signer + Kit-backed Connection)
   useEffect(() => {
@@ -67,82 +75,69 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
         ready,
         signer: !!signer,
       });
-      setGameClient(null);
+
       setGameState(null);
       return;
     }
-
-    try {
-      console.log('Initializing game client...');
-      console.log('Connected account:', account);
-
-      const endpoint =
-        connectorClient?.getRpcUrl() ?? 'https://api.devnet.solana.com';
-      const connection = new Connection(endpoint, 'confirmed');
-
-      const walletObj = {
-        publicKey: new PublicKey(account),
-        signTransaction: async (tx: Transaction) => {
-          const signed = await signer.signTransaction(tx);
-          return signed as Transaction;
-        },
-        signAllTransactions: async (txs: Transaction[]) => {
-          const signed = await signer.signAllTransactions(txs);
-          return signed as Transaction[];
-        },
-      };
-
-      const provider = new AnchorProvider(connection, walletObj as any, {
-        commitment: 'confirmed',
-        preflightCommitment: 'confirmed',
-      });
-
-      console.log('Provider created:', provider);
-
-      const client = new RpsGameClient(provider, idl as any);
-      setGameClient(client);
-      setError(null);
-      console.log('Game client initialized successfully');
-    } catch (err) {
-      console.error('Failed to initialize game client:', err);
-      setError(`Failed to initialize game client: ${err}`);
-      setGameClient(null);
-      setGameState(null);
-    }
   }, [isConnected, account, ready, signer, connectorClient]);
 
-  // Load game state when gamePda changes
   useEffect(() => {
-    if (gameClient && gamePda) {
+    if (!gameClient || !gamePda) return;
+    if (initializingRef.current) return;
+
+    initializingRef.current = true;
+    setIsInitialized(false);
+    setError(null);
+
+    gameClient
+      .initGame(new anchor.web3.PublicKey(gamePda))
+      .then(() => setIsInitialized(true))
+      .catch((err) => {
+        setError(`Failed to initialize game session: ${err}`);
+        setIsInitialized(false);
+        initializingRef.current = false;
+      });
+  }, [gameClient, gamePda]);
+
+  useEffect(() => {
+    if (isInitialized) {
       loadGameState();
     }
-  }, [gameClient, gamePda]);
+  }, [isInitialized]);
 
   const loadGameState = useCallback(async () => {
     if (!gameClient || !gamePda) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const gamePdaKey = new PublicKey(gamePda);
-      const state = await gameClient.getGameState(gamePdaKey);
-      
+      const gamePdaKey = new anchor.web3.PublicKey(gamePda);
+      const state = await gameClient.getGameState();
+
+      const playerDataState = await gameClient.getPlayerDataState();
+
+      console.log("playerDataState", playerDataState)
+
       console.log('=== LOADING GAME STATE ===');
       console.log('Game PDA:', gamePda);
-      
+
       setGameState({
         gamePda: gamePdaKey,
         ...state,
+        pieces: playerDataState ? playerDataState.pieces : [],
+        playerChoice: playerDataState ? playerDataState.choice : Choice.None,
         phase: state.phase as Phase
       });
-      
+
       console.log('=== GAME STATE LOADED ===');
       console.log('Owners:', state.owners);
-      console.log('Pieces:', state.pieces);
+      console.log('Pieces:', playerDataState ? playerDataState.pieces : []);
       console.log('Phase:', state.phase);
-      console.log('P0:', state.p0);
-      console.log('P1:', state.p1);
+      console.log('Choice: ', (playerDataState ? playerDataState.choice : Choice.None) as number);
+      console.log('P0:', state.p0.toString());
+      console.log('P1:', state.p1.toString());
+      console.log('Winner:', state.winner?.toString());
     } catch (err) {
       setError(`Failed to load game state: ${err}`);
     } finally {
@@ -155,23 +150,61 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
       setError('Game client not initialized');
       throw new Error('Game client not initialized');
     }
-    
+
     if (loading) {
       throw new Error('Game creation already in progress');
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const { gamePda } = await gameClient.createGame();
-      
+
       await loadGameState();
-      
+
       return { gamePda: gamePda.toString() };
     } catch (err) {
       console.error('Create game error:', err);
       setError(`Failed to create game: ${err}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [gameClient, loading, loadGameState]);
+
+  const finishGame = useCallback(async (): Promise<void> => {
+    if (!gameClient) {
+      setError('Game client not initialized');
+      throw new Error('Game client not initialized');
+    }
+    setLoading(true);
+    setError(null);
+
+    try {
+      await gameClient.finishGame();
+    } catch (err) {
+      console.error('Finish game error:', err);
+      setError(`Failed to finish game: ${err}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [gameClient, loading, loadGameState]);
+
+  const finishPlayerData = useCallback(async (): Promise<void> => {
+    if (!gameClient) {
+      setError('Game client not initialized');
+      throw new Error('Game client not initialized');
+    }
+    setLoading(true);
+    setError(null);
+
+    try {
+      await gameClient.finishPlayerData();
+    } catch (err) {
+      console.error('Finish PlayerData error:', err);
+      setError(`Failed to finish PlayerData: ${err}`);
       throw err;
     } finally {
       setLoading(false);
@@ -183,17 +216,17 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
       setError('Game client not initialized');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const gamePdaKey = new PublicKey(gamePda);
+      const gamePdaKey = new anchor.web3.PublicKey(gamePda);
       await gameClient.joinGame(gamePdaKey);
       await loadGameState();
     } catch (err) {
       console.error('Join game error:', err);
-      
+
       let errorMsg = '';
       if (err instanceof Error) {
         if (err.message.includes('already been processed')) {
@@ -215,40 +248,18 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     }
   }, [gameClient, loadGameState]);
 
-  const placeFlag = useCallback(async (x: number, y: number) => {
-    if (!gameClient || !gameState) {
-      const error = 'Game client not initialized or no game state';
-      setError(error);
-      throw new Error(error);
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      await gameClient.placeFlag(gameState.gamePda, x, y);
-      await loadGameState();
-    } catch (err) {
-      const errorMsg = `Failed to place flag: ${err}`;
-      setError(errorMsg);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [gameClient, gameState, loadGameState]);
-
   const submitLineup = useCallback(async (isP0: boolean, flagPos: number) => {
     if (!gameClient || !gameState) {
       const error = 'Game client not initialized or no game state';
       setError(error);
       throw new Error(error);
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      await gameClient.submitLineup(gameState.gamePda, isP0, flagPos);
+      await gameClient.submitLineup(isP0, flagPos);
       await loadGameState();
     } catch (err) {
       const errorMsg = `Failed to submit lineup: ${err}`;
@@ -265,12 +276,12 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
       setError(error);
       throw new Error(error);
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      await gameClient.submitCustomLineup(gameState.gamePda, xs, ys, pieces);
+      await gameClient.submitCustomLineup(xs, ys, pieces);
       await loadGameState();
     } catch (err) {
       const errorMsg = `Failed to submit custom lineup: ${err}`;
@@ -287,12 +298,12 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
       setError(error);
       throw new Error(error);
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      await gameClient.movePiece(gameState.gamePda, fromX, fromY, toX, toY);
+      await gameClient.movePiece(fromX, fromY, toX, toY);
       await loadGameState();
     } catch (err) {
       const errorMsg = `Failed to move piece: ${err}`;
@@ -309,12 +320,12 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
       setError(error);
       throw new Error(error);
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      await gameClient.chooseWeapon(gameState.gamePda, choice);
+      await gameClient.chooseWeapon(choice);
       await loadGameState();
     } catch (err) {
       const errorMsg = `Failed to choose weapon: ${err}`;
@@ -331,6 +342,16 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
 
   const isPlayerTurn = useCallback((isPlayer1: boolean) => {
     return gameState?.isP1Turn === isPlayer1;
+  }, [gameState]);
+
+  const isPlayerChoice = useCallback(() => {
+    if (!gameState) return false;
+
+    console.log("gameState.playerChoice", gameState.playerChoice)
+    console.log("Choice.None", Choice.None)
+    console.log("gameState.playerChoice !== undefined", gameState.playerChoice != undefined)
+    console.log("gameState.playerChoice != Choice.None", gameState.playerChoice != Choice.None)
+    return gameState.playerChoice !== undefined && gameState.playerChoice != Choice.None;
   }, [gameState]);
 
   const getAvailableMoves = useCallback((fromX: number, fromY: number) => {
@@ -354,16 +375,16 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
   const isMyTurn = gameState ? isPlayerTurn(isPlayer1) : false;
 
   if (gameState && account) {
-    console.log('Hook player detection:', {
-      userAddress: account,
-      p0: gameState.p0?.toString(),
-      p1: gameState.p1?.toString(),
-      isEmptyP0: isEmptyAddress(gameState.p0?.toString()),
-      isEmptyP1: isEmptyAddress(gameState.p1?.toString()),
-      isPlayer0,
-      isPlayer1,
-      phase: gameState.phase
-    });
+    // console.log('Hook player detection:', {
+    //   userAddress: account,
+    //   p0: gameState.p0?.toString(),
+    //   p1: gameState.p1?.toString(),
+    //   isEmptyP0: isEmptyAddress(gameState.p0?.toString()),
+    //   isEmptyP1: isEmptyAddress(gameState.p1?.toString()),
+    //   isPlayer0,
+    //   isPlayer1,
+    //   phase: gameState.phase
+    // });
   }
 
   return {
@@ -372,17 +393,20 @@ export function useRpsGame(gamePda?: string): UseRpsGameReturn {
     error,
     createGame,
     joinGame,
-    placeFlag,
     submitLineup,
     submitCustomLineup,
     movePiece,
     chooseWeapon,
     refreshGameState,
     isPlayerTurn,
+    isPlayerChoice,
     getAvailableMoves,
     isValidMove,
     isPlayer0,
     isPlayer1,
     isMyTurn,
+    finishGame,
+    finishPlayerData,
+    isInitialized
   };
 }

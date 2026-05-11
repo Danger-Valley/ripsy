@@ -1,0 +1,1750 @@
+{
+  "address": "3f8KnTctrgiyzGCNLpH9tcuDT9hEwqEgWiagYhRiBNwT",
+  "metadata": {
+    "name": "ripsy",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "choose_weapon",
+      "discriminator": [
+        164,
+        234,
+        168,
+        4,
+        102,
+        6,
+        237,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.player0",
+                "account": "Game"
+              },
+              {
+                "kind": "account",
+                "path": "game.nonce",
+                "account": "Game"
+              }
+            ]
+          },
+          "relations": [
+            "opponent_data",
+            "player_data"
+          ]
+        },
+        {
+          "name": "opponent_data",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game"
+              },
+              {
+                "kind": "account",
+                "path": "opponent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "opponent"
+        },
+        {
+          "name": "player_data",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "choice",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "close_game",
+      "discriminator": [
+        237,
+        236,
+        157,
+        201,
+        253,
+        20,
+        248,
+        67
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.player0",
+                "account": "Game"
+              },
+              {
+                "kind": "account",
+                "path": "game.nonce",
+                "account": "Game"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_permission",
+      "discriminator": [
+        17,
+        241,
+        212,
+        43,
+        238,
+        201,
+        203,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "permissioned_account"
+        },
+        {
+          "name": "permission",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "permission_program",
+          "address": "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_type",
+          "type": {
+            "defined": {
+              "name": "AccountType"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "close_player_data",
+      "discriminator": [
+        205,
+        16,
+        59,
+        25,
+        202,
+        30,
+        254,
+        83
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.player0",
+                "account": "Game"
+              },
+              {
+                "kind": "account",
+                "path": "game.nonce",
+                "account": "Game"
+              }
+            ]
+          },
+          "relations": [
+            "player_data"
+          ]
+        },
+        {
+          "name": "player_data",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_game",
+      "discriminator": [
+        124,
+        69,
+        75,
+        66,
+        184,
+        220,
+        72,
+        206
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              },
+              {
+                "kind": "arg",
+                "path": "nonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_data",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "nonce",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_permission",
+      "discriminator": [
+        190,
+        182,
+        26,
+        164,
+        156,
+        221,
+        8,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "permissioned_account"
+        },
+        {
+          "name": "permission",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "permission_program",
+          "address": "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_type",
+          "type": {
+            "defined": {
+              "name": "AccountType"
+            }
+          }
+        },
+        {
+          "name": "members",
+          "type": {
+            "option": {
+              "vec": {
+                "defined": {
+                  "name": "Member"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "delegate_pda",
+      "discriminator": [
+        248,
+        217,
+        193,
+        46,
+        124,
+        191,
+        64,
+        135
+      ],
+      "accounts": [
+        {
+          "name": "buffer_pda",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pda"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                39,
+                123,
+                185,
+                200,
+                40,
+                79,
+                229,
+                119,
+                31,
+                221,
+                227,
+                12,
+                76,
+                131,
+                119,
+                64,
+                140,
+                58,
+                143,
+                32,
+                182,
+                136,
+                20,
+                181,
+                183,
+                193,
+                66,
+                177,
+                43,
+                213,
+                224,
+                234
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_pda",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pda"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_pda",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pda"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "pda",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "validator",
+          "optional": true
+        },
+        {
+          "name": "owner_program",
+          "address": "3f8KnTctrgiyzGCNLpH9tcuDT9hEwqEgWiagYhRiBNwT"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_type",
+          "type": {
+            "defined": {
+              "name": "AccountType"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "join_game",
+      "discriminator": [
+        107,
+        112,
+        18,
+        38,
+        56,
+        173,
+        60,
+        128
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.player0",
+                "account": "Game"
+              },
+              {
+                "kind": "account",
+                "path": "game.nonce",
+                "account": "Game"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_data",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "move_piece_xy",
+      "discriminator": [
+        153,
+        197,
+        91,
+        226,
+        244,
+        30,
+        250,
+        90
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.player0",
+                "account": "Game"
+              },
+              {
+                "kind": "account",
+                "path": "game.nonce",
+                "account": "Game"
+              }
+            ]
+          },
+          "relations": [
+            "opponent_data",
+            "player_data"
+          ]
+        },
+        {
+          "name": "opponent_data",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game"
+              },
+              {
+                "kind": "account",
+                "path": "opponent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "opponent"
+        },
+        {
+          "name": "player_data",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "from_x",
+          "type": "u8"
+        },
+        {
+          "name": "from_y",
+          "type": "u8"
+        },
+        {
+          "name": "to_x",
+          "type": "u8"
+        },
+        {
+          "name": "to_y",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "process_undelegation",
+      "discriminator": [
+        196,
+        28,
+        41,
+        206,
+        48,
+        37,
+        51,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "base_account",
+          "writable": true
+        },
+        {
+          "name": "buffer"
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_seeds",
+          "type": {
+            "vec": "bytes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "submit_lineup_xy",
+      "discriminator": [
+        98,
+        53,
+        146,
+        241,
+        203,
+        192,
+        21,
+        52
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.player0",
+                "account": "Game"
+              },
+              {
+                "kind": "account",
+                "path": "game.nonce",
+                "account": "Game"
+              }
+            ]
+          },
+          "relations": [
+            "player_data"
+          ]
+        },
+        {
+          "name": "player_data",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "xs",
+          "type": "bytes"
+        },
+        {
+          "name": "ys",
+          "type": "bytes"
+        },
+        {
+          "name": "pieces",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "undelegate_pda",
+      "discriminator": [
+        75,
+        52,
+        199,
+        170,
+        6,
+        31,
+        186,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "pda",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Game",
+      "discriminator": [
+        27,
+        90,
+        166,
+        125,
+        74,
+        100,
+        121,
+        18
+      ]
+    },
+    {
+      "name": "PlayerData",
+      "discriminator": [
+        197,
+        65,
+        216,
+        202,
+        43,
+        139,
+        147,
+        128
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "Battle",
+      "discriminator": [
+        139,
+        69,
+        188,
+        38,
+        198,
+        175,
+        195,
+        40
+      ]
+    },
+    {
+      "name": "GameCreated",
+      "discriminator": [
+        218,
+        25,
+        150,
+        94,
+        177,
+        112,
+        96,
+        2
+      ]
+    },
+    {
+      "name": "GameJoined",
+      "discriminator": [
+        111,
+        242,
+        51,
+        235,
+        66,
+        43,
+        140,
+        84
+      ]
+    },
+    {
+      "name": "GameOver",
+      "discriminator": [
+        122,
+        28,
+        20,
+        209,
+        123,
+        166,
+        111,
+        64
+      ]
+    },
+    {
+      "name": "GameStarted",
+      "discriminator": [
+        222,
+        247,
+        78,
+        255,
+        61,
+        184,
+        156,
+        41
+      ]
+    },
+    {
+      "name": "LineupSubmitted",
+      "discriminator": [
+        19,
+        121,
+        250,
+        4,
+        64,
+        40,
+        76,
+        233
+      ]
+    },
+    {
+      "name": "MoveMade",
+      "discriminator": [
+        63,
+        69,
+        224,
+        215,
+        118,
+        250,
+        136,
+        241
+      ]
+    },
+    {
+      "name": "TieResolved",
+      "discriminator": [
+        199,
+        157,
+        148,
+        87,
+        4,
+        237,
+        234,
+        89
+      ]
+    },
+    {
+      "name": "TieStarted",
+      "discriminator": [
+        99,
+        40,
+        243,
+        91,
+        1,
+        73,
+        81,
+        193
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotAllowedJoinGame",
+      "msg": "Not allowed to join game"
+    },
+    {
+      "code": 6001,
+      "name": "BadCell",
+      "msg": "Bad cell"
+    },
+    {
+      "code": 6002,
+      "name": "BadPhase",
+      "msg": "Bad phase"
+    },
+    {
+      "code": 6003,
+      "name": "CellTaken",
+      "msg": "Cell already taken"
+    },
+    {
+      "code": 6004,
+      "name": "NotParticipant",
+      "msg": "Not a participant"
+    },
+    {
+      "code": 6005,
+      "name": "Player0BadRow",
+      "msg": "Player0: bad row"
+    },
+    {
+      "code": 6006,
+      "name": "Player1BadRow",
+      "msg": "Player1: bad row"
+    },
+    {
+      "code": 6007,
+      "name": "Player0LineupAlreadyPlaced",
+      "msg": "Player0 lineup already placed"
+    },
+    {
+      "code": 6008,
+      "name": "Player1LineupAlreadyPlaced",
+      "msg": "Player1 lineup already placed"
+    },
+    {
+      "code": 6009,
+      "name": "LineupLengthMismatch",
+      "msg": "Lineup length mismatch"
+    },
+    {
+      "code": 6010,
+      "name": "LineupPositionsEmpty",
+      "msg": "Lineup positions empty"
+    },
+    {
+      "code": 6011,
+      "name": "OnlyRpsftAllowed",
+      "msg": "Only R/P/S/F/T allowed"
+    },
+    {
+      "code": 6012,
+      "name": "GameNotActive",
+      "msg": "Game not active"
+    },
+    {
+      "code": 6013,
+      "name": "TieInProgress",
+      "msg": "Tie in progress"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidMove",
+      "msg": "Invalid move"
+    },
+    {
+      "code": 6015,
+      "name": "NotYourTurn",
+      "msg": "Not your turn"
+    },
+    {
+      "code": 6016,
+      "name": "CannotStackOwnPiece",
+      "msg": "Cannot stack own piece"
+    },
+    {
+      "code": 6017,
+      "name": "NoTiePending",
+      "msg": "No tie pending"
+    },
+    {
+      "code": 6018,
+      "name": "AlreadyChose",
+      "msg": "Already chose"
+    },
+    {
+      "code": 6019,
+      "name": "Overflow",
+      "msg": "Overflow"
+    },
+    {
+      "code": 6020,
+      "name": "FlagCountMismatch",
+      "msg": "Invalid number of flags provided"
+    },
+    {
+      "code": 6021,
+      "name": "TrapCountMismatch",
+      "msg": "Invalid number of traps provided"
+    },
+    {
+      "code": 6022,
+      "name": "RockCountMismatch",
+      "msg": "Invalid number of rocks provided"
+    },
+    {
+      "code": 6023,
+      "name": "PaperCountMismatch",
+      "msg": "Invalid number of paper items provided"
+    },
+    {
+      "code": 6024,
+      "name": "ScissorsCountMismatch",
+      "msg": "Invalid number of scissors provided"
+    },
+    {
+      "code": 6025,
+      "name": "TrapBadRow",
+      "msg": "Trap must be placed only on the inner spawn row"
+    },
+    {
+      "code": 6026,
+      "name": "GameNotFinished",
+      "msg": "Game not finished"
+    }
+  ],
+  "types": [
+    {
+      "name": "AccountType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Game",
+            "fields": [
+              {
+                "name": "player",
+                "type": "pubkey"
+              },
+              {
+                "name": "nonce",
+                "type": {
+                  "array": [
+                    "u8",
+                    32
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "PlayerData",
+            "fields": [
+              {
+                "name": "game",
+                "type": "pubkey"
+              },
+              {
+                "name": "player",
+                "type": "pubkey"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Battle",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "from_idx",
+            "type": "u8"
+          },
+          {
+            "name": "to_idx",
+            "type": "u8"
+          },
+          {
+            "name": "attacker",
+            "type": {
+              "defined": {
+                "name": "Piece"
+              }
+            }
+          },
+          {
+            "name": "defender",
+            "type": {
+              "defined": {
+                "name": "Piece"
+              }
+            }
+          },
+          {
+            "name": "outcome",
+            "type": "i8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Choice",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "Rock"
+          },
+          {
+            "name": "Paper"
+          },
+          {
+            "name": "Scissors"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Game",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player0",
+            "type": "pubkey"
+          },
+          {
+            "name": "player1",
+            "type": "pubkey"
+          },
+          {
+            "name": "winner",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "phase",
+            "type": "u8"
+          },
+          {
+            "name": "is_player1_turn",
+            "type": "bool"
+          },
+          {
+            "name": "board_cells_owner",
+            "type": {
+              "array": [
+                "u8",
+                49
+              ]
+            }
+          },
+          {
+            "name": "live_player0",
+            "type": "u8"
+          },
+          {
+            "name": "live_player1",
+            "type": "u8"
+          },
+          {
+            "name": "attacker",
+            "type": "u8"
+          },
+          {
+            "name": "defender",
+            "type": "u8"
+          },
+          {
+            "name": "outcome",
+            "type": "i8"
+          },
+          {
+            "name": "tie_pending",
+            "type": "bool"
+          },
+          {
+            "name": "tie_from",
+            "type": "u8"
+          },
+          {
+            "name": "tie_to",
+            "type": "u8"
+          },
+          {
+            "name": "nonce",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameJoined",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "participant",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameOver",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameStarted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "p0",
+            "type": "pubkey"
+          },
+          {
+            "name": "p1",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LineupSubmitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "count",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Member",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "flags",
+            "type": "u8"
+          },
+          {
+            "name": "pubkey",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MoveMade",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "from_idx",
+            "type": "u8"
+          },
+          {
+            "name": "to_idx",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Piece",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Empty"
+          },
+          {
+            "name": "Rock"
+          },
+          {
+            "name": "Paper"
+          },
+          {
+            "name": "Scissors"
+          },
+          {
+            "name": "Flag"
+          },
+          {
+            "name": "Trap"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlayerData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "game",
+            "type": "pubkey"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "choice",
+            "type": {
+              "defined": {
+                "name": "Choice"
+              }
+            }
+          },
+          {
+            "name": "board_pieces",
+            "type": {
+              "array": [
+                "u8",
+                49
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TieResolved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "outcome",
+            "type": "i8"
+          },
+          {
+            "name": "p0_choice",
+            "type": {
+              "defined": {
+                "name": "Choice"
+              }
+            }
+          },
+          {
+            "name": "p1_choice",
+            "type": {
+              "defined": {
+                "name": "Choice"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TieStarted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "from_idx",
+            "type": "u8"
+          },
+          {
+            "name": "to_idx",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "FLAG_LIMIT",
+      "type": "u8",
+      "value": "1"
+    },
+    {
+      "name": "GAME_SEED",
+      "type": "bytes",
+      "value": "[103, 97, 109, 101]"
+    },
+    {
+      "name": "HEIGHT",
+      "type": "u8",
+      "value": "7"
+    },
+    {
+      "name": "PAPER_LIMIT",
+      "type": "u8",
+      "value": "4"
+    },
+    {
+      "name": "PLAYER_DATA_SEED",
+      "type": "bytes",
+      "value": "[112, 108, 97, 121, 101, 114, 95, 100, 97, 116, 97]"
+    },
+    {
+      "name": "PLAYER_START_ROWS",
+      "type": "u8",
+      "value": "2"
+    },
+    {
+      "name": "ROCK_LIMIT",
+      "type": "u8",
+      "value": "4"
+    },
+    {
+      "name": "SCISSORS_LIMIT",
+      "type": "u8",
+      "value": "4"
+    },
+    {
+      "name": "TRAP_LIMIT",
+      "type": "u8",
+      "value": "1"
+    },
+    {
+      "name": "WIDTH",
+      "type": "u8",
+      "value": "7"
+    }
+  ]
+}

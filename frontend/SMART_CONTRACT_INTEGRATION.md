@@ -41,7 +41,7 @@ The `@rps/solana-client` package provides:
 
 ### Core Classes
 - `RpsGameClient` - Main client for smart contract interaction
-- `useRpsGame` - React hook for easy integration
+- `useRipsyGame` - React hook for easy integration
 
 ### Key Methods
 ```typescript
@@ -87,10 +87,10 @@ interface GameState {
 
 ### Basic Integration
 ```typescript
-import { useRpsGame } from '@rps/solana-client';
+import { useRipsyGame } from '@rps/solana-client';
 
 function MyGameComponent() {
-  const { gameState, createGame, movePiece } = useRpsGame(gameId);
+  const { gameState, createGame, movePiece } = useRipsyGame(gameId);
   
   const handleMove = async (fromX, fromY, toX, toY) => {
     await movePiece(fromX, fromY, toX, toY);
@@ -107,7 +107,7 @@ function MyGameComponent() {
 
 ### With Error Handling
 ```typescript
-const { gameState, loading, error, createGame } = useRpsGame(gameId);
+const { gameState, loading, error, createGame } = useRipsyGame(gameId);
 
 if (loading) return <div>Loading...</div>;
 if (error) return <div>Error: {error}</div>;
@@ -129,7 +129,7 @@ await client.createGame();
 ### Custom Hooks
 ```typescript
 function useMyGameLogic(gameId: number) {
-  const game = useRpsGame(gameId);
+  const game = useRipsyGame(gameId);
   
   // Add your custom logic here
   
@@ -162,7 +162,7 @@ function useMyGameLogic(gameId: number) {
 ### Debug Mode
 ```typescript
 // Enable debug logging
-const { gameState, ... } = useRpsGame(gameId, { debug: true });
+const { gameState, ... } = useRipsyGame(gameId, { debug: true });
 ```
 
 ## 📚 API Reference
@@ -177,7 +177,7 @@ const { gameState, ... } = useRpsGame(gameId, { debug: true });
 - `getGameState(gamePda)` - Get current game state
 - `isPlayerTurn(gamePda, isPlayer1)` - Check if it's player's turn
 
-### useRpsGame Hook
+### useRipsyGame Hook
 - `gameState` - Current game state
 - `loading` - Loading state
 - `error` - Error message

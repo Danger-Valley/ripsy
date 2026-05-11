@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useSolanaWallet } from '../../hooks/useSolanaWallet';
 import RpsFigure, { Weapon, WEAPON_NAMES } from './RpsFigure';
 import WeaponSelectionPopup from './WeaponSelectionPopup';
-import { useRpsGame, Phase, Choice, Piece, Owner, toIdx, toXY } from '@rps/solana-client';
+import { useRipsyGame, Phase, Choice, Piece, Owner, toIdx, toXY } from '@rps/solana-client';
 
 interface Figure {
   id: string;
@@ -51,7 +51,7 @@ export default function GamePageSmartContract() {
     isPlayer0,
     isPlayer1,
     isMyTurn,
-  } = useRpsGame(gamePda);
+  } = useRipsyGame(gamePda);
 
   const rows = 6;
   const cols = 7;

@@ -10,14 +10,13 @@ export const RipsyProvider = ({ children }: { children: ReactNode }) => {
   const connectorClient = useConnectorClient();
   const { signer, ready } = useTransactionSigner();
   const { id: gamePda } = useParams();
-  
 
   const gameClient = useMemo(() => {
     if (!signer || !address || !connectorClient) return null;
     console.log("User address: ", address)
 
     return new RipsyGameClient(connectorClient, address, signer, gamePda as string);
-  }, [address, connectorClient, signer, ready]);
+  }, [address, connectorClient, signer, ready, gamePda]);
 
   return (
     <RipsyContext.Provider value={{ gameClient }}>

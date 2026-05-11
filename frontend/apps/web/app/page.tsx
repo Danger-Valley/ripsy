@@ -78,7 +78,7 @@ export default function HomePage() {
       backgroundColor: '#0e1419',
       gap: 16
     }}>
-      <h1 style={{ margin: 0, color: '#66fcf1' }}>xArena</h1>
+      <h1 style={{ margin: 0, color: '#66fcf1' }}>RIPSY</h1>
       <p style={{ color: '#c5c6c7', textAlign: 'center', maxWidth: '400px' }}>
         Battle with Rock, Paper, Scissors on the blockchain! 
         Create a game and invite friends to join the ultimate strategy battle.

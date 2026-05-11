@@ -2,7 +2,7 @@
   "name": "@rps/monorepo",
   "private": true,
   "version": "0.1.0",
-  "description": "xArena game monorepo (web + shared packages)",
+  "description": "RIPSY game monorepo (web + shared packages)",
   "workspaces": [
     "apps/*",
     "packages/*"

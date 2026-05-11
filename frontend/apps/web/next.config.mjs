@@ -9,6 +9,7 @@ const nextConfig = {
   reactStrictMode: false,
   typedRoutes: true,
   transpilePackages: ['@rps/core', '@rps/solana-client'],
+  output: 'standalone',
   outputFileTracingRoot: join(__dirname, '../../'),
 };
 

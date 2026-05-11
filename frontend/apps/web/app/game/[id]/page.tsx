@@ -469,6 +469,17 @@ export default function GamePage() {
         newFigures.push(...opponentLineup);
         console.log('After adding opponent pieces, newFigures length:', newFigures.length);
       }
+
+      if (isPlayer1) {
+        const mirroredData = newFigures.map(figure => ({
+          ...figure,
+          row: (HEIGHT - 1) - figure.row,
+          col: (WIDTH - 1) - figure.col,
+        }));
+        setFigures(mirroredData);
+      } else {
+        setFigures(newFigures);
+      }
     }
   }, [gameState, isPlayer0, isPlayer1, isSettingLineup, opponentLineup]);
 
@@ -1188,8 +1199,15 @@ export default function GamePage() {
     const centerY = (attackerY + targetY) / 2;
 
     // Add some distance between figures
-    const attackerFinalX = centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
-    const targetFinalX = centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+    // const attackerFinalX = centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+    // const targetFinalX = centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+    const attackerIsLeft = attacker.col <= target.col;
+    const attackerFinalX = attackerIsLeft
+      ? centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
+      : centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+    const targetFinalX = attackerIsLeft
+      ? centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
+      : centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
 
     // Set both figures as attacking
     setAttackingFigures([attacker.id, target.id]);
@@ -1260,7 +1278,11 @@ export default function GamePage() {
       const centerY = (attackerY + targetY) / 2;
 
       // Current position is the attacker's attack position (center - distance)
-      const currentX = centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+      //const currentX = centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+      const attackerIsLeft = attacker.col <= target.col;
+      const currentX = attackerIsLeft
+        ? centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
+        : centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
       const currentY = centerY;
 
       // Set attacker as moving and update position immediately

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constants::{HEIGHT, WIDTH},
+    constants::{GAME_SEED, PLAYER_DATA_SEED, HEIGHT, WIDTH},
     errors::ErrorCode,
     events::{Battle, MoveMade, TieStarted},
     state::{BoardCellOwner, Game, Phase, Piece, PlayerData},
@@ -11,7 +11,7 @@ use crate::{
 pub struct MovePieceXY<'info> {
     #[account(
         mut,
-        seeds = [b"game", game.player0.as_ref(), game.nonce.as_ref()],
+        seeds = [GAME_SEED, game.player0.as_ref(), game.nonce.as_ref()],
         bump = game.bump,
     )]
     pub game: Account<'info, Game>,
@@ -19,7 +19,7 @@ pub struct MovePieceXY<'info> {
     #[account(
         mut,
         has_one = game,
-        seeds = [b"player_data", game.key().as_ref(), opponent.key().as_ref()],
+        seeds = [PLAYER_DATA_SEED, game.key().as_ref(), opponent.key().as_ref()],
         bump = opponent_data.bump,
     )]
     pub opponent_data: Account<'info, PlayerData>,
@@ -33,7 +33,7 @@ pub struct MovePieceXY<'info> {
     #[account(
         mut,
         has_one = game,
-        seeds = [b"player_data", game.key().as_ref(), player.key().as_ref()],
+        seeds = [PLAYER_DATA_SEED, game.key().as_ref(), player.key().as_ref()],
         bump = player_data.bump,
     )]
     pub player_data: Account<'info, PlayerData>,
@@ -114,12 +114,14 @@ fn do_move_piece(
 
     if dest_owner == BoardCellOwner::None {
         g.board_cells_owner[to] = player_owner as u8;
-        g.board_pieces[to] = g.board_pieces[from];
+
         player_data.board_pieces[to] = attacker as u8;
+        opponent_data.board_pieces[to] = opponent_data.board_pieces[from];
 
         g.board_cells_owner[from] = BoardCellOwner::None as u8;
-        g.board_pieces[from] = Piece::Empty as u8;
+
         player_data.board_pieces[from] = Piece::Empty as u8;
+        opponent_data.board_pieces[from] = Piece::Empty as u8;
 
         emit!(MoveMade {
             player: player.key(),
@@ -128,6 +130,9 @@ fn do_move_piece(
         });
         return g.end_turn_or_win();
     }
+
+    g.attacker = attacker as u8;
+    g.defender = defender as u8;
 
     if defender == Piece::Trap {
         g.board_cells_owner[from] = BoardCellOwner::None as u8;
@@ -206,14 +211,18 @@ fn do_move_piece(
     }
 
     let outcome = Piece::rps(attacker, defender);
+    g.outcome = outcome;
 
     if outcome == 0 {
         g.tie_pending = true;
         g.tie_from = from_idx;
         g.tie_to = to_idx;
 
-        g.board_pieces[from] = attacker as u8;
-        g.board_pieces[to] = defender as u8;
+        player_data.board_pieces[from] = attacker as u8;
+        player_data.board_pieces[to] = defender as u8;
+
+        opponent_data.board_pieces[from] = attacker as u8;
+        opponent_data.board_pieces[to] = defender as u8;
 
         emit!(TieStarted { from_idx, to_idx });
         return Ok(());
@@ -229,8 +238,9 @@ fn do_move_piece(
 
     if outcome == 1 {
         g.board_cells_owner[to] = player_owner as u8;
-        g.board_pieces[to] = attacker as u8;
+
         player_data.board_pieces[to] = attacker as u8;
+        opponent_data.board_pieces[to] = attacker as u8;
 
         if dest_owner == BoardCellOwner::P0 {
             g.live_player0 = g.live_player0.saturating_sub(1);
@@ -238,7 +248,8 @@ fn do_move_piece(
             g.live_player1 = g.live_player1.saturating_sub(1);
         }
     } else {
-        g.board_pieces[to] = defender as u8;
+        player_data.board_pieces[to] = defender as u8;
+        opponent_data.board_pieces[to] = defender as u8;
 
         if player_owner == BoardCellOwner::P0 {
             g.live_player0 = g.live_player0.saturating_sub(1);
@@ -248,8 +259,9 @@ fn do_move_piece(
     }
 
     g.board_cells_owner[from] = BoardCellOwner::None as u8;
-    g.board_pieces[from] = Piece::Empty as u8;
+
     player_data.board_pieces[from] = Piece::Empty as u8;
+    opponent_data.board_pieces[from] = Piece::Empty as u8;
 
     g.end_turn_or_win()?;
 

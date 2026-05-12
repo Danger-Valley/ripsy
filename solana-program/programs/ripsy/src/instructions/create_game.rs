@@ -1,13 +1,17 @@
 use anchor_lang::prelude::*;
 
-use crate::{events::GameCreated, state::{Game, PlayerData}};
+use crate::{
+    constants::{GAME_SEED, PLAYER_DATA_SEED},
+    events::GameCreated, 
+    state::{Game, PlayerData}
+};
 
 #[derive(Accounts)]
 #[instruction(nonce: [u8; 32])]
 pub struct CreateGame<'info> {
     #[account(
         init,
-        seeds = [b"game", player.key().as_ref(), &nonce],
+        seeds = [GAME_SEED, player.key().as_ref(), &nonce],
         payer = player,
         space = Game::DISCRIMINATOR.len() + Game::INIT_SPACE,
         bump,
@@ -16,7 +20,7 @@ pub struct CreateGame<'info> {
 
     #[account(
         init,
-        seeds = [b"player_data", game.key().as_ref(), player.key().as_ref()],
+        seeds = [PLAYER_DATA_SEED, game.key().as_ref(), player.key().as_ref()],
         payer = player,
         space = PlayerData::DISCRIMINATOR.len() + PlayerData::INIT_SPACE,
         bump,

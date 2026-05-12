@@ -42,10 +42,18 @@ pub enum ErrorCode {
     AlreadyChose,
     #[msg("Overflow")]
     Overflow,
-    #[msg("You must include exactly one Flag in your lineup")]
-    MustHaveExactlyOneFlag,
-    #[msg("You may place at most one Trap")]
-    TooManyTraps,
+    #[msg("Invalid number of flags provided")]
+    FlagCountMismatch,
+    #[msg("Invalid number of traps provided")]
+    TrapCountMismatch,
+    #[msg("Invalid number of rocks provided")]
+    RockCountMismatch,
+    #[msg("Invalid number of paper items provided")]
+    PaperCountMismatch,
+    #[msg("Invalid number of scissors provided")]
+    ScissorsCountMismatch,
     #[msg("Trap must be placed only on the inner spawn row")]
     TrapBadRow,
+    #[msg("Game not finished")]
+    GameNotFinished,
 }

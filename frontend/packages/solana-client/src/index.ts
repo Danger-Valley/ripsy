@@ -89,6 +89,10 @@ export class RipsyGameClient {
   private game!: anchor.web3.PublicKey;
   private playerData!: anchor.web3.PublicKey;
 
+  private accountChangeSubscriptionId: number | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private onUpdateCallback: (() => void) | null = null;
+
   player: anchor.web3.PublicKey;
 
   constructor(connectorClient: ConnectorClient, account: string, signer: any, gamePda?: string) {
@@ -141,10 +145,6 @@ export class RipsyGameClient {
       idl,
       this.provider
     );
-
-    // if (gamePda) {
-    //   this.initGame(new anchor.web3.PublicKey(gamePda));
-    // }
   }
 
   async initGame(game: anchor.web3.PublicKey) {
@@ -173,6 +173,71 @@ export class RipsyGameClient {
       ),
       this.wallet,
     );
+  }
+
+  get teeConnection(): anchor.web3.Connection {
+    return this.providerTeePlayer?.connection ?? this.connection;
+  }
+
+  private async resubscribe(): Promise<void> {
+    const connection = this.teeConnection;
+
+    if (this.accountChangeSubscriptionId !== null) {
+      try {
+        await connection.removeAccountChangeListener(this.accountChangeSubscriptionId);
+      } catch { }
+      this.accountChangeSubscriptionId = null;
+    }
+
+    if (!this.onUpdateCallback) return;
+
+    try {
+      this.accountChangeSubscriptionId = connection.onAccountChange(
+        this.game,
+        () => this.onUpdateCallback?.(),
+        'confirmed'
+      );
+      console.log('[subscribe] Game account subscription active');
+    } catch (err) {
+      console.warn('[subscribe] Failed to subscribe, retrying in 5s...', err);
+      this.reconnectTimeout = setTimeout(() => this.resubscribe(), 5000);
+    }
+  }
+
+  subscribeToGameChanges(onUpdate: () => void): () => void {
+    this.onUpdateCallback = onUpdate;
+
+    const connection = this.teeConnection;
+
+    const ws = (connection as any)._rpcWebSocket;
+    if (ws) {
+      ws.on('close', () => {
+        console.warn('[subscribe] WebSocket closed, reconnecting...');
+        this.reconnectTimeout = setTimeout(() => this.resubscribe(), 2000);
+      });
+      ws.on('error', () => {
+        console.warn('[subscribe] WebSocket error, reconnecting...');
+        this.reconnectTimeout = setTimeout(() => this.resubscribe(), 2000);
+      });
+    }
+
+    this.resubscribe();
+
+    return () => {
+      this.onUpdateCallback = null;
+
+      if (this.reconnectTimeout !== null) {
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = null;
+      }
+
+      if (this.accountChangeSubscriptionId !== null) {
+        this.teeConnection
+          .removeAccountChangeListener(this.accountChangeSubscriptionId)
+          .catch(() => { });
+        this.accountChangeSubscriptionId = null;
+      }
+    };
   }
 
   async sendTransaction(

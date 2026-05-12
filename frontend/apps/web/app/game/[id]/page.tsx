@@ -812,6 +812,96 @@ export default function GamePage() {
     );
   }
 
+  // Show game over screens
+  if (gameState?.phase === 5 && gameState?.winner) {
+    const isWinner =
+      (isPlayer0 && gameState.p0.toString() === gameState.winner.toString()) ||
+      (isPlayer1 && gameState.p1.toString() === gameState.winner.toString());
+
+    return (
+      <main style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        fontFamily: 'system-ui, sans-serif',
+        background: isWinner
+          ? 'linear-gradient(135deg, #0a1f0a 0%, #0e2e0e 100%)'
+          : 'linear-gradient(135deg, #1f0a0a 0%, #2e0e0e 100%)',
+      }}>
+        <div style={{
+          textAlign: 'center',
+          background: '#0e1419',
+          border: `1px solid ${isWinner ? '#4caf50' : '#f44336'}`,
+          borderRadius: '16px',
+          padding: '64px 48px',
+          maxWidth: '480px',
+          width: '90%',
+          boxShadow: isWinner
+            ? '0 0 48px rgba(76, 175, 80, 0.2)'
+            : '0 0 48px rgba(244, 67, 54, 0.2)',
+        }}>
+          <div style={{ fontSize: 72, marginBottom: 16 }}>
+            {isWinner ? '🏆' : '💀'}
+          </div>
+
+          <div style={{
+            fontSize: 36,
+            fontWeight: 'bold',
+            marginBottom: 12,
+            color: isWinner ? '#4caf50' : '#f44336',
+          }}>
+            {isWinner ? 'Victory!' : 'Defeat'}
+          </div>
+
+          <div style={{
+            fontSize: 16,
+            color: '#c5c6c7',
+            marginBottom: 32,
+            lineHeight: 1.6,
+          }}>
+            {isWinner
+              ? 'Congratulations! You have defeated your opponent.'
+              : 'Better luck next time. Your opponent was stronger this round.'}
+          </div>
+
+          <div style={{
+            background: '#0b1116',
+            border: '1px solid #2b3a44',
+            borderRadius: 8,
+            padding: '16px',
+            marginBottom: 32,
+            fontSize: 14,
+            color: '#8a9ba8',
+          }}>
+            <div>Winner: {gameState.winner.toString().slice(0, 8)}...</div>
+            <div style={{ marginTop: 4 }}>
+              Final score: {gameState.live0} vs {gameState.live1}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexDirection: 'column' }}>
+            <button
+              onClick={() => window.location.href = '/'}
+              style={{
+                background: isWinner ? '#4caf50' : '#f44336',
+                color: '#fff',
+                border: 'none',
+                padding: '14px 32px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: 16,
+                fontWeight: 'bold',
+              }}
+            >
+              Back to Lobby
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   // Show wallet connection prompt
   if (!connected) {
     return (

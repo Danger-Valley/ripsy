@@ -145,6 +145,17 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     }
   }, [gameClient, gamePda]);
 
+  useEffect(() => {
+    if (!gameClient || !isInitialized) return;
+    if (gameState?.phase !== 4) return;
+
+    const unsubscribe = gameClient.subscribeToGameChanges(() => {
+      loadGameState();
+    });
+
+    return () => unsubscribe();
+  }, [gameClient, isInitialized, gameState?.phase, loadGameState]);
+
   const createGame = useCallback(async (): Promise<{ gamePda: string }> => {
     if (!gameClient) {
       setError('Game client not initialized');

@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
+    constants::{GAME_SEED, PLAYER_DATA_SEED},
     errors::ErrorCode,
     events::TieResolved,
     state::{BoardCellOwner, Choice, Game, Phase, Piece, PlayerData},
@@ -10,7 +11,7 @@ use crate::{
 pub struct ChooseWeapon<'info> {
     #[account(
         mut,
-        seeds = [b"game", game.player0.as_ref(), game.nonce.as_ref()],
+        seeds = [GAME_SEED, game.player0.as_ref(), game.nonce.as_ref()],
         bump = game.bump,
     )]
     pub game: Account<'info, Game>,
@@ -18,7 +19,7 @@ pub struct ChooseWeapon<'info> {
     #[account(
         mut,
         has_one = game,
-        seeds = [b"player_data", game.key().as_ref(), opponent.key().as_ref()],
+        seeds = [PLAYER_DATA_SEED, game.key().as_ref(), opponent.key().as_ref()],
         bump = opponent_data.bump,
     )]
     pub opponent_data: Account<'info, PlayerData>,
@@ -32,7 +33,7 @@ pub struct ChooseWeapon<'info> {
     #[account(
         mut,
         has_one = game,
-        seeds = [b"player_data", game.key().as_ref(), player.key().as_ref()],
+        seeds = [PLAYER_DATA_SEED, game.key().as_ref(), player.key().as_ref()],
         bump = player_data.bump,
     )]
     pub player_data: Account<'info, PlayerData>,
@@ -105,15 +106,8 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
                 opponent_data.choice
             };
 
-            if is_attacker {
-                player_data.board_pieces[t_to] = attacker_piece as u8;
-                opponent_data.board_pieces[t_to] = Piece::Empty as u8;
-            } else {
-                opponent_data.board_pieces[t_to] = attacker_piece as u8;
-                player_data.board_pieces[t_to] = Piece::Empty as u8;
-            }
-
-            g.board_pieces[t_to] = attacker_piece as u8;
+            player_data.board_pieces[t_to] = attacker_piece as u8;
+            opponent_data.board_pieces[t_to] = attacker_piece as u8;
 
             if is_attacker_p1 {
                 g.live_player0 = g.live_player0.saturating_sub(1);
@@ -121,11 +115,14 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
                 g.live_player1 = g.live_player1.saturating_sub(1);
             }
         } else {
-            if is_attacker {
-                g.board_pieces[t_to] = opponent_data.board_pieces[t_to];
+            let defender_piece = if is_attacker {
+                opponent_data.choice
             } else {
-                g.board_pieces[t_to] = player_data.board_pieces[t_to];
-            }
+                player_data.choice
+            };
+
+            player_data.board_pieces[t_to] = defender_piece as u8;
+            opponent_data.board_pieces[t_to] = defender_piece as u8;
 
             if is_attacker_p1 {
                 g.live_player1 = g.live_player1.saturating_sub(1);
@@ -136,12 +133,15 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
 
         g.board_cells_owner[t_from] = BoardCellOwner::None as u8;
 
-        g.board_pieces[t_from] = Piece::Empty as u8;
         player_data.board_pieces[t_from] = Piece::Empty as u8;
         opponent_data.board_pieces[t_from] = Piece::Empty as u8;
 
         g.tie_pending = false;
     }
+
+    g.attacker = p0_choice as u8;
+    g.defender = p1_choice as u8;
+    g.outcome = outcome;
 
     player_data.choice = Choice::None;
     opponent_data.choice = Choice::None;

@@ -6,13 +6,15 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-ripsy = "3ueExHyxLr7ahqcBEzse3L21rTaWQ91rLtVnZLsx4ngA"
+ripsy = "3f8KnTctrgiyzGCNLpH9tcuDT9hEwqEgWiagYhRiBNwT"
+[programs.devnet]
+ripsy = "3f8KnTctrgiyzGCNLpH9tcuDT9hEwqEgWiagYhRiBNwT"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

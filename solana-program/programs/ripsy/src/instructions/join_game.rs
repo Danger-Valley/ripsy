@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
+    constants::{GAME_SEED, PLAYER_DATA_SEED},
     errors::ErrorCode,
     events::GameJoined,
     state::{Game, Phase, PlayerData},
@@ -10,14 +11,14 @@ use crate::{
 pub struct JoinGame<'info> {
     #[account(
         mut,
-        seeds = [b"game", game.player0.as_ref(), game.nonce.as_ref()],
+        seeds = [GAME_SEED, game.player0.as_ref(), game.nonce.as_ref()],
         bump = game.bump,
     )]
     pub game: Account<'info, Game>,
 
     #[account(
         init,
-        seeds = [b"player_data", game.key().as_ref(), player.key().as_ref()],
+        seeds = [PLAYER_DATA_SEED, game.key().as_ref(), player.key().as_ref()],
         payer = player,
         space = PlayerData::DISCRIMINATOR.len() + PlayerData::INIT_SPACE,
         bump,

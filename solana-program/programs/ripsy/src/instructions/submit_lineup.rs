@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constants::{HEIGHT, WIDTH},
+    constants::{FLAG_LIMIT, GAME_SEED, HEIGHT, PAPER_LIMIT, PLAYER_DATA_SEED, ROCK_LIMIT, SCISSORS_LIMIT, TRAP_LIMIT, WIDTH},
     errors::ErrorCode,
     events::{GameStarted, LineupSubmitted},
     state::{BoardCellOwner, Game, Phase, Piece, PlayerData},
@@ -11,7 +11,7 @@ use crate::{
 pub struct SubmitLineupXY<'info> {
     #[account(
         mut,
-        seeds = [b"game", game.player0.as_ref(), game.nonce.as_ref()],
+        seeds = [GAME_SEED, game.player0.as_ref(), game.nonce.as_ref()],
         bump = game.bump,
     )]
     pub game: Account<'info, Game>,
@@ -19,7 +19,7 @@ pub struct SubmitLineupXY<'info> {
     #[account(
         mut,
         has_one = game,
-        seeds = [b"player_data", game.key().as_ref(), player.key().as_ref()],
+        seeds = [PLAYER_DATA_SEED, game.key().as_ref(), player.key().as_ref()],
         bump = player_data.bump,
     )]
     pub player_data: Account<'info, PlayerData>,
@@ -87,85 +87,64 @@ fn do_submit_lineup(
         );
     }
 
-    let mut flag_count = 0usize;
-    let mut trap_count: usize = 0;
-    let mut trap_idx: u8 = 0;
+    let mut flag_count = 0;
+    let mut trap_count = 0;
+    let mut paper_count = 0;
+    let mut rock_count = 0;
+    let mut scissors_count = 0; 
 
-    for (i, &idx) in positions.iter().enumerate() {
-        let p = Piece::from(pieces[i]);
-        if p == Piece::Flag {
-            flag_count += 1;
-        }
-        if p == Piece::Trap {
-            trap_count += 1;
-            trap_idx = idx;
-        }
-    }
-
-    require!(flag_count == 1, ErrorCode::MustHaveExactlyOneFlag);
-    require!(trap_count <= 1, ErrorCode::TooManyTraps);
-
-    if trap_count == 1 {
-        let trap_y = Game::_y(trap_idx);
-
-        if is_p0 {
-            require!(trap_y == 4 || trap_y == 5, ErrorCode::TrapBadRow);
-        } else {
-            require!(trap_y == 0 || trap_y == 1, ErrorCode::TrapBadRow);
-        }
-    }
+    let cell_owner = if is_p0 { BoardCellOwner::P0 as u8 } else { BoardCellOwner::P1 as u8 }; 
 
     for (i, &idx) in positions.iter().enumerate() {
         Game::validate_cell(idx)?;
-        let cell = idx as usize;
-        require!(
-            g.board_cells_owner[cell] == BoardCellOwner::None as u8
-                && player_data.board_pieces[cell] == Piece::Empty as u8,
-            ErrorCode::CellTaken
-        );
+
         if is_p0 {
             require!(Game::is_p0_spawn(idx), ErrorCode::Player0BadRow);
         } else {
             require!(Game::is_p1_spawn(idx), ErrorCode::Player1BadRow);
         }
 
-        let p = Piece::from(pieces[i]);
+        let cell = idx as usize;
         require!(
-            matches!(
-                p,
-                Piece::Rock | Piece::Paper | Piece::Scissors | Piece::Flag | Piece::Trap
-            ),
-            ErrorCode::OnlyRpsftAllowed
+            g.board_cells_owner[cell] == BoardCellOwner::None as u8
+                && player_data.board_pieces[cell] == Piece::Empty as u8,
+            ErrorCode::CellTaken
         );
 
-        g.board_cells_owner[cell] = if is_p0 {
-            BoardCellOwner::P0 as u8
-        } else {
-            BoardCellOwner::P1 as u8
+        let piece = Piece::from(pieces[i]);
+        match piece {
+            Piece::Empty => return err!(ErrorCode::OnlyRpsftAllowed),
+            Piece::Rock => rock_count += 1,
+            Piece::Paper => paper_count += 1,
+            Piece::Scissors => scissors_count += 1,
+            Piece::Flag => flag_count += 1,
+            Piece::Trap => trap_count += 1,
         };
-        player_data.board_pieces[cell] = p as u8;
-        if is_p0 {
-            g.live_player0 = g.live_player0.saturating_add(1);
-        } else {
-            g.live_player1 = g.live_player1.saturating_add(1);
-        }
+
+        g.board_cells_owner[cell] = cell_owner;
+        
+        player_data.board_pieces[cell] = piece as u8;
     }
 
+    require!(flag_count == FLAG_LIMIT, ErrorCode::FlagCountMismatch);
+    require!(trap_count == TRAP_LIMIT, ErrorCode::TrapCountMismatch);
+    require!(rock_count == ROCK_LIMIT, ErrorCode::RockCountMismatch);
+    require!(paper_count == PAPER_LIMIT, ErrorCode::PaperCountMismatch);
+    require!(scissors_count == SCISSORS_LIMIT, ErrorCode::ScissorsCountMismatch);
+
+    let total_pieces = positions.len() as u8;
+
     if is_p0 {
-        require!(
-            g.phase() != Phase::LineupP0Set,
-            ErrorCode::Player0LineupAlreadyPlaced
-        );
+        g.live_player0 = g.live_player0.saturating_add(total_pieces);
+
         g.phase = if g.phase() == Phase::LineupP1Set {
             Phase::Active as u8
         } else {
             Phase::LineupP0Set as u8
         };
     } else {
-        require!(
-            g.phase() != Phase::LineupP1Set,
-            ErrorCode::Player1LineupAlreadyPlaced
-        );
+        g.live_player1 = g.live_player1.saturating_add(total_pieces);
+
         g.phase = if g.phase() == Phase::LineupP0Set {
             Phase::Active as u8
         } else {
@@ -175,8 +154,9 @@ fn do_submit_lineup(
 
     emit!(LineupSubmitted {
         player: *player,
-        count: positions.len() as u8
+        count: total_pieces
     });
+
     if g.phase() == Phase::Active {
         g.is_player1_turn = false;
         emit!(GameStarted {

@@ -147,7 +147,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
 
   useEffect(() => {
     if (!gameClient || !isInitialized) return;
-    if (gameState?.phase !== 4) return;
+    if (gameState && gameState?.phase !== undefined && gameState?.phase > 4) return;
 
     const unsubscribe = gameClient.subscribeToGameChanges(() => {
       loadGameState();

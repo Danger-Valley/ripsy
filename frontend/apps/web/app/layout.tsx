@@ -9,7 +9,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body suppressHydrationWarning>
         <WalletProviders>
           {children}
-          <Toaster richColors expand={true} position="top-center" />
+          <Toaster richColors expand={true} position="top-right" />
         </WalletProviders>
       </body>
     </html>

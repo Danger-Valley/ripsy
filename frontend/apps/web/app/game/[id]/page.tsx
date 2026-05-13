@@ -95,6 +95,8 @@ export default function GamePage() {
   const [showWeaponPopup, setShowWeaponPopup] = useState(false);
   const [pendingAttack, setPendingAttack] = useState<{ attacker: Figure, target: Figure } | null>(null);
 
+  const shortAddr = (addr: string) => `${addr.slice(0, 4)}…${addr.slice(-4)}`;
+
   // Generate random lineup (4 stones, 4 paper, 4 scissors, 1 flag, 1 trap)
   const generateRandomLineup = useCallback(() => {
     // Safety check
@@ -1455,14 +1457,16 @@ export default function GamePage() {
   return (
     <main style={{
       display: 'grid',
-      gridTemplateColumns: 'minmax(700px, 1fr) 340px',
+      gridTemplateColumns: 'minmax(0, 840px) 280px',
       gap: 24,
       padding: 24,
       minHeight: '100dvh',
-      fontFamily: 'system-ui, sans-serif'
+      fontFamily: 'system-ui, sans-serif',
+      width: 'fit-content',
+      margin: '0 auto'
     }}>
       <section>
-        <h2 style={{ color: '#66fcf1', marginTop: 0 }}>Game #{id}</h2>
+        {/*<h2 style={{ color: '#66fcf1', marginTop: 0 }}>Game #{id}</h2>*/}
         <div
           ref={setBoardRef}
           style={{
@@ -1586,120 +1590,79 @@ export default function GamePage() {
         </div>
       </section>
 
-      <aside style={{ display: 'grid', gap: 24 }}>
-        <div style={{ minHeight: 160, background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <strong style={{ color: '#c5c6c7' }}>Game Info</strong>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={refreshGameState}
-                style={{
-                  background: '#66fcf1',
-                  color: '#0e1419',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: 12
-                }}
-              >
+      <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+
+        {/* Game Info — always visible */}
+        <div style={{ background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <strong style={{ color: '#66fcf1', fontSize: 14 }}>Game Info</strong>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={refreshGameState} style={{ background: '#66fcf1', color: '#0e1419', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                 Refresh
               </button>
-              <WalletMultiButton
-                style={{
-                  background: '#2b3a44',
-                  color: '#c5c6c7',
-                  border: '1px solid #2b3a44',
-                  borderRadius: '4px',
-                  padding: '6px 12px',
-                  fontSize: 12,
-                  cursor: 'pointer'
-                }}
-              />
+              <WalletMultiButton style={{ background: '#2b3a44', color: '#c5c6c7', border: '1px solid #2b3a44', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }} />
             </div>
           </div>
-          <div style={{ fontSize: 14, color: '#c5c6c7' }}>
-            <div>Phase: {gameState?.phase || 'Unknown'} {
-              gameState?.phase === 0 ? '(Created)' :
-                gameState?.phase === 1 ? '(Joined)' :
-                  gameState?.phase === 2 ? '(LineupP0Set)' :
-                    gameState?.phase === 3 ? '(LineupP1Set)' :
-                      gameState?.phase === 4 ? '(Active)' :
-                        gameState?.phase === 5 ? '(Finished)' : ''
-            }</div>
-            <div>Game PDA: {gamePda.slice(0, 8)}...</div>
-            <div>Live Pieces: {gameState?.live0 || 0} vs {gameState?.live1 || 0}</div>
-            {/*<div>Setting Lineup: {isSettingLineup ? 'Yes' : 'No'}</div>*/}
-            <div>My Lineup: {(isPlayer0 ? gameState?.live0 || 0 : gameState?.live1 || 0)} pieces</div>
-            <div style={{ marginTop: 8, color: '#66fcf1', fontWeight: 'bold' }}>Lineup Status</div>
-            <div>My lineup submitted: {gameState?.phase && gameState.phase >= (isPlayer0 ? 2 : 3) ? 'Yes' : 'No'}</div>
-            <div>Opponent&apos;s lineup submitted: {gameState?.phase && gameState.phase >= (isPlayer0 ? 3 : 2) ? 'Yes' : 'No'}</div>
-            {/*<div style={{ marginTop: 8, fontSize: 12, color: '#8a9ba8' }}>
-              <div>Debug: Phase {gameState?.phase}, P0: {isPlayer0 ? 'Yes' : 'No'}, P1: {isPlayer1 ? 'Yes' : 'No'}</div>
-              <div>Should show lineup: {
-                (gameState?.phase === 1 && isPlayer0) ||
-                  (gameState?.phase === 1 && isPlayer1 && !isEmptyAddress(gameState?.p0)) ||
-                  (gameState?.phase === 2 && isPlayer1) ||
-                  (gameState?.phase === 3 && isPlayer0) ||
-                  (gameState?.phase === 4 && isPlayer0) ||
-                  (gameState?.phase === 5 && isPlayer1) ? 'Yes' : 'No'
-              }</div>
-            </div>*/}
-          </div>
+
+          {[
+            {
+              icon: '🚩', label: 'Phase',
+              value: <span style={{ background: '#0d2420', border: '1px solid #1D9E75', color: '#5DCAA5', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>
+                {gameState?.phase ?? '—'} · {['Created', 'Joined', 'LineupP0Set', 'LineupP1Set', 'Active', 'Finished'][gameState?.phase ?? 0] ?? ''}
+              </span>
+            },
+            {
+              icon: '#', label: 'Game PDA',
+              value: <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{shortAddr(gamePda)}</span>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(gamePda); toast.success('Address copied!'); }}
+                  title="Copy full address"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: '2px 3px', borderRadius: 4, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+                  onMouseOver={e => { e.currentTarget.style.color = '#66fcf1'; }}
+                  onMouseOut={e => { e.currentTarget.style.color = '#6b7280'; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                </button>
+              </span>
+            },
+            { icon: '✓', label: 'My lineup', value: <span style={{ color: gameState?.phase && gameState.phase >= (isPlayer0 ? 2 : 3) ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: 600 }}>{gameState?.phase && gameState.phase >= (isPlayer0 ? 2 : 3) ? 'Submitted' : 'Pending'}</span> },
+            { icon: '✓', label: 'Opp. lineup', value: <span style={{ color: gameState?.phase && gameState.phase >= (isPlayer0 ? 3 : 2) ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: 600 }}>{gameState?.phase && gameState.phase >= (isPlayer0 ? 3 : 2) ? 'Submitted' : 'Pending'}</span> },
+          ].map(({ icon, label, value }, i, arr) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', borderBottom: i < arr.length - 1 ? '1px solid #1a2029' : 'none' }}>
+              <span style={{ fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {icon} {label}
+              </span>
+              <span style={{ fontSize: 12, color: '#c5c6c7' }}>{value}</span>
+            </div>
+          ))}
         </div>
 
         {/* Lineup Controls */}
         {isSettingLineup && (
           <div style={{ background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>
-            <div style={{ color: '#66fcf1', fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>
-              Set Your Lineup
+            <strong style={{ color: '#66fcf1', fontSize: 14, display: 'block', marginBottom: 10 }}>Set Your Lineup</strong>
+
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12, padding: '7px 10px', background: '#11171c', borderRadius: 6, border: '1px solid #1a2029' }}>
+              4 Stones · 4 Paper · 4 Scissors · 1 Flag · 1 Trap
             </div>
-            <div style={{ fontSize: 14, color: '#c5c6c7', marginBottom: 16, textAlign: 'center' }}>
-              Arrange your pieces: 4 Stones, 4 Paper, 4 Scissors, 1 Flag, 1 Trap
-            </div>
+
             <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
               <button
                 onClick={handleShuffleLineup}
-                style={{
-                  background: '#2b3a44',
-                  color: '#c5c6c7',
-                  border: '1px solid #2b3a44',
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = '#3a4a54';
-                  e.currentTarget.style.borderColor = '#66fcf1';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = '#2b3a44';
-                  e.currentTarget.style.borderColor = '#2b3a44';
-                }}
+                style={{ background: '#2b3a44', color: '#c5c6c7', border: '1px solid #2b3a44', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: 13, textAlign: 'left' }}
+                onMouseOver={e => { e.currentTarget.style.background = '#3a4a54'; e.currentTarget.style.borderColor = '#66fcf1'; }}
+                onMouseOut={e => { e.currentTarget.style.background = '#2b3a44'; e.currentTarget.style.borderColor = '#2b3a44'; }}
               >
                 🔀 Shuffle
               </button>
               <button
                 onClick={handleSubmitLineup}
-                style={{
-                  background: '#66fcf1',
-                  color: '#0e1419',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 'bold',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = '#5ae5d8';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = '#66fcf1';
-                }}
+                style={{ background: '#1b4332', color: '#4ade80', border: '1px solid #2a5c42', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600, textAlign: 'left' }}
+                onMouseOver={e => { e.currentTarget.style.background = '#1e5c3a'; }}
+                onMouseOut={e => { e.currentTarget.style.background = '#1b4332'; }}
               >
                 ✅ Submit Lineup
               </button>
@@ -1707,44 +1670,114 @@ export default function GamePage() {
           </div>
         )}
 
-        <div style={{ height: 260, background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>
-          <strong style={{ color: '#c5c6c7' }}>Player Info</strong>
-          <div style={{ marginTop: 8, fontSize: 14, color: '#c5c6c7' }}>
-            <div>You are: {isPlayer0 ? 'Player 0' : isPlayer1 ? 'Player 1' : 'Unknown'}</div>
-            <div>Your turn: {isMyTurn ? 'Yes' : 'No'}</div>
-            <div>You are WINNER: {isPlayer0 && gameState?.p0.toString() == gameState?.winner?.toString() ? 'YES' : 'NO'}</div>
-            <div style={{ marginTop: 8 }}>
-              <div>Player 0: {gameState?.p0 ? `${String(gameState.p0).slice(0, 8)}...` : 'Unknown'}</div>
-              <div>Player 1: {gameState?.p1 ? `${String(gameState.p1).slice(0, 8)}...` : 'Unknown'}</div>
+        {/* Turn panel — phase >= 4 */}
+        {(gameState?.phase ?? -1) >= 4 && (
+          <div style={{ background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>
+            <strong style={{ color: '#66fcf1', fontSize: 14, display: 'block', marginBottom: 10 }}>Turn</strong>
+            <div style={{
+              background: isMyTurn ? '#0d2420' : '#1e1b2e',
+              borderRadius: 6, padding: '10px 12px',
+              display: 'flex', alignItems: 'center', gap: 10,
+              border: `1px solid ${isMyTurn ? '#1D9E75' : '#3d2f6e'}`,
+              transition: 'background 0.4s ease, border-color 0.4s ease',
+            }}>
+              <div style={{ position: 'relative', width: 32, height: 32, flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: isMyTurn ? '#085041' : '#2a2340', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                  {isMyTurn
+                    ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5DCAA5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="7" />
+                      <path d="M12 2v5M12 17v5M2 12h5M17 12h5" />
+                      <line x1="12" y1="11" x2="12" y2="13" />
+                      <line x1="11" y1="12" x2="13" y2="12" />
+                    </svg>
+                    : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 22h14M5 2h14M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22M7 2v4.172a2 2 0 0 1 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+                    </svg>
+                  }
+                </div>
+                {isMyTurn && (
+                  <span style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: '50%', border: '1.5px solid #1D9E75', animation: 'pulse-ring 1.5s cubic-bezier(0.4,0,0.6,1) infinite', display: 'block' }} />
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: isMyTurn ? '#5DCAA5' : '#a78bfa' }}>
+                  {isMyTurn ? 'Your turn' : "Opponent's turn"}
+                </div>
+                <div style={{ fontSize: 11, color: isMyTurn ? '#5DCAA5' : '#a78bfa', marginTop: 2 }}>
+                  {isMyTurn ? 'Move or attack' : 'Waiting...'}
+                </div>
+              </div>
             </div>
-            
           </div>
-        </div>
-        <div style={{ height: 200, background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 24, color: '#66fcf1' }}>{gameState?.live0 || 0}</div>
-            <div style={{ fontSize: 14, color: '#c5c6c7' }}>vs</div>
-            <div style={{ fontSize: 24, color: '#66fcf1' }}>{gameState?.live1 || 0}</div>
-          </div>
-        </div>
+        )}
 
-        {/* Debug Info 
-        {gameState && (
-          <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-            <div style={{ color: '#66fcf1', fontWeight: 'bold', marginBottom: 8 }}>Debug Info</div>
-            <div style={{ fontSize: 12, color: '#c5c6c7' }}>
-              <div>Phase: {gameState.phase}</div>
-              <div>isPlayer0: {isPlayer0 ? 'Yes' : 'No'}</div>
-              <div>isPlayer1: {isPlayer1 ? 'Yes' : 'No'}</div>
-              <div>isAuthorized: {isAuthorized ? 'Yes' : 'No'}</div>
-              <div>isSettingLineup: {isSettingLineup ? 'Yes' : 'No'}</div>
-              <div>myLineup.length: {myLineup.length}</div>
-              <div>P0: {gameState.p0?.toString()}</div>
-              <div>P1: {gameState.p1?.toString()}</div>
+        {/* Pieces panel — phase >= 1 */}
+        {(gameState?.phase ?? -1) >= 1 && (
+          <div style={{ background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>
+            <strong style={{ color: '#66fcf1', fontSize: 14, display: 'block', marginBottom: 10 }}>Pieces on board</strong>
+            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #2a2e38' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '14px 10px', gap: 3, background: '#1e1b2e', borderRight: '1px solid #2a2e38' }}>
+                <span style={{ fontSize: 11, letterSpacing: '0.5px', textTransform: 'uppercase', color: '#a78bfa' }}>Opponent</span>
+                <span style={{ fontSize: 34, fontWeight: 700, lineHeight: 1, color: '#a78bfa' }}>
+                  {isPlayer0 ? gameState?.live1 ?? 0 : gameState?.live0 ?? 0}
+                </span>
+                <span style={{ fontSize: 11, color: '#6b7280' }}>{isPlayer0 ? 'Player 1' : 'Player 0'}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, background: '#1a1d23', flexShrink: 0, fontSize: 12, color: '#6b7280', fontWeight: 600, letterSpacing: 1 }}>vs</div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '14px 10px', gap: 3, background: '#1e2e26' }}>
+                <span style={{ fontSize: 11, letterSpacing: '0.5px', textTransform: 'uppercase', color: '#4ade80' }}>You</span>
+                <span style={{ fontSize: 34, fontWeight: 700, lineHeight: 1, color: '#4ade80' }}>
+                  {isPlayer0 ? gameState?.live0 ?? 0 : gameState?.live1 ?? 0}
+                </span>
+                <span style={{ fontSize: 11, color: '#6b7280' }}>{isPlayer0 ? 'Player 0' : 'Player 1'}</span>
+              </div>
             </div>
           </div>
-        )}*/}
+        )}
 
+        {/* Players panel — phase >= 1 */}
+        {(gameState?.phase ?? -1) >= 1 && (
+          <div style={{ background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>
+            <strong style={{ color: '#66fcf1', fontSize: 14, display: 'block', marginBottom: 10 }}>Players</strong>
+            {[
+              { playerLabel: isPlayer0 ? 'Player 1' : 'Player 0', addr: isPlayer0 ? gameState?.p1 : gameState?.p0, isYou: false },
+              { playerLabel: isPlayer0 ? 'Player 0' : 'Player 1', addr: isPlayer0 ? gameState?.p0 : gameState?.p1, isYou: true },].map(({ playerLabel, addr, isYou }) => (
+                <div key={playerLabel} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '9px 11px', borderRadius: 7, marginBottom: 6,
+                  background: isYou ? '#1e2e26' : '#1e1b2e',
+                  border: `1px solid ${isYou ? '#2a5c42' : '#3d2f6e'}`,
+                }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                    background: isYou ? '#1b4332' : '#2a2340',
+                    color: isYou ? '#4ade80' : '#a78bfa',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 600,
+                  }}>
+                    {isPlayer0 ? (isYou ? 'P0' : 'P1') : (isYou ? 'P1' : 'P0')}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, color: '#6b7280', letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: 1 }}>
+                      {playerLabel}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#d1d5db', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {addr ? shortAddr(String(addr)) : '—'}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, padding: '2px 9px', borderRadius: 99,
+                    flexShrink: 0, letterSpacing: '0.3px',
+                    color: isYou ? '#4ade80' : '#a78bfa',
+                    background: isYou ? 'rgba(74,222,128,0.12)' : 'rgba(167,139,250,0.12)',
+                    border: `1px solid ${isYou ? 'rgba(74,222,128,0.3)' : 'rgba(167,139,250,0.3)'}`,
+                  }}>
+                    {isYou ? 'You' : 'Opponent'}
+                  </span>
+                </div>
+              ))}
+          </div>
+        )}
       </aside>
 
       {/* Weapon Selection Popup */}

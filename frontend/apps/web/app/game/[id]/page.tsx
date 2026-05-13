@@ -34,6 +34,7 @@ export default function GamePage() {
   const { id } = useParams<{ id: string }>();
   const { connected, publicKey } = useSolanaWallet();
   const gamePda = id || '';
+  const isAnimatingAttackRef = useRef(false);
 
   // Initialize smart contract integration
   const {
@@ -305,7 +306,6 @@ export default function GamePage() {
       console.log('Pieces with traps:', pieces.map((p, i) => `${i}: ${WEAPON_NAMES[p]}`));
 
       await submitCustomLineup(xs, ys, pieces);
-      await refreshGameState();
 
       setIsSettingLineup(false);
       toast.success('Lineup submitted successfully!');
@@ -331,6 +331,7 @@ export default function GamePage() {
 
     try {
       await joinGame(gamePda);
+
       toast.success('Successfully joined the game!', { id: 'join-game' });
       // The useEffect will handle updating the authorization state
     } catch (err) {
@@ -432,57 +433,62 @@ export default function GamePage() {
 
   // Update figures when game state changes (render from on-chain lineup)
   useEffect(() => {
-    if (gameState) {
-      let newFigures: Figure[] = [];
-      let figureId = 0;
+    if (!gameState) return;
+    if (isAnimatingAttackRef.current) {
+      console.log('[DEBUG] figures useEffect BLOCKED by guard, time:', Date.now());
+      return;
+    }
+    console.log('[DEBUG] figures useEffect RUNNING, time:', Date.now());
 
-      // Convert smart contract data to figures
-      for (let i = 0; i < HEIGHT * WIDTH; i++) {
-        const row = Math.floor(i / cols);
-        const col = i % cols;
-        const owner = gameState.owners[i];
-        const piece = gameState.pieces[i];
+    let newFigures: Figure[] = [];
 
-        // Determine if this is the user's figure (Owner.None=0, P0=1, P1=2)
-        const isMyFigure = (isPlayer0 && owner === Owner.P0) || (isPlayer1 && owner === Owner.P1);
+    // Convert smart contract data to figures
+    for (let i = 0; i < HEIGHT * WIDTH; i++) {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const owner = gameState.owners[i];
+      const piece = gameState.pieces[i];
 
-        // Only create figure if it's owned by someone
-        if (owner !== 0) { // 0 = None in Owner enum
-          const isTrapPiece = (piece as number) === Weapon.Trap;
-          newFigures.push({
-            id: `figure-${figureId++}`,
-            row,
-            col,
-            // Hide weapon for trap pieces (trap has its own animation), show otherwise
-            weapon: isTrapPiece ? undefined : (piece as Weapon),
-            isMyFigure,
-            isAlive: true,
-            isTrap: isTrapPiece
-          });
-        }
-      }
+      // Determine if this is the user's figure (Owner.None=0, P0=1, P1=2)
+      const isMyFigure = (isPlayer0 && owner === Owner.P0) || (isPlayer1 && owner === Owner.P1);
 
-      // During lineup setting, add opponent's pieces (without weapons)
-      if (isSettingLineup) {
-        console.log('Adding opponent pieces during lineup setting...');
-        console.log('Opponent lineup from state:', opponentLineup);
-        console.log('Opponent lineup length:', opponentLineup.length);
-        console.log('Adding to newFigures, current length:', newFigures.length);
-        newFigures.push(...opponentLineup);
-        console.log('After adding opponent pieces, newFigures length:', newFigures.length);
-      }
-
-      if (isPlayer1) {
-        const mirroredData = newFigures.map(figure => ({
-          ...figure,
-          row: (HEIGHT - 1) - figure.row,
-          col: (WIDTH - 1) - figure.col,
-        }));
-        setFigures(mirroredData);
-      } else {
-        setFigures(newFigures);
+      // Only create figure if it's owned by someone
+      if (owner !== 0) { // 0 = None in Owner enum
+        const isTrapPiece = (piece as number) === Weapon.Trap;
+        newFigures.push({
+          id: `figure-${i}`,
+          row,
+          col,
+          // Hide weapon for trap pieces (trap has its own animation), show otherwise
+          weapon: isTrapPiece ? undefined : (piece as Weapon),
+          isMyFigure,
+          isAlive: true,
+          isTrap: isTrapPiece
+        });
       }
     }
+
+    // During lineup setting, add opponent's pieces (without weapons)
+    if (isSettingLineup) {
+      console.log('Adding opponent pieces during lineup setting...');
+      console.log('Opponent lineup from state:', opponentLineup);
+      console.log('Opponent lineup length:', opponentLineup.length);
+      console.log('Adding to newFigures, current length:', newFigures.length);
+      newFigures.push(...opponentLineup);
+      console.log('After adding opponent pieces, newFigures length:', newFigures.length);
+    }
+
+    if (isPlayer1) {
+      const mirroredData = newFigures.map(figure => ({
+        ...figure,
+        row: (HEIGHT - 1) - figure.row,
+        col: (WIDTH - 1) - figure.col,
+      }));
+      setFigures(mirroredData);
+    } else {
+      setFigures(newFigures);
+    }
+
   }, [gameState, isPlayer0, isPlayer1, isSettingLineup, opponentLineup]);
 
   // Debug when opponentLineup changes
@@ -527,7 +533,8 @@ export default function GamePage() {
         setIsAuthorized(true);
         setCanJoinGame(false);
         setAuthorizationError(null);
-        toast.success(`Welcome! You are ${isPlayer0 ? 'Player 0' : 'Player 1'}`);
+        const player = isPlayer0 ? 'Player 0' : 'Player 1';
+        toast.success(`Welcome! You are ${player}`, { id: player });
       } else {
         // Check if game can be joined (has empty slot)
         const hasEmptySlot = isEmptyAddress(p0Address) || isEmptyAddress(p1Address);
@@ -673,7 +680,7 @@ export default function GamePage() {
             </button>
           </div>
           <div style={{ color: '#8a9ba8', fontSize: 12 }}>
-            Game PDA: {gamePda.slice(0, 8)}...
+            Game PDA: {shortAddr(gamePda)}
           </div>
         </div>
       </main>
@@ -751,7 +758,7 @@ export default function GamePage() {
           width: '90%'
         }}>
           <div style={{ fontSize: 28, color: '#66fcf1', marginBottom: 16, fontWeight: 'bold' }}>
-            Join Game {gamePda.slice(0, 8)}...
+            Join Game {shortAddr(gamePda)}
           </div>
           <div style={{ color: '#c5c6c7', marginBottom: 24, fontSize: 16, lineHeight: 1.5 }}>
             This game is waiting for a second player. Would you like to join?
@@ -761,7 +768,7 @@ export default function GamePage() {
             <div>Game Phase: {gameState?.phase}</div>
             <div>Current Players: {(!isEmptyAddress(String(gameState?.p0 || ''))) ? '1' : '0'} / 2</div>
             {gameState?.p0 && !isEmptyAddress(String(gameState.p0)) && (
-              <div>Player 0: {String(gameState.p0).slice(0, 8)}...</div>
+              <div>Player 0: {shortAddr(String(gameState.p0))}</div>
             )}
           </div>
 
@@ -807,8 +814,7 @@ export default function GamePage() {
           <div style={{ fontSize: 24, color: '#ff6b6b', marginBottom: 16 }}>Access Denied</div>
           <div style={{ color: '#c5c6c7', marginBottom: 16 }}>{authorizationError}</div>
           <div style={{ color: '#c5c6c7', fontSize: 14 }}>
-            Game Players: {gameState?.p0 ? `${String(gameState.p0).slice(0, 8)}...` : 'Unknown'} and {gameState?.p1 ? `${String(gameState.p1).slice(0, 8)}...` : 'Unknown'}
-          </div>
+            Game Players: {gameState?.p0 ? shortAddr(String(gameState.p0)) : 'Unknown'} and {gameState?.p1 ? shortAddr(String(gameState.p1)) : 'Unknown'}          </div>
         </div>
       </main>
     );
@@ -876,7 +882,7 @@ export default function GamePage() {
             fontSize: 14,
             color: '#8a9ba8',
           }}>
-            <div>Winner: {gameState.winner.toString().slice(0, 8)}...</div>
+            <div>Winner: {shortAddr(String(gameState.winner))}</div>
             <div style={{ marginTop: 4 }}>
               Final score: {gameState.live0} vs {gameState.live1}
             </div>
@@ -946,7 +952,7 @@ export default function GamePage() {
             />
           </div>
           <div style={{ color: '#8a9ba8', fontSize: 14 }}>
-            Game PDA: {gamePda.slice(0, 8)}...
+            Game PDA: {shortAddr(gamePda)}
           </div>
         </div>
       </main>
@@ -1072,6 +1078,10 @@ export default function GamePage() {
       const isAdjacent = Math.abs(selectedFigure.row - cellRow) + Math.abs(selectedFigure.col - cellCol) === 1;
 
       if (isAdjacent) {
+          if (selectedFigure.weapon === Weapon.Flag) {
+            toast.info("You can't attack with a flag");
+            return;
+          }
         console.log('Attacking opponent figure:', figure.id);
         attackFigure(selectedFigure, figure);
         setSelectedFigure(null);
@@ -1103,7 +1113,7 @@ export default function GamePage() {
         (async () => {
           try {
             await movePiece(fromX, fromY, toX, toY);
-            await refreshGameState();
+
             toast.success('Move submitted', { id: toastId });
           } catch (err) {
             console.error('Failed to submit move:', err);
@@ -1221,19 +1231,23 @@ export default function GamePage() {
     const toX = isPlayer1 ? (cols - 1 - target.col) : target.col;
     const toY = isPlayer1 ? (rows - 1 - target.row) : target.row;
 
+    console.log("[ATTACK] attacker: ", attacker)
+    console.log("[ATTACK] target: ", target)
+    console.log("[ATTACK] figures before : ", figures)
+
     const toastId = `attack-${attacker.id}-${toX}-${toY}`;
     toast.loading('Submitting attack...', { id: toastId });
     (async () => {
       try {
         await movePiece(fromX, fromY, toX, toY);
-        await refreshGameState();
+
         toast.success('Attack submitted', { id: toastId });
 
-        console.log("gameStateRef.current?.attacker: ", gameStateRef.current?.attacker)
-        console.log("gameStateRef.current?.defender: ", gameStateRef.current?.defender)
-        console.log("attacker: ", attacker)
-        console.log("target: ", target)
-        console.log("gameStateRef.current?.tiePending: ", gameStateRef.current?.tiePending)
+        console.log("[ATTACK] gameStateRef.current?.attacker: ", gameStateRef.current?.attacker)
+        console.log("[ATTACK] gameStateRef.current?.defender: ", gameStateRef.current?.defender)
+        console.log("[ATTACK] gameStateRef.current?.tiePending: ", gameStateRef.current?.tiePending)
+
+        console.log("[ATTACK] figures after : ", figures)
 
         // Check for tie - if both weapons are the same, show weapon selection popup
         if (gameStateRef.current?.tiePending) {
@@ -1256,13 +1270,22 @@ export default function GamePage() {
   };
 
   const proceedWithAttack = (attacker: Figure, target: Figure) => {
+    const attackStartTime = Date.now();
+    console.log('[DEBUG] attack started, time:', attackStartTime);
+
     console.log('Proceeding with attack:', attacker.id, 'attacks', target.id);
+    isAnimatingAttackRef.current = true;
 
     let winner!: Figure;
     let loser!: Figure;
 
     attacker.weapon = gameStateRef.current?.attacker as Weapon;
     target.weapon = gameStateRef.current?.defender as Weapon;
+
+    setFigures(prev => prev.map(f =>
+      f.id === attacker.id ? { ...f, weapon: attacker.weapon } :
+        f.id === target.id ? { ...f, weapon: target.weapon } : f
+    ));
 
     console.log("attacker: ", attacker)
     console.log("target: ", target)
@@ -1330,7 +1353,7 @@ export default function GamePage() {
 
       setTimeout(() => {
         setDyingFigures([loser.id]);
-
+        console.log('[DEBUG] dyingFigures set:', loser.id, 'time:', Date.now());
       }, attackTimeMs + 100);
     }, 400);
 
@@ -1348,6 +1371,12 @@ export default function GamePage() {
       setTimeout(() => {
         setDyingFigures([]);
       }, 400);
+
+      setTimeout(async () => {
+        console.log('[DEBUG] lifting guard and refreshing, elapsed:', Date.now() - attackStartTime);
+        isAnimatingAttackRef.current = false;
+        await refreshGameState();
+      }, 600);
     }, 400 + 200 + attackTimeMs + 100); // keep ~200ms window after death starts
   };
 
@@ -1448,11 +1477,21 @@ export default function GamePage() {
       // Target wins: target stays in place, attacker disappears
       // Delay loser removal to allow death animation to play
       setTimeout(() => {
-        setFigures(prev => prev.map(g => g.id === attacker.id ? { ...g, isAlive: false } : g));
+        console.log('[DEBUG] setting isAlive: false for:', target.id, 'time:', Date.now());
+
+        setFigures(prev => prev.map(g => {
+          if (g.id === attacker.id) return { ...g, isAlive: false };
+          if (g.id === target.id) return {
+            ...g,
+            isMoving: false,
+            animX: undefined,
+            animY: undefined,
+          };
+          return g;
+        }));
       }, 500);
     }
   };
-
 
   return (
     <main style={{
@@ -1557,7 +1596,7 @@ export default function GamePage() {
                 }}
               >
                 <RpsFigure
-                  key={`${figure.id}-${figure.isTrap ? 'trap' : 'normal'}`}
+                  key={`${figure.id}-${figure.isMyFigure ? 'mine' : 'opp'}-${figure.isTrap ? 'trap' : 'normal'}`}
                   riveFile={riveFile as any}
                   weapon={figure.weapon}
                   trigger={

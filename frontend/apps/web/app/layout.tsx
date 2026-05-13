@@ -2,6 +2,7 @@ import './globals.css';
 import WalletProviders from './providers/WalletProviders';
 import { Toaster } from 'sonner';
 import { ReactNode } from 'react';
+import { Metadata } from 'next';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -16,3 +17,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   );
 }
 
+export const metadata: Metadata = {
+  icons: {
+    icon: '/favicon.ico',
+  },
+}

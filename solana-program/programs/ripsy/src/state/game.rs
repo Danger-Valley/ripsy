@@ -56,21 +56,8 @@ impl Game {
         Phase::from(self.phase)
     }
 
-    pub fn end_turn_or_win(&mut self) -> Result<()> {
-        if self.live_player0 == 0 || self.live_player1 == 0 {
-            let winner = if self.live_player0 == 0 {
-                self.player1
-            } else {
-                self.player0
-            };
-            self.finish(winner, "no_pieces_left")?;
-
-            return Ok(());
-        }
-
+    pub fn end_turn(&mut self) {
         self.is_player1_turn = !self.is_player1_turn;
-
-        Ok(())
     }
 
     pub fn finish(&mut self, winner: Pubkey, reason: &str) -> Result<()> {

@@ -64,11 +64,7 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
     let t_to = g.tie_to as usize;
 
     let is_p1 = player == g.player1;
-    let is_attacker_p1 = if g.board_cells_owner[t_from] == BoardCellOwner::P1 as u8 {
-        true
-    } else {
-        false
-    };
+    let is_attacker_p1 = g.board_cells_owner[t_from] == BoardCellOwner::P1 as u8;
     let is_attacker = is_attacker_p1 == is_p1;
 
     let (p0_choice, p1_choice) = if is_attacker {
@@ -87,13 +83,9 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
 
     let is_tie = outcome == 0;
     if !is_tie {
-        let attacker_wins = if is_attacker_p1 {
-            outcome == -1
-        } else {
-            outcome == 1
-        };
+        let is_attacker_wins = outcome == 1;
 
-        if attacker_wins {
+        if is_attacker_wins {
             g.board_cells_owner[t_to] = if is_attacker_p1 {
                 BoardCellOwner::P1 as u8
             } else {
@@ -146,5 +138,5 @@ pub fn choose_weapon(ctx: Context<ChooseWeapon>, choice: u8) -> Result<()> {
     player_data.choice = Choice::None;
     opponent_data.choice = Choice::None;
 
-    g.end_turn_or_win()
+    Ok(())
 }

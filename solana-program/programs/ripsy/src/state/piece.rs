@@ -21,6 +21,9 @@ impl Piece {
             (Rock, Scissors) => 1,
             (Scissors, Paper) => 1,
             (Paper, Rock) => 1,
+            (Rock, Flag) => 1,
+            (Scissors, Flag) => 1,
+            (Paper, Flag) => 1,
             _ => -1,
         }
     }

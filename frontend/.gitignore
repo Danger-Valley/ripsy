@@ -10,4 +10,5 @@ out/
 *.local
 .DS_Store
 apps/web/.env*
+tsconfig.tsbuildinfo
 

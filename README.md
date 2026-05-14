@@ -53,7 +53,7 @@ Program ID (localnet/devnet): `3ueExHyxLr7ahqcBEzse3L21rTaWQ91rLtVnZLsx4ngA` —
 3. **Lineup** — each player submits a hidden flag position and piece layout.
 4. **Move** — players take turns moving pieces on the board.
 5. **Combat** — when pieces collide, both players commit an RPS choice; the smart contract resolves the winner.
-6. **Finish** — game ends when a flag is captured or all pieces are eliminated.
+6. **Finish** — game ends when a flag is captured.
 
 Phases, state, and instruction reference are documented in [frontend/SMART_CONTRACT_INTEGRATION.md](frontend/SMART_CONTRACT_INTEGRATION.md).
 

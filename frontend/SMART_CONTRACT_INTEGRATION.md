@@ -40,7 +40,7 @@ Visit `/game/1/test` to run the integration test page and verify everything is w
 The `@rps/solana-client` package provides:
 
 ### Core Classes
-- `RpsGameClient` - Main client for smart contract interaction
+- `RipsyGameClient` - Main client for smart contract interaction
 - `useRipsyGame` - React hook for easy integration
 
 ### Key Methods
@@ -118,9 +118,9 @@ if (!gameState) return <div>No game state</div>;
 
 ### Custom Game Client
 ```typescript
-import { RpsGameClient } from '@rps/solana-client';
+import { RipsyGameClient } from '@rps/solana-client';
 
-const client = new RpsGameClient(provider);
+const client = new RipsyGameClient(provider);
 await client.createGame();
 ```
 
@@ -165,7 +165,7 @@ const { gameState, ... } = useRipsyGame(gameId, { debug: true });
 
 ## 📚 API Reference
 
-### RpsGameClient Methods
+### RipsyGameClient Methods
 - `createGame()` - Create new game
 - `joinGame(gamePda)` - Join existing game
 - `submitLineup(gamePda, isP0, flagPos)` - Submit lineup

@@ -1,4 +1,4 @@
-# RPS Arena – Monorepo
+# Ripsy – Monorepo
 
 Monorepo for an onchain Rock–Paper–Scissors game on Solana.
 

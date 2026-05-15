@@ -123,7 +123,7 @@ export const decodeGame = (raw: any) => {
   const owners: Owner[] = (raw.boardCellsOwner as number[]).map(
     (n) => n as Owner,
   );
-console.log("raw: ", raw)
+
   return {
     p0: raw.player0 as string,
     p1: raw.player1 as string,

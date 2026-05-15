@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useSolanaWallet } from '../../hooks/useSolanaWallet';
 import { WalletMultiButton } from '../../components/WalletMultiButton';
 import { toast } from 'sonner';
-import { useRipsyGame, isEmptyAddress, Owner, HEIGHT, WIDTH, Choice } from '@rps/solana-client';
+import { useRipsyGame, isEmptyAddress, Owner, HEIGHT, WIDTH, Choice, GameState } from '@rps/solana-client';
 import RpsFigure, { Weapon, WEAPON_NAMES } from './RpsFigure';
 import WeaponSelectionPopup from './WeaponSelectionPopup';
 
@@ -41,6 +41,7 @@ export default function GamePage() {
     loading: gameLoading,
     error: gameError,
     refreshGameState,
+    refreshFreshGameState,
     joinGame,
     submitCustomLineup,
     movePiece,
@@ -51,10 +52,6 @@ export default function GamePage() {
     isPlayerChoice,
     isInitialized,
   } = useRipsyGame(gamePda);
-
-  const isAnimatingAttackRef = useRef(false);
-  
-  const gameStateRef = useRef(gameState);
 
   const rows = HEIGHT;
   const cols = WIDTH;
@@ -98,6 +95,10 @@ export default function GamePage() {
   const [showWeaponPopup, setShowWeaponPopup] = useState(false);
   const [pendingAttack, setPendingAttack] = useState<{ attacker: Figure, target: Figure } | null>(null);
 
+  const isAnimatingAttackRef = useRef(false);
+  const pendingAttackDataRef = useRef<{ attacker: Figure, target: Figure } | null>(null);
+  const figuresRef = useRef(figures);
+
   // Calculate responsive cell dimensions for positioning
   // Use actual board dimensions if available, otherwise fallback to calculated values
   const actualBoardWidth = boardRef?.clientWidth || (windowWidth > 0 ? Math.min(840, windowWidth * 0.9) : 840);
@@ -115,6 +116,513 @@ export default function GamePage() {
   //   console.log('figureSize:', figureSize, 'figureScale:', figureScale, 'cellSize:', cellSize);
 
   const shortAddr = (addr: string) => `${addr.slice(0, 4)}…${addr.slice(-4)}`;
+
+  const getAvailableMoves = (figure: Figure) => {
+    const moves: { row: number, col: number, direction: string }[] = [];
+    const directions = [
+      { row: -1, col: 0, direction: 'up' },
+      { row: 1, col: 0, direction: 'down' },
+      { row: 0, col: -1, direction: 'left' },
+      { row: 0, col: 1, direction: 'right' }
+    ];
+
+    directions.forEach(({ row: deltaRow, col: deltaCol, direction }) => {
+      const newRow = figure.row + deltaRow;
+      const newCol = figure.col + deltaCol;
+
+      // Check if move is within bounds
+      if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
+        // Check if target cell is empty
+        const targetFigure = figures.find(f => f.row === newRow && f.col === newCol && f.isAlive);
+        if (!targetFigure) {
+          moves.push({ row: newRow, col: newCol, direction });
+        }
+      }
+    });
+
+    return moves;
+  };
+
+  const moveFigure = (figure: Figure, newRow: number, newCol: number) => {
+    // Determine jump direction based on movement
+    const rowDiff = newRow - figure.row;
+    const colDiff = newCol - figure.col;
+
+    let jumpDirection: 'Jump Forward' | 'Jump Left' | 'Jump Right' = 'Jump Forward';
+    if (colDiff < 0) {
+      jumpDirection = 'Jump Left';  // Moving left
+    } else if (colDiff > 0) {
+      jumpDirection = 'Jump Right'; // Moving right
+    }
+    // For up/down movement (rowDiff !== 0), use 'Jump Forward'
+
+    // Start animation on the figure (using figure ID)
+    setAnimatingFigure(figure.id);
+    setJumpDirection(jumpDirection);
+
+    // Calculate positions
+    const oldX = (figure.col * actualCellWidth) + (actualCellWidth / 2);
+    const oldY = (figure.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
+    const newX = (newCol * actualCellWidth) + (actualCellWidth / 2);
+    const newY = (newRow * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
+
+    // Mark figure as moving and set initial animation position
+    setFigures(prevFigures =>
+      prevFigures.map(f =>
+        f.id === figure.id
+          ? {
+            ...f,
+            row: newRow,
+            col: newCol,
+            isMoving: true,
+            oldRow: figure.row,
+            oldCol: figure.col,
+            animX: oldX,
+            animY: oldY
+          }
+          : f
+      )
+    );
+
+    // Start position animation after 200ms delay
+    setTimeout(() => {
+      const startTime = Date.now();
+      // Different durations based on jump direction
+      const duration = (jumpDirection === 'Jump Left' || jumpDirection === 'Jump Right') ? 300 : 500;
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Easing function for smooth animation
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+        const currentX = oldX + (newX - oldX) * easeProgress;
+        const currentY = oldY + (newY - oldY) * easeProgress;
+
+        setFigures(prevFigures =>
+          prevFigures.map(f =>
+            f.id === figure.id
+              ? { ...f, animX: currentX, animY: currentY }
+              : f
+          )
+        );
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          // Animation complete
+          setFigures(prevFigures =>
+            prevFigures.map(f =>
+              f.id === figure.id
+                ? {
+                  ...f,
+                  isMoving: false,
+                  oldRow: undefined,
+                  oldCol: undefined,
+                  animX: undefined,
+                  animY: undefined
+                }
+                : f
+            )
+          );
+          setAnimatingFigure(null);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    }, 200); // 200ms delay before position animation starts
+  };
+
+  const attackFigure = async (attacker: Figure, target: Figure) => {
+    console.log('Attack initiated:', attacker.id, 'attacks', target.id);
+
+    const fromX = isPlayer1 ? (cols - 1 - attacker.col) : attacker.col;
+    const fromY = isPlayer1 ? (rows - 1 - attacker.row) : attacker.row;
+    const toX = isPlayer1 ? (cols - 1 - target.col) : target.col;
+    const toY = isPlayer1 ? (rows - 1 - target.row) : target.row;
+
+    const toastId = `attack-${attacker.id}-${toX}-${toY}`;
+    toast.loading('Submitting attack...', { id: toastId });
+
+    try {
+      isAnimatingAttackRef.current = true;
+
+      await movePiece(fromX, fromY, toX, toY);
+
+      const freshState = await refreshFreshGameState();
+      if (!freshState) {
+        isAnimatingAttackRef.current = false;
+        return;
+      }
+
+      toast.success('Attack submitted', { id: toastId });
+
+      // Check for tie - if both weapons are the same, show weapon selection popup
+      if (freshState.tiePending) {
+        console.log('Tie detected! Showing weapon selection popup');
+        setPendingAttack({ attacker, target });
+        setShowWeaponPopup(true);
+        return;
+      }
+
+      // No tie, proceed with normal attack logic
+      proceedWithAttack(attacker, target, freshState);
+    } catch (err) {
+      console.error('Failed to submit attack:', err);
+      toast.error(`Failed to submit attack: ${err}`, { id: toastId });
+      isAnimatingAttackRef.current = false;
+    } finally {
+      setSelectedFigure(null);
+      setAvailableMoves([]);
+    }
+  };
+
+  const proceedWithAttack = (attacker: Figure, target: Figure, freshState: GameState) => {
+    const attackStartTime = Date.now();
+
+    if (freshState.attacker) {
+      attacker.weapon = freshState.attacker as Weapon;
+    }
+    if (freshState.defender) {
+      target.weapon = freshState.defender as Weapon;
+    }
+
+    const nextFigures = figures.map(f =>
+      f.id === attacker.id ? { ...f, weapon: attacker.weapon } :
+      f.id === target.id ? { ...f, weapon: target.weapon } : f
+    );
+
+    figuresRef.current = nextFigures;
+
+    setFigures(nextFigures);
+
+    const outcome = freshState.outcome;
+
+    let winner!: Figure;
+    let loser!: Figure;
+
+    if (outcome === 1) {
+      winner = attacker;
+      loser = target;
+    } else {
+      winner = target;
+      loser = attacker;
+    }
+
+    console.log(
+      `[DEBUG] Battle Resolution:\n` +
+      `- Time: ${attackStartTime}\n` +
+      `- Attacker: ID ${attacker.id} with Weapon ${attacker.weapon} (${attacker.weapon !== undefined ? Weapon[attacker.weapon] : 'Unknown'})\n` +
+      `- Defender: ID ${target.id} with Weapon ${target.weapon} (${target.weapon !== undefined ? Weapon[target.weapon] : 'Unknown'})\n` +
+      `- Outcome: ${outcome}\n` +
+      `- Winner: ${winner.id}`
+    );
+
+    // Calculate attack positions (both figures move to center between them)
+    const attackerX = (attacker.col * actualCellWidth) + (actualCellWidth / 2);
+    const attackerY = (attacker.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
+    const targetX = (target.col * actualCellWidth) + (actualCellWidth / 2);
+    const targetY = (target.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
+
+    // Calculate center position between attacker and target
+    const centerX = (attackerX + targetX) / 2;
+    const centerY = (attackerY + targetY) / 2;
+
+    // Add some distance between figures
+    // const attackerFinalX = centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+    // const targetFinalX = centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+    const attackerIsLeft = attacker.col <= target.col;
+    const attackerFinalX = attackerIsLeft
+      ? centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
+      : centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+    const targetFinalX = attackerIsLeft
+      ? centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
+      : centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+
+    // Set both figures as attacking
+    setAttackingFigures([attacker.id, target.id]);
+
+    // Set winner and loser for animations
+    setWinningFigure(winner.id);
+
+    // Don't scale during "Attack Prepare" phase, but keep movement animation
+
+    // Start with "Attack Prepare" phase
+    setAttackPhase('prepare');
+    // Move to attack positions 100ms after prepare
+    setTimeout(() => {
+      setAttackPositions({
+        [attacker.id]: { x: attackerFinalX, y: centerY },
+        [target.id]: { x: targetFinalX, y: centerY }
+      });
+    }, 100);
+
+    console.log('Winner weapon:', WEAPON_NAMES[winner.weapon || Weapon.None]);
+    const attackTimeMs = (winner.weapon || Weapon.None) === Weapon.Stone ? 383 : (winner.weapon || Weapon.None) === Weapon.Paper ? 500 : (winner.weapon || Weapon.None) === Weapon.Scissors ? 966 : 400;
+
+    // After 400ms, switch to "Attack" phase and scale figures
+    setTimeout(() => {
+      setAttackPhase('attack');
+      setScaledFigures([attacker.id, target.id]);
+
+      setTimeout(() => {
+        setDyingFigures([loser.id]);
+        console.log('[DEBUG] dyingFigures set:', loser.id, 'time:', Date.now());
+      }, attackTimeMs + 100);
+    }, 400);
+
+    // Reset attack state and resolve combat after total animation duration
+    setTimeout(() => {
+      setAttackingFigures([]);
+      setAttackPositions({});
+      setScaledFigures([]);
+      setAttackPhase(null);
+      setWinningFigure(null);
+
+      // Resolve combat with predetermined winner
+      resolveCombatWithWinner(attacker, target, winner);
+
+      setTimeout(() => {
+        setDyingFigures([]);
+      }, 400);
+
+      setTimeout(async () => {
+        console.log('[DEBUG] lifting guard and refreshing, elapsed:', Date.now() - attackStartTime);
+        isAnimatingAttackRef.current = false;
+        await refreshGameState();
+      }, 600);
+    }, 400 + 200 + attackTimeMs + 100); // keep ~200ms window after death starts
+  };
+
+  const resolveCombatWithWinner = (attacker: Figure, target: Figure, winner: Figure) => {
+    console.log('Combat resolution with predetermined winner:', { attacker: attacker.id, target: target.id, winner: winner.id });
+
+    if (winner.id === attacker.id) {
+      // Attacker wins: attacker moves to target's cell with animation, target disappears
+      console.log('Moving attacker to:', target.row, target.col);
+
+      // Calculate positions for smooth movement
+      // Use the actual attack position where the figure currently is (center between figures)
+      const attackerX = (attacker.col * actualCellWidth) + (actualCellWidth / 2);
+      const attackerY = (attacker.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
+      const targetX = (target.col * actualCellWidth) + (actualCellWidth / 2);
+      const targetY = (target.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
+
+      // Calculate center position (where figures are during attack)
+      const centerX = (attackerX + targetX) / 2;
+      const centerY = (attackerY + targetY) / 2;
+
+      // Current position is the attacker's attack position (center - distance)
+      //const currentX = centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+      const attackerIsLeft = attacker.col <= target.col;
+      const currentX = attackerIsLeft
+        ? centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
+        : centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
+      const currentY = centerY;
+
+      // Set attacker as moving and update position immediately
+      setFigures(prevFigures =>
+        prevFigures.map(f => {
+          if (f.id === attacker.id) {
+            return {
+              ...f,
+              row: target.row,
+              col: target.col,
+              isMoving: true,
+              oldRow: attacker.row,
+              oldCol: attacker.col,
+              animX: currentX,
+              animY: currentY
+            };
+          }
+          return f;
+        })
+      );
+      // Delay loser removal to allow death animation to play
+      setTimeout(() => {
+        setFigures(prev => prev.map(g => g.id === target.id ? { ...g, isAlive: false } : g));
+      }, 500);
+
+      // Animate movement to target position
+      const startTime = Date.now();
+      const duration = 200; // 200ms movement animation
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Easing function for smooth animation
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+        const currentAnimX = currentX + (targetX - currentX) * easeProgress;
+        const currentAnimY = currentY + (targetY - currentY) * easeProgress;
+
+        setFigures(prevFigures =>
+          prevFigures.map(f =>
+            f.id === attacker.id
+              ? { ...f, animX: currentAnimX, animY: currentAnimY }
+              : f
+          )
+        );
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          // Animation complete
+          setFigures(prevFigures =>
+            prevFigures.map(f =>
+              f.id === attacker.id
+                ? {
+                  ...f,
+                  isMoving: false,
+                  oldRow: undefined,
+                  oldCol: undefined,
+                  animX: undefined,
+                  animY: undefined
+                }
+                : f
+            )
+          );
+        }
+      };
+
+      requestAnimationFrame(animate);
+    } else {
+      // Target wins: target stays in place, attacker disappears
+      // Delay loser removal to allow death animation to play
+      setTimeout(() => {
+        console.log('[DEBUG] setting isAlive: false for:', target.id, 'time:', Date.now());
+
+        setFigures(prev => prev.map(g => {
+          if (g.id === attacker.id) return { ...g, isAlive: false };
+          if (g.id === target.id) return {
+            ...g,
+            isMoving: false,
+            animX: undefined,
+            animY: undefined,
+          };
+          return g;
+        }));
+      }, 500);
+    }
+  };
+
+  const handleCellClick = useCallback(async (cellKey: number, figure: Figure | null) => {
+    console.log('Cell clicked:', cellKey, 'figure:', figure);
+
+    if (gameState?.tiePending && isPlayerChoice()) {
+      toast.info('Waiting for opponent to resolve the tie');
+      return;
+    }
+
+    // If clicking on a selected figure, deselect it
+    if (selectedFigure && figure && figure.id === selectedFigure.id) {
+      setSelectedFigure(null);
+      setAvailableMoves([]);
+      return;
+    }
+
+    // If clicking on one of my figures, select it and show available moves
+    // BUT: Don't allow selecting trap pieces or when it's not my turn
+    if (figure && figure.isMyFigure) {
+      if (!isMyTurn) {
+        toast.info('Wait for your turn');
+        return;
+      }
+      // Prevent selecting trap pieces
+      if (figure.isTrap) {
+        console.log('Cannot select trap piece - traps are not movable');
+        toast.info('Traps cannot be moved');
+        return;
+      }
+
+      const moves = getAvailableMoves(figure);
+      setSelectedFigure(figure);
+      setAvailableMoves(moves);
+      console.log('Selected figure:', figure.id, 'Available moves:', moves);
+      return;
+    }
+
+    // If clicking on an opponent figure and I have a selected figure, check if it's adjacent
+    if (selectedFigure && figure && !figure.isMyFigure) {
+      if (!isMyTurn) {
+        toast.info('Wait for your turn');
+        return;
+      }
+      const cellRow = Math.floor(cellKey / cols);
+      const cellCol = cellKey % cols;
+      const isAdjacent = Math.abs(selectedFigure.row - cellRow) + Math.abs(selectedFigure.col - cellCol) === 1;
+
+      if (isAdjacent) {
+        if (selectedFigure.weapon === Weapon.Flag) {
+          toast.info("You can't attack with a flag");
+          return;
+        }
+
+        await attackFigure(selectedFigure, figure);
+
+        setSelectedFigure(null);
+        setAvailableMoves([]);
+        return;
+      }
+    }
+
+    // If clicking on an available move cell, submit on-chain move
+    if (selectedFigure && !figure) {
+      if (!isMyTurn) {
+        toast.info('Wait for your turn');
+        return;
+      }
+
+      const move = availableMoves.find(move => {
+        const cellRow = Math.floor(cellKey / cols);
+        const cellCol = cellKey % cols;
+        return move.row === cellRow && move.col === cellCol;
+      });
+
+      if (move) {
+        console.log('Submitting on-chain move to:', move);
+        const fromX = isPlayer1 ? (cols - 1 - selectedFigure.col) : selectedFigure.col;
+        const fromY = isPlayer1 ? (rows - 1 - selectedFigure.row) : selectedFigure.row;
+        const toX = isPlayer1 ? (cols - 1 - move.col) : move.col;
+        const toY = isPlayer1 ? (rows - 1 - move.row) : move.row;
+        const toastId = `move-${selectedFigure.id}-${toX}-${toY}`;
+        toast.loading('Submitting move...', { id: toastId });
+
+        try {
+          await movePiece(fromX, fromY, toX, toY);
+
+          toast.success('Move submitted', { id: toastId });
+        } catch (err) {
+          console.error('Failed to submit move:', err);
+          toast.error(`Failed to submit move: ${err}`, { id: toastId });
+        } finally {
+          setSelectedFigure(null);
+          setAvailableMoves([]);
+        }
+
+        return;
+      }
+    }
+
+    // If clicking elsewhere, deselect
+    setSelectedFigure(null);
+    setAvailableMoves([]);
+  }, [
+    selectedFigure,
+    isMyTurn,
+    isPlayerChoice,
+    cols,
+    rows,
+    isPlayer1,
+    availableMoves,
+    getAvailableMoves,
+    attackFigure,
+    movePiece,
+    setSelectedFigure,
+    setAvailableMoves
+  ]);
 
   // Generate random lineup (4 stones, 4 paper, 4 scissors, 1 flag, 1 trap)
   const generateRandomLineup = useCallback(() => {
@@ -349,523 +857,40 @@ export default function GamePage() {
     }
   }, [joinGame, isJoiningGame, gamePda, gameState, isPlayer0, isPlayer1]);
 
-    // Handle weapon selection from popup
-  const handleWeaponSelection = (selectedWeapon: Weapon) => {
+  // Handle weapon selection from popup
+  const handleWeaponSelection = useCallback(async (selectedWeapon: Weapon) => {
     if (!pendingAttack) return;
 
     const { attacker, target } = pendingAttack;
 
-    (async () => {
-      try {
-        await chooseWeapon(selectedWeapon as Choice);
-        await refreshGameState();
+    try {
+      isAnimatingAttackRef.current = true;
 
-        if (!gameStateRef.current?.tiePending) {
-          const updatedAttacker = { ...attacker, weapon: gameStateRef.current?.attacker as Weapon };
-          setFigures(prev => prev.map(g => g.id === updatedAttacker.id ? { ...g, weapon: updatedAttacker.weapon } : g));
+      await chooseWeapon(selectedWeapon as Choice);
 
-          const updatedTarget = { ...target, weapon: gameStateRef.current?.defender as Weapon };
-          setFigures(prev => prev.map(g => g.id === updatedTarget.id ? { ...g, weapon: updatedTarget.weapon } : g));
-
-          console.log("updatedAttacker:", updatedAttacker)
-          console.log("updatedTarget: ", updatedTarget)
-          console.log("gameStateRef.current?.outcome: ", gameStateRef.current?.outcome)
-
-          proceedWithAttack(updatedAttacker, updatedTarget);
-        }
-      } catch (err) {
-        console.error('Failed to choose weapon:', err);
-      } finally {
-        // Close popup and continue with attack
-        setShowWeaponPopup(false);
-        setPendingAttack(null);
-      }
-    })();
-
-  };
-
-  const getAvailableMoves = (figure: Figure) => {
-    const moves: { row: number, col: number, direction: string }[] = [];
-    const directions = [
-      { row: -1, col: 0, direction: 'up' },
-      { row: 1, col: 0, direction: 'down' },
-      { row: 0, col: -1, direction: 'left' },
-      { row: 0, col: 1, direction: 'right' }
-    ];
-
-    directions.forEach(({ row: deltaRow, col: deltaCol, direction }) => {
-      const newRow = figure.row + deltaRow;
-      const newCol = figure.col + deltaCol;
-
-      // Check if move is within bounds
-      if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
-        // Check if target cell is empty
-        const targetFigure = figures.find(f => f.row === newRow && f.col === newCol && f.isAlive);
-        if (!targetFigure) {
-          moves.push({ row: newRow, col: newCol, direction });
-        }
-      }
-    });
-
-    return moves;
-  };
-
-  const handleCellClick = (cellKey: number, figure: Figure | null) => {
-    console.log('Cell clicked:', cellKey, 'figure:', figure);
-
-    // If clicking on a selected figure, deselect it
-    if (selectedFigure && figure && figure.id === selectedFigure.id) {
-      setSelectedFigure(null);
-      setAvailableMoves([]);
-      return;
-    }
-
-    // If clicking on one of my figures, select it and show available moves
-    // BUT: Don't allow selecting trap pieces or when it's not my turn
-    if (figure && figure.isMyFigure) {
-      if (!isMyTurn) {
-        toast.info('Wait for your turn');
-        return;
-      }
-      // Prevent selecting trap pieces
-      if (figure.isTrap) {
-        console.log('Cannot select trap piece - traps are not movable');
-        toast.info('Traps cannot be moved');
-        return;
-      }
-
-      const moves = getAvailableMoves(figure);
-      setSelectedFigure(figure);
-      setAvailableMoves(moves);
-      console.log('Selected figure:', figure.id, 'Available moves:', moves);
-      return;
-    }
-
-    // If clicking on an opponent figure and I have a selected figure, check if it's adjacent
-    if (selectedFigure && figure && !figure.isMyFigure) {
-      if (!isMyTurn) {
-        toast.info('Wait for your turn');
-        return;
-      }
-      const cellRow = Math.floor(cellKey / cols);
-      const cellCol = cellKey % cols;
-      const isAdjacent = Math.abs(selectedFigure.row - cellRow) + Math.abs(selectedFigure.col - cellCol) === 1;
-
-      if (isAdjacent) {
-          if (selectedFigure.weapon === Weapon.Flag) {
-            toast.info("You can't attack with a flag");
-            return;
-          }
-        console.log('Attacking opponent figure:', figure.id);
-        attackFigure(selectedFigure, figure);
-        setSelectedFigure(null);
-        setAvailableMoves([]);
-        return;
-      }
-    }
-
-    // If clicking on an available move cell, submit on-chain move
-    if (selectedFigure && !figure) {
-      if (!isMyTurn) {
-        toast.info('Wait for your turn');
-        return;
-      }
-      const move = availableMoves.find(move => {
-        const cellRow = Math.floor(cellKey / cols);
-        const cellCol = cellKey % cols;
-        return move.row === cellRow && move.col === cellCol;
-      });
-
-      if (move) {
-        console.log('Submitting on-chain move to:', move);
-        const fromX = isPlayer1 ? (cols - 1 - selectedFigure.col) : selectedFigure.col;
-        const fromY = isPlayer1 ? (rows - 1 - selectedFigure.row) : selectedFigure.row; 
-        const toX = isPlayer1 ? (cols - 1 - move.col) : move.col;
-        const toY = isPlayer1 ? (rows - 1 - move.row) : move.row;
-        const toastId = `move-${selectedFigure.id}-${toX}-${toY}`;
-        toast.loading('Submitting move...', { id: toastId });
-        (async () => {
-          try {
-            await movePiece(fromX, fromY, toX, toY);
-
-            toast.success('Move submitted', { id: toastId });
-          } catch (err) {
-            console.error('Failed to submit move:', err);
-            toast.error(`Failed to submit move: ${err}`, { id: toastId });
-          } finally {
-            setSelectedFigure(null);
-            setAvailableMoves([]);
-          }
-        })();
-        return;
-      }
-    }
-
-    // If clicking elsewhere, deselect
-    setSelectedFigure(null);
-    setAvailableMoves([]);
-  };
-
-  const moveFigure = (figure: Figure, newRow: number, newCol: number) => {
-    // Determine jump direction based on movement
-    const rowDiff = newRow - figure.row;
-    const colDiff = newCol - figure.col;
-
-    let jumpDirection: 'Jump Forward' | 'Jump Left' | 'Jump Right' = 'Jump Forward';
-    if (colDiff < 0) {
-      jumpDirection = 'Jump Left';  // Moving left
-    } else if (colDiff > 0) {
-      jumpDirection = 'Jump Right'; // Moving right
-    }
-    // For up/down movement (rowDiff !== 0), use 'Jump Forward'
-
-    // Start animation on the figure (using figure ID)
-    setAnimatingFigure(figure.id);
-    setJumpDirection(jumpDirection);
-
-    // Calculate positions
-    const oldX = (figure.col * actualCellWidth) + (actualCellWidth / 2);
-    const oldY = (figure.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
-    const newX = (newCol * actualCellWidth) + (actualCellWidth / 2);
-    const newY = (newRow * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
-
-    // Mark figure as moving and set initial animation position
-    setFigures(prevFigures =>
-      prevFigures.map(f =>
-        f.id === figure.id
-          ? {
-            ...f,
-            row: newRow,
-            col: newCol,
-            isMoving: true,
-            oldRow: figure.row,
-            oldCol: figure.col,
-            animX: oldX,
-            animY: oldY
-          }
-          : f
-      )
-    );
-
-    // Start position animation after 200ms delay
-    setTimeout(() => {
-      const startTime = Date.now();
-      // Different durations based on jump direction
-      const duration = (jumpDirection === 'Jump Left' || jumpDirection === 'Jump Right') ? 300 : 500;
-
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Easing function for smooth animation
-        const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-        const currentX = oldX + (newX - oldX) * easeProgress;
-        const currentY = oldY + (newY - oldY) * easeProgress;
-
-        setFigures(prevFigures =>
-          prevFigures.map(f =>
-            f.id === figure.id
-              ? { ...f, animX: currentX, animY: currentY }
-              : f
-          )
-        );
-
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          // Animation complete
-          setFigures(prevFigures =>
-            prevFigures.map(f =>
-              f.id === figure.id
-                ? {
-                  ...f,
-                  isMoving: false,
-                  oldRow: undefined,
-                  oldCol: undefined,
-                  animX: undefined,
-                  animY: undefined
-                }
-                : f
-            )
-          );
-          setAnimatingFigure(null);
-        }
-      };
-
-      requestAnimationFrame(animate);
-    }, 200); // 200ms delay before position animation starts
-  };
-
-  const attackFigure = (attacker: Figure, target: Figure) => {
-    console.log('Attack initiated:', attacker.id, 'attacks', target.id);
-
-    const fromX = isPlayer1 ? (cols - 1 - attacker.col) : attacker.col;
-    const fromY = isPlayer1 ? (rows - 1 - attacker.row) : attacker.row; 
-    const toX = isPlayer1 ? (cols - 1 - target.col) : target.col;
-    const toY = isPlayer1 ? (rows - 1 - target.row) : target.row;
-
-    console.log("[ATTACK] attacker: ", attacker)
-    console.log("[ATTACK] target: ", target)
-    console.log("[ATTACK] figures before : ", figures)
-
-    const toastId = `attack-${attacker.id}-${toX}-${toY}`;
-    toast.loading('Submitting attack...', { id: toastId });
-    (async () => {
-      try {
-        await movePiece(fromX, fromY, toX, toY);
-        isAnimatingAttackRef.current = true;
-
-        toast.success('Attack submitted', { id: toastId });
-
-        console.log("[ATTACK] gameStateRef.current?.attacker: ", gameStateRef.current?.attacker)
-        console.log("[ATTACK] gameStateRef.current?.defender: ", gameStateRef.current?.defender)
-        console.log("[ATTACK] gameStateRef.current?.tiePending: ", gameStateRef.current?.tiePending)
-
-        console.log("[ATTACK] figures after : ", figures)
-
-        // Check for tie - if both weapons are the same, show weapon selection popup
-        if (gameStateRef.current?.tiePending) {
-          console.log('Tie detected! Showing weapon selection popup');
-          setPendingAttack({ attacker, target });
-          setShowWeaponPopup(true);
-          return;
-        }
-
-        // No tie, proceed with normal attack logic
-        proceedWithAttack(attacker, target);
-      } catch (err) {
-        console.error('Failed to submit attack:', err);
-        toast.error(`Failed to submit attack: ${err}`, { id: toastId });
-      } finally {
-        setSelectedFigure(null);
-        setAvailableMoves([]);
-      }
-    })();
-  };
-
-  const proceedWithAttack = (attacker: Figure, target: Figure) => {
-    const attackStartTime = Date.now();
-    console.log('[DEBUG] attack started, time:', attackStartTime);
-
-    console.log('Proceeding with attack:', attacker.id, 'attacks', target.id);
-
-    let winner!: Figure;
-    let loser!: Figure;
-
-    attacker.weapon = gameStateRef.current?.attacker as Weapon;
-    target.weapon = gameStateRef.current?.defender as Weapon;
-
-    setFigures(prev => prev.map(f =>
-      f.id === attacker.id ? { ...f, weapon: attacker.weapon } :
-        f.id === target.id ? { ...f, weapon: target.weapon } : f
-    ));
-
-    console.log("attacker: ", attacker)
-    console.log("target: ", target)
-
-    console.log("gameStateRef.current?.outcome: ", gameStateRef.current?.outcome)
-
-    if (gameStateRef.current?.outcome === 1) {
-      winner = attacker;
-      loser = target;
-    } else if (gameStateRef.current?.outcome === -1) {
-      winner = target;
-      loser = attacker;
-    }
-
-    console.log("winner: ", winner)
-    console.log("loser: ", loser)
-
-    // Calculate attack positions (both figures move to center between them)
-    const attackerX = (attacker.col * actualCellWidth) + (actualCellWidth / 2);
-    const attackerY = (attacker.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
-    const targetX = (target.col * actualCellWidth) + (actualCellWidth / 2);
-    const targetY = (target.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
-
-    // Calculate center position between attacker and target
-    const centerX = (attackerX + targetX) / 2;
-    const centerY = (attackerY + targetY) / 2;
-
-    // Add some distance between figures
-    // const attackerFinalX = centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
-    // const targetFinalX = centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
-    const attackerIsLeft = attacker.col <= target.col;
-    const attackerFinalX = attackerIsLeft
-      ? centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
-      : centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
-    const targetFinalX = attackerIsLeft
-      ? centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
-      : centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
-
-    // Set both figures as attacking
-    setAttackingFigures([attacker.id, target.id]);
-
-    // Set winner and loser for animations
-    setWinningFigure(winner.id);
-
-    // Don't scale during "Attack Prepare" phase, but keep movement animation
-
-    // Start with "Attack Prepare" phase
-    setAttackPhase('prepare');
-    // Move to attack positions 100ms after prepare
-    setTimeout(() => {
-      setAttackPositions({
-        [attacker.id]: { x: attackerFinalX, y: centerY },
-        [target.id]: { x: targetFinalX, y: centerY }
-      });
-    }, 100);
-
-    //TODO: if opponent wins, winner.weapon = 0. So I have to fetch it somehow.
-    console.log('Winner weapon:', WEAPON_NAMES[winner.weapon || Weapon.None]);
-    const attackTimeMs = (winner.weapon || Weapon.None) === Weapon.Stone ? 383 : (winner.weapon || Weapon.None) === Weapon.Paper ? 500 : (winner.weapon || Weapon.None) === Weapon.Scissors ? 966 : 400;
-
-    // After 400ms, switch to "Attack" phase and scale figures
-    setTimeout(() => {
-      setAttackPhase('attack');
-      setScaledFigures([attacker.id, target.id]);
-
-      setTimeout(() => {
-        setDyingFigures([loser.id]);
-        console.log('[DEBUG] dyingFigures set:', loser.id, 'time:', Date.now());
-      }, attackTimeMs + 100);
-    }, 400);
-
-    // Reset attack state and resolve combat after total animation duration
-    setTimeout(() => {
-      setAttackingFigures([]);
-      setAttackPositions({});
-      setScaledFigures([]);
-      setAttackPhase(null);
-      setWinningFigure(null);
-
-      // Resolve combat with predetermined winner
-      resolveCombatWithWinner(attacker, target, winner);
-
-      setTimeout(() => {
-        setDyingFigures([]);
-      }, 400);
-
-      setTimeout(async () => {
-        console.log('[DEBUG] lifting guard and refreshing, elapsed:', Date.now() - attackStartTime);
+      const freshState = await refreshFreshGameState();
+      if (!freshState) {
         isAnimatingAttackRef.current = false;
-        await refreshGameState();
-      }, 600);
-    }, 400 + 200 + attackTimeMs + 100); // keep ~200ms window after death starts
-  };
+        return;
+      }
 
-  const resolveCombatWithWinner = (attacker: Figure, target: Figure, winner: Figure) => {
-    console.log('Combat resolution with predetermined winner:', { attacker: attacker.id, target: target.id, winner: winner.id });
+      if (!freshState.tiePending) {
+        pendingAttackDataRef.current = null;
 
-    if (winner.id === attacker.id) {
-      // Attacker wins: attacker moves to target's cell with animation, target disappears
-      console.log('Moving attacker to:', target.row, target.col);
+        proceedWithAttack(attacker, target, freshState);
+      } else {
+        pendingAttackDataRef.current = { attacker, target };
+      }
+    } catch (err) {
+      isAnimatingAttackRef.current = false;
 
-      // Calculate positions for smooth movement
-      // Use the actual attack position where the figure currently is (center between figures)
-      const attackerX = (attacker.col * actualCellWidth) + (actualCellWidth / 2);
-      const attackerY = (attacker.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
-      const targetX = (target.col * actualCellWidth) + (actualCellWidth / 2);
-      const targetY = (target.row * actualCellHeight) + (actualCellHeight / 2) - (actualCellHeight * 0.25);
-
-      // Calculate center position (where figures are during attack)
-      const centerX = (attackerX + targetX) / 2;
-      const centerY = (attackerY + targetY) / 2;
-
-      // Current position is the attacker's attack position (center - distance)
-      //const currentX = centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
-      const attackerIsLeft = attacker.col <= target.col;
-      const currentX = attackerIsLeft
-        ? centerX - DISTANCE_BETWEEN_FIGURES_DURING_ATTACK
-        : centerX + DISTANCE_BETWEEN_FIGURES_DURING_ATTACK;
-      const currentY = centerY;
-
-      // Set attacker as moving and update position immediately
-      setFigures(prevFigures =>
-        prevFigures.map(f => {
-          if (f.id === attacker.id) {
-            return {
-              ...f,
-              row: target.row,
-              col: target.col,
-              isMoving: true,
-              oldRow: attacker.row,
-              oldCol: attacker.col,
-              animX: currentX,
-              animY: currentY
-            };
-          }
-          return f;
-        })
-      );
-      // Delay loser removal to allow death animation to play
-      setTimeout(() => {
-        setFigures(prev => prev.map(g => g.id === target.id ? { ...g, isAlive: false } : g));
-      }, 500);
-
-      // Animate movement to target position
-      const startTime = Date.now();
-      const duration = 200; // 200ms movement animation
-
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Easing function for smooth animation
-        const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-        const currentAnimX = currentX + (targetX - currentX) * easeProgress;
-        const currentAnimY = currentY + (targetY - currentY) * easeProgress;
-
-        setFigures(prevFigures =>
-          prevFigures.map(f =>
-            f.id === attacker.id
-              ? { ...f, animX: currentAnimX, animY: currentAnimY }
-              : f
-          )
-        );
-
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          // Animation complete
-          setFigures(prevFigures =>
-            prevFigures.map(f =>
-              f.id === attacker.id
-                ? {
-                  ...f,
-                  isMoving: false,
-                  oldRow: undefined,
-                  oldCol: undefined,
-                  animX: undefined,
-                  animY: undefined
-                }
-                : f
-            )
-          );
-        }
-      };
-
-      requestAnimationFrame(animate);
-    } else {
-      // Target wins: target stays in place, attacker disappears
-      // Delay loser removal to allow death animation to play
-      setTimeout(() => {
-        console.log('[DEBUG] setting isAlive: false for:', target.id, 'time:', Date.now());
-
-        setFigures(prev => prev.map(g => {
-          if (g.id === attacker.id) return { ...g, isAlive: false };
-          if (g.id === target.id) return {
-            ...g,
-            isMoving: false,
-            animX: undefined,
-            animY: undefined,
-          };
-          return g;
-        }));
-      }, 500);
+      console.error('Failed to choose weapon:', err);
+    } finally {
+      // Close popup and continue with attack
+      setShowWeaponPopup(false);
+      setPendingAttack(null);
     }
-  };
+  }, [pendingAttack, chooseWeapon, proceedWithAttack, setShowWeaponPopup, setPendingAttack]);
 
   // Update opponent lineup when game state changes
   useEffect(() => {
@@ -890,10 +915,6 @@ export default function GamePage() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  useEffect(() => {
-    gameStateRef.current = gameState;
-  }, [gameState]);
 
   useEffect(() => {
     if (gameState?.tiePending && figures.length > 0 && !pendingAttack && !isPlayerChoice()) {
@@ -928,6 +949,29 @@ export default function GamePage() {
       }
     }
   }, [gameState?.tiePending, figures, pendingAttack, isPlayerChoice]);
+
+  useEffect(() => {
+    if (
+      !gameState?.tiePending &&
+      isAnimatingAttackRef.current &&
+      pendingAttackDataRef.current &&
+      !showWeaponPopup
+    ) {
+      const { attacker, target } = pendingAttackDataRef.current;
+      pendingAttackDataRef.current = null;
+
+      (async () => {
+        isAnimatingAttackRef.current = true;
+        const freshState = await refreshFreshGameState();
+        if (!freshState) {
+          isAnimatingAttackRef.current = false;
+          return;
+        }
+
+        proceedWithAttack(attacker, target, freshState);
+      })();
+    }
+  }, [gameState?.tiePending, showWeaponPopup]);
 
   // Check if lineup should be set
   useEffect(() => {
@@ -1068,8 +1112,8 @@ export default function GamePage() {
         setIsAuthorized(true);
         setCanJoinGame(false);
         setAuthorizationError(null);
-        const player = isPlayer0 ? 'Player 0' : 'Player 1';
-        toast.success(`Welcome! You are ${player}`, { id: player });
+        // const player = isPlayer0 ? 'Player 0' : 'Player 1';
+        // toast.success(`Welcome! You are ${player}`, { id: player });
       } else {
         // Check if game can be joined (has empty slot)
         const hasEmptySlot = isEmptyAddress(p0Address) || isEmptyAddress(p1Address);
@@ -1087,6 +1131,7 @@ export default function GamePage() {
       }
     }
   }, [gameState, publicKey]);
+
 
   // Validate game ID
   if (!gamePda) {
@@ -1537,11 +1582,13 @@ export default function GamePage() {
                   border: '1px solid #2b3a44',
                   background: i % 2 === 0 ? '#11171c' : '#0e1419',
                   position: 'relative',
-                  cursor: figure?.isTrap
+                  cursor: (gameState?.tiePending && !isPlayerChoice())
                     ? 'not-allowed'
-                    : (!isMyTurn && figure?.isMyFigure)
+                    : figure?.isTrap
                       ? 'not-allowed'
-                      : (figure?.isMyFigure || availableMove ? 'pointer' : 'default'),
+                      : (!isMyTurn && figure?.isMyFigure)
+                        ? 'not-allowed'
+                        : (figure?.isMyFigure || availableMove ? 'pointer' : 'default'),
                   borderColor: isSelected ? '#66fcf1' : '#2b3a44',
                   borderWidth: isSelected ? '2px' : '1px'
                 }}

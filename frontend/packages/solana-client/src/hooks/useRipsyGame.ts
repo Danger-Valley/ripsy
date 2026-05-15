@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet, useTransactionSigner } from '@solana/connector/react';
 import { useConnectorClient } from '@solana/connector';
 import * as anchor from '@coral-xyz/anchor';
-import { RipsyGameClient, Phase, Choice, Piece, Owner, isEmptyAddress } from '../index';
+import { Phase, Choice, Piece, Owner, isEmptyAddress } from '../index';
 import { useRipsyContext } from '../context';
+import { r } from 'node_modules/@solana/connector/dist/standard-shim-BB0Lkg_C';
 
 export interface GameState {
   gamePda: anchor.web3.PublicKey;
@@ -43,6 +44,7 @@ export interface useRipsyGameReturn {
 
   // Game utilities
   refreshGameState: () => Promise<void>;
+  refreshFreshGameState: () => Promise<GameState | null>;
   isPlayerTurn: (isPlayer1: boolean) => boolean;
   getAvailableMoves: (fromX: number, fromY: number) => { x: number; y: number }[];
   isValidMove: (fromX: number, fromY: number, toX: number, toY: number) => boolean;
@@ -113,37 +115,30 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
 
     try {
       const gamePdaKey = new anchor.web3.PublicKey(gamePda);
-      const state = await gameClient.getGameState();
 
+      const state = await gameClient.getGameState();
       const playerDataState = await gameClient.getPlayerDataState();
 
-      console.log("playerDataState", playerDataState)
-
-      console.log('=== LOADING GAME STATE ===');
-      console.log('Game PDA:', gamePda);
-
-      setGameState({
+      const freshState = {
         gamePda: gamePdaKey,
         ...state,
         pieces: playerDataState ? playerDataState.pieces : [],
         playerChoice: playerDataState ? playerDataState.choice : Choice.None,
         phase: state.phase as Phase
-      });
+      };
 
-      console.log('=== GAME STATE LOADED ===');
-      console.log('Owners:', state.owners);
-      console.log('Pieces:', playerDataState ? playerDataState.pieces : []);
-      console.log('Phase:', state.phase);
-      console.log('Choice: ', (playerDataState ? playerDataState.choice : Choice.None) as number);
-      console.log('P0:', state.p0.toString());
-      console.log('P1:', state.p1.toString());
-      console.log('Winner:', state.winner?.toString());
+      setGameState(freshState);
+
+      console.log('=== GAME STATE ===');
+      console.log(freshState);
+
+      return freshState;
     } catch (err) {
       setError(`Failed to load game state: ${err}`);
     } finally {
       setLoading(false);
     }
-  }, [gameClient, gamePda]);
+  }, [gameClient, gamePda, gameState]);
 
   useEffect(() => {
     if (!gameClient || !isInitialized) return;
@@ -172,8 +167,6 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     try {
       const { gamePda } = await gameClient.createGame();
 
-      await loadGameState();
-
       return { gamePda: gamePda.toString() };
     } catch (err) {
       console.error('Create game error:', err);
@@ -182,7 +175,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, loading, loadGameState]);
+  }, [gameClient, loading]);
 
   const finishGame = useCallback(async (): Promise<void> => {
     if (!gameClient) {
@@ -201,7 +194,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, loading, loadGameState]);
+  }, [gameClient, loading]);
 
   const finishPlayerData = useCallback(async (): Promise<void> => {
     if (!gameClient) {
@@ -220,7 +213,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, loading, loadGameState]);
+  }, [gameClient, loading]);
 
   const joinGame = useCallback(async (gamePda: string) => {
     if (!gameClient) {
@@ -234,7 +227,6 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     try {
       const gamePdaKey = new anchor.web3.PublicKey(gamePda);
       await gameClient.joinGame(gamePdaKey);
-      await loadGameState();
     } catch (err) {
       console.error('Join game error:', err);
 
@@ -257,7 +249,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, loadGameState]);
+  }, [gameClient]);
 
   const submitLineup = useCallback(async (isP0: boolean, flagPos: number) => {
     if (!gameClient || !gameState) {
@@ -271,7 +263,6 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
 
     try {
       await gameClient.submitLineup(isP0, flagPos);
-      await loadGameState();
     } catch (err) {
       const errorMsg = `Failed to submit lineup: ${err}`;
       setError(errorMsg);
@@ -279,7 +270,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, gameState, loadGameState]);
+  }, [gameClient, gameState]);
 
   const submitCustomLineup = useCallback(async (xs: number[], ys: number[], pieces: number[]) => {
     if (!gameClient || !gameState) {
@@ -293,7 +284,6 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
 
     try {
       await gameClient.submitCustomLineup(xs, ys, pieces);
-      await loadGameState();
     } catch (err) {
       const errorMsg = `Failed to submit custom lineup: ${err}`;
       setError(errorMsg);
@@ -301,7 +291,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, gameState, loadGameState]);
+  }, [gameClient, gameState]);
 
   const movePiece = useCallback(async (fromX: number, fromY: number, toX: number, toY: number) => {
     if (!gameClient || !gameState) {
@@ -315,7 +305,6 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
 
     try {
       await gameClient.movePiece(fromX, fromY, toX, toY);
-      await loadGameState();
     } catch (err) {
       const errorMsg = `Failed to move piece: ${err}`;
       setError(errorMsg);
@@ -323,7 +312,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, gameState, loadGameState]);
+  }, [gameClient, gameState]);
 
   const chooseWeapon = useCallback(async (choice: Choice) => {
     if (!gameClient || !gameState) {
@@ -337,7 +326,6 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
 
     try {
       await gameClient.chooseWeapon(choice);
-      await loadGameState();
     } catch (err) {
       const errorMsg = `Failed to choose weapon: ${err}`;
       setError(errorMsg);
@@ -345,10 +333,14 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     } finally {
       setLoading(false);
     }
-  }, [gameClient, gameState, loadGameState]);
+  }, [gameClient, gameState]);
 
   const refreshGameState = useCallback(async () => {
     await loadGameState();
+  }, [loadGameState]);
+
+  const refreshFreshGameState = useCallback(async () => {
+    return await loadGameState() ?? null;
   }, [loadGameState]);
 
   const isPlayerTurn = useCallback((isPlayer1: boolean) => {
@@ -358,10 +350,6 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
   const isPlayerChoice = useCallback(() => {
     if (!gameState) return false;
 
-    console.log("gameState.playerChoice", gameState.playerChoice)
-    console.log("Choice.None", Choice.None)
-    console.log("gameState.playerChoice !== undefined", gameState.playerChoice != undefined)
-    console.log("gameState.playerChoice != Choice.None", gameState.playerChoice != Choice.None)
     return gameState.playerChoice !== undefined && gameState.playerChoice != Choice.None;
   }, [gameState]);
 
@@ -409,6 +397,7 @@ export function useRipsyGame(gamePda?: string): useRipsyGameReturn {
     movePiece,
     chooseWeapon,
     refreshGameState,
+    refreshFreshGameState,
     isPlayerTurn,
     isPlayerChoice,
     getAvailableMoves,

@@ -1,61 +1,63 @@
 # RIPSY
 
-Onchain Rock–Paper–Scissors battle game on Solana. Players stake into a game, place a hidden lineup of pieces, move across a board, and resolve combat via on-chain RPS commits.
+Real-time Rock–Paper–Scissors strategy game. Two players arrange hidden pieces, move across a 7×7 board, resolve battles, and race to capture the opposing flag.
 
-## Repository layout
+The game uses an authoritative Node.js backend and WebSockets. There is no wallet, blockchain, or smart-contract dependency.
 
-```
+## Structure
+
+```text
 ripsy-app/
-├── solana-program/        Anchor program (Rust)
-│   └── programs/ripsy/    The `ripsy` on-chain program
-└── frontend/              npm workspaces monorepo (TypeScript)
-    ├── apps/web/          Next.js web client
+├── backend/                    WebSocket server and authoritative game engine
+└── frontend/
+    ├── apps/web/               Next.js client
     └── packages/
-        ├── core/          Shared game logic and types (pure TS)
-        └── solana-client/ Anchor client + `useRipsyGame` React hook
+        ├── core/               Shared protocol, constants, and types
+        └── game-client/        React WebSocket client and player identity
 ```
 
-Shared TS packages live in `frontend/packages/` so a future React Native app can reuse the same game logic and client without duplication.
+## Run locally
 
-## Prerequisites
-
-- Node.js ≥ 18.18 and npm ≥ 9.8
-- Rust toolchain + [Anchor](https://www.anchor-lang.com/) 0.32.1
-- Solana CLI configured for devnet (`solana config set --url devnet`)
-- A funded devnet wallet at `~/.config/solana/id.json`
-
-## Frontend (web app)
+Requirements: Node.js 20+, npm 10+, and Docker for the local Redis container.
 
 ```bash
-cd frontend
 npm install
-npm run dev          # http://localhost:3000
+npm run dev
 ```
 
-See [frontend/README.md](frontend/README.md) for workspace details and [frontend/SMART_CONTRACT_INTEGRATION.md](frontend/SMART_CONTRACT_INTEGRATION.md) for the `@rps/solana-client` API.
+This starts:
 
-## Solana program
+- Web app: http://localhost:3000
+- WebSocket backend: ws://localhost:8080
+- Health check: http://localhost:8080/health
+- Redis: redis://localhost:6379
+
+The client defaults to `ws://localhost:8080`. Set `NEXT_PUBLIC_GAME_WS_URL` for another backend URL.
+
+## Useful commands
 
 ```bash
-cd solana-program
-yarn install
-anchor build
-anchor test            # runs the mocha suite against a local validator
-anchor deploy          # uses cluster + wallet from Anchor.toml
+npm run dev:server
+npm run dev:web
+npm run dev:redis
+npm test
+npm run build
 ```
 
-Program ID (localnet/devnet): `3ueExHyxLr7ahqcBEzse3L21rTaWQ91rLtVnZLsx4ngA` — see [solana-program/Anchor.toml](solana-program/Anchor.toml).
+## Storage and scaling
 
-## How a game flows
+Game state is stored in Redis with atomic compare-and-swap mutations. Redis Pub/Sub fans updates across any number of WebSocket backend instances. Backend restarts do not lose active games, and players connected to different instances share the same authoritative state.
 
-1. **Create** — a player creates a game, becoming P0.
-2. **Join** — a second player joins as P1.
-3. **Lineup** — each player submits a hidden flag position and piece layout.
-4. **Move** — players take turns moving pieces on the board.
-5. **Combat** — when pieces collide, both players commit an RPS choice; the smart contract resolves the winner.
-6. **Finish** — game ends when a flag is captured.
+Games expire after seven days of inactivity by default. Configure the backend with `REDIS_URL`, `GAME_TTL_SECONDS`, and `RIPSY_REDIS_PREFIX`. Browser player IDs are generated once and saved in local storage. See [BACKEND.md](frontend/BACKEND.md) for architecture and deployment details.
 
-Phases, state, and instruction reference are documented in [frontend/SMART_CONTRACT_INTEGRATION.md](frontend/SMART_CONTRACT_INTEGRATION.md).
+## Game flow
+
+1. Player 0 creates a room and shares its URL.
+2. Player 1 joins the room.
+3. Both players submit a hidden lineup.
+4. Players alternate orthogonal moves.
+5. The server resolves traps, flags, normal RPS battles, and tied battles.
+6. Capturing the opponent’s flag ends the game.
 
 ## License
 

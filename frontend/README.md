@@ -1,51 +1,18 @@
-# Ripsy – Monorepo
+# RIPSY frontend
 
-Monorepo for an onchain Rock–Paper–Scissors game on Solana.
+The web client is a Next.js app in `apps/web`. Shared browser-independent protocol types live in `packages/core`, while `packages/game-client` owns persistent player identity and the WebSocket React hook.
 
-- Web app: Next.js in `apps/web`
-- Shared packages for reuse in React Native later:
-  - `@rps/core` – game logic and types (pure TS)
-  - `@rps/solana-client` – Solana utilities (placeholder)
-
-## Quick start
-
-1) Install dependencies
+Run the complete application from the repository root:
 
 ```bash
 npm install
+npm run dev
 ```
 
-2) Run the web app (Next.js)
+To point the browser at a deployed backend:
 
 ```bash
-npm run dev          # User server on 3000
-# or run the agent's server on another port to avoid clashes
-npm run dev:agent    # Agent server on 3100
+NEXT_PUBLIC_GAME_WS_URL=wss://game.example.com npm run dev:web
 ```
 
-Open `http://localhost:3000`.
-
-### Port conflicts
-
-If Cursor Agent is running its own dev server, use `npm run dev:agent` to run it on `3100`, while your own `npm run dev` uses `3000`.
-
-### Troubleshooting
-
-- If the dev server doesn't start, ensure Node >= 18.18 and npm >= 9.8.
-- The web app transpiles `@rps/core` and `@rps/solana-client` directly from TS.
-- No `react-native-web` is used; RN app will later import the shared packages.
-
-## Structure
-
-```
-apps/
-  web/                # Next.js app (web)
-packages/
-  core/               # Reusable game logic
-  solana-client/      # Reusable Solana utilities
-```
-
-## Notes
-
-- Built with TypeScript and npm workspaces for maximal code reuse with a future React Native app.
-- No `react-native-web` – mobile will be a separate RN app consuming the shared packages.
+The server remains authoritative. UI state is updated from server broadcasts after every accepted command.

@@ -2,10 +2,9 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useRiveFile } from '@rive-app/react-canvas';
 import { useParams } from 'next/navigation';
-import { useSolanaWallet } from '../../hooks/useSolanaWallet';
-import { WalletMultiButton } from '../../components/WalletMultiButton';
+import { PlayerBadge } from '../../components/PlayerBadge';
 import { toast } from 'sonner';
-import { useRipsyGame, isEmptyAddress, Owner, HEIGHT, WIDTH, Choice, GameState } from '@rps/solana-client';
+import { usePlayerIdentity, useRipsyGame, isEmptyAddress, Owner, HEIGHT, WIDTH, Choice, GameState } from '@rps/game-client';
 import RpsFigure, { Weapon, WEAPON_NAMES } from './RpsFigure';
 import WeaponSelectionPopup from './WeaponSelectionPopup';
 
@@ -32,10 +31,10 @@ export default function GamePage() {
   // Load shared Rive file once and share across all figures
   const { riveFile, status: riveStatus } = useRiveFile({ src: '/figures/fig1.riv' });
   const { id } = useParams<{ id: string }>();
-  const { connected, publicKey } = useSolanaWallet();
+  const { connected, publicKey, playerId } = usePlayerIdentity();
   const gamePda = id || '';
 
-  // Initialize smart contract integration
+  // Connect to the authoritative WebSocket game server.
   const {
     gameState,
     loading: gameLoading,
@@ -67,7 +66,7 @@ export default function GamePage() {
   const [canJoinGame, setCanJoinGame] = useState(false);
   const [isJoiningGame, setIsJoiningGame] = useState(false);
 
-  // Initialize figures array from smart contract data
+  // Initialize figures from server state.
   const [figures, setFigures] = useState<Figure[]>([]);
 
   // Figure selection state
@@ -568,7 +567,7 @@ export default function GamePage() {
       }
     }
 
-    // If clicking on an available move cell, submit on-chain move
+    // If clicking on an available move cell, submit the move to the server.
     if (selectedFigure && !figure) {
       if (!isMyTurn) {
         toast.info('Wait for your turn');
@@ -582,7 +581,7 @@ export default function GamePage() {
       });
 
       if (move) {
-        console.log('Submitting on-chain move to:', move);
+        console.log('Submitting move to:', move);
         const fromX = isPlayer1 ? (cols - 1 - selectedFigure.col) : selectedFigure.col;
         const fromY = isPlayer1 ? (rows - 1 - selectedFigure.row) : selectedFigure.row;
         const toX = isPlayer1 ? (cols - 1 - move.col) : move.col;
@@ -809,9 +808,9 @@ export default function GamePage() {
     if (!submitCustomLineup || myLineup.length === 0) return;
 
     try {
-      // Convert lineup to the format expected by the smart contract
+      // Convert the visual lineup to the server protocol.
       const xs = myLineup.map(f => f.col);
-      // For Player 1 the board is flipped vertically in the UI; flip Y back for on-chain
+      // Player 1 sees a flipped board, so convert Y back to canonical coordinates.
       const ys = myLineup.map(f => (isPlayer1 ? (rows - 1 - f.row) : f.row));
       // For trap pieces, send Weapon.Trap; for others, use their weapon or Weapon.None
       const pieces = myLineup.map(f => f.isTrap ? Weapon.Trap : (f.weapon || Weapon.None));
@@ -985,7 +984,7 @@ export default function GamePage() {
         isSettingLineup
       });
 
-      // Based on smart contract: lineup can be submitted in Created, Joined, LineupP0Set, LineupP1Set phases
+      // Lineups can be submitted after both players join and before the game becomes active.
       // But we show controls when it's the player's turn to submit
       const shouldSetLineup =
         (gameState.phase === 1 && isPlayer0) || // Joined phase, player 0 can submit first
@@ -1010,7 +1009,7 @@ export default function GamePage() {
     }
   }, [gameState, isAuthorized, isPlayer0, isPlayer1, myLineup.length, generateRandomLineup, generateOpponentLineup, isSettingLineup]);
 
-  // Update figures when game state changes (render from on-chain lineup)
+  // Update figures when authoritative server state changes.
   useEffect(() => {
     if (!gameState) return;
     if (isAnimatingAttackRef.current) {
@@ -1021,7 +1020,7 @@ export default function GamePage() {
 
     let newFigures: Figure[] = [];
 
-    // Convert smart contract data to figures
+    // Convert server board data to figures.
     for (let i = 0; i < HEIGHT * WIDTH; i++) {
       const row = Math.floor(i / cols);
       const col = i % cols;
@@ -1181,7 +1180,7 @@ export default function GamePage() {
             {gameError ? 'Session Error' : 'Waiting for signature...'}
           </div>
           <div style={{ fontSize: 14 }}>
-            {gameError || 'Please confirm the message in your wallet'}
+            {gameError || 'Connecting to the game server…'}
           </div>
         </div>
       </main>
@@ -1260,7 +1259,7 @@ export default function GamePage() {
             </button>
           </div>
           <div style={{ color: '#8a9ba8', fontSize: 12 }}>
-            Game PDA: {shortAddr(gamePda)}
+            Room: {gamePda}
           </div>
         </div>
       </main>
@@ -1279,7 +1278,7 @@ export default function GamePage() {
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 24, color: '#66fcf1', marginBottom: 16 }}>Loading game...</div>
-          <div style={{ color: '#c5c6c7' }}>Fetching game state from blockchain</div>
+          <div style={{ color: '#c5c6c7' }}>Fetching the latest server state</div>
         </div>
       </main>
     );
@@ -1490,7 +1489,7 @@ export default function GamePage() {
     );
   }
 
-  // Show wallet connection prompt
+  // The browser creates a persistent player identity on first load.
   if (!connected) {
     return (
       <main style={{
@@ -1511,28 +1510,16 @@ export default function GamePage() {
           width: '90%'
         }}>
           <div style={{ fontSize: 28, color: '#66fcf1', marginBottom: 16, fontWeight: 'bold' }}>
-            Connect Wallet
+            Creating player
           </div>
           <div style={{ color: '#c5c6c7', marginBottom: 32, fontSize: 16, lineHeight: 1.5 }}>
-            Please connect your wallet to access this game
+            Preparing your local player identity…
           </div>
           <div style={{ marginBottom: 24 }}>
-            <WalletMultiButton
-              style={{
-                background: '#66fcf1',
-                color: '#0e1419',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '12px 24px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            />
+            <PlayerBadge playerId={playerId} />
           </div>
           <div style={{ color: '#8a9ba8', fontSize: 14 }}>
-            Game PDA: {shortAddr(gamePda)}
+            Room: {gamePda}
           </div>
         </div>
       </main>
@@ -1687,7 +1674,7 @@ export default function GamePage() {
               <button onClick={refreshGameState} style={{ background: '#66fcf1', color: '#0e1419', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                 Refresh
               </button>
-              <WalletMultiButton style={{ background: '#2b3a44', color: '#c5c6c7', border: '1px solid #2b3a44', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }} />
+              <PlayerBadge playerId={playerId} style={{ borderRadius: 4, padding: '4px 10px', fontSize: 12 }} />
             </div>
           </div>
 
@@ -1699,7 +1686,7 @@ export default function GamePage() {
               </span>
             },
             {
-              icon: '#', label: 'Game PDA',
+              icon: '#', label: 'Room',
               value: <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{shortAddr(gamePda)}</span>
                 <button

@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "module": "src/index.ts",
   "types": "src/index.ts",
+  "exports": "./src/index.ts",
   "files": ["src"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -14,4 +15,3 @@
   "sideEffects": false,
   "license": "MIT"
 }
-

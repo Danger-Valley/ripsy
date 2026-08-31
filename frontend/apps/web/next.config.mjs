@@ -2,8 +2,7 @@
 const nextConfig = {
   reactStrictMode: false,
   typedRoutes: true,
-  transpilePackages: ['@rps/core', '@rps/solana-client'],
+  transpilePackages: ['@rps/core', '@rps/game-client'],
 };
 
 export default nextConfig;
-

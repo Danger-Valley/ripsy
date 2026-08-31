@@ -16,8 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@rps/core": ["packages/core/src/index.ts"],
-      "@rps/solana-client": ["packages/solana-client/src/index.ts"]
+      "@rps/game-client": ["packages/game-client/src/index.ts"]
     }
   }
 }
-

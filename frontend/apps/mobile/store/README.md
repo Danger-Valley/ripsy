@@ -11,3 +11,17 @@ Before submission:
 5. Review the privacy answers against the production backend and Firebase configuration.
 
 The app collects anonymous player IDs, gameplay content, and a Firebase installation/device identifier for app functionality. It does not use advertising or cross-app tracking.
+
+## TestFlight delivery
+
+Create the app record for `com.dangervalley.ripsy` in App Store Connect before the first upload. Then export the signing values locally and run:
+
+```sh
+export APPLE_TEAM_ID="..."
+export APP_STORE_CONNECT_API_KEY_ID="..."
+export APP_STORE_CONNECT_API_ISSUER_ID="..."
+export APP_STORE_CONNECT_API_KEY_PATH="/absolute/path/to/AuthKey_....p8"
+npm run ios:beta
+```
+
+The command creates a Release archive and uploads it to App Store Connect. It does not store signing credentials in the repository. Increase `CURRENT_PROJECT_VERSION` before each subsequent upload.

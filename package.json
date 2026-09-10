@@ -13,6 +13,7 @@
     "dev:web": "npm run dev -w @rps/web",
     "dev:mobile": "npm run start -w @rps/mobile",
     "ios": "npm run ios -w @rps/mobile",
+    "ios:beta": "npm run ios:beta -w @rps/mobile",
     "android": "npm run android -w @rps/mobile",
     "dev:redis": "docker compose up redis",
     "build": "npm run typecheck -w @rps/backend && npm run build -w @rps/web && npm run typecheck -w @rps/mobile",

@@ -49,7 +49,9 @@ The backend, not either client, decides whether commands are legal and computes 
 - [ ] Test on physical iOS and Android devices, including app suspension and network switching.
 - [x] Configure bundle/application IDs, icons, launch screens, privacy metadata, and draft store listings.
 - [ ] Provision App Store/Play signing credentials and finalize store listing contacts and screenshots.
-- [ ] Upload iOS to TestFlight and Android to Play internal testing.
+- [x] Register the iOS test device, produce a signed App Store archive, and add a reproducible TestFlight upload command.
+- [ ] Create the App Store Connect app record and upload iOS to TestFlight.
+- [ ] Upload Android to Play internal testing.
 
 ## Implementation order
 

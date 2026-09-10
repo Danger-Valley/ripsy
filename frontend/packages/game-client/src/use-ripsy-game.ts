@@ -17,7 +17,7 @@ type ClientActionInput = ClientAction extends infer Action
 const endpoint = () => process.env.NEXT_PUBLIC_GAME_WS_URL ?? 'ws://localhost:8080';
 
 export function useRipsyGame(gameId?: string) {
-  const { playerId } = usePlayerIdentity();
+  const { playerId, sessionToken } = usePlayerIdentity();
   const socketRef = useRef<WebSocket | null>(null);
   const pendingRef = useRef(new Map<string, PendingRequest>());
   const stateRef = useRef<GameState | null>(null);
@@ -34,21 +34,24 @@ export function useRipsyGame(gameId?: string) {
   }, []);
 
   useEffect(() => {
-    if (!playerId) return;
+    if (!playerId || !sessionToken) return;
     let disposed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
     const connect = () => {
       if (disposed) return;
-      const socket = new WebSocket(`${endpoint()}?playerId=${encodeURIComponent(playerId)}`);
+      const socket = new WebSocket(endpoint());
       socketRef.current = socket;
       socket.onopen = () => {
-        setIsInitialized(true);
         setError(null);
-        if (gameId) send({ type: 'getGame', requestId: crypto.randomUUID(), gameId }).catch(() => undefined);
+        socket.send(JSON.stringify({ type: 'authenticate', token: sessionToken }));
       };
       socket.onmessage = (event) => {
         const message = JSON.parse(event.data as string) as ServerMessage;
+        if (message.type === 'connected') {
+          setIsInitialized(true);
+          if (gameId) send({ type: 'getGame', requestId: crypto.randomUUID(), gameId }).catch(() => undefined);
+        }
         if (message.type === 'state' && (!gameId || message.gameId === gameId)) updateState(message.state);
         if (message.type === 'result') {
           if (message.state) updateState(message.state);
@@ -81,7 +84,7 @@ export function useRipsyGame(gameId?: string) {
       for (const pending of pendingRef.current.values()) pending.reject(new Error('Connection closed'));
       pendingRef.current.clear();
     };
-  }, [gameId, playerId, updateState]);
+  }, [gameId, playerId, sessionToken, updateState]);
 
   const send = useCallback(async (action: ClientAction) => {
     const socket = socketRef.current;

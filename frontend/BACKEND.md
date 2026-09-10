@@ -19,6 +19,9 @@ Redis Pub/Sub is an at-most-once notification layer; it is not the source of tru
 REDIS_URL=redis://127.0.0.1:6379
 GAME_TTL_SECONDS=604800
 RIPSY_REDIS_PREFIX=ripsy
+SESSION_SECRET=replace-with-at-least-32-random-characters
+SESSION_TTL_SECONDS=2592000
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3100
 PORT=8080
 ```
 
@@ -34,13 +37,11 @@ REDIS_URL=rediss://user:password@host:6379 npm run dev:server
 
 ## Identity
 
-The browser generates a UUID and stores it under `ripsy-player-id` in local storage. It connects with:
+`POST /session` issues a signed anonymous player session. A client stores the returned token, opens the WebSocket, and sends `{ "type": "authenticate", "token": "..." }` before any game command. The server verifies the signature and derives `playerId` from the token; it never trusts a client-supplied player ID.
 
-```text
-ws://localhost:8080?playerId=<uuid>
-```
+Set a cryptographically random `SESSION_SECRET` of at least 32 characters in every deployed environment. Keep staging and production secrets separate. `ALLOWED_ORIGINS` is a comma-separated allowlist for browser calls to `/session`; native clients do not send an Origin header.
 
-This is suitable for prototyping, but production should replace the trusted client value with an authenticated, signed session.
+Every backend instance in one environment must use the same `SESSION_SECRET`. Rotating it immediately invalidates existing anonymous sessions.
 
 ## Commands
 
@@ -62,6 +63,6 @@ The server replies with `result` or `error`. Shared TypeScript definitions are i
 3. Deploy the backend service with `npm ci` and `npm run start:server`.
 4. Configure `/health` as the readiness check.
 5. Scale the backend service horizontally; no sticky sessions are required.
-6. Point Vercel's `NEXT_PUBLIC_GAME_WS_URL` to the public `wss://` backend endpoint.
+6. Point Vercel's `NEXT_PUBLIC_GAME_WS_URL` to the public `wss://` backend endpoint and `NEXT_PUBLIC_GAME_HTTP_URL` to its HTTPS `/session` endpoint.
 
-For production, also add authenticated sessions, origin validation, rate limits, metrics, and structured logs.
+For production, also add rate limits, metrics, and structured logs.

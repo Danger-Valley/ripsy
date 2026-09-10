@@ -18,6 +18,7 @@ type PendingRequest = {
 export interface RipsySocketClientOptions {
   endpoint: string;
   playerId: string;
+  sessionToken: string;
   requestTimeoutMs?: number;
   reconnectBaseDelayMs?: number;
   reconnectMaxDelayMs?: number;
@@ -65,7 +66,7 @@ export class RipsySocketClient {
 
   async request(action: ClientActionInput): Promise<ResultMessage> {
     const socket = this.socket;
-    if (!socket || socket.readyState !== 1) throw new Error('Game server is not connected');
+    if (!socket || socket.readyState !== 1 || this.status !== 'connected') throw new Error('Game server is not connected');
 
     const requestId = (this.options.createRequestId ?? createRequestId)();
     const envelope = { ...action, requestId } as ClientAction;
@@ -97,27 +98,23 @@ export class RipsySocketClient {
 
   private openSocket() {
     this.setStatus(this.reconnectAttempt === 0 ? 'connecting' : 'reconnecting');
-    const separator = this.options.endpoint.includes('?') ? '&' : '?';
-    const url = `${this.options.endpoint}${separator}playerId=${encodeURIComponent(this.options.playerId)}`;
-    const socket = (this.options.socketFactory ?? ((target) => new WebSocket(target)))(url);
+    const socket = (this.options.socketFactory ?? ((target) => new WebSocket(target)))(this.options.endpoint);
     this.socket = socket;
 
     socket.onopen = () => {
       if (this.socket !== socket) return;
-      this.reconnectAttempt = 0;
-      this.setStatus('connected');
-      if (this.currentGameId) {
-        void this.request({ type: 'getGame', gameId: this.currentGameId }).catch((error: unknown) => {
-          this.emitError(toError(error));
-        });
-      }
+      socket.send(JSON.stringify({ type: 'authenticate', token: this.options.sessionToken }));
     };
     socket.onmessage = (event) => this.handleMessage(String(event.data));
     socket.onerror = () => this.emitError(new Error('Cannot connect to the game server'));
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (this.socket !== socket) return;
       this.socket = null;
       this.rejectPending(new Error('Connection interrupted'));
+      if (event.code === 1008) {
+        this.shouldReconnect = false;
+        this.emitError(new Error(event.reason || 'Game session authentication failed'));
+      }
       if (this.shouldReconnect) this.scheduleReconnect();
       else this.setStatus('closed');
     };
@@ -134,6 +131,19 @@ export class RipsySocketClient {
 
     if (message.type === 'state') {
       if (!this.currentGameId || message.gameId === this.currentGameId) this.emitState(message.state);
+      return;
+    }
+    if (message.type === 'connected') {
+      if (message.playerId !== this.options.playerId) {
+        this.emitError(new Error('The game server authenticated a different player'));
+        this.disconnect();
+        return;
+      }
+      this.reconnectAttempt = 0;
+      this.setStatus('connected');
+      if (this.currentGameId) {
+        this.request({ type: 'getGame', gameId: this.currentGameId }).catch((error: unknown) => this.emitError(toError(error)));
+      }
       return;
     }
     if (message.type === 'result') {

@@ -64,6 +64,8 @@ export type ClientAction =
   | { type: 'movePiece'; requestId: string; gameId: string; fromX: number; fromY: number; toX: number; toY: number }
   | { type: 'chooseWeapon'; requestId: string; gameId: string; choice: Choice };
 
+export type ClientMessage = ClientAction | { type: 'authenticate'; token: string };
+
 export type ServerMessage =
   | { type: 'connected'; playerId: string }
   | { type: 'result'; requestId: string; gameId?: string; state?: GameState }

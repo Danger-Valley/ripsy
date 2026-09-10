@@ -35,4 +35,4 @@ npm test -w @rps/mobile
 cd frontend/apps/mobile/android && ./gradlew assembleDebug
 ```
 
-The temporary mobile identity is persisted with AsyncStorage for the first playable milestone. It must be replaced by the signed session and secure-storage work tracked in `MOBILE_IMPLEMENTATION_PLAN.md` before production.
+The backend-issued anonymous session is stored using iOS Keychain and Android Keystore. Authentication and remaining production hardening are tracked in `MOBILE_IMPLEMENTATION_PLAN.md`.

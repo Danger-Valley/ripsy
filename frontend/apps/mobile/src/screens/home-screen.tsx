@@ -11,8 +11,8 @@ import { colors, spacing } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export function HomeScreen({ navigation }: Props) {
-  const { playerId, isReady } = usePlayerIdentity();
-  const game = useNativeRipsyGame(playerId);
+  const { playerId, sessionToken, isReady, error: identityError } = usePlayerIdentity();
+  const game = useNativeRipsyGame(playerId, sessionToken);
   const [roomCode, setRoomCode] = useState('');
 
   const createGame = async () => {
@@ -56,7 +56,7 @@ export function HomeScreen({ navigation }: Props) {
         <PrimaryButton variant="secondary" onPress={joinByCode} disabled={roomCode.trim().length !== 8}>Open room</PrimaryButton>
       </View>
 
-      {game.error ? <StatusBanner message={game.error} tone="error" /> : (
+      {(identityError || game.error) ? <StatusBanner message={identityError || game.error || ''} tone="error" /> : (
         <StatusBanner message={game.isConnected ? 'Connected to the game server' : `Server: ${game.status}`} tone={game.isConnected ? 'success' : 'neutral'} />
       )}
       <Text style={styles.identity}>Player {playerId ? `${playerId.slice(0, 12)}…` : 'initializing…'}</Text>

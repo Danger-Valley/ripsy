@@ -4,7 +4,7 @@ import { Choice, Owner, type GameState } from '@rps/core';
 import { RipsySocketClient, type ConnectionStatus } from '@rps/game-client/socket';
 import { getGameWebSocketUrl } from '../config';
 
-export function useNativeRipsyGame(playerId: string, gameId?: string) {
+export function useNativeRipsyGame(playerId: string, sessionToken: string, gameId?: string) {
   const clientRef = useRef<RipsySocketClient | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('idle');
@@ -12,7 +12,7 @@ export function useNativeRipsyGame(playerId: string, gameId?: string) {
   const [pendingRequests, setPendingRequests] = useState(0);
 
   useEffect(() => {
-    if (!playerId) return;
+    if (!playerId || !sessionToken) return;
     let endpoint: string;
     try {
       endpoint = getGameWebSocketUrl();
@@ -21,7 +21,7 @@ export function useNativeRipsyGame(playerId: string, gameId?: string) {
       return;
     }
 
-    const client = new RipsySocketClient({ endpoint, playerId });
+    const client = new RipsySocketClient({ endpoint, playerId, sessionToken });
     clientRef.current = client;
     const unsubscribeState = client.onState(setGameState);
     const unsubscribeStatus = client.onStatus(setStatus);
@@ -41,7 +41,7 @@ export function useNativeRipsyGame(playerId: string, gameId?: string) {
       client.disconnect();
       if (clientRef.current === client) clientRef.current = null;
     };
-  }, [gameId, playerId]);
+  }, [gameId, playerId, sessionToken]);
 
   const run = useCallback(async <Result,>(operation: (client: RipsySocketClient) => Promise<Result>) => {
     const client = clientRef.current;

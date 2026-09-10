@@ -3,7 +3,8 @@
   "compilerOptions": {
     "paths": {
       "@rps/core": ["../../packages/core/src/index.ts"],
-      "@rps/game-client/socket": ["../../packages/game-client/src/ripsy-socket-client.ts"]
+      "@rps/game-client/socket": ["../../packages/game-client/src/ripsy-socket-client.ts"],
+      "@rps/game-client/session": ["../../packages/game-client/src/player-session.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "../../packages/core/src/**/*.ts"],

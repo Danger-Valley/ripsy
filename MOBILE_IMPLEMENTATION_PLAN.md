@@ -19,7 +19,7 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Add native app theme, safe-area root, and development/production WebSocket configuration.
 - [x] Split browser-only behavior out of `@rps/game-client`.
 - [x] Build a platform-neutral WebSocket client with request timeouts and reconnect backoff.
-- [x] Add prototype native player-session persistence; secure storage is Milestone 2.
+- [x] Add native player-session persistence.
 - [x] Build the native Home, Create/Join, Waiting Room, Lineup, Game, Tie Choice, and Result states.
 - [x] Build a responsive native 7 x 7 board with tap selection and move indicators.
 - [ ] Port image and Rive assets to the native bundle.
@@ -27,8 +27,8 @@ The backend, not either client, decides whether commands are legal and computes 
 
 ## Milestone 2: secure and reliable beta
 
-- [ ] Replace the trusted `playerId` query parameter with a server-verified session token.
-- [ ] Store mobile credentials in iOS Keychain and Android Keystore.
+- [x] Replace the trusted `playerId` query parameter with a server-verified session token.
+- [x] Store mobile credentials in iOS Keychain and Android Keystore.
 - [ ] Rename blockchain-era `gamePda`, `publicKey`, and address terminology to game/player terminology.
 - [ ] Add runtime protocol validation and typed protocol-version errors.
 - [ ] Handle foreground/background transitions, network loss, stale connections, and full-state recovery.

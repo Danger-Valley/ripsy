@@ -7,7 +7,8 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./socket": "./src/ripsy-socket-client.ts"
+    "./socket": "./src/ripsy-socket-client.ts",
+    "./session": "./src/player-session.ts"
   },
   "dependencies": {
     "@rps/core": "*"

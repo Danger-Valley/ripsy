@@ -1,13 +1,21 @@
 import { createServer } from 'node:http';
-import type { ClientAction, ServerMessage } from '@rps/core';
+import type { ClientAction, ClientMessage, ServerMessage } from '@rps/core';
 import { createClient } from 'redis';
 import { WebSocket, WebSocketServer } from 'ws';
 import { RedisGameStore, type RedisCommands } from './redis-game-store.js';
+import { SessionManager } from './session.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
 const gameTtlSeconds = Number(process.env.GAME_TTL_SECONDS ?? 60 * 60 * 24 * 7);
 const keyPrefix = process.env.RIPSY_REDIS_PREFIX ?? 'ripsy';
+const sessionTtlSeconds = Number(process.env.SESSION_TTL_SECONDS ?? 60 * 60 * 24 * 30);
+const configuredSessionSecret = process.env.SESSION_SECRET;
+if (!configuredSessionSecret && process.env.NODE_ENV === 'production') {
+  throw new Error('SESSION_SECRET is required in production');
+}
+const sessionManager = new SessionManager(configuredSessionSecret ?? 'ripsy-local-development-secret-change-me', sessionTtlSeconds);
+const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,http://localhost:3100').split(',').map(value => value.trim()).filter(Boolean));
 
 const commandClient = createClient({ url: redisUrl });
 const subscriber = commandClient.duplicate();
@@ -23,10 +31,30 @@ const store = new RedisGameStore(commandClient as unknown as RedisCommands, {
 const clients = new Map<string, Set<WebSocket>>();
 
 const server = createServer(async (request, response) => {
+  const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
   if (request.url === '/health') {
     const ready = await store.isReady();
     response.writeHead(ready ? 200 : 503, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ ok: ready, redis: ready ? 'connected' : 'unavailable' }));
+    return;
+  }
+  if (requestUrl.pathname === '/session' && request.method === 'OPTIONS') {
+    if (!applyCors(request.headers.origin, response)) return;
+    response.writeHead(204).end();
+    return;
+  }
+  if (requestUrl.pathname === '/session' && request.method === 'POST') {
+    if (!applyCors(request.headers.origin, response)) return;
+    response.setHeader('cache-control', 'no-store');
+    response.setHeader('content-type', 'application/json');
+    try {
+      const authorization = request.headers.authorization;
+      const existingToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
+      const playerId = existingToken ? sessionManager.verify(existingToken).playerId : undefined;
+      response.writeHead(201).end(JSON.stringify(sessionManager.issue(playerId)));
+    } catch (error) {
+      response.writeHead(401).end(JSON.stringify({ error: error instanceof Error ? error.message : 'Invalid session' }));
+    }
     return;
   }
   response.writeHead(404).end();
@@ -38,32 +66,41 @@ await subscriber.pSubscribe(store.eventPattern, (gameId) => {
   void broadcast(gameId);
 });
 
-sockets.on('connection', (socket, request) => {
-  const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
-  const playerId = url.searchParams.get('playerId')?.trim();
-  if (!playerId || playerId.length > 100) {
-    socket.close(1008, 'A valid playerId is required');
-    return;
-  }
-  const playerSockets = clients.get(playerId) ?? new Set<WebSocket>();
-  playerSockets.add(socket);
-  clients.set(playerId, playerSockets);
-  send(socket, { type: 'connected', playerId });
+sockets.on('connection', (socket) => {
+  let playerId: string | null = null;
+  const authenticationTimeout = setTimeout(() => socket.close(1008, 'Authentication timed out'), 10_000);
 
   socket.on('message', (data) => {
-    let action: ClientAction;
+    let message: ClientMessage;
     try {
-      action = JSON.parse(data.toString()) as ClientAction;
-      if (!action || typeof action !== 'object' || typeof action.type !== 'string' || typeof action.requestId !== 'string') {
+      message = JSON.parse(data.toString()) as ClientMessage;
+      if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
         throw new Error('Invalid request envelope');
       }
-      void handle(socket, playerId, action);
+      if (message.type === 'authenticate') {
+        if (playerId) throw new Error('Socket is already authenticated');
+        playerId = sessionManager.verify(message.token).playerId;
+        const playerSockets = clients.get(playerId) ?? new Set<WebSocket>();
+        playerSockets.add(socket);
+        clients.set(playerId, playerSockets);
+        clearTimeout(authenticationTimeout);
+        send(socket, { type: 'connected', playerId });
+        return;
+      }
+      if (!playerId) throw new Error('Authenticate before sending game commands');
+      if (typeof message.requestId !== 'string') throw new Error('Invalid request envelope');
+      void handle(socket, playerId, message);
     } catch (error) {
       send(socket, { type: 'error', message: error instanceof Error ? error.message : 'Invalid request' });
+      if (!playerId) socket.close(1008, 'Authentication failed');
     }
   });
 
   socket.on('close', () => {
+    clearTimeout(authenticationTimeout);
+    if (!playerId) return;
+    const playerSockets = clients.get(playerId);
+    if (!playerSockets) return;
     playerSockets.delete(socket);
     if (playerSockets.size === 0) clients.delete(playerId);
   });
@@ -125,6 +162,18 @@ async function broadcast(gameId: string) {
 
 function send(socket: WebSocket, message: ServerMessage) {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+}
+
+function applyCors(origin: string | undefined, response: import('node:http').ServerResponse) {
+  if (origin && !allowedOrigins.has(origin)) {
+    response.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Origin is not allowed' }));
+    return false;
+  }
+  if (origin) response.setHeader('access-control-allow-origin', origin);
+  response.setHeader('access-control-allow-headers', 'authorization, content-type');
+  response.setHeader('access-control-allow-methods', 'POST, OPTIONS');
+  response.setHeader('vary', 'Origin');
+  return true;
 }
 
 server.listen(port, '0.0.0.0', () => {

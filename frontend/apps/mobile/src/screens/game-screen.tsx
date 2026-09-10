@@ -15,8 +15,8 @@ type Coordinate = { x: number; y: number };
 
 export function GameScreen({ route }: Props) {
   const { gameId } = route.params;
-  const { playerId } = usePlayerIdentity();
-  const game = useNativeRipsyGame(playerId, gameId);
+  const { playerId, sessionToken } = usePlayerIdentity();
+  const game = useNativeRipsyGame(playerId, sessionToken, gameId);
   const [lineup, setLineup] = useState<LineupPiece[]>([]);
   const [selected, setSelected] = useState<Coordinate | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);

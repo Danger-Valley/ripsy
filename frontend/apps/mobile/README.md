@@ -24,7 +24,7 @@ npm run ios
 npm run android
 ```
 
-The iOS simulator connects to `ws://localhost:8080`. The Android emulator connects to `ws://10.0.2.2:8080`. Configure the production `wss://` endpoint in `src/config.ts` before making a release build.
+The iOS simulator connects to `ws://localhost:8080`. The Android emulator connects to `ws://10.0.2.2:8080`. Release builds use the production endpoint configured in `src/config.ts`.
 
 ## Verification
 
@@ -32,7 +32,10 @@ The iOS simulator connects to `ws://localhost:8080`. The Android emulator connec
 npm run lint -w @rps/mobile
 npm run typecheck -w @rps/mobile
 npm test -w @rps/mobile
+cd frontend/apps/mobile/ios && pod install
+cd frontend/apps/mobile/ios && xcodebuild -workspace RipsyMobile.xcworkspace -scheme RipsyMobile -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build
 cd frontend/apps/mobile/android && ./gradlew assembleDebug
+cd frontend/apps/mobile/android && ./gradlew assembleRelease
 ```
 
 The backend-issued anonymous session and current room are stored using iOS Keychain and Android Keystore. When the app returns from the background or regains its connection, it reauthenticates and reloads the latest authoritative game state. Remaining production hardening is tracked in `MOBILE_IMPLEMENTATION_PLAN.md`.

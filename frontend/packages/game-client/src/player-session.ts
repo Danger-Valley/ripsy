@@ -5,9 +5,10 @@ export interface PlayerSession {
 }
 
 export function sessionEndpointFromWebSocket(endpoint: string) {
-  const url = new URL(endpoint);
-  const protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
-  return `${protocol}//${url.host}/session`;
+  const match = /^(wss?):\/\/([^/?#]+)/i.exec(endpoint);
+  if (!match) throw new Error('The game WebSocket URL is invalid');
+  const protocol = match[1]?.toLowerCase() === 'wss' ? 'https' : 'http';
+  return `${protocol}://${match[2]}/session`;
 }
 
 export function parseStoredSession(value: string | null): PlayerSession | null {

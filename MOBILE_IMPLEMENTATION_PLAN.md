@@ -15,7 +15,7 @@ The backend, not either client, decides whether commands are legal and computes 
 
 - [x] Scaffold `frontend/apps/mobile` with React Native Community CLI.
 - [x] Generate native iOS and Android projects inside the repository.
-- [x] Add monorepo-compatible Metro and TypeScript configuration and validate the Android Gradle build. CocoaPods validation remains.
+- [x] Add monorepo-compatible Metro and TypeScript configuration; validate Android Debug/Release and CocoaPods/iOS Simulator builds; launch both Release apps against the production backend.
 - [x] Add native app theme, safe-area root, and development/production WebSocket configuration.
 - [x] Split browser-only behavior out of `@rps/game-client`.
 - [x] Build a platform-neutral WebSocket client with request timeouts and reconnect backoff.
@@ -23,7 +23,8 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Build the native Home, Create/Join, Waiting Room, Lineup, Game, Tie Choice, and Result states.
 - [x] Build a responsive native 7 x 7 board with tap selection and move indicators.
 - [ ] Port image and Rive assets to the native bundle.
-- [ ] Verify create/join/play/result with two clients against the existing backend.
+- [x] Verify create/join/lineup/moves, hidden player views, and reconnect recovery with two clients against the production backend.
+- [ ] Verify the complete native two-client flow through the result screen on physical devices.
 
 ## Milestone 2: secure and reliable beta
 

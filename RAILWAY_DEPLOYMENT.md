@@ -5,8 +5,8 @@ RIPSY runs on Railway as a long-lived backend service plus a Redis service in th
 ## Current production
 
 - Web: `https://www.ripsy.fun`
-- Backend HTTP: `https://backend-production-5d46.up.railway.app`
-- Backend WebSocket: `wss://backend-production-5d46.up.railway.app`
+- Backend HTTP: `https://api.ripsy.fun`
+- Backend WebSocket: `wss://api.ripsy.fun`
 - Railway region: Amsterdam
 
 ## 1. Create the Railway project
@@ -16,7 +16,7 @@ RIPSY runs on Railway as a long-lived backend service plus a Redis service in th
 3. Add a service from the `Danger-Valley/ripsy` GitHub repository.
 4. Keep the repository root directory as `/` because the backend imports the shared `@rps/core` workspace.
 5. Railway automatically detects the root `/Dockerfile` and uses it for the backend image.
-6. Generate a public Railway domain for the backend service.
+6. Add a Railway custom domain and point a DNS-only CNAME at the Railway target. Production uses `api.ripsy.fun` for both HTTPS and WSS.
 
 Do not expose Redis publicly. The backend uses Railway's private project network.
 
@@ -44,8 +44,8 @@ Configure `/health` as the healthcheck path with a 60-second timeout. Use the `O
 Configure Vercel with:
 
 ```text
-NEXT_PUBLIC_GAME_WS_URL=wss://backend-production-5d46.up.railway.app
-NEXT_PUBLIC_GAME_HTTP_URL=https://backend-production-5d46.up.railway.app/session
+NEXT_PUBLIC_GAME_WS_URL=wss://api.ripsy.fun
+NEXT_PUBLIC_GAME_HTTP_URL=https://api.ripsy.fun/session
 ```
 
 Redeploy the Vercel project after changing either public variable. The native release configuration uses the same `wss://` domain in `frontend/apps/mobile/src/config.ts`.

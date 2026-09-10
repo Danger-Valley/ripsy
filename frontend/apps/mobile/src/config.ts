@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-const productionGameWebSocketUrl = 'wss://backend-production-5d46.up.railway.app';
+const productionGameWebSocketUrl = 'wss://api.ripsy.fun';
 
 export function getGameWebSocketUrl() {
   if (__DEV__) {

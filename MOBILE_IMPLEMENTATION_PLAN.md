@@ -36,7 +36,7 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Persist and restore the active game.
 - [x] Add native sharing, validated room-code entry, invitation deep-link routing, and iOS Universal Links.
 - [ ] Add production Android signing and publish its Play signing fingerprint to verify Android App Links.
-- [ ] Replace timer-driven combat code with an explicit animation queue driven by state transitions.
+- [x] Replace timer-driven combat code with an explicit animation queue driven by state transitions.
 - [ ] Add structured client/server diagnostics without logging credentials or hidden game data.
 
 ## Milestone 3: store-ready release

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Animated, Modal, Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Choice, HEIGHT, Phase, Piece, toIdx, WIDTH } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
+import { useGameAnimationQueue } from '../hooks/use-game-animation-queue';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { createGameInviteUrl, normalizeRoomCode } from '../invitations';
 import type { RootStackParamList } from '../navigation';
@@ -18,6 +19,8 @@ export function GameScreen({ navigation, route }: Props) {
   const gameId = normalizeRoomCode(route.params.gameId) ?? '';
   const { playerId, sessionToken } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, gameId);
+  const animation = useGameAnimationQueue(game.gameState);
+  const visibleState = animation.displayedState ?? game.gameState;
   const [lineup, setLineup] = useState<LineupPiece[]>([]);
   const [selected, setSelected] = useState<Coordinate | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -39,14 +42,14 @@ export function GameScreen({ navigation, route }: Props) {
   }, [game.gameState?.tiePending]);
 
   const availableMoves = useMemo(() => {
-    if (!selected || !game.isMyTurn || game.gameState?.phase !== Phase.Active) return [];
+    if (!selected || animation.isAnimating || !game.isMyTurn || visibleState?.phase !== Phase.Active) return [];
     return [
       { x: selected.x + 1, y: selected.y },
       { x: selected.x - 1, y: selected.y },
       { x: selected.x, y: selected.y + 1 },
       { x: selected.x, y: selected.y - 1 },
     ].filter(position => position.x >= 0 && position.x < WIDTH && position.y >= 0 && position.y < HEIGHT);
-  }, [game.gameState?.phase, game.isMyTurn, selected]);
+  }, [animation.isAnimating, game.isMyTurn, selected, visibleState?.phase]);
 
   const perform = async (operation: () => Promise<unknown>) => {
     setActionError(null);
@@ -71,8 +74,8 @@ export function GameScreen({ navigation, route }: Props) {
   });
 
   const onCellPress = (coordinate: Coordinate) => {
-    const state = game.gameState;
-    if (!state || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
+    const state = visibleState;
+    if (!state || animation.isAnimating || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
     const owner = state.owners[toIdx(coordinate.x, coordinate.y)];
     if (!selected) {
       if (owner === game.ownOwner) setSelected(coordinate);
@@ -88,7 +91,9 @@ export function GameScreen({ navigation, route }: Props) {
     perform(() => game.movePiece(from.x, from.y, coordinate.x, coordinate.y)).catch(() => undefined);
   };
 
-  const stateMessage = getStateMessage(game.gameState?.phase, isParticipant, needsLineup, hasSubmitted, game.isMyTurn);
+  const stateMessage = animation.activeKind
+    ? getAnimationMessage(animation.activeKind)
+    : getStateMessage(visibleState?.phase, isParticipant, needsLineup, hasSubmitted, game.isMyTurn);
 
   if (!gameId) {
     return (
@@ -107,18 +112,20 @@ export function GameScreen({ navigation, route }: Props) {
           <Text style={[styles.connection, game.isConnected && styles.connected]}>{game.isConnected ? 'LIVE' : game.status.toUpperCase()}</Text>
         </View>
 
-        <StatusBanner message={stateMessage} tone={game.gameState?.phase === Phase.Finished ? 'success' : 'neutral'} />
+        <StatusBanner message={stateMessage} tone={visibleState?.phase === Phase.Finished ? 'success' : 'neutral'} />
         {(actionError || game.error) && <StatusBanner message={actionError || game.error || ''} tone="error" />}
 
-        <GameBoard
-          availableMoves={availableMoves}
-          isPlayer1={game.isPlayer1}
-          onCellPress={onCellPress}
-          ownOwner={game.ownOwner}
-          previewLineup={needsLineup ? lineup : undefined}
-          selected={selected}
-          state={game.gameState}
-        />
+        <Animated.View style={{ opacity: animation.opacity, transform: [{ scale: animation.scale }] }}>
+          <GameBoard
+            availableMoves={availableMoves}
+            isPlayer1={game.isPlayer1}
+            onCellPress={onCellPress}
+            ownOwner={game.ownOwner}
+            previewLineup={needsLineup ? lineup : undefined}
+            selected={selected}
+            state={visibleState}
+          />
+        </Animated.View>
 
         {game.gameState?.phase === Phase.Created && game.isPlayer0 && (
           <PrimaryButton variant="secondary" onPress={() => { shareRoom().catch(() => undefined); }}>Share invite link</PrimaryButton>
@@ -135,8 +142,8 @@ export function GameScreen({ navigation, route }: Props) {
 
         {game.gameState && isParticipant && (
           <View style={styles.stats}>
-            <Stat label="Your pieces" value={String(game.isPlayer0 ? game.gameState.live0 : game.gameState.live1)} />
-            <Stat label="Opponent" value={String(game.isPlayer0 ? game.gameState.live1 : game.gameState.live0)} />
+            <Stat label="Your pieces" value={String(game.isPlayer0 ? visibleState?.live0 ?? game.gameState.live0 : visibleState?.live1 ?? game.gameState.live1)} />
+            <Stat label="Opponent" value={String(game.isPlayer0 ? visibleState?.live1 ?? game.gameState.live1 : visibleState?.live0 ?? game.gameState.live0)} />
             <Stat label="Side" value={game.isPlayer0 ? 'Player 1' : 'Player 2'} />
           </View>
         )}
@@ -144,11 +151,17 @@ export function GameScreen({ navigation, route }: Props) {
 
       <WeaponChoiceModal
         busy={game.isBusy}
-        isOpen={Boolean(game.gameState?.tiePending && game.gameState.playerChoice === Choice.None && isParticipant)}
+        isOpen={Boolean(!animation.isAnimating && visibleState?.tiePending && visibleState.playerChoice === Choice.None && isParticipant)}
         onChoose={choice => { perform(() => game.chooseWeapon(choice)).catch(() => undefined); }}
       />
     </View>
   );
+}
+
+function getAnimationMessage(kind: 'move' | 'battle' | 'phase') {
+  if (kind === 'battle') return 'Resolving battle…';
+  if (kind === 'move') return 'Moving piece…';
+  return 'Updating game…';
 }
 
 function WeaponChoiceModal({ isOpen, busy, onChoose }: { isOpen: boolean; busy: boolean; onChoose: (choice: Choice) => void }) {

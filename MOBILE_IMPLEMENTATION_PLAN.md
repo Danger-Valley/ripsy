@@ -44,7 +44,7 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Add Redis-backed FCM turn, opponent-joined, tie-choice, and game-finished push notifications with notification deep links.
 - [ ] Provision production Firebase/APNs credentials and verify push delivery on physical iOS and Android devices.
 - [x] Add accessibility labels and state, dynamic text-safe scrolling, system-respecting haptics, and tablet-width layouts.
-- [ ] Add unit, component, WebSocket recovery, and two-device end-to-end tests.
+- [x] Add unit, component, WebSocket recovery, and two-client end-to-end tests.
 - [ ] Test on physical iOS and Android devices, including app suspension and network switching.
 - [ ] Configure bundle/application IDs, signing, icons, launch screens, privacy metadata, and store listings.
 - [ ] Upload iOS to TestFlight and Android to Play internal testing.

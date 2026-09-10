@@ -16,7 +16,9 @@
     "android": "npm run android -w @rps/mobile",
     "dev:redis": "docker compose up redis",
     "build": "npm run typecheck -w @rps/backend && npm run build -w @rps/web && npm run typecheck -w @rps/mobile",
-    "test": "npm test -w @rps/backend",
+    "test": "npm run test:backend && npm run test:mobile",
+    "test:backend": "npm test -w @rps/backend",
+    "test:mobile": "npm test -w @rps/mobile -- --runInBand",
     "start:server": "npm start -w @rps/backend",
     "start:web": "npm start -w @rps/web"
   },

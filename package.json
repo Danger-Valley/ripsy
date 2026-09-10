@@ -11,8 +11,11 @@
     "dev": "docker compose up -d redis && concurrently -n server,web -c cyan,green \"npm run dev:server\" \"npm run dev:web\"",
     "dev:server": "npm run dev -w @rps/backend",
     "dev:web": "npm run dev -w @rps/web",
+    "dev:mobile": "npm run start -w @rps/mobile",
+    "ios": "npm run ios -w @rps/mobile",
+    "android": "npm run android -w @rps/mobile",
     "dev:redis": "docker compose up redis",
-    "build": "npm run typecheck -w @rps/backend && npm run build -w @rps/web",
+    "build": "npm run typecheck -w @rps/backend && npm run build -w @rps/web && npm run typecheck -w @rps/mobile",
     "test": "npm test -w @rps/backend",
     "start:server": "npm start -w @rps/backend",
     "start:web": "npm start -w @rps/web"

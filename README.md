@@ -10,7 +10,9 @@ The game uses an authoritative Node.js backend and WebSockets. There is no walle
 ripsy-app/
 ├── backend/                    WebSocket server and authoritative game engine
 └── frontend/
-    ├── apps/web/               Next.js client
+    ├── apps/
+    │   ├── web/                Next.js client
+    │   └── mobile/             Bare React Native iOS and Android client
     └── packages/
         ├── core/               Shared protocol, constants, and types
         └── game-client/        React WebSocket client and player identity
@@ -39,7 +41,10 @@ The client defaults to `ws://localhost:8080`. Set `NEXT_PUBLIC_GAME_WS_URL` for 
 ```bash
 npm run dev:server
 npm run dev:web
+npm run dev:mobile
 npm run dev:redis
+npm run ios
+npm run android
 npm test
 npm run build
 ```

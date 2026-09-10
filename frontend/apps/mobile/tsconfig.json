@@ -1,0 +1,11 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "paths": {
+      "@rps/core": ["../../packages/core/src/index.ts"],
+      "@rps/game-client/socket": ["../../packages/game-client/src/ripsy-socket-client.ts"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../../packages/core/src/**/*.ts"],
+  "exclude": ["**/node_modules", "**/Pods"]
+}

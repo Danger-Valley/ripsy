@@ -1,0 +1,207 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Modal, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Choice, HEIGHT, Phase, Piece, toIdx, WIDTH } from '@rps/core';
+import { GameBoard, type LineupPiece } from '../components/game-board';
+import { PrimaryButton } from '../components/primary-button';
+import { StatusBanner } from '../components/status-banner';
+import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
+import { usePlayerIdentity } from '../hooks/use-player-identity';
+import type { RootStackParamList } from '../navigation';
+import { colors, spacing } from '../theme';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
+type Coordinate = { x: number; y: number };
+
+export function GameScreen({ route }: Props) {
+  const { gameId } = route.params;
+  const { playerId } = usePlayerIdentity();
+  const game = useNativeRipsyGame(playerId, gameId);
+  const [lineup, setLineup] = useState<LineupPiece[]>([]);
+  const [selected, setSelected] = useState<Coordinate | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const isParticipant = game.isPlayer0 || game.isPlayer1;
+  const hasSubmitted = Boolean(game.gameState && (
+    game.isPlayer0
+      ? game.gameState.phase === Phase.LineupP0Set || game.gameState.phase >= Phase.Active
+      : game.gameState.phase === Phase.LineupP1Set || game.gameState.phase >= Phase.Active
+  ));
+  const needsLineup = Boolean(isParticipant && game.gameState && game.gameState.phase >= Phase.Joined && game.gameState.phase < Phase.Active && !hasSubmitted);
+
+  useEffect(() => {
+    if (needsLineup && lineup.length === 0) setLineup(createRandomLineup(game.isPlayer0));
+  }, [game.isPlayer0, lineup.length, needsLineup]);
+
+  useEffect(() => {
+    if (!game.gameState?.tiePending) setSelected(null);
+  }, [game.gameState?.tiePending]);
+
+  const availableMoves = useMemo(() => {
+    if (!selected || !game.isMyTurn || game.gameState?.phase !== Phase.Active) return [];
+    return [
+      { x: selected.x + 1, y: selected.y },
+      { x: selected.x - 1, y: selected.y },
+      { x: selected.x, y: selected.y + 1 },
+      { x: selected.x, y: selected.y - 1 },
+    ].filter(position => position.x >= 0 && position.x < WIDTH && position.y >= 0 && position.y < HEIGHT);
+  }, [game.gameState?.phase, game.isMyTurn, selected]);
+
+  const perform = async (operation: () => Promise<unknown>) => {
+    setActionError(null);
+    try {
+      await operation();
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'Action failed');
+    }
+  };
+
+  const submitLineup = () => perform(() => game.submitLineup(
+    lineup.map(item => item.x),
+    lineup.map(item => item.y),
+    lineup.map(item => item.piece),
+  ));
+
+  const onCellPress = (coordinate: Coordinate) => {
+    const state = game.gameState;
+    if (!state || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
+    const owner = state.owners[toIdx(coordinate.x, coordinate.y)];
+    if (!selected) {
+      if (owner === game.ownOwner) setSelected(coordinate);
+      return;
+    }
+    if (owner === game.ownOwner) {
+      setSelected(selected.x === coordinate.x && selected.y === coordinate.y ? null : coordinate);
+      return;
+    }
+    if (!availableMoves.some(move => move.x === coordinate.x && move.y === coordinate.y)) return;
+    const from = selected;
+    setSelected(null);
+    perform(() => game.movePiece(from.x, from.y, coordinate.x, coordinate.y)).catch(() => undefined);
+  };
+
+  const stateMessage = getStateMessage(game.gameState?.phase, isParticipant, needsLineup, hasSubmitted, game.isMyTurn);
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <View><Text style={styles.eyebrow}>ROOM</Text><Text style={styles.room}>{gameId}</Text></View>
+          <Text style={[styles.connection, game.isConnected && styles.connected]}>{game.isConnected ? 'LIVE' : game.status.toUpperCase()}</Text>
+        </View>
+
+        <StatusBanner message={stateMessage} tone={game.gameState?.phase === Phase.Finished ? 'success' : 'neutral'} />
+        {(actionError || game.error) && <StatusBanner message={actionError || game.error || ''} tone="error" />}
+
+        <GameBoard
+          availableMoves={availableMoves}
+          isPlayer1={game.isPlayer1}
+          onCellPress={onCellPress}
+          ownOwner={game.ownOwner}
+          previewLineup={needsLineup ? lineup : undefined}
+          selected={selected}
+          state={game.gameState}
+        />
+
+        {game.gameState?.phase === Phase.Created && game.isPlayer0 && (
+          <PrimaryButton variant="secondary" onPress={() => { Share.share({ message: `Join my RIPSY game. Room code: ${gameId}` }).catch(() => undefined); }}>Share room code</PrimaryButton>
+        )}
+        {game.gameState?.phase === Phase.Created && !isParticipant && (
+          <PrimaryButton onPress={() => { perform(game.joinGame).catch(() => undefined); }} busy={game.isBusy}>Join this game</PrimaryButton>
+        )}
+        {needsLineup && (
+          <View style={styles.actions}>
+            <PrimaryButton variant="secondary" onPress={() => setLineup(createRandomLineup(game.isPlayer0))}>Shuffle lineup</PrimaryButton>
+            <PrimaryButton onPress={() => { submitLineup().catch(() => undefined); }} busy={game.isBusy}>Submit lineup</PrimaryButton>
+          </View>
+        )}
+
+        {game.gameState && isParticipant && (
+          <View style={styles.stats}>
+            <Stat label="Your pieces" value={String(game.isPlayer0 ? game.gameState.live0 : game.gameState.live1)} />
+            <Stat label="Opponent" value={String(game.isPlayer0 ? game.gameState.live1 : game.gameState.live0)} />
+            <Stat label="Side" value={game.isPlayer0 ? 'Player 1' : 'Player 2'} />
+          </View>
+        )}
+      </ScrollView>
+
+      <WeaponChoiceModal
+        busy={game.isBusy}
+        isOpen={Boolean(game.gameState?.tiePending && game.gameState.playerChoice === Choice.None && isParticipant)}
+        onChoose={choice => { perform(() => game.chooseWeapon(choice)).catch(() => undefined); }}
+      />
+    </View>
+  );
+}
+
+function WeaponChoiceModal({ isOpen, busy, onChoose }: { isOpen: boolean; busy: boolean; onChoose: (choice: Choice) => void }) {
+  return (
+    <Modal animationType="fade" transparent visible={isOpen}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Break the tie</Text>
+          <Text style={styles.modalCopy}>Both pieces matched. Choose a new weapon.</Text>
+          <PrimaryButton onPress={() => onChoose(Choice.Rock)} disabled={busy}>Rock</PrimaryButton>
+          <PrimaryButton onPress={() => onChoose(Choice.Paper)} disabled={busy}>Paper</PrimaryButton>
+          <PrimaryButton onPress={() => onChoose(Choice.Scissors)} disabled={busy}>Scissors</PrimaryButton>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
+}
+
+function getStateMessage(phase: Phase | undefined, isParticipant: boolean, needsLineup: boolean, hasSubmitted: boolean, isMyTurn: boolean) {
+  if (phase === undefined) return 'Loading the latest game state…';
+  if (phase === Phase.Created) return isParticipant ? 'Waiting for an opponent to join' : 'This room has an open player slot';
+  if (needsLineup) return 'Shuffle and submit your hidden lineup';
+  if (phase < Phase.Active && hasSubmitted) return 'Lineup submitted. Waiting for your opponent';
+  if (phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : "Opponent's turn";
+  if (phase === Phase.Finished) return 'Game finished';
+  return 'Preparing game…';
+}
+
+function createRandomLineup(isPlayer0: boolean): LineupPiece[] {
+  const pieces: Piece[] = [
+    Piece.Rock, Piece.Rock, Piece.Rock, Piece.Rock,
+    Piece.Paper, Piece.Paper, Piece.Paper, Piece.Paper,
+    Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Scissors,
+    Piece.Flag, Piece.Trap,
+  ];
+  const cells = Array.from({ length: WIDTH * 2 }, (_, index) => ({
+    x: index % WIDTH,
+    y: isPlayer0 ? HEIGHT - 2 + Math.floor(index / WIDTH) : Math.floor(index / WIDTH),
+  }));
+  shuffle(pieces);
+  shuffle(cells);
+  return pieces.map((piece, index) => ({ ...cells[index]!, piece }));
+}
+
+function shuffle<T>(items: T[]) {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1));
+    [items[index], items[target]] = [items[target]!, items[index]!];
+  }
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: 48 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  eyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 2 },
+  room: { color: colors.primary, fontSize: 24, fontWeight: '900', letterSpacing: 3 },
+  connection: { color: colors.warning, borderColor: colors.warning, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, fontSize: 10, fontWeight: '900' },
+  connected: { color: colors.success, borderColor: colors.success },
+  actions: { gap: spacing.md },
+  stats: { flexDirection: 'row', gap: spacing.sm },
+  stat: { flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: spacing.md, alignItems: 'center' },
+  statValue: { color: colors.text, fontSize: 16, fontWeight: '900' },
+  statLabel: { color: colors.textMuted, fontSize: 10, marginTop: 3 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)', justifyContent: 'center', padding: spacing.xl },
+  modalCard: { backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 2, borderRadius: 18, padding: spacing.xl, gap: spacing.md },
+  modalTitle: { color: colors.primary, fontSize: 26, fontWeight: '900', textAlign: 'center' },
+  modalCopy: { color: colors.textMuted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: spacing.sm },
+});

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Choice, Owner, Piece, toIdx, toXY, WIDTH, HEIGHT } from '@rps/core';
+import { Choice, Owner, Piece, PROTOCOL_VERSION, ProtocolVersionError, parseServerMessage, toIdx, toXY, WIDTH, HEIGHT } from '@rps/core';
 import type { ClientAction, GameState, ServerMessage } from '@rps/core';
 import { usePlayerIdentity } from './player-identity';
 
@@ -44,10 +44,17 @@ export function useRipsyGame(gameId?: string) {
       socketRef.current = socket;
       socket.onopen = () => {
         setError(null);
-        socket.send(JSON.stringify({ type: 'authenticate', token: sessionToken }));
+        socket.send(JSON.stringify({ type: 'authenticate', token: sessionToken, protocolVersion: PROTOCOL_VERSION }));
       };
       socket.onmessage = (event) => {
-        const message = JSON.parse(event.data as string) as ServerMessage;
+        let message: ServerMessage;
+        try {
+          message = parseServerMessage(JSON.parse(event.data as string) as unknown);
+        } catch (cause) {
+          setError(cause instanceof ProtocolVersionError ? cause.message : 'The game server sent an invalid message');
+          socket.close(1002, 'Invalid server message');
+          return;
+        }
         if (message.type === 'connected') {
           setIsInitialized(true);
           if (gameId) send({ type: 'getGame', requestId: crypto.randomUUID(), gameId }).catch(() => undefined);
@@ -61,17 +68,20 @@ export function useRipsyGame(gameId?: string) {
         }
         if (message.type === 'error') {
           setLoading(false);
-          setError(message.message);
+          const error = message.code === 'UNSUPPORTED_PROTOCOL_VERSION'
+            ? new ProtocolVersionError(message.expectedProtocolVersion ?? PROTOCOL_VERSION, message.receivedProtocolVersion)
+            : new Error(message.message);
+          setError(error.message);
           if (message.requestId) {
-            pendingRef.current.get(message.requestId)?.reject(new Error(message.message));
+            pendingRef.current.get(message.requestId)?.reject(error);
             pendingRef.current.delete(message.requestId);
           }
         }
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (socketRef.current === socket) socketRef.current = null;
         setIsInitialized(false);
-        if (!disposed) reconnectTimer = setTimeout(connect, 1500);
+        if (!disposed && event.code !== 1002 && event.code !== 1008) reconnectTimer = setTimeout(connect, 1500);
       };
       socket.onerror = () => setError('Cannot connect to the game server');
     };
@@ -104,7 +114,7 @@ export function useRipsyGame(gameId?: string) {
   const createGame = useCallback(async () => {
     const result = await request({ type: 'createGame' });
     if (!result.gameId) throw new Error('The server did not return a game ID');
-    return { gamePda: result.gameId };
+    return { gameId: result.gameId };
   }, [request]);
 
   const refreshFreshGameState = useCallback(async () => {

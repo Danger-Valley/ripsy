@@ -4,7 +4,7 @@ import { useRiveFile } from '@rive-app/react-canvas';
 import { useParams } from 'next/navigation';
 import { PlayerBadge } from '../../components/PlayerBadge';
 import { toast } from 'sonner';
-import { usePlayerIdentity, useRipsyGame, isEmptyAddress, Owner, HEIGHT, WIDTH, Choice, GameState } from '@rps/game-client';
+import { usePlayerIdentity, useRipsyGame, isEmptyPlayerId, Owner, HEIGHT, WIDTH, Choice, GameState } from '@rps/game-client';
 import RpsFigure, { Weapon, WEAPON_NAMES } from './RpsFigure';
 import WeaponSelectionPopup from './WeaponSelectionPopup';
 
@@ -31,8 +31,8 @@ export default function GamePage() {
   // Load shared Rive file once and share across all figures
   const { riveFile, status: riveStatus } = useRiveFile({ src: '/figures/fig1.riv' });
   const { id } = useParams<{ id: string }>();
-  const { connected, publicKey, playerId } = usePlayerIdentity();
-  const gamePda = id || '';
+  const { connected, playerId } = usePlayerIdentity();
+  const gameId = id || '';
 
   // Connect to the authoritative WebSocket game server.
   const {
@@ -50,7 +50,7 @@ export default function GamePage() {
     isMyTurn,
     isPlayerChoice,
     isInitialized,
-  } = useRipsyGame(gamePda);
+  } = useRipsyGame(gameId);
 
   const rows = HEIGHT;
   const cols = WIDTH;
@@ -114,7 +114,7 @@ export default function GamePage() {
   const figureScale = 1.0;
   //   console.log('figureSize:', figureSize, 'figureScale:', figureScale, 'cellSize:', cellSize);
 
-  const shortAddr = (addr: string) => `${addr.slice(0, 4)}…${addr.slice(-4)}`;
+  const shortId = (value: string) => `${value.slice(0, 4)}…${value.slice(-4)}`;
 
   const getAvailableMoves = (figure: Figure) => {
     const moves: { row: number, col: number, direction: string }[] = [];
@@ -626,8 +626,8 @@ export default function GamePage() {
   // Generate random lineup (4 stones, 4 paper, 4 scissors, 1 flag, 1 trap)
   const generateRandomLineup = useCallback(() => {
     // Safety check
-    if (!gameState || !publicKey) {
-      console.log('Missing gameState or publicKey, returning empty lineup');
+    if (!gameState || !playerId) {
+      console.log('Missing gameState or playerId, returning empty lineup');
       return [];
     }
 
@@ -645,9 +645,9 @@ export default function GamePage() {
     console.log('isPlayer1:', isPlayer1);
     console.log('Game State P0:', gameState?.p0?.toString());
     console.log('Game State P1:', gameState?.p1?.toString());
-    console.log('My Address:', publicKey?.toString());
-    console.log('P0 Match:', gameState?.p0?.toString() === publicKey?.toString());
-    console.log('P1 Match:', gameState?.p1?.toString() === publicKey?.toString());
+    console.log('My Player ID:', playerId?.toString());
+    console.log('P0 Match:', gameState?.p0?.toString() === playerId?.toString());
+    console.log('P1 Match:', gameState?.p1?.toString() === playerId?.toString());
     console.log('Generated pieces:', pieces);
     console.log('Piece counts:', {
       stones: pieces.filter(p => p === Weapon.Stone).length,
@@ -691,12 +691,12 @@ export default function GamePage() {
     console.log('Player type:', isPlayer0 ? 'Player 0' : 'Player 1', '- YOUR pieces always in bottom rows 4-5');
     console.log('Lineup positions:', lineup.map(f => `Row ${f.row}, Col ${f.col}`));
     return lineup;
-  }, [isPlayer0, isPlayer1, gameState, publicKey]);
+  }, [isPlayer0, isPlayer1, gameState, playerId]);
 
   // Generate opponent's lineup from game state (without weapons)
   const generateOpponentLineup = useCallback(() => {
-    if (!gameState || !publicKey) {
-      console.log('generateOpponentLineup: Missing gameState or publicKey');
+    if (!gameState || !playerId) {
+      console.log('generateOpponentLineup: Missing gameState or playerId');
       return [];
     }
 
@@ -792,7 +792,7 @@ export default function GamePage() {
     }
 
     return opponentLineup;
-  }, [gameState, publicKey, isPlayer0, isPlayer1]);
+  }, [gameState, playerId, isPlayer0, isPlayer1]);
 
   // Handle shuffling lineup
   const handleShuffleLineup = useCallback(() => {
@@ -844,7 +844,7 @@ export default function GamePage() {
     toast.loading('Joining game...', { id: 'join-game' });
 
     try {
-      await joinGame(gamePda);
+      await joinGame(gameId);
 
       toast.success('Successfully joined the game!', { id: 'join-game' });
       // The useEffect will handle updating the authorization state
@@ -854,7 +854,7 @@ export default function GamePage() {
     } finally {
       setIsJoiningGame(false);
     }
-  }, [joinGame, isJoiningGame, gamePda, gameState, isPlayer0, isPlayer1]);
+  }, [joinGame, isJoiningGame, gameId, gameState, isPlayer0, isPlayer1]);
 
   // Handle weapon selection from popup
   const handleWeaponSelection = useCallback(async (selectedWeapon: Weapon) => {
@@ -988,7 +988,7 @@ export default function GamePage() {
       // But we show controls when it's the player's turn to submit
       const shouldSetLineup =
         (gameState.phase === 1 && isPlayer0) || // Joined phase, player 0 can submit first
-        (gameState.phase === 1 && isPlayer1 && !isEmptyAddress(gameState.p0)) || // Joined phase, player 1 can submit if P0 exists
+        (gameState.phase === 1 && isPlayer1 && !isEmptyPlayerId(gameState.p0)) || // Joined phase, player 1 can submit if P0 exists
         (gameState.phase === 2 && isPlayer1) || // LineupP0Set phase, player 1 can submit
         (gameState.phase === 3 && isPlayer0); // LineupP1Set phase, player 0 can submit
 
@@ -1081,29 +1081,29 @@ export default function GamePage() {
 
   // Check authorization and join eligibility when game state loads
   useEffect(() => {
-    if (gameState && publicKey) {
+    if (gameState && playerId) {
       console.log('Game state data:', {
         p0: gameState.p0,
         p1: gameState.p1,
         p0Type: typeof gameState.p0,
         p1Type: typeof gameState.p1,
-        userAddress: publicKey.toString()
+        currentPlayerId: playerId.toString()
       });
 
-      const userAddress = publicKey.toString();
-      const p0Address = String(gameState.p0);
-      const p1Address = String(gameState.p1);
-      const isPlayer0 = p0Address === userAddress && !isEmptyAddress(p0Address);
-      const isPlayer1 = p1Address === userAddress && !isEmptyAddress(p1Address);
+      const currentPlayerId = playerId.toString();
+      const p0PlayerId = String(gameState.p0);
+      const p1PlayerId = String(gameState.p1);
+      const isPlayer0 = p0PlayerId === currentPlayerId && !isEmptyPlayerId(p0PlayerId);
+      const isPlayer1 = p1PlayerId === currentPlayerId && !isEmptyPlayerId(p1PlayerId);
 
       console.log('Authorization check:', {
-        userAddress,
-        p0Address,
-        p1Address,
+        currentPlayerId,
+        p0PlayerId,
+        p1PlayerId,
         isPlayer0,
         isPlayer1,
-        isEmptyP0: isEmptyAddress(p0Address),
-        isEmptyP1: isEmptyAddress(p1Address)
+        isEmptyP0: isEmptyPlayerId(p0PlayerId),
+        isEmptyP1: isEmptyPlayerId(p1PlayerId)
       });
 
       // Check if user is already a player
@@ -1115,7 +1115,7 @@ export default function GamePage() {
         // toast.success(`Welcome! You are ${player}`, { id: player });
       } else {
         // Check if game can be joined (has empty slot)
-        const hasEmptySlot = isEmptyAddress(p0Address) || isEmptyAddress(p1Address);
+        const hasEmptySlot = isEmptyPlayerId(p0PlayerId) || isEmptyPlayerId(p1PlayerId);
 
         if (hasEmptySlot) {
           setIsAuthorized(false);
@@ -1129,11 +1129,11 @@ export default function GamePage() {
         }
       }
     }
-  }, [gameState, publicKey]);
+  }, [gameState, playerId]);
 
 
   // Validate game ID
-  if (!gamePda) {
+  if (!gameId) {
     return (
       <main style={{
         display: 'flex',
@@ -1192,8 +1192,8 @@ export default function GamePage() {
     isAuthorized &&
     gameState &&
     (
-      (isPlayer0 && isEmptyAddress(String(gameState.p1 || ''))) ||
-      (isPlayer1 && isEmptyAddress(String(gameState.p0 || '')))
+      (isPlayer0 && isEmptyPlayerId(String(gameState.p1 || ''))) ||
+      (isPlayer1 && isEmptyPlayerId(String(gameState.p0 || '')))
     ) &&
     (gameState.phase === 0 || gameState.phase === 1)
   ) {
@@ -1259,7 +1259,7 @@ export default function GamePage() {
             </button>
           </div>
           <div style={{ color: '#8a9ba8', fontSize: 12 }}>
-            Room: {gamePda}
+            Room: {gameId}
           </div>
         </div>
       </main>
@@ -1337,7 +1337,7 @@ export default function GamePage() {
           width: '90%'
         }}>
           <div style={{ fontSize: 28, color: '#66fcf1', marginBottom: 16, fontWeight: 'bold' }}>
-            Join Game {shortAddr(gamePda)}
+            Join Game {shortId(gameId)}
           </div>
           <div style={{ color: '#c5c6c7', marginBottom: 24, fontSize: 16, lineHeight: 1.5 }}>
             This game is waiting for a second player. Would you like to join?
@@ -1345,9 +1345,9 @@ export default function GamePage() {
 
           <div style={{ marginBottom: 32, fontSize: 14, color: '#8a9ba8' }}>
             <div>Game Phase: {gameState?.phase}</div>
-            <div>Current Players: {(!isEmptyAddress(String(gameState?.p0 || ''))) ? '1' : '0'} / 2</div>
-            {gameState?.p0 && !isEmptyAddress(String(gameState.p0)) && (
-              <div>Player 0: {shortAddr(String(gameState.p0))}</div>
+            <div>Current Players: {(!isEmptyPlayerId(String(gameState?.p0 || ''))) ? '1' : '0'} / 2</div>
+            {gameState?.p0 && !isEmptyPlayerId(String(gameState.p0)) && (
+              <div>Player 0: {shortId(String(gameState.p0))}</div>
             )}
           </div>
 
@@ -1372,7 +1372,7 @@ export default function GamePage() {
           </button>
 
           <div style={{ color: '#8a9ba8', fontSize: 12 }}>
-            You will become Player {(!isEmptyAddress(String(gameState?.p0 || ''))) ? '1' : '0'}
+            You will become Player {(!isEmptyPlayerId(String(gameState?.p0 || ''))) ? '1' : '0'}
           </div>
         </div>
       </main>
@@ -1393,7 +1393,7 @@ export default function GamePage() {
           <div style={{ fontSize: 24, color: '#ff6b6b', marginBottom: 16 }}>Access Denied</div>
           <div style={{ color: '#c5c6c7', marginBottom: 16 }}>{authorizationError}</div>
           <div style={{ color: '#c5c6c7', fontSize: 14 }}>
-            Game Players: {gameState?.p0 ? shortAddr(String(gameState.p0)) : 'Unknown'} and {gameState?.p1 ? shortAddr(String(gameState.p1)) : 'Unknown'}          </div>
+            Game Players: {gameState?.p0 ? shortId(String(gameState.p0)) : 'Unknown'} and {gameState?.p1 ? shortId(String(gameState.p1)) : 'Unknown'}          </div>
         </div>
       </main>
     );
@@ -1461,7 +1461,7 @@ export default function GamePage() {
             fontSize: 14,
             color: '#8a9ba8',
           }}>
-            <div>Winner: {shortAddr(String(gameState.winner))}</div>
+            <div>Winner: {shortId(String(gameState.winner))}</div>
             <div style={{ marginTop: 4 }}>
               Final score: {gameState.live0} vs {gameState.live1}
             </div>
@@ -1519,7 +1519,7 @@ export default function GamePage() {
             <PlayerBadge playerId={playerId} />
           </div>
           <div style={{ color: '#8a9ba8', fontSize: 14 }}>
-            Room: {gamePda}
+            Room: {gameId}
           </div>
         </div>
       </main>
@@ -1688,10 +1688,10 @@ export default function GamePage() {
             {
               icon: '#', label: 'Room',
               value: <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{shortAddr(gamePda)}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{shortId(gameId)}</span>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(gamePda); toast.success('Address copied!'); }}
-                  title="Copy full address"
+                  onClick={() => { navigator.clipboard.writeText(gameId); toast.success('Room code copied!'); }}
+                  title="Copy room code"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: '2px 3px', borderRadius: 4, display: 'flex', alignItems: 'center', lineHeight: 1 }}
                   onMouseOver={e => { e.currentTarget.style.color = '#66fcf1'; }}
                   onMouseOut={e => { e.currentTarget.style.color = '#6b7280'; }}
@@ -1814,8 +1814,8 @@ export default function GamePage() {
           <div style={{ background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>
             <strong style={{ color: '#66fcf1', fontSize: 14, display: 'block', marginBottom: 10 }}>Players</strong>
             {[
-              { playerLabel: isPlayer0 ? 'Player 1' : 'Player 0', addr: isPlayer0 ? gameState?.p1 : gameState?.p0, isYou: false },
-              { playerLabel: isPlayer0 ? 'Player 0' : 'Player 1', addr: isPlayer0 ? gameState?.p0 : gameState?.p1, isYou: true },].map(({ playerLabel, addr, isYou }) => (
+              { playerLabel: isPlayer0 ? 'Player 1' : 'Player 0', id: isPlayer0 ? gameState?.p1 : gameState?.p0, isYou: false },
+              { playerLabel: isPlayer0 ? 'Player 0' : 'Player 1', id: isPlayer0 ? gameState?.p0 : gameState?.p1, isYou: true },].map(({ playerLabel, id, isYou }) => (
                 <div key={playerLabel} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '9px 11px', borderRadius: 7, marginBottom: 6,
@@ -1836,7 +1836,7 @@ export default function GamePage() {
                       {playerLabel}
                     </div>
                     <div style={{ fontSize: 13, color: '#d1d5db', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {addr ? shortAddr(String(addr)) : '—'}
+                      {id ? shortId(String(id)) : '—'}
                     </div>
                   </div>
                   <span style={{

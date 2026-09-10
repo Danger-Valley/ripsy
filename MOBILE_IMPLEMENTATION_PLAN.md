@@ -30,8 +30,8 @@ The backend, not either client, decides whether commands are legal and computes 
 
 - [x] Replace the trusted `playerId` query parameter with a server-verified session token.
 - [x] Store mobile credentials in iOS Keychain and Android Keystore.
-- [ ] Rename blockchain-era `gamePda`, `publicKey`, and address terminology to game/player terminology.
-- [ ] Add runtime protocol validation and typed protocol-version errors.
+- [x] Rename blockchain-era `gamePda`, `publicKey`, and address terminology to game/player terminology.
+- [x] Add runtime protocol validation and typed protocol-version errors.
 - [x] Handle foreground/background transitions, network loss, stale connections, and full-state recovery.
 - [x] Persist and restore the active game.
 - [ ] Add native sharing, room-code entry, Universal Links, and Android App Links.

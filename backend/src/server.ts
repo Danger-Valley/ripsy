@@ -1,5 +1,12 @@
 import { createServer } from 'node:http';
-import type { ClientAction, ClientMessage, ServerMessage } from '@rps/core';
+import {
+  PROTOCOL_VERSION,
+  ProtocolMessageError,
+  ProtocolVersionError,
+  parseClientMessage,
+  type ClientAction,
+  type ServerMessage,
+} from '@rps/core';
 import { createClient } from 'redis';
 import { WebSocket, WebSocketServer } from 'ws';
 import { RedisGameStore, type RedisCommands } from './redis-game-store.js';
@@ -85,12 +92,8 @@ sockets.on('connection', (socket) => {
   const authenticationTimeout = setTimeout(() => socket.close(1008, 'Authentication timed out'), 10_000);
 
   socket.on('message', (data) => {
-    let message: ClientMessage;
     try {
-      message = JSON.parse(data.toString()) as ClientMessage;
-      if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
-        throw new Error('Invalid request envelope');
-      }
+      const message = parseClientMessage(JSON.parse(data.toString()) as unknown);
       if (message.type === 'authenticate') {
         if (playerId) throw new Error('Socket is already authenticated');
         playerId = sessionManager.verify(message.token).playerId;
@@ -98,14 +101,29 @@ sockets.on('connection', (socket) => {
         playerSockets.add(socket);
         clients.set(playerId, playerSockets);
         clearTimeout(authenticationTimeout);
-        send(socket, { type: 'connected', playerId });
+        send(socket, { type: 'connected', playerId, protocolVersion: PROTOCOL_VERSION });
         return;
       }
       if (!playerId) throw new Error('Authenticate before sending game commands');
-      if (typeof message.requestId !== 'string') throw new Error('Invalid request envelope');
       void handle(socket, playerId, message);
     } catch (error) {
-      send(socket, { type: 'error', message: error instanceof Error ? error.message : 'Invalid request' });
+      if (error instanceof ProtocolVersionError) {
+        send(socket, {
+          type: 'error',
+          code: 'UNSUPPORTED_PROTOCOL_VERSION',
+          message: error.message,
+          expectedProtocolVersion: error.expectedVersion,
+          receivedProtocolVersion: error.receivedVersion,
+        });
+        socket.close(1002, 'Unsupported protocol version');
+        return;
+      }
+      const isInvalidMessage = error instanceof ProtocolMessageError || error instanceof SyntaxError;
+      send(socket, {
+        type: 'error',
+        code: isInvalidMessage ? 'INVALID_MESSAGE' : 'AUTHENTICATION_FAILED',
+        message: error instanceof Error ? error.message : 'Invalid request',
+      });
       if (!playerId) socket.close(1008, 'Authentication failed');
     }
   });
@@ -127,7 +145,7 @@ async function handle(socket: WebSocket, playerId: string, action: ClientAction)
     switch (action.type) {
       case 'createGame':
         state = await store.create(playerId);
-        gameId = state.gamePda;
+        gameId = state.gameId;
         break;
       case 'getGame':
         gameId = action.gameId;
@@ -156,6 +174,7 @@ async function handle(socket: WebSocket, playerId: string, action: ClientAction)
   } catch (error) {
     send(socket, {
       type: 'error',
+      code: 'REQUEST_FAILED',
       requestId: action.requestId,
       message: error instanceof Error ? error.message : 'Request failed',
     });

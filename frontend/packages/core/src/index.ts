@@ -1,6 +1,7 @@
 export const WIDTH = 7;
 export const HEIGHT = 7;
 export const CELLS = WIDTH * HEIGHT;
+export const PROTOCOL_VERSION = 1 as const;
 
 export const Piece = {
   Empty: 0,
@@ -37,7 +38,7 @@ export type Move = 'rock' | 'paper' | 'scissors';
 export type RoundResult = 'win' | 'lose' | 'draw';
 
 export interface GameState {
-  gamePda: string;
+  gameId: string;
   phase: Phase;
   isP1Turn: boolean;
   owners: Owner[];
@@ -64,17 +65,264 @@ export type ClientAction =
   | { type: 'movePiece'; requestId: string; gameId: string; fromX: number; fromY: number; toX: number; toY: number }
   | { type: 'chooseWeapon'; requestId: string; gameId: string; choice: Choice };
 
-export type ClientMessage = ClientAction | { type: 'authenticate'; token: string };
+export type ClientMessage = ClientAction | { type: 'authenticate'; token: string; protocolVersion: number };
+
+export type ServerErrorCode =
+  | 'AUTHENTICATION_FAILED'
+  | 'INVALID_MESSAGE'
+  | 'REQUEST_FAILED'
+  | 'UNSUPPORTED_PROTOCOL_VERSION';
 
 export type ServerMessage =
-  | { type: 'connected'; playerId: string }
+  | { type: 'connected'; playerId: string; protocolVersion: number }
   | { type: 'result'; requestId: string; gameId?: string; state?: GameState }
   | { type: 'state'; gameId: string; state: GameState }
-  | { type: 'error'; requestId?: string; message: string };
+  | {
+      type: 'error';
+      requestId?: string;
+      code: ServerErrorCode;
+      message: string;
+      expectedProtocolVersion?: number;
+      receivedProtocolVersion?: number;
+    };
 
 export const toIdx = (x: number, y: number) => y * WIDTH + x;
 export const toXY = (index: number) => ({ x: index % WIDTH, y: Math.floor(index / WIDTH) });
-export const isEmptyAddress = (value: string | null | undefined) => !value;
+export const isEmptyPlayerId = (value: string | null | undefined) => !value;
+
+export class ProtocolMessageError extends Error {
+  readonly code = 'INVALID_MESSAGE' as const;
+
+  constructor(message = 'Invalid protocol message') {
+    super(message);
+    this.name = 'ProtocolMessageError';
+  }
+}
+
+export class ProtocolVersionError extends Error {
+  readonly code = 'UNSUPPORTED_PROTOCOL_VERSION' as const;
+
+  constructor(
+    readonly expectedVersion: number,
+    readonly receivedVersion: number | undefined,
+  ) {
+    super(`Unsupported protocol version: expected ${expectedVersion}, received ${receivedVersion ?? 'none'}`);
+    this.name = 'ProtocolVersionError';
+  }
+}
+
+export function parseClientMessage(value: unknown): ClientMessage {
+  const message = requireRecord(value);
+  const type = requireString(message.type, 'Message type');
+
+  if (type === 'authenticate') {
+    const protocolVersion = message.protocolVersion === undefined
+      ? PROTOCOL_VERSION
+      : requireInteger(message.protocolVersion, 'Protocol version');
+    if (protocolVersion !== PROTOCOL_VERSION) throw new ProtocolVersionError(PROTOCOL_VERSION, protocolVersion);
+    return { type, token: requireString(message.token, 'Session token'), protocolVersion };
+  }
+
+  const requestId = requireString(message.requestId, 'Request ID');
+  if (type === 'createGame') return { type, requestId };
+  const gameId = requireString(message.gameId, 'Game ID');
+  if (type === 'getGame' || type === 'joinGame') return { type, requestId, gameId };
+  if (type === 'submitLineup') {
+    return {
+      type,
+      requestId,
+      gameId,
+      xs: requireIntegerArray(message.xs, 'Lineup x coordinates'),
+      ys: requireIntegerArray(message.ys, 'Lineup y coordinates'),
+      pieces: requireIntegerArray(message.pieces, 'Lineup pieces'),
+    };
+  }
+  if (type === 'movePiece') {
+    return {
+      type,
+      requestId,
+      gameId,
+      fromX: requireInteger(message.fromX, 'Move fromX'),
+      fromY: requireInteger(message.fromY, 'Move fromY'),
+      toX: requireInteger(message.toX, 'Move toX'),
+      toY: requireInteger(message.toY, 'Move toY'),
+    };
+  }
+  if (type === 'chooseWeapon') {
+    const choice = requireInteger(message.choice, 'Weapon choice');
+    if (!isChoice(choice)) throw new ProtocolMessageError('Weapon choice is invalid');
+    return { type, requestId, gameId, choice };
+  }
+  throw new ProtocolMessageError(`Unknown client message type: ${type}`);
+}
+
+export function parseServerMessage(value: unknown): ServerMessage {
+  const message = requireRecord(value);
+  const type = requireString(message.type, 'Message type');
+  if (type === 'connected') {
+    const protocolVersion = message.protocolVersion === undefined
+      ? PROTOCOL_VERSION
+      : requireInteger(message.protocolVersion, 'Protocol version');
+    if (protocolVersion !== PROTOCOL_VERSION) throw new ProtocolVersionError(PROTOCOL_VERSION, protocolVersion);
+    return { type, playerId: requireString(message.playerId, 'Player ID'), protocolVersion };
+  }
+  if (type === 'state') {
+    const gameId = requireString(message.gameId, 'Game ID');
+    const state = parseGameState(message.state);
+    if (state.gameId !== gameId) throw new ProtocolMessageError('Game state ID does not match its envelope');
+    return {
+      type,
+      gameId,
+      state,
+    };
+  }
+  if (type === 'result') {
+    const result: Extract<ServerMessage, { type: 'result' }> = {
+      type,
+      requestId: requireString(message.requestId, 'Request ID'),
+    };
+    if (message.gameId !== undefined) result.gameId = requireString(message.gameId, 'Game ID');
+    if (message.state !== undefined) result.state = parseGameState(message.state);
+    if (result.gameId && result.state && result.gameId !== result.state.gameId) {
+      throw new ProtocolMessageError('Game state ID does not match its envelope');
+    }
+    return result;
+  }
+  if (type === 'error') {
+    const code = requireString(message.code, 'Error code');
+    if (!isServerErrorCode(code)) throw new ProtocolMessageError('Server error code is invalid');
+    const error: Extract<ServerMessage, { type: 'error' }> = {
+      type,
+      code,
+      message: requireString(message.message, 'Error message'),
+    };
+    if (message.requestId !== undefined) error.requestId = requireString(message.requestId, 'Request ID');
+    if (message.expectedProtocolVersion !== undefined) {
+      error.expectedProtocolVersion = requireInteger(message.expectedProtocolVersion, 'Expected protocol version');
+    }
+    if (message.receivedProtocolVersion !== undefined) {
+      error.receivedProtocolVersion = requireInteger(message.receivedProtocolVersion, 'Received protocol version');
+    }
+    return error;
+  }
+  throw new ProtocolMessageError(`Unknown server message type: ${type}`);
+}
+
+export function parseGameState(value: unknown): GameState {
+  const state = requireRecord(value);
+  const phase = requireInteger(state.phase, 'Game phase');
+  if (!isPhase(phase)) throw new ProtocolMessageError('Game phase is invalid');
+  const owners = requireIntegerArray(state.owners, 'Game owners');
+  const pieces = requireIntegerArray(state.pieces, 'Game pieces');
+  if (owners.length !== CELLS || !owners.every(isOwner)) throw new ProtocolMessageError('Game owners are invalid');
+  if (pieces.length !== CELLS || !pieces.every(isPiece)) throw new ProtocolMessageError('Game pieces are invalid');
+  const playerChoice = requireInteger(state.playerChoice, 'Player choice');
+  if (!isChoice(playerChoice)) throw new ProtocolMessageError('Player choice is invalid');
+  return {
+    gameId: requireString(state.gameId, 'Game ID'),
+    phase,
+    isP1Turn: requireBoolean(state.isP1Turn, 'Turn flag'),
+    owners,
+    pieces,
+    live0: requireCount(state.live0, 'Player 0 live count'),
+    live1: requireCount(state.live1, 'Player 1 live count'),
+    attacker: requirePiece(state.attacker, 'Attacker'),
+    defender: requirePiece(state.defender, 'Defender'),
+    outcome: requireOutcome(state.outcome),
+    playerChoice,
+    tiePending: requireBoolean(state.tiePending, 'Tie flag'),
+    tieFrom: requirePosition(state.tieFrom, 'Tie origin'),
+    tieTo: requirePosition(state.tieTo, 'Tie destination'),
+    p0: requireString(state.p0, 'Player 0 ID', true),
+    p1: requireString(state.p1, 'Player 1 ID', true),
+    winner: state.winner === null ? null : requireString(state.winner, 'Winner ID'),
+  };
+}
+
+function requireRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ProtocolMessageError();
+  return value as Record<string, unknown>;
+}
+
+function requireString(value: unknown, label: string, allowEmpty = false): string {
+  if (typeof value !== 'string' || (!allowEmpty && value.length === 0)) throw new ProtocolMessageError(`${label} is invalid`);
+  return value;
+}
+
+function requireNumber(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new ProtocolMessageError(`${label} is invalid`);
+  return value;
+}
+
+function requireInteger(value: unknown, label: string): number {
+  const number = requireNumber(value, label);
+  if (!Number.isInteger(number)) throw new ProtocolMessageError(`${label} is invalid`);
+  return number;
+}
+
+function requireBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new ProtocolMessageError(`${label} is invalid`);
+  return value;
+}
+
+function requireIntegerArray(value: unknown, label: string): number[] {
+  if (!Array.isArray(value) || !value.every(item => typeof item === 'number' && Number.isInteger(item))) {
+    throw new ProtocolMessageError(`${label} are invalid`);
+  }
+  return value;
+}
+
+function requirePosition(value: unknown, label: string) {
+  const position = requireRecord(value);
+  const x = requireInteger(position.x, `${label} x`);
+  const y = requireInteger(position.y, `${label} y`);
+  if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) throw new ProtocolMessageError(`${label} is invalid`);
+  return {
+    x,
+    y,
+  };
+}
+
+function requireCount(value: unknown, label: string) {
+  const count = requireInteger(value, label);
+  if (count < 0 || count > 14) throw new ProtocolMessageError(`${label} is invalid`);
+  return count;
+}
+
+function requirePiece(value: unknown, label: string): Piece {
+  const piece = requireInteger(value, label);
+  if (!isPiece(piece)) throw new ProtocolMessageError(`${label} is invalid`);
+  return piece;
+}
+
+function requireOutcome(value: unknown) {
+  const outcome = requireInteger(value, 'Outcome');
+  if (outcome !== -1 && outcome !== 0 && outcome !== 1) throw new ProtocolMessageError('Outcome is invalid');
+  return outcome;
+}
+
+function isChoice(value: number): value is Choice {
+  return value === Choice.None || value === Choice.Rock || value === Choice.Paper || value === Choice.Scissors;
+}
+
+function isOwner(value: number): value is Owner {
+  return value === Owner.None || value === Owner.P0 || value === Owner.P1;
+}
+
+function isPiece(value: number): value is Piece {
+  return value >= Piece.Empty && value <= Piece.Trap && Number.isInteger(value);
+}
+
+function isPhase(value: number): value is Phase {
+  return value >= Phase.Created && value <= Phase.Finished && Number.isInteger(value);
+}
+
+function isServerErrorCode(value: string): value is ServerErrorCode {
+  return value === 'AUTHENTICATION_FAILED' ||
+    value === 'INVALID_MESSAGE' ||
+    value === 'REQUEST_FAILED' ||
+    value === 'UNSUPPORTED_PROTOCOL_VERSION';
+}
 
 export function decideRound(player: Move, opponent: Move): RoundResult {
   if (player === opponent) return 'draw';

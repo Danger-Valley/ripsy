@@ -15,9 +15,9 @@ export default function HomePage() {
     setCreating(true);
     toast.loading('Creating game...', { id: 'create-game' });
     try {
-      const { gamePda } = await createGame();
+      const { gameId } = await createGame();
       toast.success('Game created', { id: 'create-game' });
-      router.push(`/game/${gamePda}`);
+      router.push(`/game/${gameId}`);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Could not create game', { id: 'create-game' });
     } finally {

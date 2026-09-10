@@ -1,4 +1,11 @@
-import type { ClientAction, GameState, ServerMessage } from '@rps/core';
+import {
+  PROTOCOL_VERSION,
+  ProtocolVersionError,
+  parseServerMessage,
+  type ClientAction,
+  type GameState,
+  type ServerMessage,
+} from '@rps/core';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'suspended' | 'closed';
 
@@ -118,7 +125,11 @@ export class RipsySocketClient {
 
     socket.onopen = () => {
       if (this.socket !== socket) return;
-      socket.send(JSON.stringify({ type: 'authenticate', token: this.options.sessionToken }));
+      socket.send(JSON.stringify({
+        type: 'authenticate',
+        token: this.options.sessionToken,
+        protocolVersion: PROTOCOL_VERSION,
+      }));
     };
     socket.onmessage = (event) => this.handleMessage(socket, String(event.data));
     socket.onerror = () => {
@@ -128,7 +139,7 @@ export class RipsySocketClient {
       if (this.socket !== socket) return;
       this.socket = null;
       this.rejectPending(new Error('Connection interrupted'));
-      if (event.code === 1008) {
+      if (event.code === 1002 || event.code === 1008) {
         this.shouldReconnect = false;
         this.emitError(new Error(event.reason || 'Game session authentication failed'));
       }
@@ -141,9 +152,11 @@ export class RipsySocketClient {
     if (this.socket !== socket) return;
     let message: ServerMessage;
     try {
-      message = JSON.parse(payload) as ServerMessage;
-    } catch {
-      this.emitError(new Error('The game server sent an invalid message'));
+      message = parseServerMessage(JSON.parse(payload) as unknown);
+    } catch (error) {
+      this.emitError(error instanceof ProtocolVersionError
+        ? error
+        : new Error('The game server sent an invalid message'));
       return;
     }
 
@@ -175,7 +188,9 @@ export class RipsySocketClient {
       return;
     }
     if (message.type === 'error') {
-      const error = new Error(message.message);
+      const error = message.code === 'UNSUPPORTED_PROTOCOL_VERSION'
+        ? new ProtocolVersionError(message.expectedProtocolVersion ?? PROTOCOL_VERSION, message.receivedProtocolVersion)
+        : new Error(message.message);
       if (message.requestId) {
         const pending = this.pending.get(message.requestId);
         if (pending) {

@@ -42,9 +42,9 @@ test('persists game state in Redis-compatible storage', async () => {
   const firstInstance = new RedisGameStore(redis);
   const secondInstance = new RedisGameStore(redis);
   const created = await firstInstance.create('alice');
-  const joined = await secondInstance.join(created.gamePda, 'bob');
+  const joined = await secondInstance.join(created.gameId, 'bob');
   assert.equal(joined.phase, Phase.Joined);
-  assert.equal((await firstInstance.get(created.gamePda, 'alice')).p1, 'bob');
+  assert.equal((await firstInstance.get(created.gameId, 'alice')).p1, 'bob');
   assert.equal(redis.values.size, 1);
   assert.ok(redis.events.length >= 2);
 });
@@ -56,8 +56,8 @@ test('atomic compare-and-swap admits only one competing player', async () => {
   const game = await firstInstance.create('alice');
 
   const attempts = await Promise.allSettled([
-    firstInstance.join(game.gamePda, 'bob'),
-    secondInstance.join(game.gamePda, 'carol'),
+    firstInstance.join(game.gameId, 'bob'),
+    secondInstance.join(game.gameId, 'carol'),
   ]);
   assert.equal(attempts.filter(({ status }) => status === 'fulfilled').length, 1);
   assert.equal(attempts.filter(({ status }) => status === 'rejected').length, 1);

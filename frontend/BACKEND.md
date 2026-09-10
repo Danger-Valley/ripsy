@@ -39,7 +39,7 @@ REDIS_URL=rediss://user:password@host:6379 npm run dev:server
 
 ## Identity
 
-`POST /session` issues a signed anonymous player session. A client stores the returned token, opens the WebSocket, and sends `{ "type": "authenticate", "token": "..." }` before any game command. The server verifies the signature and derives `playerId` from the token; it never trusts a client-supplied player ID.
+`POST /session` issues a signed anonymous player session. A client stores the returned token, opens the WebSocket, and sends `{ "type": "authenticate", "token": "...", "protocolVersion": 1 }` before any game command. The server verifies the signature and derives `playerId` from the token; it never trusts a client-supplied player ID.
 
 Set a cryptographically random `SESSION_SECRET` of at least 32 characters in every deployed environment. Keep staging and production secrets separate. `ALLOWED_ORIGINS` is a comma-separated allowlist for browser calls to `/session`; native clients do not send an Origin header.
 
@@ -56,7 +56,7 @@ Every command carries a `requestId`. Supported commands are:
 - `movePiece`
 - `chooseWeapon`
 
-The server replies with `result` or `error`. Shared TypeScript definitions are in `packages/core/src/index.ts`.
+The server replies with `result` or a typed `error`. Both sides validate messages at runtime using the shared parsers in `packages/core/src/index.ts`. An incompatible handshake receives `UNSUPPORTED_PROTOCOL_VERSION` with the expected and received versions, and the socket closes without retrying. A missing version is temporarily interpreted as version 1 so existing clients survive the first rolling deployment; future protocol versions must always be explicit.
 
 ## Railway deployment
 

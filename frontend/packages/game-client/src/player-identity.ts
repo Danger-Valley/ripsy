@@ -25,7 +25,7 @@ export function usePlayerIdentity() {
     return () => { active = false; };
   }, []);
   const playerId = session?.playerId ?? '';
-  return { connected: Boolean(session), publicKey: playerId || null, playerId, sessionToken: session?.token ?? '', error };
+  return { connected: Boolean(session), playerId, sessionToken: session?.token ?? '', error };
 }
 
 function loadBrowserSession() {

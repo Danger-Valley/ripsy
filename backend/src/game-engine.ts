@@ -256,7 +256,7 @@ export function gameView(game: GameRecord, playerId: string): GameState {
     return Piece.Empty;
   });
   return {
-    gamePda: game.id,
+    gameId: game.id,
     phase: game.phase,
     isP1Turn: game.isP1Turn,
     owners: [...game.owners],

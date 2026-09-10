@@ -20,6 +20,22 @@ type PendingRequest = {
   resolve: (message: ResultMessage) => void;
   reject: (error: Error) => void;
   timeout: ReturnType<typeof setTimeout>;
+  action: ClientAction['type'];
+  startedAt: number;
+};
+
+type ClientDiagnosticPayload =
+  | { event: 'connection.status'; status: ConnectionStatus }
+  | { event: 'socket.opened' }
+  | { event: 'socket.closed'; code: number; willReconnect: boolean }
+  | { event: 'reconnect.scheduled'; attempt: number; delayMs: number }
+  | { event: 'request.completed'; action: ClientAction['type']; durationMs: number; outcome: 'success' | 'failure' | 'timeout' }
+  | { event: 'server.error'; code: Extract<ServerMessage, { type: 'error' }>['code'] }
+  | { event: 'protocol.invalid_message' };
+
+export type ClientDiagnosticEvent = ClientDiagnosticPayload & {
+  timestamp: string;
+  service: 'game-client';
 };
 
 export interface RipsySocketClientOptions {
@@ -31,6 +47,7 @@ export interface RipsySocketClientOptions {
   reconnectMaxDelayMs?: number;
   socketFactory?: (url: string) => WebSocket;
   createRequestId?: () => string;
+  diagnosticSink?: (event: ClientDiagnosticEvent) => void;
 }
 
 export class RipsySocketClient {
@@ -93,10 +110,12 @@ export class RipsySocketClient {
     const envelope = { ...action, requestId } as ClientAction;
     return new Promise<ResultMessage>((resolve, reject) => {
       const timeout = setTimeout(() => {
+        const pending = this.pending.get(requestId);
         this.pending.delete(requestId);
+        if (pending) this.emitDiagnostic({ event: 'request.completed', action: pending.action, durationMs: Date.now() - pending.startedAt, outcome: 'timeout' });
         reject(new Error('The game server did not respond in time'));
       }, this.options.requestTimeoutMs ?? 12_000);
-      this.pending.set(requestId, { resolve, reject, timeout });
+      this.pending.set(requestId, { resolve, reject, timeout, action: envelope.type, startedAt: Date.now() });
       socket.send(JSON.stringify(envelope));
     });
   }
@@ -125,6 +144,7 @@ export class RipsySocketClient {
 
     socket.onopen = () => {
       if (this.socket !== socket) return;
+      this.emitDiagnostic({ event: 'socket.opened' });
       socket.send(JSON.stringify({
         type: 'authenticate',
         token: this.options.sessionToken,
@@ -143,6 +163,7 @@ export class RipsySocketClient {
         this.shouldReconnect = false;
         this.emitError(new Error(event.reason || 'Game session authentication failed'));
       }
+      this.emitDiagnostic({ event: 'socket.closed', code: event.code ?? 1006, willReconnect: this.shouldReconnect });
       if (this.shouldReconnect) this.scheduleReconnect();
       else this.setStatus('closed');
     };
@@ -154,6 +175,7 @@ export class RipsySocketClient {
     try {
       message = parseServerMessage(JSON.parse(payload) as unknown);
     } catch (error) {
+      this.emitDiagnostic({ event: 'protocol.invalid_message' });
       this.emitError(error instanceof ProtocolVersionError
         ? error
         : new Error('The game server sent an invalid message'));
@@ -183,11 +205,13 @@ export class RipsySocketClient {
       if (pending) {
         clearTimeout(pending.timeout);
         this.pending.delete(message.requestId);
+        this.emitDiagnostic({ event: 'request.completed', action: pending.action, durationMs: Date.now() - pending.startedAt, outcome: 'success' });
         pending.resolve(message);
       }
       return;
     }
     if (message.type === 'error') {
+      this.emitDiagnostic({ event: 'server.error', code: message.code });
       const error = message.code === 'UNSUPPORTED_PROTOCOL_VERSION'
         ? new ProtocolVersionError(message.expectedProtocolVersion ?? PROTOCOL_VERSION, message.receivedProtocolVersion)
         : new Error(message.message);
@@ -196,6 +220,7 @@ export class RipsySocketClient {
         if (pending) {
           clearTimeout(pending.timeout);
           this.pending.delete(message.requestId);
+          this.emitDiagnostic({ event: 'request.completed', action: pending.action, durationMs: Date.now() - pending.startedAt, outcome: 'failure' });
           pending.reject(error);
         }
       }
@@ -210,6 +235,7 @@ export class RipsySocketClient {
     const maximum = this.options.reconnectMaxDelayMs ?? 10_000;
     const delay = Math.min(maximum, base * 2 ** Math.min(this.reconnectAttempt - 1, 5));
     const jitteredDelay = Math.round(delay * (0.8 + Math.random() * 0.4));
+    this.emitDiagnostic({ event: 'reconnect.scheduled', attempt: this.reconnectAttempt, delayMs: jitteredDelay });
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
       this.openSocket();
@@ -219,6 +245,7 @@ export class RipsySocketClient {
   private rejectPending(error: Error) {
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timeout);
+      this.emitDiagnostic({ event: 'request.completed', action: pending.action, durationMs: Date.now() - pending.startedAt, outcome: 'failure' });
       pending.reject(error);
     }
     this.pending.clear();
@@ -235,7 +262,16 @@ export class RipsySocketClient {
   private setStatus(status: ConnectionStatus) {
     if (this.status === status) return;
     this.status = status;
+    this.emitDiagnostic({ event: 'connection.status', status });
     for (const listener of this.statusListeners) listener(status);
+  }
+
+  private emitDiagnostic(event: ClientDiagnosticPayload) {
+    try {
+      this.options.diagnosticSink?.({ timestamp: new Date().toISOString(), service: 'game-client', ...event });
+    } catch {
+      // Diagnostics must never affect gameplay.
+    }
   }
 }
 

@@ -65,3 +65,9 @@ Keep backend and Redis in the same Railway project, environment, and region. Use
 2. Create a game in one browser or device and join it from another.
 3. Scale the backend to two replicas and repeat the test.
 4. Restart one replica during a game and verify both clients reconnect and recover the current board.
+
+## 6. Diagnostics
+
+Railway logs are newline-delimited JSON. Filter on `event`, `level`, `action`, or `outcome` to inspect connection churn, command latency, Redis failures, and Pub/Sub delivery. Diagnostic entries intentionally omit session tokens, player IDs, room IDs, request IDs, coordinates, lineups, and board state.
+
+The native client emits the same safe JSON shape to the platform device log with `service: "game-client"`. Client events cover connection status, reconnect delay, request latency/outcome, close codes, and protocol errors. A failing diagnostic sink is isolated and cannot interrupt gameplay.

@@ -1,5 +1,5 @@
 import { CELLS, Choice, Owner, Phase, Piece, PROTOCOL_VERSION, ProtocolVersionError, type GameState } from '@rps/core';
-import { RipsySocketClient } from '@rps/game-client/socket';
+import { RipsySocketClient, type ClientDiagnosticEvent } from '@rps/game-client/socket';
 
 const gameState = (gameId: string): GameState => ({
   gameId,
@@ -215,4 +215,35 @@ test('surfaces a typed protocol version error', () => {
   expect(errors.at(-1)).toBeInstanceOf(ProtocolVersionError);
   expect((errors.at(-1) as ProtocolVersionError).receivedVersion).toBe(99);
   client.disconnect();
+});
+
+test('emits structured diagnostics without identifiers, tokens, or game state', async () => {
+  const socket = new FakeSocket();
+  const diagnostics: ClientDiagnosticEvent[] = [];
+  const client = new RipsySocketClient({
+    endpoint: 'ws://localhost:8080/private-endpoint',
+    playerId: 'secret-player',
+    sessionToken: 'secret-token',
+    createRequestId: () => 'secret-request-id',
+    diagnosticSink: event => diagnostics.push(event),
+    socketFactory: () => socket as unknown as WebSocket,
+  });
+
+  client.connect('secret-game-id');
+  socket.open();
+  socket.receive({ type: 'connected', playerId: 'secret-player', protocolVersion: PROTOCOL_VERSION });
+  socket.receive({ type: 'result', requestId: 'secret-request-id', gameId: 'secret-game-id' });
+  const response = client.request({ type: 'createGame' });
+  socket.receive({ type: 'result', requestId: 'secret-request-id', gameId: 'secret-game-id' });
+  await response;
+  client.disconnect();
+
+  const serialized = JSON.stringify(diagnostics);
+  expect(serialized).toContain('connection.status');
+  expect(serialized).toContain('request.completed');
+  expect(serialized).not.toContain('secret-player');
+  expect(serialized).not.toContain('secret-token');
+  expect(serialized).not.toContain('secret-request-id');
+  expect(serialized).not.toContain('secret-game-id');
+  expect(serialized).not.toContain('private-endpoint');
 });

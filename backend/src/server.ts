@@ -11,6 +11,7 @@ import { createClient } from 'redis';
 import { WebSocket, WebSocketServer } from 'ws';
 import { RedisGameStore, type RedisCommands } from './redis-game-store.js';
 import { SessionManager } from './session.js';
+import { createBackendDiagnostics } from './diagnostics.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -23,11 +24,12 @@ if (!configuredSessionSecret && process.env.NODE_ENV === 'production') {
 }
 const sessionManager = new SessionManager(configuredSessionSecret ?? 'ripsy-local-development-secret-change-me', sessionTtlSeconds);
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,http://localhost:3100').split(',').map(value => value.trim()).filter(Boolean));
+const diagnose = createBackendDiagnostics();
 
 const commandClient = createClient({ url: redisUrl });
 const subscriber = commandClient.duplicate();
-commandClient.on('error', (error) => console.error('[redis:commands]', error));
-subscriber.on('error', (error) => console.error('[redis:subscriber]', error));
+commandClient.on('error', () => diagnose({ level: 'error', event: 'redis.error', client: 'commands' }));
+subscriber.on('error', () => diagnose({ level: 'error', event: 'redis.error', client: 'subscriber' }));
 
 await Promise.all([commandClient.connect(), subscriber.connect()]);
 
@@ -59,7 +61,9 @@ const server = createServer(async (request, response) => {
       const existingToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
       const playerId = existingToken ? sessionManager.verify(existingToken).playerId : undefined;
       response.writeHead(201).end(JSON.stringify(sessionManager.issue(playerId)));
+      diagnose({ level: 'info', event: 'session.issued', renewed: Boolean(existingToken) });
     } catch (error) {
+      diagnose({ level: 'warn', event: 'session.rejected' });
       response.writeHead(401).end(JSON.stringify({ error: error instanceof Error ? error.message : 'Invalid session' }));
     }
     return;
@@ -86,6 +90,7 @@ await subscriber.pSubscribe(store.eventPattern, (gameId) => {
 });
 
 sockets.on('connection', (socket) => {
+  diagnose({ level: 'info', event: 'socket.connected', openSockets: sockets.clients.size });
   responsiveSockets.add(socket);
   socket.on('pong', () => responsiveSockets.add(socket));
   let playerId: string | null = null;
@@ -102,12 +107,14 @@ sockets.on('connection', (socket) => {
         clients.set(playerId, playerSockets);
         clearTimeout(authenticationTimeout);
         send(socket, { type: 'connected', playerId, protocolVersion: PROTOCOL_VERSION });
+        diagnose({ level: 'info', event: 'socket.authenticated', openSockets: sockets.clients.size });
         return;
       }
       if (!playerId) throw new Error('Authenticate before sending game commands');
       void handle(socket, playerId, message);
     } catch (error) {
       if (error instanceof ProtocolVersionError) {
+        diagnose({ level: 'warn', event: 'socket.rejected', code: 'protocol_version' });
         send(socket, {
           type: 'error',
           code: 'UNSUPPORTED_PROTOCOL_VERSION',
@@ -119,6 +126,7 @@ sockets.on('connection', (socket) => {
         return;
       }
       const isInvalidMessage = error instanceof ProtocolMessageError || error instanceof SyntaxError;
+      diagnose({ level: 'warn', event: 'socket.rejected', code: isInvalidMessage ? 'invalid_message' : 'authentication' });
       send(socket, {
         type: 'error',
         code: isInvalidMessage ? 'INVALID_MESSAGE' : 'AUTHENTICATION_FAILED',
@@ -128,8 +136,9 @@ sockets.on('connection', (socket) => {
     }
   });
 
-  socket.on('close', () => {
+  socket.on('close', (code) => {
     clearTimeout(authenticationTimeout);
+    diagnose({ level: 'info', event: 'socket.closed', code, authenticated: Boolean(playerId), openSockets: sockets.clients.size });
     if (!playerId) return;
     const playerSockets = clients.get(playerId);
     if (!playerSockets) return;
@@ -139,6 +148,7 @@ sockets.on('connection', (socket) => {
 });
 
 async function handle(socket: WebSocket, playerId: string, action: ClientAction) {
+  const startedAt = Date.now();
   try {
     let gameId: string;
     let state;
@@ -171,7 +181,9 @@ async function handle(socket: WebSocket, playerId: string, action: ClientAction)
         throw new Error('Unknown action');
     }
     send(socket, { type: 'result', requestId: action.requestId, gameId, state });
+    diagnose({ level: 'info', event: 'command.completed', action: action.type, durationMs: Date.now() - startedAt, outcome: 'success' });
   } catch (error) {
+    diagnose({ level: 'info', event: 'command.completed', action: action.type, durationMs: Date.now() - startedAt, outcome: 'failure' });
     send(socket, {
       type: 'error',
       code: 'REQUEST_FAILED',
@@ -182,14 +194,18 @@ async function handle(socket: WebSocket, playerId: string, action: ClientAction)
 }
 
 async function broadcast(gameId: string) {
+  const startedAt = Date.now();
   try {
+    let recipients = 0;
     for (const { playerId, state } of await store.views(gameId)) {
       for (const socket of clients.get(playerId) ?? []) {
         send(socket, { type: 'state', gameId, state });
+        recipients += 1;
       }
     }
-  } catch (error) {
-    console.error(`[broadcast:${gameId}]`, error);
+    diagnose({ level: 'info', event: 'broadcast.completed', durationMs: Date.now() - startedAt, recipients });
+  } catch {
+    diagnose({ level: 'error', event: 'broadcast.failed', durationMs: Date.now() - startedAt });
   }
 }
 
@@ -210,12 +226,11 @@ function applyCors(origin: string | undefined, response: import('node:http').Ser
 }
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`RIPSY backend listening on http://0.0.0.0:${port}`);
-  console.log(`Redis state: ${redisUrl.replace(/:\/\/.*@/, '://***@')}`);
+  diagnose({ level: 'info', event: 'server.started', port });
 });
 
 async function shutdown(signal: string) {
-  console.log(`Received ${signal}; shutting down`);
+  diagnose({ level: 'info', event: 'server.shutdown', signal });
   clearInterval(heartbeatInterval);
   for (const playerSockets of clients.values()) {
     for (const socket of playerSockets) socket.close(1001, 'Server shutting down');

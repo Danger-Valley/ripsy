@@ -46,7 +46,10 @@ Configure Vercel with:
 ```text
 NEXT_PUBLIC_GAME_WS_URL=wss://api.ripsy.fun
 NEXT_PUBLIC_GAME_HTTP_URL=https://api.ripsy.fun/session
+ANDROID_APP_SHA256_CERT_FINGERPRINTS=<Play App Signing SHA-256 fingerprint>
 ```
+
+The Android fingerprint is used by `https://www.ripsy.fun/.well-known/assetlinks.json` to verify game invitation App Links. It is configured on Vercel, not Railway. Use a comma-separated list while rotating signing certificates.
 
 Redeploy the Vercel project after changing either public variable. The native release configuration uses the same `wss://` domain in `frontend/apps/mobile/src/config.ts`.
 

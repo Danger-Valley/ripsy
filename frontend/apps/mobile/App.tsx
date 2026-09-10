@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { NavigationContainer, DarkTheme, type InitialState } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import type { RootStackParamList } from './src/navigation';
+import { linking, type RootStackParamList } from './src/navigation';
 import { GameScreen } from './src/screens/game-screen';
 import { HomeScreen } from './src/screens/home-screen';
+import { normalizeRoomCode } from './src/invitations';
 import { loadActiveGameId, saveActiveGameId } from './src/storage/active-game';
 import { colors } from './src/theme';
 
@@ -20,9 +21,9 @@ function App() {
   const [hasRestoredNavigation, setHasRestoredNavigation] = useState(false);
 
   useEffect(() => {
-    loadActiveGameId()
-      .then(gameId => {
-        if (gameId) {
+    Promise.all([Linking.getInitialURL(), loadActiveGameId()])
+      .then(([initialUrl, gameId]) => {
+        if (!initialUrl && gameId) {
           setInitialState({
             index: 1,
             routes: [{ name: 'Home' }, { name: 'Game', params: { gameId } }],
@@ -46,10 +47,11 @@ function App() {
       <StatusBar barStyle="light-content" />
       <NavigationContainer
         initialState={initialState}
+        linking={linking}
         onStateChange={state => {
           const route = state?.routes[state.index ?? 0];
           const gameId = route?.name === 'Game' && route.params && 'gameId' in route.params
-            ? String(route.params.gameId)
+            ? normalizeRoomCode(String(route.params.gameId))
             : null;
           saveActiveGameId(gameId).catch(() => undefined);
         }}

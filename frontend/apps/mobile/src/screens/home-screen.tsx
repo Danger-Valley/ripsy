@@ -5,6 +5,7 @@ import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
+import { formatRoomCodeInput, normalizeRoomCode } from '../invitations';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing } from '../theme';
 
@@ -25,7 +26,7 @@ export function HomeScreen({ navigation }: Props) {
   };
 
   const joinByCode = () => {
-    const gameId = roomCode.trim().toLowerCase();
+    const gameId = normalizeRoomCode(roomCode);
     if (gameId) navigation.navigate('Game', { gameId });
   };
 
@@ -44,8 +45,7 @@ export function HomeScreen({ navigation }: Props) {
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
-          maxLength={8}
-          onChangeText={setRoomCode}
+          onChangeText={value => setRoomCode(formatRoomCodeInput(value))}
           onSubmitEditing={joinByCode}
           placeholder="8-character room code"
           placeholderTextColor={colors.textMuted}
@@ -53,7 +53,7 @@ export function HomeScreen({ navigation }: Props) {
           style={styles.input}
           value={roomCode}
         />
-        <PrimaryButton variant="secondary" onPress={joinByCode} disabled={roomCode.trim().length !== 8}>Open room</PrimaryButton>
+        <PrimaryButton variant="secondary" onPress={joinByCode} disabled={!normalizeRoomCode(roomCode)}>Open room</PrimaryButton>
       </View>
 
       {(identityError || game.error) ? <StatusBanner message={identityError || game.error || ''} tone="error" /> : (

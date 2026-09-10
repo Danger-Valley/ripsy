@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Choice, HEIGHT, Phase, Piece, toIdx, WIDTH } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
@@ -7,14 +7,15 @@ import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
+import { createGameInviteUrl, normalizeRoomCode } from '../invitations';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
 type Coordinate = { x: number; y: number };
 
-export function GameScreen({ route }: Props) {
-  const { gameId } = route.params;
+export function GameScreen({ navigation, route }: Props) {
+  const gameId = normalizeRoomCode(route.params.gameId) ?? '';
   const { playerId, sessionToken } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, gameId);
   const [lineup, setLineup] = useState<LineupPiece[]>([]);
@@ -62,6 +63,13 @@ export function GameScreen({ route }: Props) {
     lineup.map(item => item.piece),
   ));
 
+  const shareRoom = () => perform(async () => {
+    const inviteUrl = createGameInviteUrl(gameId);
+    await Share.share(Platform.OS === 'ios'
+      ? { title: 'Join my RIPSY game', message: 'Join my RIPSY game', url: inviteUrl }
+      : { title: 'Join my RIPSY game', message: `Join my RIPSY game: ${inviteUrl}` });
+  });
+
   const onCellPress = (coordinate: Coordinate) => {
     const state = game.gameState;
     if (!state || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
@@ -81,6 +89,15 @@ export function GameScreen({ route }: Props) {
   };
 
   const stateMessage = getStateMessage(game.gameState?.phase, isParticipant, needsLineup, hasSubmitted, game.isMyTurn);
+
+  if (!gameId) {
+    return (
+      <View style={styles.invalidRoom}>
+        <StatusBanner message="This invitation contains an invalid room code" tone="error" />
+        <PrimaryButton onPress={() => navigation.replace('Home')}>Back to home</PrimaryButton>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -104,7 +121,7 @@ export function GameScreen({ route }: Props) {
         />
 
         {game.gameState?.phase === Phase.Created && game.isPlayer0 && (
-          <PrimaryButton variant="secondary" onPress={() => { Share.share({ message: `Join my RIPSY game. Room code: ${gameId}` }).catch(() => undefined); }}>Share room code</PrimaryButton>
+          <PrimaryButton variant="secondary" onPress={() => { shareRoom().catch(() => undefined); }}>Share invite link</PrimaryButton>
         )}
         {game.gameState?.phase === Phase.Created && !isParticipant && (
           <PrimaryButton onPress={() => { perform(game.joinGame).catch(() => undefined); }} busy={game.isBusy}>Join this game</PrimaryButton>
@@ -189,6 +206,7 @@ function shuffle<T>(items: T[]) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  invalidRoom: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
   content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: 48 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   eyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 2 },

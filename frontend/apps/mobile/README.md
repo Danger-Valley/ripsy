@@ -39,3 +39,9 @@ cd frontend/apps/mobile/android && ./gradlew assembleRelease
 ```
 
 The backend-issued anonymous session and current room are stored using iOS Keychain and Android Keystore. When the app returns from the background or regains its connection, it reauthenticates and reloads the latest authoritative game state. Remaining production hardening is tracked in `MOBILE_IMPLEMENTATION_PLAN.md`.
+
+## Game invitations
+
+The Share button sends the canonical `https://www.ripsy.fun/game/<room-code>` URL. The app accepts that Universal/App Link, the `ripsy://game/<room-code>` fallback scheme, a pasted invitation URL, or a plain eight-character room code.
+
+iOS Associated Domains and the website association response are configured for team `L28H25M8LS` and bundle ID `com.dangervalley.ripsy`. Android intent filters are configured, but verified App Links also require the production Play App Signing SHA-256 certificate fingerprint. Add it to the Vercel web project as `ANDROID_APP_SHA256_CERT_FINGERPRINTS`; use a comma-separated list during certificate rotation. Do not publish the repository debug-key fingerprint.

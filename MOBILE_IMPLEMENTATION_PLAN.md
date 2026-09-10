@@ -34,7 +34,8 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Add runtime protocol validation and typed protocol-version errors.
 - [x] Handle foreground/background transitions, network loss, stale connections, and full-state recovery.
 - [x] Persist and restore the active game.
-- [ ] Add native sharing, room-code entry, Universal Links, and Android App Links.
+- [x] Add native sharing, validated room-code entry, invitation deep-link routing, and iOS Universal Links.
+- [ ] Add production Android signing and publish its Play signing fingerprint to verify Android App Links.
 - [ ] Replace timer-driven combat code with an explicit animation queue driven by state transitions.
 - [ ] Add structured client/server diagnostics without logging credentials or hidden game data.
 

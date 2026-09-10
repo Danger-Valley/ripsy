@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Modal, Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Choice, HEIGHT, Phase, Piece, toIdx, WIDTH } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
@@ -15,6 +15,13 @@ import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
 type Coordinate = { x: number; y: number };
+type WeaponChoice = typeof Choice.Rock | typeof Choice.Paper | typeof Choice.Scissors;
+
+const weaponImages = {
+  [Choice.Rock]: require('../assets/weapons/rock.png'),
+  [Choice.Paper]: require('../assets/weapons/paper.png'),
+  [Choice.Scissors]: require('../assets/weapons/scissors.png'),
+} satisfies Record<WeaponChoice, ImageSourcePropType>;
 
 export function GameScreen({ navigation, route }: Props) {
   const gameId = normalizeRoomCode(route.params.gameId) ?? '';
@@ -196,13 +203,25 @@ function WeaponChoiceModal({ isOpen, busy, onChoose }: { isOpen: boolean; busy: 
           <View style={styles.modalCard}>
             <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.modalTitle}>Break the tie</Text>
             <Text maxFontSizeMultiplier={2} style={styles.modalCopy}>Both pieces matched. Choose a new weapon.</Text>
-            <PrimaryButton onPress={() => onChoose(Choice.Rock)} disabled={busy}>Rock</PrimaryButton>
-            <PrimaryButton onPress={() => onChoose(Choice.Paper)} disabled={busy}>Paper</PrimaryButton>
-            <PrimaryButton onPress={() => onChoose(Choice.Scissors)} disabled={busy}>Scissors</PrimaryButton>
+            <WeaponButton choice={Choice.Rock} label="Rock" busy={busy} onChoose={onChoose} />
+            <WeaponButton choice={Choice.Paper} label="Paper" busy={busy} onChoose={onChoose} />
+            <WeaponButton choice={Choice.Scissors} label="Scissors" busy={busy} onChoose={onChoose} />
           </View>
         </ScrollView>
       </View>
     </Modal>
+  );
+}
+
+function WeaponButton({ choice, label, busy, onChoose }: { choice: WeaponChoice; label: string; busy: boolean; onChoose: (choice: Choice) => void }) {
+  const source = weaponImages[choice];
+  return (
+    <View style={styles.weaponChoice}>
+      {source && <Image accessibilityIgnoresInvertColors source={source} style={styles.weaponImage} />}
+      <View style={styles.weaponButton}>
+        <PrimaryButton accessibilityLabel={`Choose ${label.toLowerCase()}`} onPress={() => onChoose(choice)} disabled={busy}>{label}</PrimaryButton>
+      </View>
+    </View>
   );
 }
 
@@ -267,4 +286,7 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 2, borderRadius: 18, padding: spacing.xl, gap: spacing.md },
   modalTitle: { color: colors.primary, fontSize: 26, fontWeight: '900', textAlign: 'center' },
   modalCopy: { color: colors.textMuted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: spacing.sm },
+  weaponChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  weaponImage: { width: 48, height: 48, resizeMode: 'contain' },
+  weaponButton: { flex: 1 },
 });

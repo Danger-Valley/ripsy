@@ -8,10 +8,12 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
  * @type {import('@react-native/metro-config').MetroConfig}
  */
 const workspaceRoot = path.resolve(__dirname, '../../..');
+const defaultConfig = getDefaultConfig(__dirname);
 
 const config = {
   watchFolders: [workspaceRoot],
   resolver: {
+    assetExts: [...defaultConfig.resolver.assetExts, 'riv'],
     nodeModulesPaths: [
       path.resolve(__dirname, 'node_modules'),
       path.resolve(workspaceRoot, 'node_modules'),
@@ -19,4 +21,4 @@ const config = {
   },
 };
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+module.exports = mergeConfig(defaultConfig, config);

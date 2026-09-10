@@ -44,6 +44,11 @@ test('exposes piece names and only actionable cells as buttons', async () => {
     accessibilityRole: 'text',
     disabled: true,
   });
+  const figures = renderer.root.findAll(node => node.props.testID === 'rive-view');
+  expect(figures.map(figure => figure.props.stateMachineName)).toEqual([
+    'State Machine Back',
+    'State Machine Front',
+  ]);
 });
 
 test('announces selected pieces and legal move targets', async () => {

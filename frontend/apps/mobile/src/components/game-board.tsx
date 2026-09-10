@@ -1,8 +1,18 @@
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
+import { useRiveFile } from '@rive-app/react-native';
 import { HEIGHT, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
 import { colors } from '../theme';
+import { pieceLabel, RiveGamePiece } from './rive-game-piece';
+
+const figureAsset = require('../assets/figures/fig1.riv');
+const arrowAssets = {
+  up: require('../assets/arrows/up.png'),
+  down: require('../assets/arrows/down.png'),
+  left: require('../assets/arrows/left.png'),
+  right: require('../assets/arrows/right.png'),
+} satisfies Record<string, ImageSourcePropType>;
 
 export interface LineupPiece {
   x: number;
@@ -28,6 +38,7 @@ interface Props {
 
 export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, onCellPress }: Props) {
   const { width } = useWindowDimensions();
+  const { riveFile } = useRiveFile(figureAsset);
   const boardSize = Math.min(width - 32, 600);
   const cellSize = boardSize / WIDTH;
   const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item.piece])), [previewLineup]);
@@ -73,9 +84,21 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                 ]}>
                 {owner !== Owner.None ? (
                   <View style={[styles.piece, isMine ? styles.myPiece : styles.opponentPiece, { width: cellSize * 0.68, height: cellSize * 0.68 }]}>
-                    <Text allowFontScaling={false} style={[styles.pieceLabel, { fontSize: Math.max(12, cellSize * 0.28) }]}>{isMine ? pieceLabel(piece) : '?'}</Text>
+                    {riveFile ? (
+                      <RiveGamePiece
+                        file={riveFile}
+                        isMine={isMine}
+                        mirrored={Boolean(isPlayer1 && !isMine)}
+                        piece={piece}
+                        size={cellSize * 0.98}
+                      />
+                    ) : (
+                      <Text allowFontScaling={false} style={[styles.pieceLabel, { fontSize: Math.max(12, cellSize * 0.28) }]}>{pieceLabel(piece, isMine)}</Text>
+                    )}
                   </View>
-                ) : isAvailable ? <View style={styles.moveDot} /> : null}
+                ) : isAvailable && selected ? (
+                  <Image source={moveArrowSource(selected, { x, y }, isPlayer1)} style={styles.moveArrow} />
+                ) : null}
               </Pressable>
             );
           })}
@@ -85,13 +108,13 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
   );
 }
 
-function pieceLabel(piece: Piece) {
-  if (piece === Piece.Rock) return 'R';
-  if (piece === Piece.Paper) return 'P';
-  if (piece === Piece.Scissors) return 'S';
-  if (piece === Piece.Flag) return 'F';
-  if (piece === Piece.Trap) return 'T';
-  return '•';
+function moveArrowSource(selected: Coordinate, target: Coordinate, isPlayer1: boolean): ImageSourcePropType {
+  const directionX = (target.x - selected.x) * (isPlayer1 ? -1 : 1);
+  const directionY = (target.y - selected.y) * (isPlayer1 ? -1 : 1);
+  if (directionX > 0) return arrowAssets.right;
+  if (directionX < 0) return arrowAssets.left;
+  if (directionY > 0) return arrowAssets.down;
+  return arrowAssets.up;
 }
 
 function pieceName(piece: Piece) {
@@ -114,5 +137,5 @@ const styles = StyleSheet.create({
   myPiece: { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
   opponentPiece: { backgroundColor: '#5B3540', borderColor: '#FB7185' },
   pieceLabel: { color: colors.text, fontWeight: '900' },
-  moveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.move },
+  moveArrow: { width: 22, height: 22, resizeMode: 'contain', tintColor: colors.move },
 });

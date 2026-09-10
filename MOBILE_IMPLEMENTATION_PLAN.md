@@ -22,7 +22,7 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Add native player-session persistence.
 - [x] Build the native Home, Create/Join, Waiting Room, Lineup, Game, Tie Choice, and Result states.
 - [x] Build a responsive native 7 x 7 board with tap selection and move indicators.
-- [ ] Port image and Rive assets to the native bundle.
+- [x] Port image and Rive assets to the native bundle.
 - [x] Verify create/join/lineup/moves, hidden player views, and reconnect recovery with two clients against the production backend.
 - [ ] Verify the complete native two-client flow through the result screen on physical devices.
 

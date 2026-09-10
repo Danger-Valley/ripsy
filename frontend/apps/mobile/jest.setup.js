@@ -41,3 +41,13 @@ jest.mock('react-native-haptic-feedback', () => ({
   },
   trigger: jest.fn(),
 }));
+
+jest.mock('@rive-app/react-native', () => {
+  const React = require('react');
+  return {
+    Fit: { Contain: 'contain' },
+    RiveView: props => React.createElement('RiveView', { ...props, testID: 'rive-view' }),
+    useRive: () => ({ riveRef: { current: null }, riveViewRef: null, setHybridRef: { f: () => undefined } }),
+    useRiveFile: () => ({ riveFile: { test: true }, isLoading: false, error: null }),
+  };
+});

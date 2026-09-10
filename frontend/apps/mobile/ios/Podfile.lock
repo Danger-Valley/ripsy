@@ -92,6 +92,29 @@ PODS:
     - nanopb/encode (= 3.30910.0)
   - nanopb/decode (3.30910.0)
   - nanopb/encode (3.30910.0)
+  - NitroModules (0.35.10):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - PromisesObjC (2.4.1)
   - RCT-Folly (2024.11.18.00):
     - RCT-Folly/Default (= 2024.11.18.00)
@@ -1752,6 +1775,7 @@ PODS:
     - React-utils (= 0.87.1)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.87.1)
+  - RiveRuntime (6.23.1)
   - RNFBApp (26.4.0):
     - Firebase/CoreOnly (= 12.18.0)
     - hermes-engine
@@ -1890,6 +1914,30 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RNRive (0.4.20):
+    - hermes-engine
+    - NitroModules
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - RiveRuntime (= 6.23.1)
+    - Yoga
   - RNScreens (4.27.0):
     - hermes-engine
     - RCTRequired
@@ -1951,6 +1999,7 @@ DEPENDENCIES:
   - glog (from `build/rndeps-facades/glog`)
   - GoogleUtilities
   - hermes-engine (from `../../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - NitroModules (from `../../../../node_modules/react-native-nitro-modules`)
   - RCT-Folly (from `build/rndeps-facades/RCT-Folly`)
   - RCTDeprecation (from `build/rncore-facades/RCTDeprecation`)
   - RCTRequired (from `build/rncore-facades/RCTRequired`)
@@ -2035,6 +2084,7 @@ DEPENDENCIES:
   - RNKeychain (from `../../../../node_modules/react-native-keychain`)
   - RNPermissions (from `../../../../node_modules/react-native-permissions`)
   - RNReactNativeHapticFeedback (from `../../../../node_modules/react-native-haptic-feedback`)
+  - "RNRive (from `../../../../node_modules/@rive-app/react-native`)"
   - RNScreens (from `../../../../node_modules/react-native-screens`)
   - SocketRocket (from `build/rndeps-facades/SocketRocket`)
   - Yoga (from `build/rncore-facades/Yoga`)
@@ -2051,6 +2101,7 @@ SPEC REPOS:
     - GoogleUtilities
     - nanopb
     - PromisesObjC
+    - RiveRuntime
 
 EXTERNAL SOURCES:
   boost:
@@ -2068,6 +2119,8 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v250829098.0.17
+  NitroModules:
+    :path: "../../../../node_modules/react-native-nitro-modules"
   RCT-Folly:
     :path: build/rndeps-facades/RCT-Folly
   RCTDeprecation:
@@ -2234,6 +2287,8 @@ EXTERNAL SOURCES:
     :path: "../../../../node_modules/react-native-permissions"
   RNReactNativeHapticFeedback:
     :path: "../../../../node_modules/react-native-haptic-feedback"
+  RNRive:
+    :path: "../../../../node_modules/@rive-app/react-native"
   RNScreens:
     :path: "../../../../node_modules/react-native-screens"
   SocketRocket:
@@ -2258,6 +2313,7 @@ SPEC CHECKSUMS:
   GoogleUtilities: 766ace00c6b10d8148408f329d10c4f051931850
   hermes-engine: 12d2fa607dc8489f71b4e54d1f61a7a9aa5e7861
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
+  NitroModules: b86695586fb257d2d67008d48f49d85f4d4efa9d
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   RCT-Folly: 82921e585c0400eda46fac1068297aa9dfb035e4
   RCTDeprecation: 5cc865306ce4974b7a57ddbc575fd1f3fef41957
@@ -2336,12 +2392,14 @@ SPEC CHECKSUMS:
   ReactCodegen: 13cbb7f2a674b87c0e470567c817614735d60719
   ReactCommon: 749169e12aa3461a3df3656a00e48dbe0456b2d6
   ReactNativeDependencies: 94c922c39e0e6150ee9ad05e2ca1946e0ef55783
+  RiveRuntime: b544ffc5191ae20ce96f51f44955b3e5c515a518
   RNFBApp: 909622e738d3a923b670950f9cdc9aeac9b1e6cc
   RNFBInstallations: 6c0837f9c0b54b33f315a129f0b71a5439b1cef3
   RNFBMessaging: 5e7cd9fc16c49b0492121c1fa90c9b3aa35aaec6
   RNKeychain: 551d42b0ef53426f82551a0cc961cfa10ad33afa
   RNPermissions: 8de0dbf6ef68cb55250c80f16b2658ddbd462872
   RNReactNativeHapticFeedback: 7f0e5435fa5153de77f2e61796cbbba5eb131a87
+  RNRive: ec48026405a2c3fc653c2c9e014ad69f0d36a0bf
   RNScreens: 0135deb65b65d207ee6294d0baf06681e1071d93
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e

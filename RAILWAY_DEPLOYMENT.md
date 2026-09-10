@@ -2,16 +2,25 @@
 
 RIPSY runs on Railway as a long-lived backend service plus a Redis service in the same project and region. Vercel continues to host the web application.
 
+## Current production
+
+- Web: `https://www.ripsy.fun`
+- Backend HTTP: `https://backend-production-5d46.up.railway.app`
+- Backend WebSocket: `wss://backend-production-5d46.up.railway.app`
+- Railway region: Amsterdam
+
 ## 1. Create the Railway project
 
 1. Create an empty Railway project and choose the region closest to the initial users. Use EU West for an audience concentrated in Europe.
 2. Add a Redis service from `+ New` → `Database` → `Redis`.
 3. Add a service from the `Danger-Valley/ripsy` GitHub repository.
 4. Keep the repository root directory as `/` because the backend imports the shared `@rps/core` workspace.
-5. In the backend service build settings, select the Dockerfile builder and set the Dockerfile path to `/Dockerfile.backend`.
+5. Railway automatically detects the root `/Dockerfile` and uses it for the backend image.
 6. Generate a public Railway domain for the backend service.
 
 Do not expose Redis publicly. The backend uses Railway's private project network.
+
+The first production image can also be uploaded from the repository root with `railway up --service backend`. For automatic deployments after future pushes, grant the Railway GitHub App access to the private `Danger-Valley/ripsy` repository and connect `master` as the service source.
 
 ## 2. Configure backend variables
 
@@ -32,14 +41,14 @@ Configure `/health` as the healthcheck path with a 60-second timeout. Use the `O
 
 ## 3. Connect Vercel and the mobile app
 
-If the generated backend domain is `ripsy-backend.up.railway.app`, configure Vercel with:
+Configure Vercel with:
 
 ```text
-NEXT_PUBLIC_GAME_WS_URL=wss://ripsy-backend.up.railway.app
-NEXT_PUBLIC_GAME_HTTP_URL=https://ripsy-backend.up.railway.app/session
+NEXT_PUBLIC_GAME_WS_URL=wss://backend-production-5d46.up.railway.app
+NEXT_PUBLIC_GAME_HTTP_URL=https://backend-production-5d46.up.railway.app/session
 ```
 
-Redeploy the Vercel project after changing either public variable. Before producing a release mobile build, set `productionGameWebSocketUrl` in `frontend/apps/mobile/src/config.ts` to the same `wss://` domain.
+Redeploy the Vercel project after changing either public variable. The native release configuration uses the same `wss://` domain in `frontend/apps/mobile/src/config.ts`.
 
 ## 4. Scale safely
 

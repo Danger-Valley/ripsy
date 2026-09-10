@@ -1,0 +1,1 @@
+strategy,rock paper scissors,multiplayer,board game,battle,tactics

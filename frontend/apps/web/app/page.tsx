@@ -52,6 +52,11 @@ export default function HomePage() {
           <p>4. Capture the opposing flag to win.</p>
         </div>
       </div>
+
+      <nav aria-label="Legal and support" style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 13 }}>
+        <a href="/privacy" style={{ color: '#8a9ba8' }}>Privacy</a>
+        <a href="/support" style={{ color: '#8a9ba8' }}>Support</a>
+      </nav>
     </main>
   );
 }

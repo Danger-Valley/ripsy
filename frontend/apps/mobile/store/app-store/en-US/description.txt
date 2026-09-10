@@ -1,0 +1,13 @@
+RIPSY turns rock, paper, scissors into a hidden-information strategy battle.
+
+Create a private room, invite an opponent, arrange your lineup, and outthink them on a tactical board. Every move is synchronized through the RIPSY game server, so both players always recover the authoritative game state after reconnecting.
+
+Features:
+• Private multiplayer rooms
+• Hidden lineups and tactical movement
+• Animated battles
+• Invitation links and room codes
+• Turn and game notifications
+• Automatic reconnect recovery
+
+No wallet, cryptocurrency, or blockchain is required.

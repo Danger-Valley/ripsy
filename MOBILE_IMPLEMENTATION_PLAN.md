@@ -35,7 +35,8 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Handle foreground/background transitions, network loss, stale connections, and full-state recovery.
 - [x] Persist and restore the active game.
 - [x] Add native sharing, validated room-code entry, invitation deep-link routing, and iOS Universal Links.
-- [ ] Add production Android signing and publish its Play signing fingerprint to verify Android App Links.
+- [x] Add production Android signing configuration that keeps the upload key and passwords outside Git.
+- [ ] Provision the Android upload key and publish the Play signing fingerprint to verify Android App Links.
 - [x] Replace timer-driven combat code with an explicit animation queue driven by state transitions.
 - [x] Add structured client/server diagnostics without logging credentials or hidden game data.
 
@@ -46,7 +47,8 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Add accessibility labels and state, dynamic text-safe scrolling, system-respecting haptics, and tablet-width layouts.
 - [x] Add unit, component, WebSocket recovery, and two-client end-to-end tests.
 - [ ] Test on physical iOS and Android devices, including app suspension and network switching.
-- [ ] Configure bundle/application IDs, signing, icons, launch screens, privacy metadata, and store listings.
+- [x] Configure bundle/application IDs, icons, launch screens, privacy metadata, and draft store listings.
+- [ ] Provision App Store/Play signing credentials and finalize store listing contacts and screenshots.
 - [ ] Upload iOS to TestFlight and Android to Play internal testing.
 
 ## Implementation order

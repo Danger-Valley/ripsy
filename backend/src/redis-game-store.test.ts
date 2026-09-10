@@ -35,6 +35,11 @@ class FakeRedis implements RedisCommands {
   async ping() {
     return 'PONG';
   }
+
+  async sAdd() { return 0; }
+  async sMembers() { return []; }
+  async sRem() { return 0; }
+  async expire() { return true; }
 }
 
 test('persists game state in Redis-compatible storage', async () => {

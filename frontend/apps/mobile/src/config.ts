@@ -12,3 +12,8 @@ export function getGameWebSocketUrl() {
   }
   return productionGameWebSocketUrl;
 }
+
+export function getPushRegistrationUrl() {
+  const httpBase = getGameWebSocketUrl().replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/$/, '');
+  return `${httpBase}/push/installations`;
+}

@@ -9,6 +9,7 @@ import { HomeScreen } from './src/screens/home-screen';
 import { normalizeRoomCode } from './src/invitations';
 import { loadActiveGameId, saveActiveGameId } from './src/storage/active-game';
 import { colors } from './src/theme';
+import { getInitialPushUrl } from './src/push-notifications';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const navigationTheme = {
@@ -21,9 +22,9 @@ function App() {
   const [hasRestoredNavigation, setHasRestoredNavigation] = useState(false);
 
   useEffect(() => {
-    Promise.all([Linking.getInitialURL(), loadActiveGameId()])
-      .then(([initialUrl, gameId]) => {
-        if (!initialUrl && gameId) {
+    Promise.all([Linking.getInitialURL(), getInitialPushUrl(), loadActiveGameId()])
+      .then(([initialUrl, initialPushUrl, gameId]) => {
+        if (!initialUrl && !initialPushUrl && gameId) {
           setInitialState({
             index: 1,
             routes: [{ name: 'Home' }, { name: 'Game', params: { gameId } }],

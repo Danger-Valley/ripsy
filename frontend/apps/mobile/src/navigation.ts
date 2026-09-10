@@ -1,4 +1,6 @@
 import type { LinkingOptions } from '@react-navigation/native';
+import { Linking } from 'react-native';
+import { getInitialPushUrl, subscribeToPushUrls } from './push-notifications';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -12,5 +14,16 @@ export const linking: LinkingOptions<RootStackParamList> = {
       Home: '',
       Game: 'game/:gameId',
     },
+  },
+  async getInitialURL() {
+    return (await Linking.getInitialURL()) ?? getInitialPushUrl();
+  },
+  subscribe(listener) {
+    const subscription = Linking.addEventListener('url', ({ url }) => listener(url));
+    const unsubscribePush = subscribeToPushUrls(listener);
+    return () => {
+      subscription.remove();
+      unsubscribePush();
+    };
   },
 };

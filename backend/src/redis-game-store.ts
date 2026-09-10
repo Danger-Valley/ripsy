@@ -17,6 +17,10 @@ export interface RedisCommands {
   eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>;
   publish(channel: string, message: string): Promise<number>;
   ping(): Promise<string>;
+  sAdd(key: string, member: string): Promise<number>;
+  sMembers(key: string): Promise<string[]>;
+  sRem(key: string, member: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<boolean>;
 }
 
 type Mutation = (game: GameRecord) => void;

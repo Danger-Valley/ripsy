@@ -5,6 +5,7 @@ import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
+import { usePushNotifications } from '../hooks/use-push-notifications';
 import { formatRoomCodeInput, normalizeRoomCode } from '../invitations';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing } from '../theme';
@@ -14,6 +15,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 export function HomeScreen({ navigation }: Props) {
   const { playerId, sessionToken, isReady, error: identityError } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken);
+  const push = usePushNotifications(sessionToken);
   const [roomCode, setRoomCode] = useState('');
 
   const createGame = async () => {
@@ -59,6 +61,18 @@ export function HomeScreen({ navigation }: Props) {
       {(identityError || game.error) ? <StatusBanner message={identityError || game.error || ''} tone="error" /> : (
         <StatusBanner message={game.isConnected ? 'Connected to the game server' : `Server: ${game.status}`} tone={game.isConnected ? 'success' : 'neutral'} />
       )}
+      {(push.status === 'prompt' || push.status === 'denied' || push.status === 'error') && (
+        <View style={styles.notificationCard}>
+          <Text style={styles.notificationText}>
+            {push.status === 'denied' ? 'Notifications are disabled in system settings.' : 'Get notified when your opponent moves.'}
+          </Text>
+          {push.status !== 'denied' && (
+            <PrimaryButton variant="secondary" disabled={!isReady} onPress={() => { push.enable().catch(() => undefined); }}>
+              Enable notifications
+            </PrimaryButton>
+          )}
+        </View>
+      )}
       <Text style={styles.identity}>Player {playerId ? `${playerId.slice(0, 12)}…` : 'initializing…'}</Text>
     </KeyboardAvoidingView>
   );
@@ -77,4 +91,6 @@ const styles = StyleSheet.create({
   or: { color: colors.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   input: { minHeight: 50, color: colors.text, backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 12, fontSize: 17, paddingHorizontal: spacing.lg, textAlign: 'center', letterSpacing: 2 },
   identity: { color: colors.textMuted, fontSize: 11, textAlign: 'center' },
+  notificationCard: { gap: spacing.sm },
+  notificationText: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
 });

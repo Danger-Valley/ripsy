@@ -12,6 +12,12 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { RedisGameStore, type RedisCommands } from './redis-game-store.js';
 import { SessionManager } from './session.js';
 import { createBackendDiagnostics } from './diagnostics.js';
+import {
+  createFirebaseMessaging,
+  PushNotifier,
+  pushTargetsForAction,
+  RedisPushInstallationStore,
+} from './push-notifications.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -37,6 +43,19 @@ const store = new RedisGameStore(commandClient as unknown as RedisCommands, {
   gameTtlSeconds,
   keyPrefix,
 });
+const pushStore = new RedisPushInstallationStore(
+  commandClient as unknown as RedisCommands,
+  Number(process.env.PUSH_INSTALLATION_TTL_SECONDS ?? 60 * 60 * 24 * 90),
+  keyPrefix,
+);
+let firebaseMessaging: ReturnType<typeof createFirebaseMessaging> = null;
+try {
+  firebaseMessaging = createFirebaseMessaging(process.env);
+} catch {
+  diagnose({ level: 'error', event: 'push.configuration_invalid' });
+}
+const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
+diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const clients = new Map<string, Set<WebSocket>>();
 
 const server = createServer(async (request, response) => {
@@ -44,10 +63,14 @@ const server = createServer(async (request, response) => {
   if (request.url === '/health') {
     const ready = await store.isReady();
     response.writeHead(ready ? 200 : 503, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ ok: ready, redis: ready ? 'connected' : 'unavailable' }));
+    response.end(JSON.stringify({
+      ok: ready,
+      redis: ready ? 'connected' : 'unavailable',
+      push: pushNotifier.enabled ? 'configured' : 'disabled',
+    }));
     return;
   }
-  if (requestUrl.pathname === '/session' && request.method === 'OPTIONS') {
+  if ((requestUrl.pathname === '/session' || requestUrl.pathname === '/push/installations') && request.method === 'OPTIONS') {
     if (!applyCors(request.headers.origin, response)) return;
     response.writeHead(204).end();
     return;
@@ -65,6 +88,29 @@ const server = createServer(async (request, response) => {
     } catch (error) {
       diagnose({ level: 'warn', event: 'session.rejected' });
       response.writeHead(401).end(JSON.stringify({ error: error instanceof Error ? error.message : 'Invalid session' }));
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/push/installations' && (request.method === 'POST' || request.method === 'DELETE')) {
+    if (!applyCors(request.headers.origin, response)) return;
+    response.setHeader('cache-control', 'no-store');
+    response.setHeader('content-type', 'application/json');
+    try {
+      const playerId = verifyBearerSession(request.headers.authorization);
+      const body = await readJsonBody(request);
+      const fid = typeof body.fid === 'string' ? body.fid.trim() : '';
+      if (!isValidFid(fid)) throw new Error('A valid Firebase installation ID is required');
+      if (request.method === 'DELETE') {
+        await pushStore.unregister(playerId, fid);
+      } else {
+        await pushStore.register(playerId, fid);
+      }
+      response.writeHead(204).end();
+      diagnose({ level: 'info', event: request.method === 'DELETE' ? 'push.unregistered' : 'push.registered' });
+    } catch (error) {
+      const status = error instanceof BodyTooLargeError ? 413 : error instanceof AuthenticationError ? 401 : 400;
+      diagnose({ level: 'warn', event: 'push.registration_rejected', status });
+      response.writeHead(status).end(JSON.stringify({ error: error instanceof Error ? error.message : 'Invalid request' }));
     }
     return;
   }
@@ -182,6 +228,12 @@ async function handle(socket: WebSocket, playerId: string, action: ClientAction)
     }
     send(socket, { type: 'result', requestId: action.requestId, gameId, state });
     diagnose({ level: 'info', event: 'command.completed', action: action.type, durationMs: Date.now() - startedAt, outcome: 'success' });
+    const pushTargets = pushTargetsForAction(action.type, state, playerId);
+    if (pushTargets.length > 0) {
+      void pushNotifier.send(pushTargets)
+        .then(() => diagnose({ level: 'info', event: 'push.completed', recipients: pushTargets.length }))
+        .catch(() => diagnose({ level: 'error', event: 'push.failed', recipients: pushTargets.length }));
+    }
   } catch (error) {
     diagnose({ level: 'info', event: 'command.completed', action: action.type, durationMs: Date.now() - startedAt, outcome: 'failure' });
     send(socket, {
@@ -220,9 +272,48 @@ function applyCors(origin: string | undefined, response: import('node:http').Ser
   }
   if (origin) response.setHeader('access-control-allow-origin', origin);
   response.setHeader('access-control-allow-headers', 'authorization, content-type');
-  response.setHeader('access-control-allow-methods', 'POST, OPTIONS');
+  response.setHeader('access-control-allow-methods', 'POST, DELETE, OPTIONS');
   response.setHeader('vary', 'Origin');
   return true;
+}
+
+function verifyBearerSession(authorization: string | undefined) {
+  try {
+    if (!authorization?.startsWith('Bearer ')) throw new Error('Authentication is required');
+    return sessionManager.verify(authorization.slice(7)).playerId;
+  } catch {
+    throw new AuthenticationError();
+  }
+}
+
+async function readJsonBody(request: import('node:http').IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > 4 * 1024) throw new BodyTooLargeError();
+    chunks.push(buffer);
+  }
+  const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('A JSON object is required');
+  return value as Record<string, unknown>;
+}
+
+function isValidFid(value: string) {
+  return value.length >= 10 && value.length <= 256 && /^[A-Za-z0-9_:-]+$/.test(value);
+}
+
+class BodyTooLargeError extends Error {
+  constructor() {
+    super('Request body is too large');
+  }
+}
+
+class AuthenticationError extends Error {
+  constructor() {
+    super('Authentication is required');
+  }
 }
 
 server.listen(port, '0.0.0.0', () => {

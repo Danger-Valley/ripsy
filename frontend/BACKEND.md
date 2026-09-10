@@ -13,6 +13,8 @@ The backend is a stateless Node.js WebSocket service. `GET /health` verifies its
 
 Redis Pub/Sub is an at-most-once notification layer; it is not the source of truth. Command responses and explicit `getGame` requests always read the durable Redis record, so reconnecting clients recover current state.
 
+Each backend instance also sends a WebSocket ping every 30 seconds and terminates connections that stop answering. This lets clients detect half-open mobile connections and reconnect to a healthy replica.
+
 ## Configuration
 
 ```text
@@ -56,13 +58,10 @@ Every command carries a `requestId`. Supported commands are:
 
 The server replies with `result` or `error`. Shared TypeScript definitions are in `packages/core/src/index.ts`.
 
-## DigitalOcean deployment
+## Railway deployment
 
-1. Provision a managed Redis/Valkey-compatible database with persistence and automatic failover.
-2. Give every backend instance the same encrypted `REDIS_URL`.
-3. Deploy the backend service with `npm ci` and `npm run start:server`.
-4. Configure `/health` as the readiness check.
-5. Scale the backend service horizontally; no sticky sessions are required.
-6. Point Vercel's `NEXT_PUBLIC_GAME_WS_URL` to the public `wss://` backend endpoint and `NEXT_PUBLIC_GAME_HTTP_URL` to its HTTPS `/session` endpoint.
+Railway hosts the long-lived WebSocket backend and Redis in the same project and region. The backend connects to the private Redis URL and exposes only its HTTP/WebSocket domain. No sticky sessions are required when the backend is scaled horizontally.
+
+Follow the repository's `RAILWAY_DEPLOYMENT.md` checklist for the Dockerfile, reference variables, health check, Vercel configuration, scaling, and smoke test.
 
 For production, also add rate limits, metrics, and structured logs.

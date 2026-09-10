@@ -61,12 +61,26 @@ const server = createServer(async (request, response) => {
 });
 
 const sockets = new WebSocketServer({ server, maxPayload: 16 * 1024 });
+const responsiveSockets = new WeakSet<WebSocket>();
+const heartbeatInterval = setInterval(() => {
+  for (const socket of sockets.clients) {
+    if (!responsiveSockets.has(socket)) {
+      socket.terminate();
+      continue;
+    }
+    responsiveSockets.delete(socket);
+    socket.ping();
+  }
+}, 30_000);
+heartbeatInterval.unref();
 
 await subscriber.pSubscribe(store.eventPattern, (gameId) => {
   void broadcast(gameId);
 });
 
 sockets.on('connection', (socket) => {
+  responsiveSockets.add(socket);
+  socket.on('pong', () => responsiveSockets.add(socket));
   let playerId: string | null = null;
   const authenticationTimeout = setTimeout(() => socket.close(1008, 'Authentication timed out'), 10_000);
 
@@ -183,6 +197,7 @@ server.listen(port, '0.0.0.0', () => {
 
 async function shutdown(signal: string) {
   console.log(`Received ${signal}; shutting down`);
+  clearInterval(heartbeatInterval);
   for (const playerSockets of clients.values()) {
     for (const socket of playerSockets) socket.close(1001, 'Server shutting down');
   }

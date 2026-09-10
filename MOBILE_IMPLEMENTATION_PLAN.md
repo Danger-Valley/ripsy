@@ -31,8 +31,8 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Store mobile credentials in iOS Keychain and Android Keystore.
 - [ ] Rename blockchain-era `gamePda`, `publicKey`, and address terminology to game/player terminology.
 - [ ] Add runtime protocol validation and typed protocol-version errors.
-- [ ] Handle foreground/background transitions, network loss, stale connections, and full-state recovery.
-- [ ] Persist and restore the active game.
+- [x] Handle foreground/background transitions, network loss, stale connections, and full-state recovery.
+- [x] Persist and restore the active game.
 - [ ] Add native sharing, room-code entry, Universal Links, and Android App Links.
 - [ ] Replace timer-driven combat code with an explicit animation queue driven by state transitions.
 - [ ] Add structured client/server diagnostics without logging credentials or hidden game data.

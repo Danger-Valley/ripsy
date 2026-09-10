@@ -12,9 +12,9 @@ class FakeSocket {
     this.sent.push(payload);
   }
 
-  close() {
+  close(code = 1000, reason = 'Client closed') {
     this.readyState = 3;
-    this.onclose?.({ code: 1000, reason: 'Client closed' });
+    this.onclose?.({ code, reason });
   }
 
   open() {
@@ -24,6 +24,10 @@ class FakeSocket {
 
   receive(message: unknown) {
     this.onmessage?.({ data: JSON.stringify(message) });
+  }
+
+  interrupt() {
+    this.close(1006, 'Network interrupted');
   }
 }
 
@@ -75,4 +79,69 @@ test('rejects a request when the server does not respond', async () => {
 
   client.disconnect();
   jest.useRealTimers();
+});
+
+test('reauthenticates and reloads the authoritative game state after reconnecting', () => {
+  jest.useFakeTimers();
+  const sockets: FakeSocket[] = [];
+  let requestNumber = 0;
+  const states: string[] = [];
+  const client = new RipsySocketClient({
+    endpoint: 'ws://localhost:8080',
+    playerId: 'player-1',
+    sessionToken: 'signed-token',
+    createRequestId: () => `request-${++requestNumber}`,
+    socketFactory: () => {
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket as unknown as WebSocket;
+    },
+  });
+  client.onState(state => states.push(state.gamePda));
+
+  client.connect('game-123');
+  sockets[0]!.open();
+  sockets[0]!.receive({ type: 'connected', playerId: 'player-1' });
+  expect(JSON.parse(sockets[0]!.sent[1] ?? '{}')).toEqual({ type: 'getGame', gameId: 'game-123', requestId: 'request-1' });
+
+  sockets[0]!.interrupt();
+  jest.advanceTimersByTime(1_000);
+  expect(sockets).toHaveLength(2);
+  sockets[1]!.open();
+  expect(JSON.parse(sockets[1]!.sent[0] ?? '{}')).toEqual({ type: 'authenticate', token: 'signed-token' });
+  sockets[1]!.receive({ type: 'connected', playerId: 'player-1' });
+  expect(JSON.parse(sockets[1]!.sent[1] ?? '{}')).toEqual({ type: 'getGame', gameId: 'game-123', requestId: 'request-2' });
+
+  sockets[0]!.receive({ type: 'state', gameId: 'game-123', state: { gamePda: 'stale-game' } });
+  sockets[1]!.receive({ type: 'state', gameId: 'game-123', state: { gamePda: 'game-123' } });
+  expect(states).toEqual(['game-123']);
+
+  client.disconnect();
+  jest.useRealTimers();
+});
+
+test('suspends without scheduling a reconnect and resumes explicitly', () => {
+  const sockets: FakeSocket[] = [];
+  const statuses: string[] = [];
+  const client = new RipsySocketClient({
+    endpoint: 'ws://localhost:8080',
+    playerId: 'player-1',
+    sessionToken: 'signed-token',
+    socketFactory: () => {
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket as unknown as WebSocket;
+    },
+  });
+  client.onStatus(status => statuses.push(status));
+
+  client.connect();
+  client.suspend();
+  expect(statuses.at(-1)).toBe('suspended');
+  expect(sockets).toHaveLength(1);
+
+  client.connect();
+  expect(sockets).toHaveLength(2);
+  expect(statuses.at(-1)).toBe('connecting');
+  client.disconnect();
 });

@@ -1,0 +1,10 @@
+.git
+.superstack
+node_modules
+frontend/apps
+frontend/packages/game-client
+*.pdf
+**/build
+**/Pods
+**/DerivedData
+**/.next

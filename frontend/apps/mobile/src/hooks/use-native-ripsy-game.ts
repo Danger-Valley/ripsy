@@ -24,13 +24,17 @@ export function useNativeRipsyGame(playerId: string, sessionToken: string, gameI
     const client = new RipsySocketClient({ endpoint, playerId, sessionToken });
     clientRef.current = client;
     const unsubscribeState = client.onState(setGameState);
-    const unsubscribeStatus = client.onStatus(setStatus);
+    const unsubscribeStatus = client.onStatus(nextStatus => {
+      setStatus(nextStatus);
+      if (nextStatus === 'connected') setError(null);
+    });
     const unsubscribeError = client.onError(cause => setError(cause.message));
-    client.connect(gameId);
+    if (AppState.currentState === 'background') client.suspend();
+    else client.connect(gameId);
 
     const subscription = AppState.addEventListener('change', nextState => {
       if (nextState === 'active') client.connect(gameId);
-      else client.disconnect();
+      else if (nextState === 'background') client.suspend();
     });
 
     return () => {

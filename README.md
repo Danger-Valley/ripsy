@@ -53,7 +53,7 @@ npm run build
 
 Game state is stored in Redis with atomic compare-and-swap mutations. Redis Pub/Sub fans updates across any number of WebSocket backend instances. Backend restarts do not lose active games, and players connected to different instances share the same authoritative state.
 
-Games expire after seven days of inactivity by default. Configure the backend with `REDIS_URL`, `GAME_TTL_SECONDS`, and `RIPSY_REDIS_PREFIX`. Browser player IDs are generated once and saved in local storage. See [BACKEND.md](frontend/BACKEND.md) for architecture and deployment details.
+Games expire after seven days of inactivity by default. Configure the backend with `REDIS_URL`, `GAME_TTL_SECONDS`, and `RIPSY_REDIS_PREFIX`. Signed anonymous player sessions are stored by each client and verified before WebSocket commands are accepted. See [BACKEND.md](frontend/BACKEND.md) for architecture and [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md) for deployment details.
 
 ## Game flow
 

@@ -1,6 +1,6 @@
 import type { ClientAction, GameState, ServerMessage } from '@rps/core';
 
-export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed';
+export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'suspended' | 'closed';
 
 type ResultMessage = Extract<ServerMessage, { type: 'result' }>;
 type ClientActionInput = ClientAction extends infer Action
@@ -44,6 +44,8 @@ export class RipsySocketClient {
     this.currentGameId = gameId;
     this.shouldReconnect = true;
     if (this.socket?.readyState === 1 || this.socket?.readyState === 0) return;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
     this.openSocket();
   }
 
@@ -59,9 +61,21 @@ export class RipsySocketClient {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = undefined;
     this.rejectPending(new Error('Connection closed'));
-    this.socket?.close(1000, 'Client closed');
+    const socket = this.socket;
     this.socket = null;
+    socket?.close(1000, 'Client closed');
     this.setStatus('closed');
+  }
+
+  suspend() {
+    this.shouldReconnect = false;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
+    this.rejectPending(new Error('Connection suspended while the app is in the background'));
+    const socket = this.socket;
+    this.socket = null;
+    socket?.close(1000, 'App backgrounded');
+    this.setStatus('suspended');
   }
 
   async request(action: ClientActionInput): Promise<ResultMessage> {
@@ -97,6 +111,7 @@ export class RipsySocketClient {
   }
 
   private openSocket() {
+    if (!this.shouldReconnect || this.socket?.readyState === 1 || this.socket?.readyState === 0) return;
     this.setStatus(this.reconnectAttempt === 0 ? 'connecting' : 'reconnecting');
     const socket = (this.options.socketFactory ?? ((target) => new WebSocket(target)))(this.options.endpoint);
     this.socket = socket;
@@ -105,8 +120,10 @@ export class RipsySocketClient {
       if (this.socket !== socket) return;
       socket.send(JSON.stringify({ type: 'authenticate', token: this.options.sessionToken }));
     };
-    socket.onmessage = (event) => this.handleMessage(String(event.data));
-    socket.onerror = () => this.emitError(new Error('Cannot connect to the game server'));
+    socket.onmessage = (event) => this.handleMessage(socket, String(event.data));
+    socket.onerror = () => {
+      if (this.socket === socket) this.emitError(new Error('Cannot connect to the game server'));
+    };
     socket.onclose = (event) => {
       if (this.socket !== socket) return;
       this.socket = null;
@@ -120,7 +137,8 @@ export class RipsySocketClient {
     };
   }
 
-  private handleMessage(payload: string) {
+  private handleMessage(socket: WebSocket, payload: string) {
+    if (this.socket !== socket) return;
     let message: ServerMessage;
     try {
       message = JSON.parse(payload) as ServerMessage;
@@ -177,7 +195,10 @@ export class RipsySocketClient {
     const maximum = this.options.reconnectMaxDelayMs ?? 10_000;
     const delay = Math.min(maximum, base * 2 ** Math.min(this.reconnectAttempt - 1, 5));
     const jitteredDelay = Math.round(delay * (0.8 + Math.random() * 0.4));
-    this.reconnectTimer = setTimeout(() => this.openSocket(), jitteredDelay);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      this.openSocket();
+    }, jitteredDelay);
   }
 
   private rejectPending(error: Error) {

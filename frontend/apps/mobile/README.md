@@ -35,4 +35,4 @@ npm test -w @rps/mobile
 cd frontend/apps/mobile/android && ./gradlew assembleDebug
 ```
 
-The backend-issued anonymous session is stored using iOS Keychain and Android Keystore. Authentication and remaining production hardening are tracked in `MOBILE_IMPLEMENTATION_PLAN.md`.
+The backend-issued anonymous session and current room are stored using iOS Keychain and Android Keystore. When the app returns from the background or regains its connection, it reauthenticates and reloads the latest authoritative game state. Remaining production hardening is tracked in `MOBILE_IMPLEMENTATION_PLAN.md`.

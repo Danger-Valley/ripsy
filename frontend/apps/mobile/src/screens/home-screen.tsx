@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
@@ -34,52 +34,76 @@ export function HomeScreen({ navigation }: Props) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>NATIVE MULTIPLAYER</Text>
-        <Text style={styles.title}>RIPSY</Text>
-        <Text style={styles.subtitle}>Arrange your army. Outsmart your opponent. Capture the flag.</Text>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets>
+        <View style={styles.container}>
+          <View style={styles.hero}>
+            <Text maxFontSizeMultiplier={1.6} style={styles.eyebrow}>NATIVE MULTIPLAYER</Text>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={styles.title}>RIPSY</Text>
+            <Text maxFontSizeMultiplier={2} style={styles.subtitle}>Arrange your army. Outsmart your opponent. Capture the flag.</Text>
+          </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Start a battle</Text>
-        <PrimaryButton onPress={() => { createGame().catch(() => undefined); }} disabled={!isReady || !game.isConnected} busy={game.isBusy}>Create game</PrimaryButton>
-        <View style={styles.dividerRow}><View style={styles.divider} /><Text style={styles.or}>OR JOIN</Text><View style={styles.divider} /></View>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          onChangeText={value => setRoomCode(formatRoomCodeInput(value))}
-          onSubmitEditing={joinByCode}
-          placeholder="8-character room code"
-          placeholderTextColor={colors.textMuted}
-          returnKeyType="go"
-          style={styles.input}
-          value={roomCode}
-        />
-        <PrimaryButton variant="secondary" onPress={joinByCode} disabled={!normalizeRoomCode(roomCode)}>Open room</PrimaryButton>
-      </View>
+          <View style={styles.card}>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitle}>Start a battle</Text>
+            <PrimaryButton
+              accessibilityHint="Creates a new room and opens it"
+              onPress={() => { createGame().catch(() => undefined); }}
+              disabled={!isReady || !game.isConnected}
+              busy={game.isBusy}>Create game</PrimaryButton>
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.dividerRow}>
+              <View style={styles.divider} /><Text style={styles.or}>OR JOIN</Text><View style={styles.divider} />
+            </View>
+            <TextInput
+              accessibilityLabel="Room code"
+              accessibilityHint="Enter the eight-character code from your invitation"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxFontSizeMultiplier={2}
+              onChangeText={value => setRoomCode(formatRoomCodeInput(value))}
+              onSubmitEditing={joinByCode}
+              placeholder="8-character room code"
+              placeholderTextColor={colors.textMuted}
+              returnKeyType="go"
+              style={styles.input}
+              value={roomCode}
+            />
+            <PrimaryButton
+              accessibilityHint="Opens the entered game room"
+              variant="secondary"
+              onPress={joinByCode}
+              disabled={!normalizeRoomCode(roomCode)}>Open room</PrimaryButton>
+          </View>
 
-      {(identityError || game.error) ? <StatusBanner message={identityError || game.error || ''} tone="error" /> : (
-        <StatusBanner message={game.isConnected ? 'Connected to the game server' : `Server: ${game.status}`} tone={game.isConnected ? 'success' : 'neutral'} />
-      )}
-      {(push.status === 'prompt' || push.status === 'denied' || push.status === 'error') && (
-        <View style={styles.notificationCard}>
-          <Text style={styles.notificationText}>
-            {push.status === 'denied' ? 'Notifications are disabled in system settings.' : 'Get notified when your opponent moves.'}
-          </Text>
-          {push.status !== 'denied' && (
-            <PrimaryButton variant="secondary" disabled={!isReady} onPress={() => { push.enable().catch(() => undefined); }}>
-              Enable notifications
-            </PrimaryButton>
+          {(identityError || game.error) ? <StatusBanner message={identityError || game.error || ''} tone="error" /> : (
+            <StatusBanner message={game.isConnected ? 'Connected to the game server' : `Server: ${game.status}`} tone={game.isConnected ? 'success' : 'neutral'} />
           )}
+          {(push.status === 'prompt' || push.status === 'denied' || push.status === 'error') && (
+            <View style={styles.notificationCard}>
+              <Text maxFontSizeMultiplier={2} style={styles.notificationText}>
+                {push.status === 'denied' ? 'Notifications are disabled in system settings.' : 'Get notified when your opponent moves.'}
+              </Text>
+              {push.status !== 'denied' && (
+                <PrimaryButton variant="secondary" disabled={!isReady} onPress={() => { push.enable().catch(() => undefined); }}>
+                  Enable notifications
+                </PrimaryButton>
+              )}
+            </View>
+          )}
+          <Text accessibilityLabel={playerId ? `Player identifier ${playerId}` : 'Player identifier initializing'} maxFontSizeMultiplier={2} style={styles.identity}>
+            Player {playerId ? `${playerId.slice(0, 12)}…` : 'initializing…'}
+          </Text>
         </View>
-      )}
-      <Text style={styles.identity}>Player {playerId ? `${playerId.slice(0, 12)}…` : 'initializing…'}</Text>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
+  screen: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl },
+  container: { width: '100%', maxWidth: 720, alignSelf: 'center', gap: spacing.lg },
   hero: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg },
   eyebrow: { color: colors.primaryMuted, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
   title: { color: colors.primary, fontSize: 52, fontWeight: '900', letterSpacing: 4 },

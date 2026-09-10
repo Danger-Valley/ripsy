@@ -31,3 +31,13 @@ jest.mock('react-native-permissions', () => ({
   checkNotifications: jest.fn(() => Promise.resolve({ status: 'unavailable', settings: {} })),
   requestNotifications: jest.fn(() => Promise.resolve({ status: 'granted', settings: {} })),
 }));
+
+jest.mock('react-native-haptic-feedback', () => ({
+  HapticFeedbackTypes: {
+    selection: 'selection',
+    impactLight: 'impactLight',
+    notificationSuccess: 'notificationSuccess',
+    notificationWarning: 'notificationWarning',
+  },
+  trigger: jest.fn(),
+}));

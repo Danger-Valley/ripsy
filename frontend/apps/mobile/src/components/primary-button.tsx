@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { haptics } from '../haptics';
 import { colors, spacing } from '../theme';
 
 type Props = PropsWithChildren<{
@@ -7,22 +8,34 @@ type Props = PropsWithChildren<{
   disabled?: boolean;
   busy?: boolean;
   variant?: 'primary' | 'secondary' | 'danger';
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }>;
 
-export function PrimaryButton({ children, onPress, disabled, busy, variant = 'primary' }: Props) {
+export function PrimaryButton({ children, onPress, disabled, busy, variant = 'primary', accessibilityLabel, accessibilityHint }: Props) {
   const isDisabled = Boolean(disabled || busy);
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ busy: Boolean(busy), disabled: isDisabled }}
       disabled={isDisabled}
-      onPress={onPress}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
       style={({ pressed }) => [
         styles.button,
         variant === 'secondary' && styles.secondary,
         variant === 'danger' && styles.danger,
         (isDisabled || pressed) && styles.dimmed,
       ]}>
-      {busy ? <ActivityIndicator color={variant === 'primary' ? colors.background : colors.text} /> : <Text style={[styles.label, variant !== 'primary' && styles.lightLabel]}>{children}</Text>}
+      {busy ? (
+        <ActivityIndicator accessibilityLabel="Loading" color={variant === 'primary' ? colors.background : colors.text} />
+      ) : (
+        <Text maxFontSizeMultiplier={2} style={[styles.label, variant !== 'primary' && styles.lightLabel]}>{children}</Text>
+      )}
     </Pressable>
   );
 }
@@ -35,6 +48,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
   },
   secondary: {
     backgroundColor: colors.surfaceStrong,
@@ -43,6 +57,6 @@ const styles = StyleSheet.create({
   },
   danger: { backgroundColor: colors.danger },
   dimmed: { opacity: 0.55 },
-  label: { color: colors.background, fontSize: 16, fontWeight: '800' },
+  label: { color: colors.background, fontSize: 16, fontWeight: '800', flexShrink: 1, textAlign: 'center' },
   lightLabel: { color: colors.text },
 });

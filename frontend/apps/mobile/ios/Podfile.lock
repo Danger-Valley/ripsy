@@ -1868,6 +1868,28 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RNReactNativeHapticFeedback (3.0.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RNScreens (4.27.0):
     - hermes-engine
     - RCTRequired
@@ -2012,6 +2034,7 @@ DEPENDENCIES:
   - "RNFBMessaging (from `../../../../node_modules/@react-native-firebase/messaging`)"
   - RNKeychain (from `../../../../node_modules/react-native-keychain`)
   - RNPermissions (from `../../../../node_modules/react-native-permissions`)
+  - RNReactNativeHapticFeedback (from `../../../../node_modules/react-native-haptic-feedback`)
   - RNScreens (from `../../../../node_modules/react-native-screens`)
   - SocketRocket (from `build/rndeps-facades/SocketRocket`)
   - Yoga (from `build/rncore-facades/Yoga`)
@@ -2209,6 +2232,8 @@ EXTERNAL SOURCES:
     :path: "../../../../node_modules/react-native-keychain"
   RNPermissions:
     :path: "../../../../node_modules/react-native-permissions"
+  RNReactNativeHapticFeedback:
+    :path: "../../../../node_modules/react-native-haptic-feedback"
   RNScreens:
     :path: "../../../../node_modules/react-native-screens"
   SocketRocket:
@@ -2316,6 +2341,7 @@ SPEC CHECKSUMS:
   RNFBMessaging: 5e7cd9fc16c49b0492121c1fa90c9b3aa35aaec6
   RNKeychain: 551d42b0ef53426f82551a0cc961cfa10ad33afa
   RNPermissions: 8de0dbf6ef68cb55250c80f16b2658ddbd462872
+  RNReactNativeHapticFeedback: 7f0e5435fa5153de77f2e61796cbbba5eb131a87
   RNScreens: 0135deb65b65d207ee6294d0baf06681e1071d93
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e

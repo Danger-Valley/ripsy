@@ -38,7 +38,9 @@ function App() {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="light-content" />
-        <View style={styles.loading}><ActivityIndicator color={colors.primary} size="large" /></View>
+        <View style={styles.loading}>
+          <ActivityIndicator accessibilityLabel="Loading RIPSY" accessibilityRole="progressbar" color={colors.primary} size="large" />
+        </View>
       </SafeAreaProvider>
     );
   }

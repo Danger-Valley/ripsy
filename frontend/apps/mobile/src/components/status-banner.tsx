@@ -3,8 +3,11 @@ import { colors, spacing } from '../theme';
 
 export function StatusBanner({ message, tone = 'neutral' }: { message: string; tone?: 'neutral' | 'error' | 'success' }) {
   return (
-    <View style={[styles.container, tone === 'error' && styles.error, tone === 'success' && styles.success]}>
-      <Text style={styles.text}>{message}</Text>
+    <View
+      accessibilityLiveRegion="polite"
+      accessibilityRole={tone === 'error' ? 'alert' : 'text'}
+      style={[styles.container, tone === 'error' && styles.error, tone === 'success' && styles.success]}>
+      <Text maxFontSizeMultiplier={2} style={styles.text}>{message}</Text>
     </View>
   );
 }

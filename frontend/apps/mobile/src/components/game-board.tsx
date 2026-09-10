@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { HEIGHT, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
+import { haptics } from '../haptics';
 import { colors } from '../theme';
 
 export interface LineupPiece {
@@ -21,17 +22,18 @@ interface Props {
   previewLineup?: LineupPiece[];
   selected?: Coordinate | null;
   availableMoves?: Coordinate[];
+  interactionEnabled?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
 }
 
-export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], onCellPress }: Props) {
+export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, onCellPress }: Props) {
   const { width } = useWindowDimensions();
-  const boardSize = Math.min(width - 32, 560);
+  const boardSize = Math.min(width - 32, 600);
   const cellSize = boardSize / WIDTH;
   const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item.piece])), [previewLineup]);
 
   return (
-    <View accessibilityLabel="RIPSY game board" style={[styles.board, { width: boardSize, height: boardSize }]}>
+    <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]}>
       {Array.from({ length: HEIGHT }, (_, displayY) => (
         <View key={displayY} style={styles.row}>
           {Array.from({ length: WIDTH }, (_unused, displayX) => {
@@ -43,12 +45,25 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isSelected = selected?.x === x && selected.y === y;
             const isAvailable = availableMoves.some(move => move.x === x && move.y === y);
+            const isActionable = Boolean(interactionEnabled && onCellPress && (selected ? isMine || isAvailable : isMine));
+            const occupant = owner === Owner.None
+              ? 'empty'
+              : isMine ? `your ${pieceName(piece)}` : 'opponent piece';
+            const hint = isSelected
+              ? 'Selected piece'
+              : isAvailable ? 'Move selected piece here' : isActionable ? 'Select this piece' : undefined;
             return (
               <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Board cell ${displayX + 1}, ${displayY + 1}${owner === Owner.None ? ', empty' : `, ${isMine ? 'your' : 'opponent'} piece`}`}
+                accessibilityRole={isActionable ? 'button' : 'text'}
+                accessibilityLabel={`Row ${displayY + 1}, column ${displayX + 1}, ${occupant}`}
+                accessibilityHint={hint}
+                accessibilityState={{ disabled: !isActionable, selected: isSelected }}
+                disabled={!isActionable}
                 key={displayX}
-                onPress={() => onCellPress?.({ x, y })}
+                onPress={() => {
+                  isAvailable ? haptics.move() : haptics.select();
+                  onCellPress?.({ x, y });
+                }}
                 style={[
                   styles.cell,
                   { width: cellSize, height: cellSize },
@@ -58,7 +73,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                 ]}>
                 {owner !== Owner.None ? (
                   <View style={[styles.piece, isMine ? styles.myPiece : styles.opponentPiece, { width: cellSize * 0.68, height: cellSize * 0.68 }]}>
-                    <Text style={[styles.pieceLabel, { fontSize: Math.max(12, cellSize * 0.28) }]}>{isMine ? pieceLabel(piece) : '?'}</Text>
+                    <Text allowFontScaling={false} style={[styles.pieceLabel, { fontSize: Math.max(12, cellSize * 0.28) }]}>{isMine ? pieceLabel(piece) : '?'}</Text>
                   </View>
                 ) : isAvailable ? <View style={styles.moveDot} /> : null}
               </Pressable>
@@ -77,6 +92,15 @@ function pieceLabel(piece: Piece) {
   if (piece === Piece.Flag) return 'F';
   if (piece === Piece.Trap) return 'T';
   return '•';
+}
+
+function pieceName(piece: Piece) {
+  if (piece === Piece.Rock) return 'rock';
+  if (piece === Piece.Paper) return 'paper';
+  if (piece === Piece.Scissors) return 'scissors';
+  if (piece === Piece.Flag) return 'flag';
+  if (piece === Piece.Trap) return 'trap';
+  return 'piece';
 }
 
 const styles = StyleSheet.create({

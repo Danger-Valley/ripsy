@@ -30,6 +30,8 @@ Build the signed production Android App Bundle after provisioning the ignored `a
 npm run android:bundle
 ```
 
+Both `android:bundle` and `ios:beta` run a release preflight first. It validates Firebase application IDs, Railway/Redis/push health, signing inputs, listing metadata, and screenshots without printing secrets. Run it directly for both platforms with `npm run mobile:release:preflight`. An intentionally incomplete test build can bypass it with `RIPSY_SKIP_RELEASE_PREFLIGHT=1`; store-bound builds should never use that override.
+
 The bundle is written to `frontend/apps/mobile/android/app/build/outputs/bundle/release/app-release.aab`. Back up both the upload keystore and its password outside the repository before the first Play Console upload.
 
 The TestFlight script downloads the official React Native and Hermes release dSYMs that correspond to the installed versions, adds them to the generated archive, and verifies their UUIDs before export. This keeps native crashes in the prebuilt React Native frameworks symbolicated.

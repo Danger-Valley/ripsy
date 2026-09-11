@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
-    "android:bundle": "cd android && ./gradlew bundleRelease",
+    "android:bundle": "./scripts/android-bundle.sh",
     "ios": "react-native run-ios",
     "ios:beta": "./scripts/ios-beta.sh",
     "lint": "eslint .",
+    "release:preflight": "./scripts/release-preflight.sh",
     "start": "react-native start",
     "test": "jest --no-watchman",
     "typecheck": "tsc --noEmit"

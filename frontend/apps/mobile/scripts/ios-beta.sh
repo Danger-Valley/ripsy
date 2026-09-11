@@ -23,6 +23,11 @@ fi
 
 script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mobile_directory="$(cd "${script_directory}/.." && pwd)"
+
+if [[ "${RIPSY_SKIP_RELEASE_PREFLIGHT:-0}" != "1" ]]; then
+  "${script_directory}/release-preflight.sh" ios
+fi
+
 archive_path="${RIPSY_IOS_ARCHIVE_PATH:-${TMPDIR:-/tmp}/RipsyMobile.xcarchive}"
 export_path="${RIPSY_IOS_EXPORT_PATH:-${TMPDIR:-/tmp}/RipsyMobileExport}"
 distribution_profile="${RIPSY_IOS_PROVISIONING_PROFILE:-RIPSY App Store}"

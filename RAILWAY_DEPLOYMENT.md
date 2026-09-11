@@ -42,7 +42,7 @@ Railway supplies `PORT`; do not set it manually. Generate `SESSION_SECRET` local
 
 Configure `/health` as the healthcheck path with a 60-second timeout. Use the `ON_FAILURE` restart policy. The endpoint returns `200` only after Redis is reachable.
 
-`FIREBASE_SERVICE_ACCOUNT_JSON` is a Railway secret. Paste the complete JSON downloaded for a dedicated Google service account with permission to send Firebase Cloud Messaging messages. Never add that file or value to Git. If both Firebase variables are absent, gameplay stays available and the backend reports `push.disabled`; push delivery is simply disabled.
+`FIREBASE_PROJECT_ID` is `ripsy-app`. `FIREBASE_SERVICE_ACCOUNT_JSON` is a Railway secret. Paste the complete JSON downloaded for a dedicated Google service account with permission to send Firebase Cloud Messaging messages. Never add that file or value to Git. If both Firebase variables are absent, gameplay stays available and the backend reports `push.disabled`; push delivery is simply disabled.
 
 ## 3. Connect Vercel and the mobile app
 
@@ -87,4 +87,4 @@ The native client emits the same safe JSON shape to the platform device log with
 6. Redeploy Railway. Its startup log should contain `push.enabled`.
 7. Reinstall the native app on physical iOS and Android devices, enable notifications from the Home screen, and play a two-device battle. Tapping a notification should open its game room.
 
-The two downloaded mobile config files contain project identifiers rather than server credentials, but they are intentionally ignored so staging and production can use different Firebase projects. Firebase FIDs are stored in Redis under the configured `RIPSY_REDIS_PREFIX` for 90 days by default and refreshed whenever an opted-in app starts.
+The production mobile config files are committed with the native projects because they contain app identifiers and restricted client API keys, not server credentials. Firebase FIDs are stored in Redis under the configured `RIPSY_REDIS_PREFIX` for 90 days by default and refreshed whenever an opted-in app starts.

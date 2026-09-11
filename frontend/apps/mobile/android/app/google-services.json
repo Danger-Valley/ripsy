@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "153852997299",
+    "project_id": "ripsy-app",
+    "storage_bucket": "ripsy-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:153852997299:android:c69e4424cd7249cbb7cac6",
+        "android_client_info": {
+          "package_name": "com.dangervalley.ripsy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCu4cDr7MEwdSCmDaxphBORHAYiQrf-IlE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

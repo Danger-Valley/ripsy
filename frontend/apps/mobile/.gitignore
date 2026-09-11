@@ -67,10 +67,6 @@ yarn-error.log
 # testing
 /coverage
 
-# Firebase project files are downloaded per environment.
-android/app/google-services.json
-ios/RipsyMobile/GoogleService-Info.plist
-
 # Yarn
 .yarn/*
 !.yarn/patches

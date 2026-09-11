@@ -44,6 +44,7 @@ The backend, not either client, decides whether commands are legal and computes 
 ## Milestone 3: store-ready release
 
 - [x] Add Redis-backed FCM turn, opponent-joined, tie-choice, and game-finished push notifications with notification deep links.
+- [x] Create the production Firebase project, register the native apps, add the upload-key fingerprint, and bundle their SDK configurations.
 - [ ] Provision production Firebase/APNs credentials and verify push delivery on physical iOS and Android devices.
 - [x] Add accessibility labels and state, dynamic text-safe scrolling, system-respecting haptics, and tablet-width layouts.
 - [x] Add unit, component, WebSocket recovery, and two-client end-to-end tests.

@@ -6,7 +6,7 @@ Before submission:
 
 1. Confirm that `https://www.ripsy.fun/privacy` and `https://www.ripsy.fun/support` are deployed.
 2. Replace or supplement the public issue tracker with a monitored support email if desired.
-3. Capture current phone and tablet screenshots from signed release builds.
+3. Capture the remaining gameplay and tablet screenshots from signed release builds. The verified iPhone 6.9-inch home screenshot is stored at `screenshots/ios/iphone-6.9/01-home.png` (1320 x 2868).
 4. Complete each store's age/content-rating questionnaire from the actual shipped feature set.
 5. Review the privacy answers against the production backend and Firebase configuration.
 

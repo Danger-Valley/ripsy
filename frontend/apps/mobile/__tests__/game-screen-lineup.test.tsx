@@ -12,9 +12,17 @@ jest.mock('../src/hooks/use-game-animation-queue');
 jest.mock('../src/hooks/use-native-ripsy-game');
 jest.mock('../src/hooks/use-player-identity');
 
-const submitLineup = jest.fn<Promise<{ type: 'result'; requestId: string }>, [number[], number[], number[]]>(
-  () => Promise.resolve({ type: 'result', requestId: 'lineup' }),
-);
+let gameState: GameState;
+const submitLineup = jest.fn<Promise<{ type: 'result'; requestId: string }>, [number[], number[], number[]]>(async (xs, ys, pieces) => {
+  xs.forEach((x, index) => {
+    const boardIndex = ys[index]! * WIDTH + x;
+    gameState.owners[boardIndex] = Owner.P0;
+    gameState.pieces[boardIndex] = pieces[index] as Piece;
+  });
+  gameState.live0 = 14;
+  gameState.phase = Phase.LineupP0Set;
+  return { type: 'result', requestId: 'lineup' };
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -24,7 +32,7 @@ beforeEach(() => {
     isReady: true,
     error: null,
   });
-  const gameState = createdGame();
+  gameState = createdGame();
   jest.mocked(useNativeRipsyGame).mockReturnValue({
     gameState,
     status: 'connected',
@@ -56,7 +64,7 @@ beforeEach(() => {
   });
 });
 
-test('creator can arrange and save a lineup before an opponent joins', async () => {
+test('creator can shuffle, save, and see the lineup ready state before an opponent joins', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
@@ -88,6 +96,19 @@ test('creator can arrange and save a lineup before an opponent joins', async () 
   expect(pieces.filter(piece => piece === Piece.Scissors)).toHaveLength(4);
   expect(pieces.filter(piece => piece === Piece.Flag)).toHaveLength(1);
   expect(pieces.filter(piece => piece === Piece.Trap)).toHaveLength(1);
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Lineup saved')).toBeDefined();
+  expect(renderer.root.findAll(node => node.props.children === 'Saved. The battle starts automatically when your opponent is ready.').length).toBeGreaterThan(0);
+
+  const savedButton = renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup' && node.props.accessibilityState?.disabled);
+  expect(savedButton.props.accessibilityState).toMatchObject({ disabled: true });
+
+  const shuffleButton = renderer.root.find(node => node.props.accessibilityHint === 'Creates a different random hidden lineup');
+  await ReactTestRenderer.act(() => {
+    shuffleButton.props.onPress();
+  });
+
+  expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Lineup saved')).toHaveLength(0);
+  expect(renderer.root.findAll(node => node.props.children === 'Lineup changed. Save it when you are ready.').length).toBeGreaterThan(0);
 });
 
 function createdGame(): GameState {

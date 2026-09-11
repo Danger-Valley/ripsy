@@ -30,6 +30,7 @@ export function GameScreen({ navigation, route }: Props) {
   const animation = useGameAnimationQueue(game.gameState);
   const visibleState = animation.displayedState ?? game.gameState;
   const [lineup, setLineup] = useState<LineupPiece[]>([]);
+  const [isLineupDirty, setIsLineupDirty] = useState(false);
   const [selected, setSelected] = useState<Coordinate | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const previousPhase = useRef<Phase | undefined>(undefined);
@@ -41,13 +42,20 @@ export function GameScreen({ navigation, route }: Props) {
       ? game.gameState.phase === Phase.LineupP0Set || game.gameState.phase >= Phase.Active
       : game.gameState.phase === Phase.LineupP1Set || game.gameState.phase >= Phase.Active
   ));
+  const isLineupSaved = hasSubmitted && !isLineupDirty;
   const canEditLineup = Boolean(isParticipant && game.gameState && game.gameState.phase < Phase.Active);
   const isWaitingForOpponent = Boolean(game.isPlayer0 && game.gameState && !game.gameState.p1 && game.gameState.phase < Phase.Active);
 
   useEffect(() => {
     if (!canEditLineup || lineup.length > 0 || !game.gameState) return;
     const savedLineup = lineupFromState(game.gameState, game.ownOwner);
-    setLineup(savedLineup.length > 0 ? savedLineup : createRandomLineup(game.isPlayer0));
+    if (savedLineup.length > 0) {
+      setLineup(savedLineup);
+      setIsLineupDirty(false);
+    } else {
+      setLineup(createRandomLineup(game.isPlayer0));
+      setIsLineupDirty(true);
+    }
   }, [canEditLineup, game.gameState, game.isPlayer0, game.ownOwner, lineup.length]);
 
   useEffect(() => {
@@ -80,12 +88,19 @@ export function GameScreen({ navigation, route }: Props) {
     setActionError(null);
     try {
       await operation();
+      return true;
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'Action failed');
+      return false;
     }
   };
 
-  const submitLineup = () => perform(() => saveLineup(game.submitLineup, lineup));
+  const submitLineup = async () => {
+    const didSave = await perform(() => saveLineup(game.submitLineup, lineup));
+    if (!didSave) return;
+    setIsLineupDirty(false);
+    haptics.success();
+  };
 
   const shareRoom = () => perform(async () => {
     const inviteUrl = createGameInviteUrl(gameId);
@@ -164,18 +179,20 @@ export function GameScreen({ navigation, route }: Props) {
           <PrimaryButton onPress={() => { perform(game.joinGame).catch(() => undefined); }} busy={game.isBusy}>Join this game</PrimaryButton>
         )}
         {canEditLineup && (
-          <View style={styles.lineupPanel} testID="lineup-controls">
+          <View style={[styles.lineupPanel, isLineupSaved && styles.lineupPanelReady]} testID="lineup-controls">
             <View style={styles.lineupHeader}>
               <View style={styles.lineupCopy}>
                 <Text maxFontSizeMultiplier={2} style={styles.lineupEyebrow}>YOUR LINEUP</Text>
                 <Text maxFontSizeMultiplier={2} style={styles.lineupDescription}>
-                  {hasSubmitted ? 'Saved — shuffle again anytime.' : 'Shuffle until the lineup feels right.'}
+                  {isLineupSaved
+                    ? 'Saved. The battle starts automatically when your opponent is ready.'
+                    : hasSubmitted ? 'Lineup changed. Save it when you are ready.' : 'Shuffle until the lineup feels right.'}
                 </Text>
               </View>
-              {hasSubmitted && (
+              {isLineupSaved && (
                 <View accessibilityLabel="Lineup saved" style={styles.savedBadge}>
                   <View style={styles.savedDot} />
-                  <Text maxFontSizeMultiplier={1.6} style={styles.savedText}>SAVED</Text>
+                  <Text maxFontSizeMultiplier={1.6} style={styles.savedText}>READY</Text>
                 </View>
               )}
             </View>
@@ -184,11 +201,12 @@ export function GameScreen({ navigation, route }: Props) {
                 <PrimaryButton accessibilityHint="Creates a different random hidden lineup" variant="secondary" onPress={() => {
                   setSelected(null);
                   setLineup(createRandomLineup(game.isPlayer0));
+                  setIsLineupDirty(true);
                 }}>Shuffle</PrimaryButton>
               </View>
               <View style={styles.lineupAction}>
-                <PrimaryButton accessibilityHint="Saves your current hidden lineup" onPress={() => { submitLineup().catch(() => undefined); }} busy={game.isBusy}>
-                  {hasSubmitted ? 'Save changes' : 'Save lineup'}
+                <PrimaryButton accessibilityHint="Saves your current hidden lineup" disabled={isLineupSaved} onPress={() => { submitLineup().catch(() => undefined); }} busy={game.isBusy}>
+                  {isLineupSaved ? 'Lineup saved' : hasSubmitted ? 'Save changes' : 'Save lineup'}
                 </PrimaryButton>
               </View>
             </View>
@@ -309,6 +327,7 @@ const styles = StyleSheet.create({
   waitingTitle: { color: colors.text, fontSize: 19, fontWeight: '900' },
   waitingDescription: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   lineupPanel: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
+  lineupPanelReady: { borderColor: colors.success },
   lineupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   lineupCopy: { flex: 1, gap: spacing.xs },
   lineupEyebrow: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },

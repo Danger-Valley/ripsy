@@ -32,6 +32,8 @@ npm run android:bundle
 
 The bundle is written to `frontend/apps/mobile/android/app/build/outputs/bundle/release/app-release.aab`. Back up both the upload keystore and its password outside the repository before the first Play Console upload.
 
+The TestFlight script downloads the official React Native and Hermes release dSYMs that correspond to the installed versions, adds them to the generated archive, and verifies their UUIDs before export. This keeps native crashes in the prebuilt React Native frameworks symbolicated.
+
 The iOS simulator connects to `ws://localhost:8080`. The Android emulator connects to `ws://10.0.2.2:8080`. Release builds use the production endpoint configured in `src/config.ts`.
 
 ## Verification

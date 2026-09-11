@@ -79,6 +79,8 @@ xcodebuild \
   -authenticationKeyIssuerID "${APP_STORE_CONNECT_API_ISSUER_ID}" \
   archive
 
+"${script_directory}/install-react-native-dsyms.sh" "${archive_path}"
+
 xcodebuild \
   -exportArchive \
   -archivePath "${archive_path}" \

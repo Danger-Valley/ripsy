@@ -64,7 +64,11 @@ test('creator can arrange and save a lineup before an opponent joins', async () 
   });
 
   expect(renderer.root.find(node => node.props.accessibilityHint === 'Opens the system share sheet')).toBeDefined();
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Waiting for opponent. Your lineup stays editable until the battle begins.')).toBeDefined();
+  expect(renderer.root.find(node => node.props.testID === 'lineup-controls')).toBeDefined();
   expect(renderer.root.find(node => node.props.accessibilityHint === 'Creates a different random hidden lineup')).toBeDefined();
+  expect(renderer.root.findAll(node => node.props.children === 'Your pieces')).toHaveLength(0);
+  expect(renderer.root.findAll(node => node.props.children === 'Opponent')).toHaveLength(0);
   const save = renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup');
 
   await ReactTestRenderer.act(async () => {

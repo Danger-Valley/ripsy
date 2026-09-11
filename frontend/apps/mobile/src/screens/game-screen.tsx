@@ -42,6 +42,7 @@ export function GameScreen({ navigation, route }: Props) {
       : game.gameState.phase === Phase.LineupP1Set || game.gameState.phase >= Phase.Active
   ));
   const canEditLineup = Boolean(isParticipant && game.gameState && game.gameState.phase < Phase.Active);
+  const isWaitingForOpponent = Boolean(game.isPlayer0 && game.gameState && !game.gameState.p1 && game.gameState.phase < Phase.Active);
 
   useEffect(() => {
     if (!canEditLineup || lineup.length > 0 || !game.gameState) return;
@@ -162,7 +163,22 @@ export function GameScreen({ navigation, route }: Props) {
           </Text>
         </View>
 
-        <StatusBanner message={stateMessage} tone={visibleState?.phase === Phase.Finished ? 'success' : 'neutral'} />
+        {isWaitingForOpponent ? (
+          <View style={styles.waitingCard}>
+            <View accessibilityLabel="Waiting for opponent. Your lineup stays editable until the battle begins." accessible style={styles.waitingHeader}>
+              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.waitingIndicator}>
+                <View style={styles.waitingDot} />
+              </View>
+              <View style={styles.waitingCopy}>
+                <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.waitingTitle}>Waiting for opponent</Text>
+                <Text maxFontSizeMultiplier={2} style={styles.waitingDescription}>Your lineup stays editable until the battle begins.</Text>
+              </View>
+            </View>
+            <PrimaryButton accessibilityHint="Opens the system share sheet" variant="secondary" onPress={() => { shareRoom().catch(() => undefined); }}>Invite opponent</PrimaryButton>
+          </View>
+        ) : (
+          <StatusBanner message={stateMessage} tone={visibleState?.phase === Phase.Finished ? 'success' : 'neutral'} />
+        )}
         {(actionError || game.error) && <StatusBanner message={actionError || game.error || ''} tone="error" />}
 
         <Animated.View style={{ opacity: animation.opacity, transform: [{ scale: animation.scale }] }}>
@@ -179,29 +195,38 @@ export function GameScreen({ navigation, route }: Props) {
           />
         </Animated.View>
 
-        {(game.gameState?.phase === Phase.Created || game.gameState?.phase === Phase.LineupP0Set) && game.isPlayer0 && (
-          <PrimaryButton accessibilityHint="Opens the system share sheet" variant="secondary" onPress={() => { shareRoom().catch(() => undefined); }}>Share invite link</PrimaryButton>
-        )}
         {(game.gameState?.phase === Phase.Created || game.gameState?.phase === Phase.LineupP0Set) && !isParticipant && (
           <PrimaryButton onPress={() => { perform(game.joinGame).catch(() => undefined); }} busy={game.isBusy}>Join this game</PrimaryButton>
         )}
         {canEditLineup && (
-          <View style={styles.actions}>
-            <PrimaryButton accessibilityHint="Creates a different random hidden lineup" variant="secondary" onPress={() => {
-              setSelected(null);
-              setLineup(createRandomLineup(game.isPlayer0));
-            }}>Shuffle lineup</PrimaryButton>
-            <PrimaryButton accessibilityHint="Saves your current hidden lineup" onPress={() => { submitLineup().catch(() => undefined); }} busy={game.isBusy}>
-              {hasSubmitted ? 'Save lineup changes' : 'Save lineup'}
-            </PrimaryButton>
-          </View>
-        )}
-
-        {game.gameState && isParticipant && (
-          <View style={styles.stats}>
-            <Stat label="Your pieces" value={String(game.isPlayer0 ? visibleState?.live0 ?? game.gameState.live0 : visibleState?.live1 ?? game.gameState.live1)} />
-            <Stat label="Opponent" value={String(game.isPlayer0 ? visibleState?.live1 ?? game.gameState.live1 : visibleState?.live0 ?? game.gameState.live0)} />
-            <Stat label="Side" value={game.isPlayer0 ? 'Player 1' : 'Player 2'} />
+          <View style={styles.lineupPanel} testID="lineup-controls">
+            <View style={styles.lineupHeader}>
+              <View style={styles.lineupCopy}>
+                <Text maxFontSizeMultiplier={2} style={styles.lineupEyebrow}>YOUR LINEUP</Text>
+                <Text maxFontSizeMultiplier={2} style={styles.lineupDescription}>
+                  {hasSubmitted ? 'Saved — you can keep editing it.' : 'Shuffle or tap pieces to rearrange.'}
+                </Text>
+              </View>
+              {hasSubmitted && (
+                <View accessibilityLabel="Lineup saved" style={styles.savedBadge}>
+                  <View style={styles.savedDot} />
+                  <Text maxFontSizeMultiplier={1.6} style={styles.savedText}>SAVED</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.lineupActions}>
+              <View style={styles.lineupAction}>
+                <PrimaryButton accessibilityHint="Creates a different random hidden lineup" variant="secondary" onPress={() => {
+                  setSelected(null);
+                  setLineup(createRandomLineup(game.isPlayer0));
+                }}>Shuffle</PrimaryButton>
+              </View>
+              <View style={styles.lineupAction}>
+                <PrimaryButton accessibilityHint="Saves your current hidden lineup" onPress={() => { submitLineup().catch(() => undefined); }} busy={game.isBusy}>
+                  {hasSubmitted ? 'Save changes' : 'Save lineup'}
+                </PrimaryButton>
+              </View>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -247,15 +272,6 @@ function WeaponButton({ choice, label, busy, onChoose }: { choice: WeaponChoice;
       <View style={styles.weaponButton}>
         <PrimaryButton accessibilityLabel={`Choose ${label.toLowerCase()}`} onPress={() => onChoose(choice)} disabled={busy}>{label}</PrimaryButton>
       </View>
-    </View>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <View accessibilityLabel={`${label}: ${value}`} accessible style={styles.stat}>
-      <Text maxFontSizeMultiplier={2} style={styles.statValue}>{value}</Text>
-      <Text maxFontSizeMultiplier={2} style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -325,11 +341,23 @@ const styles = StyleSheet.create({
   room: { color: colors.primary, fontSize: 24, fontWeight: '900', letterSpacing: 3 },
   connection: { color: colors.warning, borderColor: colors.warning, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, fontSize: 10, fontWeight: '900' },
   connected: { color: colors.success, borderColor: colors.success },
-  actions: { gap: spacing.md },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  stat: { flexGrow: 1, flexBasis: 120, backgroundColor: colors.surface, borderRadius: 12, padding: spacing.md, alignItems: 'center' },
-  statValue: { color: colors.text, fontSize: 16, fontWeight: '900' },
-  statLabel: { color: colors.textMuted, fontSize: 10, marginTop: 3 },
+  waitingCard: { backgroundColor: colors.surface, borderColor: colors.primaryMuted, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
+  waitingHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  waitingIndicator: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceStrong, borderColor: colors.primaryMuted, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  waitingDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.primary },
+  waitingCopy: { flex: 1, gap: spacing.xs },
+  waitingTitle: { color: colors.text, fontSize: 19, fontWeight: '900' },
+  waitingDescription: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  lineupPanel: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
+  lineupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  lineupCopy: { flex: 1, gap: spacing.xs },
+  lineupEyebrow: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
+  lineupDescription: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  lineupActions: { flexDirection: 'row', gap: spacing.sm },
+  lineupAction: { flex: 1 },
+  savedBadge: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: 999, backgroundColor: colors.surfaceStrong, paddingHorizontal: spacing.sm },
+  savedDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
+  savedText: { color: colors.success, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)' },
   modalScrollContent: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl },
   modalCard: { backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 2, borderRadius: 18, padding: spacing.xl, gap: spacing.md },

@@ -25,6 +25,8 @@ script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mobile_directory="$(cd "${script_directory}/.." && pwd)"
 archive_path="${RIPSY_IOS_ARCHIVE_PATH:-${TMPDIR:-/tmp}/RipsyMobile.xcarchive}"
 export_path="${RIPSY_IOS_EXPORT_PATH:-${TMPDIR:-/tmp}/RipsyMobileExport}"
+distribution_profile="${RIPSY_IOS_PROVISIONING_PROFILE:-RIPSY App Store}"
+distribution_certificate="${RIPSY_IOS_SIGNING_CERTIFICATE:-Apple Distribution}"
 temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/ripsy-ios-beta.XXXXXX")"
 export_options_path="${temporary_directory}/ExportOptions.plist"
 
@@ -33,7 +35,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-sed "s/__APPLE_TEAM_ID__/${APPLE_TEAM_ID}/g" > "${export_options_path}" <<'PLIST'
+sed \
+  -e "s|__APPLE_TEAM_ID__|${APPLE_TEAM_ID}|g" \
+  -e "s|__DISTRIBUTION_PROFILE__|${distribution_profile}|g" \
+  -e "s|__DISTRIBUTION_CERTIFICATE__|${distribution_certificate}|g" \
+  > "${export_options_path}" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -45,7 +51,14 @@ sed "s/__APPLE_TEAM_ID__/${APPLE_TEAM_ID}/g" > "${export_options_path}" <<'PLIST
   <key>teamID</key>
   <string>__APPLE_TEAM_ID__</string>
   <key>signingStyle</key>
-  <string>automatic</string>
+  <string>manual</string>
+  <key>signingCertificate</key>
+  <string>__DISTRIBUTION_CERTIFICATE__</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>com.dangervalley.ripsy</key>
+    <string>__DISTRIBUTION_PROFILE__</string>
+  </dict>
   <key>uploadSymbols</key>
   <true/>
   <key>manageAppVersionAndBuildNumber</key>
@@ -71,8 +84,6 @@ xcodebuild \
   -archivePath "${archive_path}" \
   -exportPath "${export_path}" \
   -exportOptionsPlist "${export_options_path}" \
-  -allowProvisioningUpdates \
   -authenticationKeyPath "${APP_STORE_CONNECT_API_KEY_PATH}" \
   -authenticationKeyID "${APP_STORE_CONNECT_API_KEY_ID}" \
   -authenticationKeyIssuerID "${APP_STORE_CONNECT_API_ISSUER_ID}"
-

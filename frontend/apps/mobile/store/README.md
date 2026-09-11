@@ -21,7 +21,10 @@ export APPLE_TEAM_ID="..."
 export APP_STORE_CONNECT_API_KEY_ID="..."
 export APP_STORE_CONNECT_API_ISSUER_ID="..."
 export APP_STORE_CONNECT_API_KEY_PATH="/absolute/path/to/AuthKey_....p8"
+# Optional when the installed profile/certificate use different names:
+export RIPSY_IOS_PROVISIONING_PROFILE="RIPSY App Store"
+export RIPSY_IOS_SIGNING_CERTIFICATE="Apple Distribution"
 npm run ios:beta
 ```
 
-The command creates a Release archive and uploads it to App Store Connect. It does not store signing credentials in the repository. Increase `CURRENT_PROJECT_VERSION` before each subsequent upload.
+The command creates a Release archive, exports it with the installed App Store provisioning profile, and uploads it to App Store Connect. It does not store signing credentials in the repository. Increase `CURRENT_PROJECT_VERSION` before each subsequent upload.

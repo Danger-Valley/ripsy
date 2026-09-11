@@ -93,7 +93,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                       {
                         width: cellSize * 0.88,
                         height: cellSize * 0.88,
-                        transform: [{ translateY: -cellSize * 0.2 }],
+                        transform: [{ translateY: -cellSize * 0.32 }],
                       },
                     ]}>
                     {riveFile ? (

@@ -178,6 +178,7 @@ export function GameScreen({ navigation, route }: Props) {
             ownOwner={game.ownOwner}
             previewLineup={canEditLineup ? lineup : undefined}
             selected={selected}
+            showOpponentFormation={canEditLineup}
             state={visibleState}
           />
         </Animated.View>

@@ -34,10 +34,11 @@ interface Props {
   availableMoves?: Coordinate[];
   interactionEnabled?: boolean;
   lineupEditing?: boolean;
+  showOpponentFormation?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
 }
 
-export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, lineupEditing = false, onCellPress }: Props) {
+export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, lineupEditing = false, showOpponentFormation = false, onCellPress }: Props) {
   const { width } = useWindowDimensions();
   const { riveFile } = useRiveFile(figureAsset);
   const boardSize = Math.min(width - 32, 600);
@@ -53,7 +54,11 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
             const y = isPlayer1 ? HEIGHT - 1 - displayY : displayY;
             const index = toIdx(x, y);
             const previewPiece = preview.get(index);
-            const owner = previewPiece === undefined ? state?.owners[index] ?? Owner.None : ownOwner;
+            const serverOwner = state?.owners[index] ?? Owner.None;
+            const isOpponentPreview = Boolean(showOpponentFormation && displayY < 2 && previewPiece === undefined && serverOwner === Owner.None);
+            const owner = previewPiece !== undefined
+              ? ownOwner
+              : isOpponentPreview ? opponentOf(ownOwner) : serverOwner;
             const piece = previewPiece ?? state?.pieces[index] ?? Piece.Empty;
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isSelected = selected?.x === x && selected.y === y;
@@ -89,11 +94,11 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                   <View
                     style={[
                       styles.piece,
-                      !isMine && styles.opponentPiece,
+                      !isMine && !isOpponentPreview && styles.opponentPiece,
                       {
                         width: cellSize * 0.88,
                         height: cellSize * 0.88,
-                        transform: [{ translateY: -cellSize * 0.43 }],
+                        transform: [{ translateY: -cellSize * (isOpponentPreview ? 0.28 : 0.43) }],
                       },
                     ]}>
                     {riveFile ? (
@@ -134,6 +139,12 @@ function pieceName(piece: Piece) {
   if (piece === Piece.Flag) return 'flag';
   if (piece === Piece.Trap) return 'trap';
   return 'piece';
+}
+
+function opponentOf(owner: Owner): Owner {
+  if (owner === Owner.P0) return Owner.P1;
+  if (owner === Owner.P1) return Owner.P0;
+  return Owner.None;
 }
 
 const styles = StyleSheet.create({

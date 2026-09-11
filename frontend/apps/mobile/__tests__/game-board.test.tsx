@@ -101,6 +101,31 @@ test('renders the local lineup preview over an empty server board', async () => 
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
 });
 
+test('renders an unarmed opponent formation during lineup setup', async () => {
+  const state = createState();
+  state.phase = Phase.Created;
+  state.owners.fill(Owner.None);
+  state.pieces.fill(Piece.Empty);
+
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <GameBoard
+        isPlayer1={false}
+        ownOwner={Owner.P0}
+        showOpponentFormation
+        state={state}
+      />,
+    );
+  });
+
+  const opponentCells = renderer.root.findAll(node => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.endsWith('opponent piece'));
+  expect(new Set(opponentCells.map(cell => cell.props.accessibilityLabel)).size).toBe(WIDTH * 2);
+  expect(renderer.root.findAll(node => node.props.testID === 'rive-view').map(figure => figure.props.stateMachineName)).toEqual(
+    Array(WIDTH * 2).fill('State Machine Front'),
+  );
+});
+
 test('keeps a lineup figure mounted while its piece changes', async () => {
   const state = createState();
   state.phase = Phase.Created;

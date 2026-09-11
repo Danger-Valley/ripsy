@@ -22,7 +22,8 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size }: Props) {
       if (cancelled) return;
       try {
         riveViewRef.setNumberInputValue('Weapon', piece);
-        if (piece === Piece.Trap && isMine) riveViewRef.triggerInput('Trap Idle');
+        if (piece === Piece.Empty) riveViewRef.setBooleanInputValue('WeaponVisible', false);
+        else if (piece === Piece.Trap && isMine) riveViewRef.triggerInput('Trap Idle');
         else riveViewRef.setBooleanInputValue('WeaponVisible', true);
         riveViewRef.playIfNeeded();
       } catch {

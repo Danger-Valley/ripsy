@@ -91,6 +91,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                       <RiveGamePiece
                         file={riveFile}
                         isMine={isMine}
+                        key={`${index}-${piece}`}
                         mirrored={Boolean(isPlayer1 && !isMine)}
                         piece={piece}
                         size={cellSize * 0.98}

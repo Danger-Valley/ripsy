@@ -100,3 +100,32 @@ test('renders the local lineup preview over an empty server board', async () => 
   });
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
 });
+
+test('remounts a lineup figure when its piece changes so trap animation state cannot leak', async () => {
+  const state = createState();
+  state.phase = Phase.Created;
+  state.owners.fill(Owner.None);
+  state.pieces.fill(Piece.Empty);
+  const renderBoard = (piece: Piece) => (
+    <GameBoard
+      isPlayer1={false}
+      ownOwner={Owner.P0}
+      previewLineup={[{ x: 0, y: HEIGHT - 1, piece }]}
+      state={state}
+    />
+  );
+
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(renderBoard(Piece.Trap));
+  });
+  const trapInstance = renderer.root.find(node => node.props.testID === 'rive-view');
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(renderBoard(Piece.Rock));
+  });
+  const rockInstance = renderer.root.find(node => node.props.testID === 'rive-view');
+
+  expect(rockInstance).not.toBe(trapInstance);
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your rock')).toBeDefined();
+});

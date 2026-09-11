@@ -47,6 +47,7 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Create the production Firebase project, register the native apps, add the upload-key fingerprint, and bundle their SDK configurations.
 - [ ] Provision production Firebase/APNs credentials and verify push delivery on physical iOS and Android devices.
   - [x] Provision the dedicated Railway FCM service account and verify `push: configured` in production health checks.
+  - [x] Upload the production APNs authentication key to Firebase and deliver iOS build `1.0.0 (2)` to TestFlight.
 - [x] Add accessibility labels and state, dynamic text-safe scrolling, system-respecting haptics, and tablet-width layouts.
 - [x] Add unit, component, WebSocket recovery, and two-client end-to-end tests.
 - [ ] Test on physical iOS and Android devices, including app suspension and network switching.

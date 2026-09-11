@@ -15,6 +15,7 @@
     "ios": "npm run ios -w @rps/mobile",
     "ios:beta": "npm run ios:beta -w @rps/mobile",
     "android": "npm run android -w @rps/mobile",
+    "android:bundle": "npm run android:bundle -w @rps/mobile",
     "dev:redis": "docker compose up redis",
     "build": "npm run typecheck -w @rps/backend && npm run build -w @rps/web && npm run typecheck -w @rps/mobile",
     "test": "npm run test:backend && npm run test:mobile",

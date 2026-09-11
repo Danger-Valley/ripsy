@@ -150,19 +150,6 @@ export function GameScreen({ navigation, route }: Props) {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <View>
-            <Text maxFontSizeMultiplier={2} style={styles.eyebrow}>ROOM</Text>
-            <Text accessibilityLabel={`Room code ${gameId}`} accessibilityRole="header" maxFontSizeMultiplier={1.8} style={styles.room}>{gameId}</Text>
-          </View>
-          <Text
-            accessibilityLabel={game.isConnected ? 'Game server connected' : `Game server ${game.status}`}
-            maxFontSizeMultiplier={1.8}
-            style={[styles.connection, game.isConnected && styles.connected]}>
-            {game.isConnected ? 'LIVE' : game.status.toUpperCase()}
-          </Text>
-        </View>
-
         {isWaitingForOpponent ? (
           <View style={styles.waitingCard}>
             <View accessibilityLabel="Waiting for opponent. Your lineup stays editable until the battle begins." accessible style={styles.waitingHeader}>
@@ -336,11 +323,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   invalidRoom: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
   content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg, gap: spacing.lg, paddingBottom: 48 },
-  header: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
-  eyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 2 },
-  room: { color: colors.primary, fontSize: 24, fontWeight: '900', letterSpacing: 3 },
-  connection: { color: colors.warning, borderColor: colors.warning, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, fontSize: 10, fontWeight: '900' },
-  connected: { color: colors.success, borderColor: colors.success },
   waitingCard: { backgroundColor: colors.surface, borderColor: colors.primaryMuted, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
   waitingHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   waitingIndicator: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceStrong, borderColor: colors.primaryMuted, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

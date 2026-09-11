@@ -61,7 +61,11 @@ function App() {
         theme={navigationTheme}>
         <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', headerShadowVisible: false }}>
           <Stack.Screen component={HomeScreen} name="Home" options={{ headerShown: false }} />
-          <Stack.Screen component={GameScreen} name="Game" options={{ title: 'Battle' }} />
+          <Stack.Screen
+            component={GameScreen}
+            name="Game"
+            options={({ route }) => ({ title: `Battle ${normalizeRoomCode(route.params.gameId) ?? route.params.gameId}` })}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

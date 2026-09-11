@@ -73,7 +73,7 @@ test('announces selected pieces and legal move targets', async () => {
   expect(move.props.accessibilityRole).toBe('button');
 });
 
-test('renders the local lineup preview over an empty server board', async () => {
+test('renders the local lineup preview as non-interactive before battle', async () => {
   const state = createState();
   state.phase = Phase.Joined;
   state.owners.fill(Owner.None);
@@ -83,10 +83,7 @@ test('renders the local lineup preview over an empty server board', async () => 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
       <GameBoard
-        interactionEnabled
         isPlayer1={false}
-        lineupEditing
-        onCellPress={() => undefined}
         ownOwner={Owner.P0}
         previewLineup={[{ x: 0, y: HEIGHT - 1, piece: Piece.Flag }]}
         state={state}
@@ -95,8 +92,8 @@ test('renders the local lineup preview over an empty server board', async () => 
   });
 
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your flag').props).toMatchObject({
-    accessibilityRole: 'button',
-    accessibilityHint: 'Select piece to rearrange',
+    accessibilityRole: 'text',
+    disabled: true,
   });
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
 });

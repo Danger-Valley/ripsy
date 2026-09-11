@@ -2,6 +2,7 @@ import React from 'react';
 import { Animated } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
+import { GameBoard } from '../src/components/game-board';
 import { GameScreen } from '../src/screens/game-screen';
 import { useGameAnimationQueue } from '../src/hooks/use-game-animation-queue';
 import { useNativeRipsyGame } from '../src/hooks/use-native-ripsy-game';
@@ -67,6 +68,7 @@ test('creator can arrange and save a lineup before an opponent joins', async () 
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Waiting for opponent. Your lineup stays editable until the battle begins.')).toBeDefined();
   expect(renderer.root.find(node => node.props.testID === 'lineup-controls')).toBeDefined();
   expect(renderer.root.find(node => node.props.accessibilityHint === 'Creates a different random hidden lineup')).toBeDefined();
+  expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(false);
   expect(renderer.root.findAll(node => node.props.children === 'Your pieces')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.children === 'Opponent')).toHaveLength(0);
   const save = renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup');

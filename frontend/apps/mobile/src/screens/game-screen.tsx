@@ -95,28 +95,6 @@ export function GameScreen({ navigation, route }: Props) {
   });
 
   const onCellPress = (coordinate: Coordinate) => {
-    if (canEditLineup) {
-      const selectedIndex = selected && lineup.findIndex(item => item.x === selected.x && item.y === selected.y);
-      const targetIndex = lineup.findIndex(item => item.x === coordinate.x && item.y === coordinate.y);
-      if (targetIndex < 0) return;
-      if (selectedIndex === null || selectedIndex === undefined || selectedIndex < 0) {
-        setSelected(coordinate);
-        return;
-      }
-      if (selectedIndex === targetIndex) {
-        setSelected(null);
-        return;
-      }
-      setLineup(current => {
-        const next = current.map(item => ({ ...item }));
-        const selectedPiece = next[selectedIndex]!.piece;
-        next[selectedIndex]!.piece = next[targetIndex]!.piece;
-        next[targetIndex]!.piece = selectedPiece;
-        return next;
-      });
-      setSelected(null);
-      return;
-    }
     const state = visibleState;
     if (!state || animation.isAnimating || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
     const owner = state.owners[toIdx(coordinate.x, coordinate.y)];
@@ -171,9 +149,8 @@ export function GameScreen({ navigation, route }: Props) {
         <Animated.View style={{ opacity: animation.opacity, transform: [{ scale: animation.scale }] }}>
           <GameBoard
             availableMoves={availableMoves}
-            interactionEnabled={Boolean(canEditLineup || (!animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending))}
+            interactionEnabled={Boolean(!animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending)}
             isPlayer1={game.isPlayer1}
-            lineupEditing={canEditLineup}
             onCellPress={onCellPress}
             ownOwner={game.ownOwner}
             previewLineup={canEditLineup ? lineup : undefined}
@@ -192,7 +169,7 @@ export function GameScreen({ navigation, route }: Props) {
               <View style={styles.lineupCopy}>
                 <Text maxFontSizeMultiplier={2} style={styles.lineupEyebrow}>YOUR LINEUP</Text>
                 <Text maxFontSizeMultiplier={2} style={styles.lineupDescription}>
-                  {hasSubmitted ? 'Saved — you can keep editing it.' : 'Shuffle or tap pieces to rearrange.'}
+                  {hasSubmitted ? 'Saved — shuffle again anytime.' : 'Shuffle until the lineup feels right.'}
                 </Text>
               </View>
               {hasSubmitted && (

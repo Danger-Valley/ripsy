@@ -93,7 +93,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                       {
                         width: cellSize * 0.88,
                         height: cellSize * 0.88,
-                        transform: [{ translateY: -cellSize * 0.32 }],
+                        transform: [{ translateY: -cellSize * 0.43 }],
                       },
                     ]}>
                     {riveFile ? (
@@ -102,7 +102,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                         isMine={isMine}
                         mirrored={Boolean(isPlayer1 && !isMine)}
                         piece={piece}
-                        size={cellSize * 1.525}
+                        size={cellSize * 1.68}
                       />
                     ) : null}
                   </View>

@@ -90,6 +90,8 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                 ]}>
                 {owner !== Owner.None ? (
                   <View
+                    pointerEvents="none"
+                    testID="piece-visual"
                     style={[
                       styles.piece,
                       !isMine && !isOpponentPreview && styles.opponentPiece,

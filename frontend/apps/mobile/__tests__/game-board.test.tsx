@@ -50,6 +50,9 @@ test('exposes piece names and only actionable cells as buttons', async () => {
     'State Machine Back',
     'State Machine Front',
   ]);
+  const pieceVisuals = renderer.root.findAll(node => node.props.testID === 'piece-visual');
+  expect(pieceVisuals.length).toBeGreaterThanOrEqual(2);
+  expect(pieceVisuals.every(visual => visual.props.pointerEvents === 'none')).toBe(true);
 });
 
 test('announces selected pieces and legal move targets', async () => {

@@ -101,7 +101,7 @@ test('renders the local lineup preview over an empty server board', async () => 
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
 });
 
-test('remounts a lineup figure when its piece changes so trap animation state cannot leak', async () => {
+test('keeps a lineup figure mounted while its piece changes', async () => {
   const state = createState();
   state.phase = Phase.Created;
   state.owners.fill(Owner.None);
@@ -126,6 +126,6 @@ test('remounts a lineup figure when its piece changes so trap animation state ca
   });
   const rockInstance = renderer.root.find(node => node.props.testID === 'rive-view');
 
-  expect(rockInstance).not.toBe(trapInstance);
+  expect(rockInstance).toBe(trapInstance);
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your rock')).toBeDefined();
 });

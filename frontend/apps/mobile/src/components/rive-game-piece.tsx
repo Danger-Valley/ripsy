@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Fit, RiveView, useRive, type RiveFile } from '@rive-app/react-native';
 import { Piece } from '@rps/core';
-import { colors } from '../theme';
 
 interface Props {
   file: RiveFile;
@@ -17,19 +16,29 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size }: Props) {
 
   useEffect(() => {
     if (!riveViewRef) return;
-    try {
-      riveViewRef.setNumberInputValue('Weapon', piece);
-      if (piece === Piece.Trap && isMine) riveViewRef.triggerInput('Trap Idle');
-      else riveViewRef.setBooleanInputValue('WeaponVisible', true);
-      riveViewRef.playIfNeeded();
-    } catch {
-      // The text fallback stays visible if this asset's state machine changes.
-    }
+    let cancelled = false;
+
+    const configurePiece = () => {
+      if (cancelled) return;
+      try {
+        riveViewRef.setNumberInputValue('Weapon', piece);
+        if (piece === Piece.Trap && isMine) riveViewRef.triggerInput('Trap Idle');
+        else riveViewRef.setBooleanInputValue('WeaponVisible', true);
+        riveViewRef.playIfNeeded();
+      } catch {
+        // Keep the board usable if this asset's state machine changes.
+      }
+    };
+
+    riveViewRef.reset().then(configurePiece, configurePiece);
+
+    return () => {
+      cancelled = true;
+    };
   }, [isMine, piece, riveViewRef]);
 
   return (
     <View pointerEvents="none" style={[styles.container, { width: size, height: size }]}>
-      {!riveViewRef && <Text allowFontScaling={false} style={[styles.fallback, { fontSize: Math.max(12, size * 0.3) }]}>{pieceLabel(piece, isMine)}</Text>}
       <RiveView
         autoPlay
         file={file}
@@ -42,19 +51,8 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size }: Props) {
   );
 }
 
-export function pieceLabel(piece: Piece, isMine = true) {
-  if (!isMine) return '?';
-  if (piece === Piece.Rock) return 'R';
-  if (piece === Piece.Paper) return 'P';
-  if (piece === Piece.Scissors) return 'S';
-  if (piece === Piece.Flag) return 'F';
-  if (piece === Piece.Trap) return 'T';
-  return '•';
-}
-
 const styles = StyleSheet.create({
   container: { alignItems: 'center', justifyContent: 'center' },
   rive: { position: 'absolute', inset: 0 },
   mirrored: { transform: [{ scaleX: -1 }] },
-  fallback: { color: colors.text, fontWeight: '900' },
 });

@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
+import { Image, Pressable, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
 import { useRiveFile } from '@rive-app/react-native';
 import { HEIGHT, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
 import { colors } from '../theme';
-import { pieceLabel, RiveGamePiece } from './rive-game-piece';
+import { RiveGamePiece } from './rive-game-piece';
 
 const figureAsset = require('../assets/figures/fig1.riv');
 const arrowAssets = {
@@ -100,14 +100,11 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                       <RiveGamePiece
                         file={riveFile}
                         isMine={isMine}
-                        key={`${index}-${piece}`}
                         mirrored={Boolean(isPlayer1 && !isMine)}
                         piece={piece}
                         size={cellSize * 1.525}
                       />
-                    ) : (
-                      <Text allowFontScaling={false} style={[styles.pieceLabel, { fontSize: Math.max(12, cellSize * 0.28) }]}>{pieceLabel(piece, isMine)}</Text>
-                    )}
+                    ) : null}
                   </View>
                 ) : isAvailable && selected ? (
                   <Image source={moveArrowSource(selected, { x, y }, isPlayer1)} style={styles.moveArrow} />
@@ -148,6 +145,5 @@ const styles = StyleSheet.create({
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   opponentPiece: { backgroundColor: '#5B3540', borderColor: '#FB7185', borderWidth: 2 },
-  pieceLabel: { color: colors.text, fontWeight: '900' },
   moveArrow: { width: 22, height: 22, resizeMode: 'contain', tintColor: colors.move },
 });

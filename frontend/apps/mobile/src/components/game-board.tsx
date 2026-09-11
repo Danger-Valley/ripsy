@@ -86,7 +86,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                   isSelected && styles.selectedCell,
                 ]}>
                 {owner !== Owner.None ? (
-                  <View style={[styles.piece, isMine ? styles.myPiece : styles.opponentPiece, { width: cellSize * 0.68, height: cellSize * 0.68 }]}>
+                  <View style={[styles.piece, isMine ? styles.myPiece : styles.opponentPiece, { width: cellSize * 0.88, height: cellSize * 0.88 }]}>
                     {riveFile ? (
                       <RiveGamePiece
                         file={riveFile}
@@ -94,7 +94,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                         key={`${index}-${piece}`}
                         mirrored={Boolean(isPlayer1 && !isMine)}
                         piece={piece}
-                        size={cellSize * 0.98}
+                        size={cellSize * 1.22}
                       />
                     ) : (
                       <Text allowFontScaling={false} style={[styles.pieceLabel, { fontSize: Math.max(12, cellSize * 0.28) }]}>{pieceLabel(piece, isMine)}</Text>

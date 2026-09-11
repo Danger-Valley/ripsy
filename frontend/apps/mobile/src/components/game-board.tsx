@@ -86,7 +86,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                   isSelected && styles.selectedCell,
                 ]}>
                 {owner !== Owner.None ? (
-                  <View style={[styles.piece, isMine ? styles.myPiece : styles.opponentPiece, { width: cellSize * 0.88, height: cellSize * 0.88 }]}>
+                  <View style={[styles.piece, !isMine && styles.opponentPiece, { width: cellSize * 0.88, height: cellSize * 0.88 }]}>
                     {riveFile ? (
                       <RiveGamePiece
                         file={riveFile}
@@ -137,9 +137,8 @@ const styles = StyleSheet.create({
   alternateCell: { backgroundColor: '#182731' },
   availableCell: { backgroundColor: '#12384A' },
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
-  piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  myPiece: { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
-  opponentPiece: { backgroundColor: '#5B3540', borderColor: '#FB7185' },
+  piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  opponentPiece: { backgroundColor: '#5B3540', borderColor: '#FB7185', borderWidth: 2 },
   pieceLabel: { color: colors.text, fontWeight: '900' },
   moveArrow: { width: 22, height: 22, resizeMode: 'contain', tintColor: colors.move },
 });

@@ -8,7 +8,7 @@
     "frontend/packages/*"
   ],
   "scripts": {
-    "postinstall": "patch-package",
+    "postinstall": "node scripts/apply-patches.mjs",
     "dev": "docker compose up -d redis && concurrently -n server,web -c cyan,green \"npm run dev:server\" \"npm run dev:web\"",
     "dev:server": "npm run dev -w @rps/backend",
     "dev:web": "npm run dev -w @rps/web",

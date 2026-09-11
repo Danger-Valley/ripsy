@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { Fit, RiveView, useRive, type RiveFile } from '@rive-app/react-native';
 import { Piece } from '@rps/core';
 
@@ -9,14 +9,18 @@ interface Props {
   mirrored: boolean;
   piece: Piece;
   size: number;
+  staggerStart?: boolean;
 }
 
-export function RiveGamePiece({ file, isMine, mirrored, piece, size }: Props) {
+export function RiveGamePiece({ file, isMine, mirrored, piece, size, staggerStart = false }: Props) {
   const { riveViewRef, setHybridRef } = useRive();
+  const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
+  const hasStarted = useRef(false);
 
   useEffect(() => {
     if (!riveViewRef) return;
     let cancelled = false;
+    let startTimer: ReturnType<typeof setTimeout> | undefined;
 
     const configurePiece = () => {
       if (cancelled) return;
@@ -30,17 +34,34 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size }: Props) {
       }
     };
 
-    riveViewRef.reset().then(configurePiece, configurePiece);
+    const startPlayback = () => {
+      if (cancelled) return;
+      hasStarted.current = true;
+      riveViewRef.reset().then(configurePiece, configurePiece);
+    };
+
+    if (staggerStart && !hasStarted.current) {
+      AccessibilityInfo.isReduceMotionEnabled()
+        .catch(() => false)
+        .then(reduceMotion => {
+          if (cancelled) return;
+          if (reduceMotion) startPlayback();
+          else startTimer = setTimeout(startPlayback, initialDelayMs);
+        });
+    } else {
+      startPlayback();
+    }
 
     return () => {
       cancelled = true;
+      if (startTimer) clearTimeout(startTimer);
     };
-  }, [isMine, piece, riveViewRef]);
+  }, [initialDelayMs, isMine, piece, riveViewRef, staggerStart]);
 
   return (
     <View pointerEvents="none" style={[styles.container, { width: size, height: size }]}>
       <RiveView
-        autoPlay
+        autoPlay={!staggerStart}
         file={file}
         fit={Fit.Contain}
         hybridRef={setHybridRef}

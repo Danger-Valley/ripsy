@@ -10,6 +10,11 @@ if (releaseSigningFile.exists()) {
 def hasReleaseSigning = ["storeFile", "storePassword", "keyAlias", "keyPassword"].every {
     releaseSigning.getProperty(it)
 }
+def versionFile = rootProject.file("version.properties")
+def releaseVersion = new Properties()
+if (versionFile.exists()) {
+    versionFile.withInputStream { releaseVersion.load(it) }
+}
 
 if (file("google-services.json").exists()) {
     apply plugin: "com.google.gms.google-services"
@@ -96,8 +101,8 @@ android {
         applicationId "com.dangervalley.ripsy"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode Integer.parseInt(System.getenv("RIPSY_VERSION_CODE") ?: "1")
-        versionName System.getenv("RIPSY_VERSION_NAME") ?: "1.0.0"
+        versionCode Integer.parseInt(System.getenv("RIPSY_VERSION_CODE") ?: releaseVersion.getProperty("VERSION_CODE", "1"))
+        versionName System.getenv("RIPSY_VERSION_NAME") ?: releaseVersion.getProperty("VERSION_NAME", "1.0.0")
     }
     signingConfigs {
         debug {

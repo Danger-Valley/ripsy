@@ -17,6 +17,7 @@
     "ios:beta": "npm run ios:beta -w @rps/mobile",
     "android": "npm run android -w @rps/mobile",
     "android:bundle": "npm run android:bundle -w @rps/mobile",
+    "build:prod-seeker": "npm run build:prod-seeker -w @rps/mobile",
     "mobile:release:preflight": "npm run release:preflight -w @rps/mobile --",
     "dev:redis": "docker compose up redis",
     "build": "npm run typecheck -w @rps/backend && npm run build -w @rps/web && npm run typecheck -w @rps/mobile",

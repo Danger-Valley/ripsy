@@ -5,6 +5,8 @@
   "scripts": {
     "android": "react-native run-android",
     "android:bundle": "./scripts/android-bundle.sh",
+    "build:prod-seeker": "./scripts/build-prod-seeker.sh",
+    "bump:build": "./scripts/bump-build.sh",
     "ios": "react-native run-ios",
     "ios:beta": "./scripts/ios-beta.sh",
     "lint": "eslint .",

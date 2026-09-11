@@ -33,10 +33,11 @@ interface Props {
   selected?: Coordinate | null;
   availableMoves?: Coordinate[];
   interactionEnabled?: boolean;
+  lineupEditing?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
 }
 
-export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, onCellPress }: Props) {
+export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, lineupEditing = false, onCellPress }: Props) {
   const { width } = useWindowDimensions();
   const { riveFile } = useRiveFile(figureAsset);
   const boardSize = Math.min(width - 32, 600);
@@ -62,7 +63,8 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
               ? 'empty'
               : isMine ? `your ${pieceName(piece)}` : 'opponent piece';
             const hint = isSelected
-              ? 'Selected piece'
+              ? lineupEditing ? 'Selected for swapping' : 'Selected piece'
+              : lineupEditing && isActionable ? selected ? 'Swap with the selected piece' : 'Select piece to rearrange'
               : isAvailable ? 'Move selected piece here' : isActionable ? 'Select this piece' : undefined;
             return (
               <Pressable

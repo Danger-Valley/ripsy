@@ -33,6 +33,38 @@ test('creates, joins, and starts a game after both lineups', () => {
   assert.equal(game.live1, 14);
 });
 
+test('lets the creator save and replace a lineup before an opponent joins', () => {
+  const game = createGameRecord('game-1', 'alice');
+  submitLineup(game, 'alice', xs, aliceYs, lineup);
+  assert.equal(game.phase, Phase.LineupP0Set);
+  assert.equal(game.p1, '');
+
+  const replacedXs = [...xs];
+  [replacedXs[0], replacedXs[4]] = [replacedXs[4]!, replacedXs[0]!];
+  submitLineup(game, 'alice', replacedXs, aliceYs, lineup);
+  assert.equal(game.phase, Phase.LineupP0Set);
+  assert.equal(game.pieces[5 * 7], Piece.Paper);
+  assert.equal(game.pieces[5 * 7 + 4], Piece.Rock);
+
+  joinGame(game, 'bob');
+  assert.equal(game.phase, Phase.LineupP0Set);
+  submitLineup(game, 'bob', xs, bobYs, lineup);
+  assert.equal(game.phase, Phase.Active);
+});
+
+test('lets either player replace a saved lineup until both players are ready', () => {
+  const game = createGameRecord('game-1', 'alice');
+  joinGame(game, 'bob');
+  submitLineup(game, 'bob', xs, bobYs, lineup);
+  assert.equal(game.phase, Phase.LineupP1Set);
+  submitLineup(game, 'bob', xs, bobYs, [...lineup].reverse());
+  assert.equal(game.phase, Phase.LineupP1Set);
+
+  submitLineup(game, 'alice', xs, aliceYs, lineup);
+  assert.equal(game.phase, Phase.Active);
+  assert.throws(() => submitLineup(game, 'alice', xs, aliceYs, lineup), /cannot be changed/);
+});
+
 test('hides opponent pieces in player-specific views', () => {
   const game = createGameRecord('game-1', 'alice');
   joinGame(game, 'bob');

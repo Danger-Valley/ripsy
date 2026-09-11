@@ -693,6 +693,32 @@ export default function GamePage() {
     return lineup;
   }, [isPlayer0, isPlayer1, gameState, playerId]);
 
+  // Restore the latest saved lineup from the authoritative state after a reload.
+  const generateSavedLineup = useCallback(() => {
+    if (!gameState) return [];
+    const ownOwner = isPlayer0 ? Owner.P0 : isPlayer1 ? Owner.P1 : Owner.None;
+    if (ownOwner === Owner.None) return [];
+
+    const lineup: Figure[] = [];
+    for (let index = 0; index < gameState.owners.length; index += 1) {
+      if (gameState.owners[index] !== ownOwner) continue;
+      const canonicalRow = Math.floor(index / WIDTH);
+      const canonicalCol = index % WIDTH;
+      const piece = gameState.pieces[index] as Weapon;
+      const isTrap = piece === Weapon.Trap;
+      lineup.push({
+        id: `lineup-saved-${index}`,
+        row: isPlayer1 ? HEIGHT - 1 - canonicalRow : canonicalRow,
+        col: isPlayer1 ? WIDTH - 1 - canonicalCol : canonicalCol,
+        weapon: isTrap ? undefined : piece,
+        isMyFigure: true,
+        isAlive: true,
+        isTrap,
+      });
+    }
+    return lineup;
+  }, [gameState, isPlayer0, isPlayer1]);
+
   // Generate opponent's lineup from game state (without weapons)
   const generateOpponentLineup = useCallback(() => {
     if (!gameState || !playerId) {
@@ -821,8 +847,7 @@ export default function GamePage() {
 
       await submitCustomLineup(xs, ys, pieces);
 
-      setIsSettingLineup(false);
-      toast.success('Lineup submitted successfully!');
+      toast.success('Lineup saved. You can keep changing it until the battle starts.');
     } catch (err) {
       console.error('Failed to submit lineup:', err);
       toast.error(`Failed to submit lineup: ${err}`);
@@ -984,20 +1009,16 @@ export default function GamePage() {
         isSettingLineup
       });
 
-      // Lineups can be submitted after both players join and before the game becomes active.
-      // But we show controls when it's the player's turn to submit
-      const shouldSetLineup =
-        (gameState.phase === 1 && isPlayer0) || // Joined phase, player 0 can submit first
-        (gameState.phase === 1 && isPlayer1 && !isEmptyPlayerId(gameState.p0)) || // Joined phase, player 1 can submit if P0 exists
-        (gameState.phase === 2 && isPlayer1) || // LineupP0Set phase, player 1 can submit
-        (gameState.phase === 3 && isPlayer0); // LineupP1Set phase, player 0 can submit
+      // Participants can save and replace their lineup until both lineups start the battle.
+      const shouldSetLineup = gameState.phase < 4 && (isPlayer0 || isPlayer1);
 
       console.log('Should set lineup:', shouldSetLineup);
 
       if (shouldSetLineup && myLineup.length === 0) {
-        console.log('Setting lineup mode to true and generating lineup');
+        console.log('Setting lineup mode to true and restoring or generating lineup');
         setIsSettingLineup(true);
-        setMyLineup(generateRandomLineup());
+        const savedLineup = generateSavedLineup();
+        setMyLineup(savedLineup.length > 0 ? savedLineup : generateRandomLineup());
         // Also generate opponent lineup immediately
         const initialOpponentLineup = generateOpponentLineup();
         setOpponentLineup(initialOpponentLineup);
@@ -1007,7 +1028,7 @@ export default function GamePage() {
         setIsSettingLineup(false);
       }
     }
-  }, [gameState, isAuthorized, isPlayer0, isPlayer1, myLineup.length, generateRandomLineup, generateOpponentLineup, isSettingLineup]);
+  }, [gameState, isAuthorized, isPlayer0, isPlayer1, myLineup.length, generateRandomLineup, generateSavedLineup, generateOpponentLineup, isSettingLineup]);
 
   // Update figures when authoritative server state changes.
   useEffect(() => {
@@ -1181,85 +1202,6 @@ export default function GamePage() {
           </div>
           <div style={{ fontSize: 14 }}>
             {gameError || 'Connecting to the game server…'}
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // Show "waiting for opponent" screen when you're in the game and the other slot is empty
-  if (
-    isAuthorized &&
-    gameState &&
-    (
-      (isPlayer0 && isEmptyPlayerId(String(gameState.p1 || ''))) ||
-      (isPlayer1 && isEmptyPlayerId(String(gameState.p0 || '')))
-    ) &&
-    (gameState.phase === 0 || gameState.phase === 1)
-  ) {
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-    return (
-      <main style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        fontFamily: 'system-ui, sans-serif',
-        background: 'linear-gradient(135deg, #0e1419 0%, #11171c 100%)'
-      }}>
-        <div style={{
-          textAlign: 'center',
-          background: '#0e1419',
-          border: '1px solid #2b3a44',
-          borderRadius: '12px',
-          padding: '48px',
-          maxWidth: '560px',
-          width: '90%'
-        }}>
-          <div style={{ fontSize: 28, color: '#66fcf1', marginBottom: 16, fontWeight: 'bold' }}>
-            Waiting for the opponent to join
-          </div>
-          <div style={{ color: '#c5c6c7', marginBottom: 24, fontSize: 16, lineHeight: 1.5 }}>
-            Share the link with your friend to invite them to this game.
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-            <input
-              readOnly
-              value={shareUrl}
-              style={{
-                flex: 1,
-                background: '#0b1116',
-                color: '#c5c6c7',
-                border: '1px solid #2b3a44',
-                borderRadius: 8,
-                padding: '12px',
-                fontSize: 14
-              }}
-            />
-            <button
-              onClick={() => {
-                if (shareUrl) {
-                  navigator.clipboard.writeText(shareUrl);
-                  toast.success('Link copied to clipboard');
-                }
-              }}
-              style={{
-                background: '#66fcf1',
-                color: '#0e1419',
-                border: 'none',
-                padding: '12px 16px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 'bold'
-              }}
-            >
-              Copy Link
-            </button>
-          </div>
-          <div style={{ color: '#8a9ba8', fontSize: 12 }}>
-            Room: {gameId}
           </div>
         </div>
       </main>
@@ -1702,8 +1644,8 @@ export default function GamePage() {
                 </button>
               </span>
             },
-            { icon: '✓', label: 'My lineup', value: <span style={{ color: gameState?.phase && gameState.phase >= (isPlayer0 ? 2 : 3) ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: 600 }}>{gameState?.phase && gameState.phase >= (isPlayer0 ? 2 : 3) ? 'Submitted' : 'Pending'}</span> },
-            { icon: '✓', label: 'Opp. lineup', value: <span style={{ color: gameState?.phase && gameState.phase >= (isPlayer0 ? 3 : 2) ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: 600 }}>{gameState?.phase && gameState.phase >= (isPlayer0 ? 3 : 2) ? 'Submitted' : 'Pending'}</span> },
+            { icon: '✓', label: 'My lineup', value: <span style={{ color: gameState && (gameState.phase >= 4 || gameState.phase === (isPlayer0 ? 2 : 3)) ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: 600 }}>{gameState && (gameState.phase >= 4 || gameState.phase === (isPlayer0 ? 2 : 3)) ? 'Saved' : 'Pending'}</span> },
+            { icon: '✓', label: 'Opp. lineup', value: <span style={{ color: gameState && (gameState.phase >= 4 || gameState.phase === (isPlayer0 ? 3 : 2)) ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: 600 }}>{gameState && (gameState.phase >= 4 || gameState.phase === (isPlayer0 ? 3 : 2)) ? 'Saved' : 'Pending'}</span> },
           ].map(({ icon, label, value }, i, arr) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', borderBottom: i < arr.length - 1 ? '1px solid #1a2029' : 'none' }}>
               <span style={{ fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1738,7 +1680,7 @@ export default function GamePage() {
                 onMouseOver={e => { e.currentTarget.style.background = '#1e5c3a'; }}
                 onMouseOut={e => { e.currentTarget.style.background = '#1b4332'; }}
               >
-                ✅ Submit Lineup
+                ✅ Save Lineup
               </button>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Choice, HEIGHT, Phase, Piece, toIdx, WIDTH } from '@rps/core';
+import { Choice, HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
@@ -41,11 +41,13 @@ export function GameScreen({ navigation, route }: Props) {
       ? game.gameState.phase === Phase.LineupP0Set || game.gameState.phase >= Phase.Active
       : game.gameState.phase === Phase.LineupP1Set || game.gameState.phase >= Phase.Active
   ));
-  const needsLineup = Boolean(isParticipant && game.gameState && game.gameState.phase >= Phase.Joined && game.gameState.phase < Phase.Active && !hasSubmitted);
+  const canEditLineup = Boolean(isParticipant && game.gameState && game.gameState.phase < Phase.Active);
 
   useEffect(() => {
-    if (needsLineup && lineup.length === 0) setLineup(createRandomLineup(game.isPlayer0));
-  }, [game.isPlayer0, lineup.length, needsLineup]);
+    if (!canEditLineup || lineup.length > 0 || !game.gameState) return;
+    const savedLineup = lineupFromState(game.gameState, game.ownOwner);
+    setLineup(savedLineup.length > 0 ? savedLineup : createRandomLineup(game.isPlayer0));
+  }, [canEditLineup, game.gameState, game.isPlayer0, game.ownOwner, lineup.length]);
 
   useEffect(() => {
     if (!game.gameState?.tiePending) setSelected(null);
@@ -82,11 +84,7 @@ export function GameScreen({ navigation, route }: Props) {
     }
   };
 
-  const submitLineup = () => perform(() => game.submitLineup(
-    lineup.map(item => item.x),
-    lineup.map(item => item.y),
-    lineup.map(item => item.piece),
-  ));
+  const submitLineup = () => perform(() => saveLineup(game.submitLineup, lineup));
 
   const shareRoom = () => perform(async () => {
     const inviteUrl = createGameInviteUrl(gameId);
@@ -96,6 +94,28 @@ export function GameScreen({ navigation, route }: Props) {
   });
 
   const onCellPress = (coordinate: Coordinate) => {
+    if (canEditLineup) {
+      const selectedIndex = selected && lineup.findIndex(item => item.x === selected.x && item.y === selected.y);
+      const targetIndex = lineup.findIndex(item => item.x === coordinate.x && item.y === coordinate.y);
+      if (targetIndex < 0) return;
+      if (selectedIndex === null || selectedIndex === undefined || selectedIndex < 0) {
+        setSelected(coordinate);
+        return;
+      }
+      if (selectedIndex === targetIndex) {
+        setSelected(null);
+        return;
+      }
+      setLineup(current => {
+        const next = current.map(item => ({ ...item }));
+        const selectedPiece = next[selectedIndex]!.piece;
+        next[selectedIndex]!.piece = next[targetIndex]!.piece;
+        next[targetIndex]!.piece = selectedPiece;
+        return next;
+      });
+      setSelected(null);
+      return;
+    }
     const state = visibleState;
     if (!state || animation.isAnimating || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
     const owner = state.owners[toIdx(coordinate.x, coordinate.y)];
@@ -115,7 +135,7 @@ export function GameScreen({ navigation, route }: Props) {
 
   const stateMessage = animation.activeKind
     ? getAnimationMessage(animation.activeKind)
-    : getStateMessage(visibleState?.phase, isParticipant, needsLineup, hasSubmitted, game.isMyTurn);
+    : getStateMessage(visibleState?.phase, isParticipant, canEditLineup, hasSubmitted, game.isMyTurn);
 
   if (!gameId) {
     return (
@@ -148,26 +168,32 @@ export function GameScreen({ navigation, route }: Props) {
         <Animated.View style={{ opacity: animation.opacity, transform: [{ scale: animation.scale }] }}>
           <GameBoard
             availableMoves={availableMoves}
-            interactionEnabled={Boolean(!animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending)}
+            interactionEnabled={Boolean(canEditLineup || (!animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending))}
             isPlayer1={game.isPlayer1}
+            lineupEditing={canEditLineup}
             onCellPress={onCellPress}
             ownOwner={game.ownOwner}
-            previewLineup={needsLineup ? lineup : undefined}
+            previewLineup={canEditLineup ? lineup : undefined}
             selected={selected}
             state={visibleState}
           />
         </Animated.View>
 
-        {game.gameState?.phase === Phase.Created && game.isPlayer0 && (
+        {(game.gameState?.phase === Phase.Created || game.gameState?.phase === Phase.LineupP0Set) && game.isPlayer0 && (
           <PrimaryButton accessibilityHint="Opens the system share sheet" variant="secondary" onPress={() => { shareRoom().catch(() => undefined); }}>Share invite link</PrimaryButton>
         )}
-        {game.gameState?.phase === Phase.Created && !isParticipant && (
+        {(game.gameState?.phase === Phase.Created || game.gameState?.phase === Phase.LineupP0Set) && !isParticipant && (
           <PrimaryButton onPress={() => { perform(game.joinGame).catch(() => undefined); }} busy={game.isBusy}>Join this game</PrimaryButton>
         )}
-        {needsLineup && (
+        {canEditLineup && (
           <View style={styles.actions}>
-            <PrimaryButton accessibilityHint="Creates a different random hidden lineup" variant="secondary" onPress={() => setLineup(createRandomLineup(game.isPlayer0))}>Shuffle lineup</PrimaryButton>
-            <PrimaryButton accessibilityHint="Locks in your current hidden lineup" onPress={() => { submitLineup().catch(() => undefined); }} busy={game.isBusy}>Submit lineup</PrimaryButton>
+            <PrimaryButton accessibilityHint="Creates a different random hidden lineup" variant="secondary" onPress={() => {
+              setSelected(null);
+              setLineup(createRandomLineup(game.isPlayer0));
+            }}>Shuffle lineup</PrimaryButton>
+            <PrimaryButton accessibilityHint="Saves your current hidden lineup" onPress={() => { submitLineup().catch(() => undefined); }} busy={game.isBusy}>
+              {hasSubmitted ? 'Save lineup changes' : 'Save lineup'}
+            </PrimaryButton>
           </View>
         )}
 
@@ -234,14 +260,37 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function getStateMessage(phase: Phase | undefined, isParticipant: boolean, needsLineup: boolean, hasSubmitted: boolean, isMyTurn: boolean) {
+function getStateMessage(phase: Phase | undefined, isParticipant: boolean, canEditLineup: boolean, hasSubmitted: boolean, isMyTurn: boolean) {
   if (phase === undefined) return 'Loading the latest game state…';
+  if (!isParticipant && (phase === Phase.Created || phase === Phase.LineupP0Set)) return 'This room has an open player slot';
+  if (canEditLineup) {
+    if (hasSubmitted) return 'Lineup saved. You can change it until the battle starts';
+    return 'Shuffle and save your hidden lineup';
+  }
   if (phase === Phase.Created) return isParticipant ? 'Waiting for an opponent to join' : 'This room has an open player slot';
-  if (needsLineup) return 'Shuffle and submit your hidden lineup';
-  if (phase < Phase.Active && hasSubmitted) return 'Lineup submitted. Waiting for your opponent';
   if (phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : "Opponent's turn";
   if (phase === Phase.Finished) return 'Game finished';
   return 'Preparing game…';
+}
+
+function saveLineup(
+  submit: (xs: number[], ys: number[], pieces: number[]) => Promise<unknown>,
+  lineup: LineupPiece[],
+) {
+  return submit(
+    lineup.map(item => item.x),
+    lineup.map(item => item.y),
+    lineup.map(item => item.piece),
+  );
+}
+
+function lineupFromState(state: GameState, owner: Owner): LineupPiece[] {
+  const lineup: LineupPiece[] = [];
+  for (let index = 0; index < state.owners.length; index += 1) {
+    if (state.owners[index] !== owner || state.pieces[index] === Piece.Empty) continue;
+    lineup.push({ x: index % WIDTH, y: Math.floor(index / WIDTH), piece: state.pieces[index]! });
+  }
+  return lineup;
 }
 
 function createRandomLineup(isPlayer0: boolean): LineupPiece[] {

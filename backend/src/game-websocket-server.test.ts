@@ -68,6 +68,10 @@ test('two authenticated clients play through the real WebSocket transport and re
   assert.equal(created.gameId, 'game-1');
   alice.setGameId(created.gameId);
 
+  const aliceSaved = waitForState(alice, state => state.phase === Phase.LineupP0Set);
+  await alice.request({ type: 'submitLineup', gameId: created.gameId!, xs, ys: aliceYs, pieces });
+  await aliceSaved;
+
   const bobConnected = waitForStatus(bob, 'connected');
   bob.connect(created.gameId);
   await bobConnected;
@@ -75,7 +79,6 @@ test('two authenticated clients play through the real WebSocket transport and re
 
   const aliceActive = waitForState(alice, state => state.phase === Phase.Active);
   const bobActive = waitForState(bob, state => state.phase === Phase.Active);
-  await alice.request({ type: 'submitLineup', gameId: created.gameId!, xs, ys: aliceYs, pieces });
   await bob.request({ type: 'submitLineup', gameId: created.gameId!, xs, ys: bobYs, pieces });
   const [aliceState, bobState] = await Promise.all([aliceActive, bobActive]);
 

@@ -70,9 +70,11 @@ export function createGameRecord(id: string, playerId: string, now = new Date())
 
 export function joinGame(game: GameRecord, playerId: string) {
   if (game.p0 === playerId || game.p1 === playerId) return;
-  if (game.p1 || game.phase !== Phase.Created) throw new Error('This game already has two players');
+  if (game.p1 || (game.phase !== Phase.Created && game.phase !== Phase.LineupP0Set)) {
+    throw new Error('This game already has two players');
+  }
   game.p1 = playerId;
-  game.phase = Phase.Joined;
+  if (game.phase === Phase.Created) game.phase = Phase.Joined;
   touch(game);
 }
 
@@ -84,16 +86,13 @@ export function submitLineup(
   rawPieces: number[],
 ) {
   requireParticipant(game, playerId);
-  if (game.phase !== Phase.Joined && game.phase !== Phase.LineupP0Set && game.phase !== Phase.LineupP1Set) {
+  if (game.phase >= Phase.Active) {
     throw new Error('Lineups cannot be changed in this game phase');
   }
   if (xs.length !== 14 || ys.length !== 14 || rawPieces.length !== 14) {
     throw new Error('A lineup must contain exactly 14 pieces');
   }
   const isP0 = game.p0 === playerId;
-  if ((isP0 && game.phase === Phase.LineupP0Set) || (!isP0 && game.phase === Phase.LineupP1Set)) {
-    throw new Error('Your lineup has already been submitted');
-  }
 
   const counts = new Map<number, number>();
   const positions = xs.map((x, index) => {
@@ -116,6 +115,11 @@ export function submitLineup(
   }
 
   const owner = isP0 ? Owner.P0 : Owner.P1;
+  for (let index = 0; index < game.owners.length; index += 1) {
+    if (game.owners[index] !== owner) continue;
+    game.owners[index] = Owner.None;
+    game.pieces[index] = Piece.Empty;
+  }
   for (const position of positions) {
     if (game.owners[position.index] !== Owner.None) throw new Error('A lineup cell is already occupied');
   }
@@ -125,11 +129,16 @@ export function submitLineup(
   }
   if (isP0) {
     game.live0 = 14;
-    game.phase = game.phase === Phase.LineupP1Set ? Phase.Active : Phase.LineupP0Set;
   } else {
     game.live1 = 14;
-    game.phase = game.phase === Phase.LineupP0Set ? Phase.Active : Phase.LineupP1Set;
   }
+  game.phase = game.p1 && game.live0 === 14 && game.live1 === 14
+    ? Phase.Active
+    : game.live0 === 14
+      ? Phase.LineupP0Set
+      : game.live1 === 14
+        ? Phase.LineupP1Set
+        : game.p1 ? Phase.Joined : Phase.Created;
   touch(game);
 }
 

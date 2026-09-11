@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Phase } from '@rps/core';
+import { Phase, Piece } from '@rps/core';
 import { RedisGameStore, type RedisCommands } from './redis-game-store.js';
 
 class FakeRedis implements RedisCommands {
@@ -52,6 +52,33 @@ test('persists game state in Redis-compatible storage', async () => {
   assert.equal((await firstInstance.get(created.gameId, 'alice')).p1, 'bob');
   assert.equal(redis.values.size, 1);
   assert.ok(redis.events.length >= 2);
+});
+
+test('persists and replaces a creator lineup before another instance joins', async () => {
+  const redis = new FakeRedis();
+  const firstInstance = new RedisGameStore(redis);
+  const secondInstance = new RedisGameStore(redis);
+  const created = await firstInstance.create('alice');
+  const xs = Array.from({ length: 14 }, (_, index) => index % 7);
+  const ys = Array.from({ length: 14 }, (_, index) => 5 + Math.floor(index / 7));
+  const firstPieces = [
+    ...Array(4).fill(Piece.Rock),
+    ...Array(4).fill(Piece.Paper),
+    ...Array(4).fill(Piece.Scissors),
+    Piece.Flag,
+    Piece.Trap,
+  ];
+  const secondPieces = [...firstPieces].reverse();
+
+  await firstInstance.submitLineup(created.gameId, 'alice', xs, ys, firstPieces);
+  const persisted = await secondInstance.get(created.gameId, 'alice');
+  assert.equal(persisted.phase, Phase.LineupP0Set);
+  assert.deepEqual(persisted.pieces.filter(piece => piece !== Piece.Empty), firstPieces);
+
+  await secondInstance.submitLineup(created.gameId, 'alice', xs, ys, secondPieces);
+  const joined = await firstInstance.join(created.gameId, 'bob');
+  assert.equal(joined.phase, Phase.LineupP0Set);
+  assert.deepEqual((await firstInstance.get(created.gameId, 'alice')).pieces.filter(piece => piece !== Piece.Empty), secondPieces);
 });
 
 test('atomic compare-and-swap admits only one competing player', async () => {

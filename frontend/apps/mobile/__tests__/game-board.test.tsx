@@ -83,7 +83,10 @@ test('renders the local lineup preview over an empty server board', async () => 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
       <GameBoard
+        interactionEnabled
         isPlayer1={false}
+        lineupEditing
+        onCellPress={() => undefined}
         ownOwner={Owner.P0}
         previewLineup={[{ x: 0, y: HEIGHT - 1, piece: Piece.Flag }]}
         state={state}
@@ -91,6 +94,9 @@ test('renders the local lineup preview over an empty server board', async () => 
     );
   });
 
-  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your flag')).toBeDefined();
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your flag').props).toMatchObject({
+    accessibilityRole: 'button',
+    accessibilityHint: 'Select piece to rearrange',
+  });
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
 });

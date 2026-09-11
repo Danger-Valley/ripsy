@@ -22,9 +22,8 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size }: Props) {
       if (cancelled) return;
       try {
         riveViewRef.setNumberInputValue('Weapon', piece);
-        if (piece === Piece.Empty) riveViewRef.setBooleanInputValue('WeaponVisible', false);
-        else if (piece === Piece.Trap && isMine) riveViewRef.triggerInput('Trap Idle');
-        else riveViewRef.setBooleanInputValue('WeaponVisible', true);
+        riveViewRef.setBooleanInputValue('WeaponVisible', piece !== Piece.Empty && piece !== Piece.Trap);
+        if (piece === Piece.Trap && isMine) riveViewRef.triggerInput('Trap Idle');
         riveViewRef.playIfNeeded();
       } catch {
         // Keep the board usable if this asset's state machine changes.

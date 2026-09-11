@@ -98,7 +98,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                       {
                         width: cellSize * 0.88,
                         height: cellSize * 0.88,
-                        transform: [{ translateY: -cellSize * (isOpponentPreview ? 0.28 : 0.43) }],
+                        transform: [{ translateY: -cellSize * (isOpponentPreview ? 0.34 : 0.43) }],
                       },
                     ]}>
                     {riveFile ? (

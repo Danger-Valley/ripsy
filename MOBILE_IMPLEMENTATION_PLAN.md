@@ -52,6 +52,7 @@ The backend, not either client, decides whether commands are legal and computes 
 - [ ] Provision Play signing credentials and finalize store listing contacts and screenshots.
 - [x] Register the iOS test device, produce a signed App Store archive, and add a reproducible TestFlight upload command.
 - [x] Create the App Store Connect app record and upload iOS build `1.0.0 (1)` to TestFlight.
+- [x] Configure the `RIPSY Internal` TestFlight group with automatic distribution and invite the Account Holder.
 - [ ] Restore release dSYM coverage for React, React Native dependencies, and Hermes crash symbolication.
 - [ ] Upload Android to Play internal testing.
 

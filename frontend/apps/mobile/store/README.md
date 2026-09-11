@@ -28,3 +28,5 @@ npm run ios:beta
 ```
 
 The command creates a Release archive, exports it with the installed App Store provisioning profile, and uploads it to App Store Connect. It does not store signing credentials in the repository. Increase `CURRENT_PROJECT_VERSION` before each subsequent upload.
+
+The App Store Connect app record ID is `6810956586`. Internal builds are distributed automatically through the `RIPSY Internal` TestFlight group.

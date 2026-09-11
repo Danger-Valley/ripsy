@@ -4,7 +4,8 @@ buildscript {
         minSdkVersion = 24
         compileSdkVersion = 37
         targetSdkVersion = 36
-        ndkVersion = "27.1.12297006"
+        // Rive 11.9.x requires the LLVM 19 C++ runtime shipped with NDK 28.
+        ndkVersion = "28.2.13676358"
         kotlinVersion = "2.2.0"
     }
     repositories {

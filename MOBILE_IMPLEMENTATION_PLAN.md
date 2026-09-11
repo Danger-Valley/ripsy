@@ -50,7 +50,8 @@ The backend, not either client, decides whether commands are legal and computes 
 - [ ] Test on physical iOS and Android devices, including app suspension and network switching.
 - [x] Configure bundle/application IDs, icons, launch screens, privacy metadata, and draft store listings.
 - [x] Provision the App Store distribution certificate and provisioning profile for TestFlight.
-- [ ] Provision Play signing credentials and finalize store listing contacts and screenshots.
+- [x] Provision Play upload signing credentials and capture Android phone screenshots from a signed release build.
+- [ ] Finalize store listing contacts and capture the remaining iOS gameplay and tablet screenshots.
 - [x] Register the iOS test device, produce a signed App Store archive, and add a reproducible TestFlight upload command.
 - [x] Create the App Store Connect app record and upload iOS build `1.0.0 (1)` to TestFlight.
 - [x] Configure the `RIPSY Internal` TestFlight group with automatic distribution and invite the Account Holder.

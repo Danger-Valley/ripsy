@@ -51,8 +51,9 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
             const x = isPlayer1 ? WIDTH - 1 - displayX : displayX;
             const y = isPlayer1 ? HEIGHT - 1 - displayY : displayY;
             const index = toIdx(x, y);
-            const owner = state?.owners[index] ?? (preview.has(index) ? ownOwner : Owner.None);
-            const piece = preview.get(index) ?? state?.pieces[index] ?? Piece.Empty;
+            const previewPiece = preview.get(index);
+            const owner = previewPiece === undefined ? state?.owners[index] ?? Owner.None : ownOwner;
+            const piece = previewPiece ?? state?.pieces[index] ?? Piece.Empty;
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isSelected = selected?.x === x && selected.y === y;
             const isAvailable = availableMoves.some(move => move.x === x && move.y === y);

@@ -71,6 +71,8 @@ test('two authenticated clients play through the real WebSocket transport and re
   const aliceSaved = waitForState(alice, state => state.phase === Phase.LineupP0Set);
   await alice.request({ type: 'submitLineup', gameId: created.gameId!, xs, ys: aliceYs, pieces });
   await aliceSaved;
+  const listed = await alice.request({ type: 'listGames' });
+  assert.deepEqual(listed.games?.map(game => game.gameId), ['game-1']);
 
   const bobConnected = waitForStatus(bob, 'connected');
   bob.connect(created.gameId);
@@ -159,6 +161,12 @@ class MemoryGameStore implements GameStore {
 
   async get(gameId: string, playerId: string) {
     return gameView(this.record(gameId), playerId);
+  }
+
+  async list(playerId: string) {
+    return [...this.games.values()]
+      .filter(game => game.phase < Phase.Finished && (game.p0 === playerId || game.p1 === playerId))
+      .map(game => gameView(game, playerId));
   }
 
   async join(gameId: string, playerId: string) {

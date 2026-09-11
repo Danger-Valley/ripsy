@@ -10,6 +10,7 @@ export function useNativeRipsyGame(playerId: string, sessionToken: string, gameI
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [activeGames, setActiveGames] = useState<GameState[]>([]);
   const [pendingRequests, setPendingRequests] = useState(0);
 
   useEffect(() => {
@@ -65,6 +66,12 @@ export function useNativeRipsyGame(playerId: string, sessionToken: string, gameI
   }, []);
 
   const actions = useMemo(() => ({
+    listGames: () => run(async client => {
+      const result = await client.request({ type: 'listGames' });
+      const games = result.games ?? [];
+      setActiveGames(games);
+      return games;
+    }),
     createGame: () => run(async client => {
       const result = await client.request({ type: 'createGame' });
       if (!result.gameId) throw new Error('The server did not return a game ID');
@@ -107,6 +114,7 @@ export function useNativeRipsyGame(playerId: string, sessionToken: string, gameI
     isPlayer1,
     ownOwner,
     isMyTurn,
+    activeGames,
     ...actions,
   };
 }

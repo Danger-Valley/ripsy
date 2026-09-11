@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Choice, GameState } from '@rps/core';
+import { Phase, type Choice, type GameState } from '@rps/core';
 import {
   chooseWeapon,
   createGameRecord,
@@ -24,6 +24,7 @@ export interface RedisCommands {
 }
 
 type Mutation = (game: GameRecord) => void;
+const MAX_LISTED_GAMES = 20;
 
 const COMPARE_AND_SWAP = `
 local current = redis.call('GET', KEYS[1])
@@ -69,6 +70,7 @@ export class RedisGameStore {
         EX: this.gameTtlSeconds,
       });
       if (created === 'OK') {
+        await this.addToPlayerIndex(playerId, id);
         await this.redis.publish(this.eventChannel(id), id);
         return gameView(game, playerId);
       }
@@ -76,12 +78,40 @@ export class RedisGameStore {
     throw new Error('Could not allocate a unique game ID');
   }
 
+  async list(playerId: string): Promise<GameState[]> {
+    const indexKey = this.playerGamesKey(playerId);
+    const gameIds = await this.redis.sMembers(indexKey);
+    const staleGameIds: string[] = [];
+    const games = (await Promise.all(gameIds.map(async gameId => {
+      try {
+        const game = await this.getRecord(gameId);
+        if ((game.p0 !== playerId && game.p1 !== playerId) || game.phase === Phase.Finished) {
+          staleGameIds.push(gameId);
+          return null;
+        }
+        return game;
+      } catch {
+        staleGameIds.push(gameId);
+        return null;
+      }
+    }))).filter((game): game is GameRecord => game !== null);
+    if (staleGameIds.length > 0) await Promise.all(staleGameIds.map(gameId => this.redis.sRem(indexKey, gameId)));
+    games.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    return games.slice(0, MAX_LISTED_GAMES).map(game => gameView(game, playerId));
+  }
+
   async get(gameId: string, playerId: string): Promise<GameState> {
-    return gameView(await this.getRecord(gameId), playerId);
+    const game = await this.getRecord(gameId);
+    if (game.phase < Phase.Finished && (game.p0 === playerId || game.p1 === playerId)) {
+      await this.addToPlayerIndex(playerId, gameId);
+    }
+    return gameView(game, playerId);
   }
 
   async join(gameId: string, playerId: string): Promise<GameState> {
-    return this.mutate(gameId, playerId, (game) => joinGame(game, playerId));
+    const state = await this.mutate(gameId, playerId, (game) => joinGame(game, playerId));
+    await this.addToPlayerIndex(playerId, gameId);
+    return state;
   }
 
   async submitLineup(
@@ -138,7 +168,10 @@ export class RedisGameStore {
         arguments: [current, next, String(this.gameTtlSeconds), gameId],
       }));
 
-      if (changed === 1) return gameView(game, playerId);
+      if (changed === 1) {
+        await this.updatePlayerIndexes(game);
+        return gameView(game, playerId);
+      }
     }
     throw new Error('The game changed too quickly; please retry');
   }
@@ -155,5 +188,24 @@ export class RedisGameStore {
 
   private eventChannel(gameId: string): string {
     return `${this.prefix}:{${gameId}}:events`;
+  }
+
+  private playerGamesKey(playerId: string): string {
+    return `${this.prefix}:player:${playerId}:games`;
+  }
+
+  private async addToPlayerIndex(playerId: string, gameId: string) {
+    const key = this.playerGamesKey(playerId);
+    await this.redis.sAdd(key, gameId);
+    await this.redis.expire(key, this.gameTtlSeconds);
+  }
+
+  private async updatePlayerIndexes(game: GameRecord) {
+    const players = [game.p0, game.p1].filter(Boolean);
+    if (game.phase === Phase.Finished) {
+      await Promise.all(players.map(playerId => this.redis.sRem(this.playerGamesKey(playerId), game.id)));
+      return;
+    }
+    await Promise.all(players.map(playerId => this.addToPlayerIndex(playerId, game.id)));
   }
 }

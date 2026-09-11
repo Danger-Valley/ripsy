@@ -1,7 +1,7 @@
 import React from 'react';
 import { TextInput } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
-import { Owner } from '@rps/core';
+import { CELLS, Choice, Owner, Phase, Piece, type GameState } from '@rps/core';
 import { HomeScreen } from '../src/screens/home-screen';
 import { useNativeRipsyGame } from '../src/hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../src/hooks/use-player-identity';
@@ -12,7 +12,9 @@ jest.mock('../src/hooks/use-player-identity');
 jest.mock('../src/hooks/use-push-notifications');
 
 const createGame = jest.fn(() => Promise.resolve('abcdef12'));
+const listGames = jest.fn(() => Promise.resolve([] as GameState[]));
 const navigate = jest.fn();
+const addListener = jest.fn(() => jest.fn());
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -32,6 +34,8 @@ beforeEach(() => {
     isPlayer1: false,
     ownOwner: Owner.None,
     isMyTurn: false,
+    activeGames: [],
+    listGames,
     createGame,
     refresh: jest.fn(() => Promise.resolve(null)),
     joinGame: jest.fn(() => Promise.resolve({ type: 'result', requestId: 'join' })),
@@ -87,10 +91,37 @@ test('shows identity failures as an alert and keeps game creation disabled', asy
   expect(createButton.props.disabled).toBe(true);
 });
 
+test('shows unfinished games as board previews and opens a selected room', async () => {
+  const activeGame = createActiveGame();
+  jest.mocked(useNativeRipsyGame).mockReturnValue({
+    ...jest.mocked(useNativeRipsyGame)('alice-player-id', 'alice-session-token'),
+    activeGames: [activeGame],
+  });
+  const renderer = await renderHome();
+  const card = renderer.root.find(node => node.props.accessibilityLabel === 'Open room active12, Your turn');
+
+  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'header').some(node => node.props.children === 'Your active games')).toBe(true);
+  await ReactTestRenderer.act(() => card.props.onPress());
+  expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'active12' });
+});
+
 async function renderHome() {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
-    renderer = ReactTestRenderer.create(<HomeScreen navigation={{ navigate } as never} route={{} as never} />);
+    renderer = ReactTestRenderer.create(<HomeScreen navigation={{ navigate, addListener } as never} route={{} as never} />);
   });
   return renderer;
+}
+
+function createActiveGame(): GameState {
+  const owners = Array<Owner>(CELLS).fill(Owner.None);
+  const pieces = Array<Piece>(CELLS).fill(Piece.Empty);
+  owners[35] = Owner.P0;
+  pieces[35] = Piece.Rock;
+  owners[0] = Owner.P1;
+  return {
+    gameId: 'active12', phase: Phase.Active, p0: 'alice-player-id', p1: 'bob', isP1Turn: false,
+    owners, pieces, live0: 1, live1: 1, attacker: Piece.Empty, defender: Piece.Empty, outcome: 0,
+    playerChoice: Choice.None, tiePending: false, tieFrom: { x: 0, y: 0 }, tieTo: { x: 0, y: 0 }, winner: null,
+  };
 }

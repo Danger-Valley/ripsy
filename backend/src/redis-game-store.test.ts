@@ -5,6 +5,7 @@ import { RedisGameStore, type RedisCommands } from './redis-game-store.js';
 
 class FakeRedis implements RedisCommands {
   readonly values = new Map<string, string>();
+  readonly sets = new Map<string, Set<string>>();
   readonly events: Array<{ channel: string; message: string }> = [];
 
   async get(key: string) {
@@ -36,9 +37,15 @@ class FakeRedis implements RedisCommands {
     return 'PONG';
   }
 
-  async sAdd() { return 0; }
-  async sMembers() { return []; }
-  async sRem() { return 0; }
+  async sAdd(key: string, member: string) {
+    const set = this.sets.get(key) ?? new Set<string>();
+    const size = set.size;
+    set.add(member);
+    this.sets.set(key, set);
+    return set.size === size ? 0 : 1;
+  }
+  async sMembers(key: string) { return [...(this.sets.get(key) ?? [])]; }
+  async sRem(key: string, member: string) { return this.sets.get(key)?.delete(member) ? 1 : 0; }
   async expire() { return true; }
 }
 
@@ -52,6 +59,8 @@ test('persists game state in Redis-compatible storage', async () => {
   assert.equal((await firstInstance.get(created.gameId, 'alice')).p1, 'bob');
   assert.equal(redis.values.size, 1);
   assert.ok(redis.events.length >= 2);
+  assert.deepEqual((await firstInstance.list('alice')).map(game => game.gameId), [created.gameId]);
+  assert.deepEqual((await secondInstance.list('bob')).map(game => game.gameId), [created.gameId]);
 });
 
 test('persists and replaces a creator lineup before another instance joins', async () => {
@@ -79,6 +88,25 @@ test('persists and replaces a creator lineup before another instance joins', asy
   const joined = await firstInstance.join(created.gameId, 'bob');
   assert.equal(joined.phase, Phase.LineupP0Set);
   assert.deepEqual((await firstInstance.get(created.gameId, 'alice')).pieces.filter(piece => piece !== Piece.Empty), secondPieces);
+});
+
+test('lists unfinished games by recent activity and removes stale index entries', async () => {
+  const redis = new FakeRedis();
+  const store = new RedisGameStore(redis);
+  const first = await store.create('alice');
+  const second = await store.create('alice');
+  for (const [key, value] of redis.values) {
+    const record = JSON.parse(value) as { id: string; updatedAt: string };
+    record.updatedAt = record.id === first.gameId ? '2026-01-01T00:00:00.000Z' : '2026-01-02T00:00:00.000Z';
+    redis.values.set(key, JSON.stringify(record));
+  }
+  const playerIndex = [...redis.sets.keys()].find(key => key.endsWith(':player:alice:games'))!;
+  await redis.sAdd(playerIndex, 'expired-game');
+
+  const games = await store.list('alice');
+  assert.deepEqual(games.map(game => game.gameId), [second.gameId, first.gameId]);
+  assert.equal((await redis.sMembers(playerIndex)).includes('expired-game'), false);
+  assert.deepEqual(await store.list('mallory'), []);
 });
 
 test('atomic compare-and-swap admits only one competing player', async () => {

@@ -11,6 +11,13 @@ import { createGameRecord, gameView } from './game-engine.js';
 
 test('validates client actions instead of trusting parsed JSON', () => {
   assert.deepEqual(parseClientMessage({
+    type: 'listGames',
+    requestId: 'request-list',
+  }), {
+    type: 'listGames',
+    requestId: 'request-list',
+  });
+  assert.deepEqual(parseClientMessage({
     type: 'movePiece',
     requestId: 'request-1',
     gameId: 'game-1',
@@ -60,6 +67,12 @@ test('validates complete server game state payloads', () => {
   assert.equal(message.state.gameId, 'game-1');
   assert.throws(
     () => parseServerMessage({ type: 'state', gameId: 'game-1', state: { ...state, owners: [] } }),
+    ProtocolMessageError,
+  );
+  const list = parseServerMessage({ type: 'result', requestId: 'request-list', games: [state] });
+  assert.equal(list.type === 'result' ? list.games?.[0]?.gameId : undefined, 'game-1');
+  assert.throws(
+    () => parseServerMessage({ type: 'result', requestId: 'request-list', games: [{ ...state, pieces: [] }] }),
     ProtocolMessageError,
   );
 });

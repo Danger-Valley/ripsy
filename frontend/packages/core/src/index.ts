@@ -59,6 +59,7 @@ export interface GameState {
 
 export type ClientAction =
   | { type: 'createGame'; requestId: string }
+  | { type: 'listGames'; requestId: string }
   | { type: 'getGame'; requestId: string; gameId: string }
   | { type: 'joinGame'; requestId: string; gameId: string }
   | { type: 'submitLineup'; requestId: string; gameId: string; xs: number[]; ys: number[]; pieces: number[] }
@@ -75,7 +76,7 @@ export type ServerErrorCode =
 
 export type ServerMessage =
   | { type: 'connected'; playerId: string; protocolVersion: number }
-  | { type: 'result'; requestId: string; gameId?: string; state?: GameState }
+  | { type: 'result'; requestId: string; gameId?: string; state?: GameState; games?: GameState[] }
   | { type: 'state'; gameId: string; state: GameState }
   | {
       type: 'error';
@@ -124,7 +125,7 @@ export function parseClientMessage(value: unknown): ClientMessage {
   }
 
   const requestId = requireString(message.requestId, 'Request ID');
-  if (type === 'createGame') return { type, requestId };
+  if (type === 'createGame' || type === 'listGames') return { type, requestId };
   const gameId = requireString(message.gameId, 'Game ID');
   if (type === 'getGame' || type === 'joinGame') return { type, requestId, gameId };
   if (type === 'submitLineup') {
@@ -183,6 +184,10 @@ export function parseServerMessage(value: unknown): ServerMessage {
     };
     if (message.gameId !== undefined) result.gameId = requireString(message.gameId, 'Game ID');
     if (message.state !== undefined) result.state = parseGameState(message.state);
+    if (message.games !== undefined) {
+      if (!Array.isArray(message.games)) throw new ProtocolMessageError('Game list is invalid');
+      result.games = message.games.map(parseGameState);
+    }
     if (result.gameId && result.state && result.gameId !== result.state.gameId) {
       throw new ProtocolMessageError('Game state ID does not match its envelope');
     }

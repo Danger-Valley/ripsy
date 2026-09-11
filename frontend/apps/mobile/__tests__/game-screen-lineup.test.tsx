@@ -34,6 +34,8 @@ beforeEach(() => {
     isPlayer1: false,
     ownOwner: Owner.P0,
     isMyTurn: true,
+    activeGames: [],
+    listGames: jest.fn(() => Promise.resolve([])),
     createGame: jest.fn(() => Promise.resolve('abcdef12')),
     refresh: jest.fn(() => Promise.resolve(gameState)),
     joinGame: jest.fn(() => Promise.resolve({ type: 'result', requestId: 'join' })),

@@ -16,6 +16,7 @@ import type { SessionManager } from './session.js';
 
 export interface GameStore {
   create(playerId: string): Promise<GameState>;
+  list(playerId: string): Promise<GameState[]>;
   get(gameId: string, playerId: string): Promise<GameState>;
   join(gameId: string, playerId: string): Promise<GameState>;
   submitLineup(gameId: string, playerId: string, xs: number[], ys: number[], pieces: number[]): Promise<GameState>;
@@ -119,6 +120,12 @@ export function attachGameWebSocketServer({
   async function handle(socket: WebSocket, playerId: string, action: ClientAction) {
     const startedAt = Date.now();
     try {
+      if (action.type === 'listGames') {
+        const games = await store.list(playerId);
+        send(socket, { type: 'result', requestId: action.requestId, games });
+        diagnose({ level: 'info', event: 'command.completed', action: action.type, durationMs: Date.now() - startedAt, outcome: 'success' });
+        return;
+      }
       let gameId: string;
       let state: GameState;
       switch (action.type) {

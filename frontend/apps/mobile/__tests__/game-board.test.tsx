@@ -1,4 +1,5 @@
 import React from 'react';
+import { AccessibilityInfo } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
@@ -99,13 +100,16 @@ test('renders the local lineup preview as non-interactive before battle', async 
 });
 
 test('renders an unarmed opponent formation during lineup setup', async () => {
+  jest.useFakeTimers();
+  jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  jest.spyOn(Math, 'random').mockReturnValue(0.5);
   const state = createState();
   state.phase = Phase.Created;
   state.owners.fill(Owner.None);
   state.pieces.fill(Piece.Empty);
 
   let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(() => {
+  await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(
       <GameBoard
         isPlayer1={false}
@@ -114,13 +118,26 @@ test('renders an unarmed opponent formation during lineup setup', async () => {
         state={state}
       />,
     );
+    await Promise.resolve();
   });
 
   const opponentCells = renderer.root.findAll(node => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.endsWith('opponent piece'));
   expect(new Set(opponentCells.map(cell => cell.props.accessibilityLabel)).size).toBe(WIDTH * 2);
+  expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(0);
+
+  await ReactTestRenderer.act(async () => {
+    jest.advanceTimersByTime(230);
+    await Promise.resolve();
+  });
+
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view').map(figure => figure.props.stateMachineName)).toEqual(
     Array(WIDTH * 2).fill('State Machine Front'),
   );
+  await ReactTestRenderer.act(() => {
+    renderer.unmount();
+  });
+  jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 test('keeps a lineup figure mounted while its piece changes', async () => {

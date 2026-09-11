@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { Fit, RiveView, useRive, type RiveFile } from '@rive-app/react-native';
 import { Piece } from '@rps/core';
@@ -15,12 +15,35 @@ interface Props {
 export function RiveGamePiece({ file, isMine, mirrored, piece, size, staggerStart = false }: Props) {
   const { riveViewRef, setHybridRef } = useRive();
   const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
-  const hasStarted = useRef(false);
+  const [shouldMountRive, setShouldMountRive] = useState(!staggerStart);
 
   useEffect(() => {
-    if (!riveViewRef) return;
+    if (!staggerStart) {
+      setShouldMountRive(true);
+      return;
+    }
+    if (shouldMountRive) return;
+
     let cancelled = false;
-    let startTimer: ReturnType<typeof setTimeout> | undefined;
+    let mountTimer: ReturnType<typeof setTimeout> | undefined;
+
+    AccessibilityInfo.isReduceMotionEnabled()
+      .catch(() => false)
+      .then(reduceMotion => {
+        if (cancelled) return;
+        if (reduceMotion) setShouldMountRive(true);
+        else mountTimer = setTimeout(() => setShouldMountRive(true), initialDelayMs);
+      });
+
+    return () => {
+      cancelled = true;
+      if (mountTimer) clearTimeout(mountTimer);
+    };
+  }, [initialDelayMs, shouldMountRive, staggerStart]);
+
+  useEffect(() => {
+    if (!shouldMountRive || !riveViewRef) return;
+    let cancelled = false;
 
     const configurePiece = () => {
       if (cancelled) return;
@@ -34,40 +57,25 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size, staggerStar
       }
     };
 
-    const startPlayback = () => {
-      if (cancelled) return;
-      hasStarted.current = true;
-      riveViewRef.reset().then(configurePiece, configurePiece);
-    };
-
-    if (staggerStart && !hasStarted.current) {
-      AccessibilityInfo.isReduceMotionEnabled()
-        .catch(() => false)
-        .then(reduceMotion => {
-          if (cancelled) return;
-          if (reduceMotion) startPlayback();
-          else startTimer = setTimeout(startPlayback, initialDelayMs);
-        });
-    } else {
-      startPlayback();
-    }
+    riveViewRef.reset().then(configurePiece, configurePiece);
 
     return () => {
       cancelled = true;
-      if (startTimer) clearTimeout(startTimer);
     };
-  }, [initialDelayMs, isMine, piece, riveViewRef, staggerStart]);
+  }, [isMine, piece, riveViewRef, shouldMountRive]);
 
   return (
     <View pointerEvents="none" style={[styles.container, { width: size, height: size }]}>
-      <RiveView
-        autoPlay={!staggerStart}
-        file={file}
-        fit={Fit.Contain}
-        hybridRef={setHybridRef}
-        stateMachineName={isMine ? 'State Machine Back' : 'State Machine Front'}
-        style={[styles.rive, mirrored && styles.mirrored]}
-      />
+      {shouldMountRive ? (
+        <RiveView
+          autoPlay
+          file={file}
+          fit={Fit.Contain}
+          hybridRef={setHybridRef}
+          stateMachineName={isMine ? 'State Machine Back' : 'State Machine Front'}
+          style={[styles.rive, mirrored && styles.mirrored]}
+        />
+      ) : null}
     </View>
   );
 }

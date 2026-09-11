@@ -109,6 +109,10 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
 
   expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Lineup saved')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.children === 'Lineup changed. Save it when you are ready.').length).toBeGreaterThan(0);
+
+  await ReactTestRenderer.act(() => {
+    renderer.unmount();
+  });
 });
 
 function createdGame(): GameState {

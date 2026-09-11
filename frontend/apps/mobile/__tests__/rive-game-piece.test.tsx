@@ -48,13 +48,15 @@ test('starts an opponent preview after a one-time random delay', async () => {
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
   jest.spyOn(Math, 'random').mockReturnValue(0.5);
 
+  let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
-    ReactTestRenderer.create(
+    renderer = ReactTestRenderer.create(
       <RiveGamePiece file={{} as never} isMine={false} mirrored={false} piece={Piece.Empty} size={80} staggerStart />,
     );
     await Promise.resolve();
   });
 
+  expect(renderer!.root.findAllByType('RiveView' as never)).toHaveLength(0);
   expect(mockRiveViewRef.reset).not.toHaveBeenCalled();
 
   await ReactTestRenderer.act(async () => {
@@ -62,6 +64,7 @@ test('starts an opponent preview after a one-time random delay', async () => {
     await Promise.resolve();
   });
 
+  expect(renderer!.root.findAllByType('RiveView' as never)).toHaveLength(1);
   expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(1);
   expect(mockRiveViewRef.playIfNeeded).toHaveBeenCalledTimes(1);
 });

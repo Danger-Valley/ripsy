@@ -58,6 +58,9 @@ test('exposes piece names and only actionable cells as buttons', async () => {
     const style = StyleSheet.flatten(visual.props.style);
     return style.backgroundColor === undefined && style.borderColor === undefined && style.borderWidth === undefined;
   })).toBe(true);
+  const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
+  const firstCellStyle = StyleSheet.flatten(cells[0]?.props.style);
+  expect(firstCellStyle.width * WIDTH + boardStyle.borderWidth * 2).toBeCloseTo(boardStyle.width);
 });
 
 test('announces selected pieces and legal move targets', async () => {

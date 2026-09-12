@@ -58,7 +58,7 @@ export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false 
     };
 
     riveViewRef.awaitViewReady()
-      .then(() => riveViewRef.reset())
+      .then(() => isMine ? riveViewRef.reset() : undefined)
       .then(configurePiece, configurePiece);
 
     return () => {

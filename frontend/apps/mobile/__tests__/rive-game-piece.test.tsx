@@ -66,7 +66,20 @@ test('starts an opponent preview after a one-time random delay', async () => {
   });
 
   expect(renderer!.root.findAllByType('RiveView' as never)).toHaveLength(1);
-  expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.reset).not.toHaveBeenCalled();
+  expect(mockRiveViewRef.playIfNeeded).toHaveBeenCalledTimes(1);
+});
+
+test('does not reset the Android front state machine for opponent figures', async () => {
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <RiveGamePiece file={{} as never} isMine={false} piece={Piece.Empty} size={80} />,
+    );
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.awaitViewReady).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.reset).not.toHaveBeenCalled();
   expect(mockRiveViewRef.playIfNeeded).toHaveBeenCalledTimes(1);
 });
 

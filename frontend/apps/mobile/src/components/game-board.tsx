@@ -8,6 +8,7 @@ import type { PieceMoveAnimation } from '../game-animation';
 import { RiveGamePiece } from './rive-game-piece';
 
 const figureAsset = require('../assets/figures/fig1.riv');
+const boardBorderWidth = 2;
 const arrowAssets = {
   up: require('../assets/arrows/up.png'),
   down: require('../assets/arrows/down.png'),
@@ -44,7 +45,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
   const { width } = useWindowDimensions();
   const { riveFile } = useRiveFile(figureAsset);
   const boardSize = Math.min(width - 32, 600);
-  const cellSize = boardSize / WIDTH;
+  const cellSize = (boardSize - boardBorderWidth * 2) / WIDTH;
   const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item.piece])), [previewLineup]);
 
   return (
@@ -216,7 +217,7 @@ function opponentOf(owner: Owner): Owner {
 }
 
 const styles = StyleSheet.create({
-  board: { alignSelf: 'center', borderColor: colors.primaryMuted, borderWidth: 2, borderRadius: 10, overflow: 'visible' },
+  board: { alignSelf: 'center', borderColor: colors.primaryMuted, borderWidth: boardBorderWidth, borderRadius: 10, overflow: 'visible' },
   row: { flexDirection: 'row' },
   cell: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#142029', borderColor: '#243641', borderWidth: StyleSheet.hairlineWidth },
   alternateCell: { backgroundColor: '#182731' },

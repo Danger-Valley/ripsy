@@ -250,6 +250,8 @@ function BattleScreen({ game, gameId, isComputer, navigation, playerId }: {
 
         <GameBoard
           availableMoves={availableMoves}
+          combatAnimation={animation.activeCombat}
+          combatPhase={animation.combatPhase}
           interactionEnabled={Boolean(!animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending)}
           isPlayer1={game.isPlayer1}
           moveAnimation={animation.activeMove}

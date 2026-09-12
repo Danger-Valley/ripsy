@@ -9,6 +9,26 @@ export interface PieceMoveAnimation {
   piece: Piece;
 }
 
+export interface CombatAnimation {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  attackerOwner: Owner;
+  defenderOwner: Owner;
+  attackerPiece: Piece;
+  defenderPiece: Piece;
+  winnerOwner: Owner;
+  winnerPiece: Piece;
+}
+
+export type CombatAnimationPhase = 'prepare' | 'attack' | 'death';
+
+export function combatAttackDurationMs(piece: Piece) {
+  if (piece === Piece.Rock) return 383;
+  if (piece === Piece.Paper) return 500;
+  if (piece === Piece.Scissors) return 966;
+  return 400;
+}
+
 export function gameStateFingerprint(state: GameState): string {
   return JSON.stringify([
     state.gameId,
@@ -103,6 +123,39 @@ export function getPieceMoveAnimation(previous: GameState, next: GameState): Pie
   };
 }
 
+export function getCombatAnimation(previous: GameState, next: GameState): CombatAnimation | null {
+  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active || next.outcome === 0 || next.tiePending) return null;
+  const from = next.tieFrom;
+  const to = next.tieTo;
+  if (!isBoardCoordinate(from) || !isBoardCoordinate(to) || !isAdjacent(from, to)) return null;
+
+  const fromIndex = toIdx(from.x, from.y);
+  const toIndex = toIdx(to.x, to.y);
+  const attackerOwner = previous.owners[fromIndex];
+  const defenderOwner = previous.owners[toIndex];
+  if (
+    (attackerOwner !== Owner.P0 && attackerOwner !== Owner.P1)
+    || (defenderOwner !== Owner.P0 && defenderOwner !== Owner.P1)
+    || attackerOwner === defenderOwner
+    || !isBattlePiece(next.attacker)
+    || !isBattlePiece(next.defender)
+  ) return null;
+
+  const attackerPiece = next.attacker;
+  const defenderPiece = next.defender;
+  const attackerWon = next.outcome === 1;
+  return {
+    from,
+    to,
+    attackerOwner,
+    defenderOwner,
+    attackerPiece,
+    defenderPiece,
+    winnerOwner: attackerWon ? attackerOwner : defenderOwner,
+    winnerPiece: attackerWon ? attackerPiece : defenderPiece,
+  };
+}
+
 function isBoardCoordinate(coordinate: { x: number; y: number }): boolean {
   return Number.isInteger(coordinate.x)
     && Number.isInteger(coordinate.y)
@@ -110,6 +163,10 @@ function isBoardCoordinate(coordinate: { x: number; y: number }): boolean {
     && coordinate.x < WIDTH
     && coordinate.y >= 0
     && coordinate.y < HEIGHT;
+}
+
+function isBattlePiece(piece: number): piece is Piece {
+  return piece === Piece.Rock || piece === Piece.Paper || piece === Piece.Scissors;
 }
 
 function isAdjacent(from: { x: number; y: number }, to: { x: number; y: number }): boolean {

@@ -24,6 +24,7 @@ export type RiveActionTrigger =
 
 export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, staggerStart = false }: Props) {
   const { riveViewRef, setHybridRef } = useRive();
+  const readyRef = useRef<Promise<void>>(Promise.resolve());
   const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
   const [shouldMountRive, setShouldMountRive] = useState(!staggerStart);
   const stateMachineName = isMine ? 'State Machine Back' : 'State Machine Front';
@@ -85,14 +86,6 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
         riveViewRef.playIfNeeded();
       }
       if (cancelled) return;
-      if (actionTrigger) {
-        try {
-          riveViewRef.triggerInput(actionTrigger);
-          riveViewRef.playIfNeeded();
-        } catch {
-          // Keep the positional move running if an asset trigger is unavailable.
-        }
-      }
       if (cancelled || !isTrap || !isMine) return;
       try {
         // Reassert the hidden state after playback starts, before entering the
@@ -105,12 +98,29 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
       }
     };
 
-    configurePiece().catch(() => undefined);
+    readyRef.current = configurePiece().catch(() => undefined);
 
     return () => {
       cancelled = true;
     };
-  }, [actionTrigger, isMine, piece, riveViewRef, shouldMountRive]);
+  }, [isMine, piece, riveViewRef, shouldMountRive]);
+
+  useEffect(() => {
+    if (!shouldMountRive || !riveViewRef || !actionTrigger) return;
+    let cancelled = false;
+    readyRef.current.then(() => {
+      if (cancelled) return;
+      try {
+        riveViewRef.triggerInput(actionTrigger);
+        riveViewRef.playIfNeeded();
+      } catch {
+        // Keep the scene running if an optional asset trigger is unavailable.
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [actionTrigger, riveViewRef, shouldMountRive]);
 
   return (
     <View pointerEvents="none" style={[styles.container, { width: size, height: size }]}>

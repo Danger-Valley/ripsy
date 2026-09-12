@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated } from 'react-native';
 import type { GameState } from '@rps/core';
-import { classifyGameTransition, gameStateFingerprint, getPieceMoveAnimation, type GameAnimationKind, type PieceMoveAnimation } from '../game-animation';
+import {
+  classifyGameTransition,
+  combatAttackDurationMs,
+  gameStateFingerprint,
+  getCombatAnimation,
+  getPieceMoveAnimation,
+  type CombatAnimation,
+  type CombatAnimationPhase,
+  type GameAnimationKind,
+  type PieceMoveAnimation,
+} from '../game-animation';
 
 interface QueuedTransition {
   kind: GameAnimationKind;
+  combat: CombatAnimation | null;
   move: PieceMoveAnimation | null;
   state: GameState;
 }
@@ -21,6 +32,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const [displayedState, setDisplayedState] = useState<GameState | null>(null);
   const [activeKind, setActiveKind] = useState<GameAnimationKind | null>(null);
   const [activeMove, setActiveMove] = useState<PieceMoveAnimation | null>(null);
+  const [activeCombat, setActiveCombat] = useState<CombatAnimation | null>(null);
+  const [combatPhase, setCombatPhase] = useState<CombatAnimationPhase | null>(null);
 
   drainRef.current = () => {
     if (!mountedRef.current || runningRef.current) return;
@@ -30,7 +43,53 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     runningRef.current = true;
     setActiveKind(transition.kind);
     setActiveMove(transition.move);
+    setActiveCombat(transition.combat);
+    setCombatPhase(transition.combat ? 'prepare' : null);
     progress.setValue(0);
+
+    if (transition.combat) {
+      const combat = transition.combat;
+      Animated.timing(progress, {
+        duration: 400,
+        toValue: 1,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished || !mountedRef.current) return;
+        setCombatPhase('attack');
+        Animated.timing(progress, {
+          duration: combatAttackDurationMs(combat.winnerPiece) + 100,
+          toValue: 2,
+          useNativeDriver: true,
+        }).start(({ finished: attacked }) => {
+          if (!attacked || !mountedRef.current) return;
+          setCombatPhase('death');
+          Animated.timing(progress, {
+            duration: 200,
+            toValue: 3,
+            useNativeDriver: true,
+          }).start(({ finished: died }) => {
+            if (!died || !mountedRef.current) return;
+            displayedRef.current = transition.state;
+            setDisplayedState(transition.state);
+            Animated.timing(progress, {
+              duration: 260,
+              toValue: 4,
+              useNativeDriver: true,
+            }).start(({ finished: settled }) => {
+              if (!settled || !mountedRef.current) return;
+              runningRef.current = false;
+              setActiveKind(null);
+              setActiveMove(null);
+              setActiveCombat(null);
+              setCombatPhase(null);
+              drainRef.current();
+            });
+          });
+        });
+      });
+      return;
+    }
+
     Animated.timing(progress, {
       duration: transition.move ? (transition.kind === 'battle' ? 560 : 500) : 120,
       toValue: 1,
@@ -48,6 +107,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
         runningRef.current = false;
         setActiveKind(null);
         setActiveMove(null);
+        setActiveCombat(null);
+        setCombatPhase(null);
         drainRef.current();
       });
     });
@@ -66,6 +127,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       runningRef.current = false;
       setActiveKind(null);
       setActiveMove(null);
+      setActiveCombat(null);
+      setCombatPhase(null);
       displayedRef.current = authoritativeState;
       latestStateRef.current = authoritativeState;
       setDisplayedState(authoritativeState);
@@ -73,9 +136,11 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     }
 
     const baseline = latestStateRef.current ?? displayedRef.current;
+    const combat = getCombatAnimation(baseline, authoritativeState);
     queueRef.current.push({
       kind: classifyGameTransition(baseline, authoritativeState),
-      move: getPieceMoveAnimation(baseline, authoritativeState),
+      combat,
+      move: combat ? null : getPieceMoveAnimation(baseline, authoritativeState),
       state: authoritativeState,
     });
     latestStateRef.current = authoritativeState;
@@ -95,6 +160,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     displayedState,
     activeKind,
     activeMove,
+    activeCombat,
+    combatPhase,
     isAnimating: activeKind !== null,
     progress,
     opacity: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.55, 1] }),

@@ -1,5 +1,12 @@
 import { Choice, Owner, Phase, Piece, type GameState } from '@rps/core';
-import { classifyGameTransition, gameStateFingerprint, getPieceMoveAnimation, isCompletedMoveTransition } from '../src/game-animation';
+import {
+  classifyGameTransition,
+  combatAttackDurationMs,
+  gameStateFingerprint,
+  getCombatAnimation,
+  getPieceMoveAnimation,
+  isCompletedMoveTransition,
+} from '../src/game-animation';
 
 const baseState: GameState = {
   gameId: 'a1b2c3d4',
@@ -96,6 +103,92 @@ test('uses recorded coordinates when an attacking piece loses and only the sourc
     to: { x: 0, y: 0 },
     owner: Owner.P0,
   });
+});
+
+test('extracts both fighters and the winner from a resolved battle', () => {
+  const withAttacker = withBoard(baseState, 35, Owner.P0, Piece.Rock);
+  const previous = withBoard(withAttacker, 28, Owner.P1, Piece.Empty);
+  const next = withBoard(
+    {
+      ...previous,
+      attacker: Piece.Rock,
+      defender: Piece.Scissors,
+      outcome: 1,
+      isP1Turn: true,
+      tieFrom: { x: 0, y: 5 },
+      tieTo: { x: 0, y: 4 },
+    },
+    35,
+    Owner.None,
+    Piece.Empty,
+    28,
+    Owner.P0,
+    Piece.Rock,
+  );
+
+  expect(getCombatAnimation(previous, next)).toEqual({
+    from: { x: 0, y: 5 },
+    to: { x: 0, y: 4 },
+    attackerOwner: Owner.P0,
+    defenderOwner: Owner.P1,
+    attackerPiece: Piece.Rock,
+    defenderPiece: Piece.Scissors,
+    winnerOwner: Owner.P0,
+    winnerPiece: Piece.Rock,
+  });
+});
+
+test('uses the defender as the combat winner when the attack loses', () => {
+  const withAttacker = withBoard(baseState, 35, Owner.P0, Piece.Rock);
+  const previous = withBoard(withAttacker, 28, Owner.P1, Piece.Empty);
+  const next = {
+    ...previous,
+    attacker: Piece.Rock,
+    defender: Piece.Paper,
+    outcome: -1,
+    isP1Turn: true,
+    tieFrom: { x: 0, y: 5 },
+    tieTo: { x: 0, y: 4 },
+  };
+
+  expect(getCombatAnimation(previous, next)).toMatchObject({
+    winnerOwner: Owner.P1,
+    winnerPiece: Piece.Paper,
+  });
+});
+
+test('waits for a tied battle choice before creating the combat scene', () => {
+  const withAttacker = withBoard(baseState, 35, Owner.P0, Piece.Rock);
+  const previous = withBoard(withAttacker, 28, Owner.P1, Piece.Empty);
+  const tied = {
+    ...previous,
+    attacker: Piece.Rock,
+    defender: Piece.Rock,
+    outcome: 0,
+    tiePending: true,
+    tieFrom: { x: 0, y: 5 },
+    tieTo: { x: 0, y: 4 },
+  };
+  expect(getCombatAnimation(previous, tied)).toBeNull();
+
+  const resolved = {
+    ...tied,
+    attacker: Piece.Scissors,
+    defender: Piece.Paper,
+    outcome: 1,
+    tiePending: false,
+  };
+  expect(getCombatAnimation(tied, resolved)).toMatchObject({
+    attackerPiece: Piece.Scissors,
+    defenderPiece: Piece.Paper,
+    winnerOwner: Owner.P0,
+  });
+});
+
+test('matches the Rive attack timing for every weapon', () => {
+  expect(combatAttackDurationMs(Piece.Rock)).toBe(383);
+  expect(combatAttackDurationMs(Piece.Paper)).toBe(500);
+  expect(combatAttackDurationMs(Piece.Scissors)).toBe(966);
 });
 
 function withBoard(

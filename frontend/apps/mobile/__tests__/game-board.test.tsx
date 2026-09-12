@@ -252,6 +252,52 @@ test('maps horizontal jumps using the player-visible board direction', async () 
   expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.actionTrigger)?.props.actionTrigger).toBe('Jump Left');
 });
 
+test('stages a battle and sends the attack and death triggers to the right fighters', async () => {
+  const state = createState();
+  const combat = {
+    from: { x: 0, y: 0 },
+    to: { x: 1, y: 0 },
+    attackerOwner: Owner.P0,
+    defenderOwner: Owner.P1,
+    attackerPiece: Piece.Rock,
+    defenderPiece: Piece.Paper,
+    winnerOwner: Owner.P1,
+    winnerPiece: Piece.Paper,
+  };
+  const progress = new Animated.Value(0);
+  const renderBoard = (combatPhase: 'prepare' | 'attack' | 'death') => (
+    <GameBoard
+      combatAnimation={combat}
+      combatPhase={combatPhase}
+      isPlayer1={false}
+      moveProgress={progress}
+      ownOwner={Owner.P0}
+      state={state}
+    />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(renderBoard('prepare'));
+  });
+  expect(renderer.root.findAllByType(RiveGamePiece).map(figure => figure.props.actionTrigger)).toEqual([
+    'Attack Prepare',
+    'Attack Prepare',
+  ]);
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(renderBoard('attack'));
+  });
+  expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Paper)?.props.actionTrigger).toBe('Attack');
+  expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Rock)?.props.actionTrigger).toBeUndefined();
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(renderBoard('death'));
+  });
+  expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Rock)?.props.actionTrigger).toBe('Death');
+  expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Paper)?.props.actionTrigger).toBeUndefined();
+});
+
 test('keeps a lineup figure mounted while its piece changes', async () => {
   const state = createState();
   state.phase = Phase.Created;

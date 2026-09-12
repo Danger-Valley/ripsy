@@ -79,6 +79,33 @@ test('fires a movement trigger only after the state machine starts', async () =>
   );
 });
 
+test('plays sequential combat triggers without resetting the state machine', async () => {
+  const renderPiece = (actionTrigger: 'Attack Prepare' | 'Attack') => (
+    <RiveGamePiece actionTrigger={actionTrigger} file={{} as never} isMine piece={Piece.Rock} size={80} />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(renderPiece('Attack Prepare'));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Attack Prepare');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.update(renderPiece('Attack'));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.triggerInput.mock.calls.map(([trigger]) => trigger)).toEqual([
+    'Attack Prepare',
+    'Attack',
+  ]);
+});
+
 test('configures a local weapon before starting playback', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {

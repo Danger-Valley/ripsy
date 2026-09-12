@@ -42,6 +42,7 @@ For offline computer games, the mobile app invokes the same shared game engine d
 - [x] Provision and back up the Android upload key, then verify a signed production App Bundle.
 - [ ] Enable Play App Signing and publish its signing fingerprint to verify Android App Links.
 - [x] Replace timer-driven combat code with an explicit animation queue driven by state transitions.
+- [x] Recreate the full Rive battle scene: approach, facing, 2× scale, weapon-specific winner attack, loser death, and authoritative settle.
 - [x] Add structured client/server diagnostics without logging credentials or hidden game data.
 
 ## Milestone 3: store-ready release

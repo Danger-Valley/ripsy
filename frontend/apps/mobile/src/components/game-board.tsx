@@ -4,7 +4,7 @@ import { useRiveFile, type RiveFile } from '@rive-app/react-native';
 import { HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
 import { colors } from '../theme';
-import type { PieceMoveAnimation } from '../game-animation';
+import type { CombatAnimation, CombatAnimationPhase, PieceMoveAnimation } from '../game-animation';
 import { RiveGamePiece, type RiveActionTrigger } from './rive-game-piece';
 
 const figureAsset = require('../assets/figures/fig1.riv');
@@ -35,13 +35,15 @@ interface Props {
   selected?: Coordinate | null;
   availableMoves?: Coordinate[];
   interactionEnabled?: boolean;
+  combatAnimation?: CombatAnimation | null;
+  combatPhase?: CombatAnimationPhase | null;
   moveAnimation?: PieceMoveAnimation | null;
   moveProgress?: Animated.Value;
   showOpponentFormation?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
 }
 
-export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, moveAnimation, moveProgress, showOpponentFormation = false, onCellPress }: Props) {
+export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, showOpponentFormation = false, onCellPress }: Props) {
   const { width } = useWindowDimensions();
   const { riveFile } = useRiveFile(figureAsset);
   const boardSize = Math.min(width - 32, 600);
@@ -65,6 +67,10 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
             const piece = previewPiece ?? state?.pieces[index] ?? Piece.Empty;
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isMovingSource = moveAnimation?.from.x === x && moveAnimation.from.y === y;
+            const isCombatant = Boolean(combatAnimation && (
+              (combatAnimation.from.x === x && combatAnimation.from.y === y)
+              || (combatAnimation.to.x === x && combatAnimation.to.y === y)
+            ));
             const isSelected = selected?.x === x && selected.y === y;
             const isAvailable = availableMoves.some(move => move.x === x && move.y === y);
             const isMovable = isMovablePiece(piece);
@@ -94,7 +100,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                   isAvailable && styles.availableCell,
                   isSelected && styles.selectedCell,
                 ]}>
-                {owner !== Owner.None && !isMovingSource ? (
+                {owner !== Owner.None && !isMovingSource && !isCombatant ? (
                   <View
                     pointerEvents="none"
                     testID="piece-visual"
@@ -134,7 +140,118 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
           riveFile={riveFile}
         />
       ) : null}
+      {combatAnimation && combatPhase && moveProgress && riveFile ? (
+        <CombatScene
+          cellSize={cellSize}
+          combat={combatAnimation}
+          isPlayer1={isPlayer1}
+          ownOwner={ownOwner}
+          phase={combatPhase}
+          progress={moveProgress}
+          riveFile={riveFile}
+        />
+      ) : null}
     </View>
+  );
+}
+
+function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, riveFile }: {
+  cellSize: number;
+  combat: CombatAnimation;
+  isPlayer1: boolean;
+  ownOwner: Owner;
+  phase: CombatAnimationPhase;
+  progress: Animated.Value;
+  riveFile: RiveFile;
+}) {
+  const attacker = toDisplayCoordinate(combat.from, isPlayer1);
+  const defender = toDisplayCoordinate(combat.to, isPlayer1);
+  const attackerOnLeft = attacker.x <= defender.x;
+  return (
+    <>
+      <Combatant
+        cellSize={cellSize}
+        faceRight={attackerOnLeft}
+        isMine={combat.attackerOwner === ownOwner}
+        isWinner={combat.winnerOwner === combat.attackerOwner}
+        phase={phase}
+        piece={combat.attackerPiece}
+        position={attacker}
+        progress={progress}
+        riveFile={riveFile}
+        target={defender}
+        targetSide={attackerOnLeft ? -1 : 1}
+      />
+      <Combatant
+        cellSize={cellSize}
+        faceRight={!attackerOnLeft}
+        isMine={combat.defenderOwner === ownOwner}
+        isWinner={combat.winnerOwner === combat.defenderOwner}
+        phase={phase}
+        piece={combat.defenderPiece}
+        position={defender}
+        progress={progress}
+        riveFile={riveFile}
+        target={attacker}
+        targetSide={attackerOnLeft ? 1 : -1}
+      />
+    </>
+  );
+}
+
+function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, position, progress, riveFile, target, targetSide }: {
+  cellSize: number;
+  faceRight: boolean;
+  isMine: boolean;
+  isWinner: boolean;
+  phase: CombatAnimationPhase;
+  piece: Piece;
+  position: Coordinate;
+  progress: Animated.Value;
+  riveFile: RiveFile;
+  target: Coordinate;
+  targetSide: -1 | 1;
+}) {
+  const centerX = ((position.x + target.x + 1) / 2) * cellSize;
+  const centerY = ((position.y + target.y + 1) / 2) * cellSize;
+  const finalLeft = centerX + targetSide * cellSize * 0.24 - cellSize / 2;
+  const finalTop = centerY - cellSize / 2;
+  const startLeft = position.x * cellSize;
+  const startTop = position.y * cellSize;
+  const translateX = progress.interpolate({ inputRange: [0, 0.25, 1, 4], outputRange: [0, 0, finalLeft - startLeft, finalLeft - startLeft], extrapolate: 'clamp' });
+  const translateY = progress.interpolate({ inputRange: [0, 0.25, 1, 4], outputRange: [0, 0, finalTop - startTop, finalTop - startTop], extrapolate: 'clamp' });
+  const scale = progress.interpolate({ inputRange: [0, 1, 1.35, 3, 4], outputRange: [1, 1, 2, 2, 1], extrapolate: 'clamp' });
+  const opacity = progress.interpolate({
+    inputRange: [0, 2, 3, 4],
+    outputRange: isWinner ? [1, 1, 1, 0] : [1, 1, 0, 0],
+    extrapolate: 'clamp',
+  });
+  const trigger: RiveActionTrigger | undefined = phase === 'prepare'
+    ? 'Attack Prepare'
+    : phase === 'attack' && isWinner
+      ? 'Attack'
+      : phase === 'death' && !isWinner ? 'Death' : undefined;
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.combatant,
+        {
+          height: cellSize,
+          left: startLeft,
+          opacity,
+          top: startTop,
+          transform: [{ translateX }, { translateY }, { scale }, { scaleX: faceRight ? 1 : -1 }],
+          width: cellSize,
+        },
+        isWinner ? styles.combatWinner : styles.combatLoser,
+      ]}
+      testID={isWinner ? 'combat-winner' : 'combat-loser'}>
+      <View style={[styles.piece, { width: cellSize * 0.88, height: cellSize * 0.88, transform: [{ translateY: -cellSize * 0.43 }] }]}>
+        <RiveGamePiece actionTrigger={trigger} file={riveFile} isMine={isMine} piece={piece} size={cellSize * 1.68} />
+      </View>
+    </Animated.View>
   );
 }
 
@@ -233,5 +350,8 @@ const styles = StyleSheet.create({
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   movingCell: { position: 'absolute', alignItems: 'center', justifyContent: 'center', zIndex: 20, elevation: 20 },
+  combatant: { position: 'absolute', alignItems: 'center', justifyContent: 'center', elevation: 30 },
+  combatWinner: { zIndex: 31 },
+  combatLoser: { zIndex: 30 },
   moveArrow: { width: 22, height: 22, resizeMode: 'contain', tintColor: colors.move },
 });

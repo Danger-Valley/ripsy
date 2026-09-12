@@ -218,8 +218,18 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
   - display-space right: `Jump Right`
   - vertical: `Jump Forward` because the asset has no backward jump
 - Calculate direction after converting server coordinates into player-visible coordinates.
-- Current native timing: 500 ms move, 560 ms battle transition, 120 ms non-move phase transition, followed by a 160/260 ms settle fade.
+- Current native timing for a non-combat move is 500 ms, a non-move phase transition is 120 ms, and its settle is 160/260 ms.
 - Haptic move feedback fires only when a confirmed turn advance or board-changing finish is observed.
+
+### Resolved combat animation
+
+- A Rock/Paper/Scissors battle is derived only from the authoritative resolved state. Do not start the scene while `tiePending` is true; enqueue it when the tie choice produces a non-zero outcome.
+- Read both original occupants from the previous board and the revealed weapons/winner from `attacker`, `defender`, and `outcome`. This supports both immediate battles and post-tie resolution without leaking hidden weapons early.
+- Hide both stationary sprites and render two persistent overlay instances above the board. Arrange them horizontally around the midpoint and mirror them so they face each other, including a vertically initiated attack.
+- Match the existing web choreography: fire `Attack Prepare` on both figures; wait 100 ms, move both into the shared fight position over the remaining 300 ms; then animate both to 2× scale.
+- At the attack phase, fire `Attack` only on the authoritative winner. Its numeric `Weapon` input selects the Rock throw, Paper win, or Scissors win timeline. Keep the attack visible for 383 ms (Rock), 500 ms (Paper), or 966 ms (Scissors), plus the web's 100 ms impact offset.
+- After impact, fire `Death` only on the loser for 200 ms. Reveal the new authoritative board only after that beat, then fade the combat overlays during the 260 ms settle.
+- Keep each Rive instance mounted through `Attack Prepare` → `Attack`/`Death`. Changing a trigger must not reset its state machine, or the battle timeline will restart instead of progressing.
 
 ### Haptics and accessibility
 
@@ -258,6 +268,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Independent opponent idle timing | Port/verify | Use per-instance 60–400 ms stagger and reduced-motion handling. |
 | Explicit animation queue | Port/verify | Replace overlapping timer-driven web combat/movement effects with state-transition queue. |
 | Jump animation during movement | Partial | Existing web jump code must be tested against the authoritative transition sequence and visible coordinates. |
+| Full resolved combat scene | Done, migrate to queue | Preserve the existing web choreography and weapon attacks, but drive it from the authoritative transition queue using the sequence documented above. |
 | Light move feedback | Visual equivalent | Provide visible acknowledgement; browser vibration is optional. |
 | Two 10-minute clocks | Done | Keep server snapshots authoritative and verify narrow layouts/result state. |
 | Timeout result copy | Done | Preserve `finishReason === "timeout"` messaging and final clocks. |

@@ -1,5 +1,5 @@
 import React from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, StyleSheet } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
@@ -53,6 +53,10 @@ test('exposes piece names and only actionable cells as buttons', async () => {
   const pieceVisuals = renderer.root.findAll(node => node.props.testID === 'piece-visual');
   expect(pieceVisuals.length).toBeGreaterThanOrEqual(2);
   expect(pieceVisuals.every(visual => visual.props.pointerEvents === 'none')).toBe(true);
+  expect(pieceVisuals.every(visual => {
+    const style = StyleSheet.flatten(visual.props.style);
+    return style.backgroundColor === undefined && style.borderColor === undefined && style.borderWidth === undefined;
+  })).toBe(true);
 });
 
 test('announces selected pieces and legal move targets', async () => {

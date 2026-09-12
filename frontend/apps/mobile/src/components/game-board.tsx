@@ -94,7 +94,6 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                     testID="piece-visual"
                     style={[
                       styles.piece,
-                      !isMine && !isOpponentPreview && styles.opponentPiece,
                       {
                         width: cellSize * 0.88,
                         height: cellSize * 0.88,
@@ -155,6 +154,5 @@ const styles = StyleSheet.create({
   availableCell: { backgroundColor: '#12384A' },
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  opponentPiece: { backgroundColor: '#5B3540', borderColor: '#FB7185', borderWidth: 2 },
   moveArrow: { width: 22, height: 22, resizeMode: 'contain', tintColor: colors.move },
 });

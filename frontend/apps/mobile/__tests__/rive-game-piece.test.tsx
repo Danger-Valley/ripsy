@@ -34,7 +34,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-test('always hides weapons for traps', async () => {
+test('clears the weapon value and visibility before entering trap idle', async () => {
   await ReactTestRenderer.act(async () => {
     ReactTestRenderer.create(
       <RiveGamePiece file={{} as never} isMine piece={Piece.Trap} size={80} />,
@@ -42,9 +42,24 @@ test('always hides weapons for traps', async () => {
     await Promise.resolve();
   });
 
+  expect(mockRiveViewRef.setNumberInputValue).not.toHaveBeenCalledWith('Weapon', Piece.Trap);
+  expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('Weapon', Piece.Empty);
   expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('WeaponVisible', 0);
   expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Trap Idle');
+  const weaponCalls = mockRiveViewRef.setNumberInputValue.mock.calls.filter(([name]) => name === 'Weapon');
+  const visibilityCalls = mockRiveViewRef.setNumberInputValue.mock.calls.filter(([name]) => name === 'WeaponVisible');
+  expect(weaponCalls).toEqual([
+    ['Weapon', Piece.Empty],
+    ['Weapon', Piece.Empty],
+  ]);
+  expect(visibilityCalls).toEqual([
+    ['WeaponVisible', 0],
+    ['WeaponVisible', 0],
+  ]);
   expect(mockRiveViewRef.play.mock.invocationCallOrder[0]).toBeLessThan(
+    mockRiveViewRef.triggerInput.mock.invocationCallOrder[0]!,
+  );
+  expect(mockRiveViewRef.setNumberInputValue.mock.invocationCallOrder.at(-1)).toBeLessThan(
     mockRiveViewRef.triggerInput.mock.invocationCallOrder[0]!,
   );
 });

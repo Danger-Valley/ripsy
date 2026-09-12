@@ -55,11 +55,14 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
   useEffect(() => {
     if (!shouldMountRive || !riveViewRef) return;
     let cancelled = false;
+    const isTrap = piece === Piece.Trap;
 
     const setPieceInputs = () => {
       try {
-        riveViewRef.setNumberInputValue('Weapon', piece);
-        if (isMine) riveViewRef.setNumberInputValue('WeaponVisible', piece !== Piece.Empty && piece !== Piece.Trap ? 1 : 0);
+        // Trap is a separate Rive state, not a weapon value. Passing Piece.Trap
+        // into Weapon can leave a stale weapon layer visible inside the trap art.
+        riveViewRef.setNumberInputValue('Weapon', isTrap ? Piece.Empty : piece);
+        if (isMine) riveViewRef.setNumberInputValue('WeaponVisible', piece !== Piece.Empty && !isTrap ? 1 : 0);
       } catch {
         // Keep the board usable if this asset's state machine changes.
       }
@@ -90,8 +93,11 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
           // Keep the positional move running if an asset trigger is unavailable.
         }
       }
-      if (cancelled || piece !== Piece.Trap || !isMine) return;
+      if (cancelled || !isTrap || !isMine) return;
       try {
+        // Reassert the hidden state after playback starts, before entering the
+        // trap idle state, so a previously reused weapon layer cannot flash.
+        setPieceInputs();
         riveViewRef.triggerInput('Trap Idle');
         riveViewRef.playIfNeeded();
       } catch {

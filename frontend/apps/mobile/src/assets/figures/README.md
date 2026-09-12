@@ -15,4 +15,6 @@ Both machines expose the numeric `Weapon` input and these triggers: `Jump Forwar
 
 `State Machine Back` additionally exposes numeric `WeaponVisible` and the `Trap Idle` trigger. `WeaponVisible` is a number (`0` or `1`), not a boolean.
 
+A trap is not a `Weapon` value in the Rive state machine. Before starting trap idle, set `Weapon` to `Piece.Empty` (`0`) and `WeaponVisible` to `0`, start playback, reassert both values, and then fire `Trap Idle`. Passing `Piece.Trap` into `Weapon` can leave a stale weapon layer visible inside the trap artwork.
+
 Mobile movement fires the appropriate jump trigger on the moving Rive instance. Horizontal direction is calculated after converting server coordinates to player-visible board coordinates; vertical movement uses `Jump Forward` because the asset has no backward jump.

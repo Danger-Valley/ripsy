@@ -8,6 +8,7 @@ import { StatusBanner } from '../components/status-banner';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
 import { useGameAnimationQueue } from '../hooks/use-game-animation-queue';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
+import { isCompletedMoveTransition } from '../game-animation';
 import { haptics } from '../haptics';
 import { createGameInviteUrl, normalizeRoomCode } from '../invitations';
 import type { RootStackParamList } from '../navigation';
@@ -35,6 +36,7 @@ export function GameScreen({ navigation, route }: Props) {
   const [actionError, setActionError] = useState<string | null>(null);
   const previousPhase = useRef<Phase | undefined>(undefined);
   const previousTiePending = useRef(false);
+  const previousMoveState = useRef<GameState | null>(null);
 
   const isParticipant = game.isPlayer0 || game.isPlayer1;
   const hasSubmitted = Boolean(game.gameState && (
@@ -65,6 +67,9 @@ export function GameScreen({ navigation, route }: Props) {
   useEffect(() => {
     const state = game.gameState;
     if (!state) return;
+    if (previousMoveState.current && isCompletedMoveTransition(previousMoveState.current, state)) {
+      haptics.move();
+    }
     if (previousPhase.current !== undefined && previousPhase.current !== Phase.Finished && state.phase === Phase.Finished) {
       haptics.success();
     } else if (!previousTiePending.current && state.tiePending) {
@@ -72,6 +77,7 @@ export function GameScreen({ navigation, route }: Props) {
     }
     previousPhase.current = state.phase;
     previousTiePending.current = state.tiePending;
+    previousMoveState.current = state;
   }, [game.gameState]);
 
   const availableMoves = useMemo(() => {

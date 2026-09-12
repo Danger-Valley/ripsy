@@ -78,7 +78,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                 disabled={!isActionable}
                 key={displayX}
                 onPress={() => {
-                  isAvailable ? haptics.move() : haptics.select();
+                  if (!isAvailable) haptics.select();
                   onCellPress?.({ x, y });
                 }}
                 style={[

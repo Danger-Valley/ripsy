@@ -1,4 +1,4 @@
-import { Piece, type GameState } from '@rps/core';
+import { Phase, Piece, type GameState } from '@rps/core';
 
 export type GameAnimationKind = 'move' | 'battle' | 'phase';
 
@@ -36,6 +36,16 @@ export function classifyGameTransition(previous: GameState, next: GameState): Ga
   if (battleChanged) return 'battle';
   if (boardChanged) return 'move';
   return 'phase';
+}
+
+export function isCompletedMoveTransition(previous: GameState, next: GameState): boolean {
+  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active) return false;
+
+  const turnAdvanced = previous.isP1Turn !== next.isP1Turn;
+  const boardChanged = !arraysEqual(previous.owners, next.owners) || !arraysEqual(previous.pieces, next.pieces);
+  const gameFinishedByMove = next.phase === Phase.Finished && boardChanged;
+
+  return turnAdvanced || gameFinishedByMove;
 }
 
 function arraysEqual(left: readonly number[], right: readonly number[]): boolean {

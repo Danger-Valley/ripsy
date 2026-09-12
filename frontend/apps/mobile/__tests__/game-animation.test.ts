@@ -1,5 +1,5 @@
 import { Choice, Owner, Phase, Piece, type GameState } from '@rps/core';
-import { classifyGameTransition, gameStateFingerprint } from '../src/game-animation';
+import { classifyGameTransition, gameStateFingerprint, isCompletedMoveTransition } from '../src/game-animation';
 
 const baseState: GameState = {
   gameId: 'a1b2c3d4',
@@ -40,6 +40,25 @@ test('fingerprint ignores object identity but tracks visible state', () => {
   expect(gameStateFingerprint({ ...baseState })).toBe(gameStateFingerprint(baseState));
   expect(gameStateFingerprint({ ...baseState, playerChoice: Choice.Paper })).not.toBe(gameStateFingerprint(baseState));
   expect(gameStateFingerprint({ ...baseState, tieTo: { x: 1, y: 2 } })).not.toBe(gameStateFingerprint(baseState));
+});
+
+test('detects a confirmed move when the turn advances', () => {
+  expect(isCompletedMoveTransition(baseState, { ...baseState, isP1Turn: true })).toBe(true);
+});
+
+test('detects a move that finishes the game without advancing the turn', () => {
+  const pieces = [...baseState.pieces];
+  pieces[0] = Piece.Rock;
+  expect(isCompletedMoveTransition(baseState, { ...baseState, phase: Phase.Finished, pieces })).toBe(true);
+});
+
+test('does not treat initial state, duplicate state, or tie resolution as another move', () => {
+  expect(isCompletedMoveTransition({ ...baseState, phase: Phase.LineupP1Set }, baseState)).toBe(false);
+  expect(isCompletedMoveTransition(baseState, { ...baseState })).toBe(false);
+  expect(isCompletedMoveTransition(
+    { ...baseState, tiePending: true },
+    { ...baseState, tiePending: false, outcome: 1 },
+  )).toBe(false);
 });
 
 function withBoard(

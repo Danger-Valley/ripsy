@@ -6,10 +6,12 @@ import { HomeScreen } from '../src/screens/home-screen';
 import { useNativeRipsyGame } from '../src/hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../src/hooks/use-player-identity';
 import { usePushNotifications } from '../src/hooks/use-push-notifications';
+import { saveActiveGameId } from '../src/storage/active-game';
 
 jest.mock('../src/hooks/use-native-ripsy-game');
 jest.mock('../src/hooks/use-player-identity');
 jest.mock('../src/hooks/use-push-notifications');
+jest.mock('../src/storage/active-game', () => ({ saveActiveGameId: jest.fn(() => Promise.resolve()) }));
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useIsFocused: () => true,
@@ -18,6 +20,7 @@ jest.mock('@react-navigation/native', () => ({
 const createGame = jest.fn(() => Promise.resolve('abcdef12'));
 const listGames = jest.fn(() => Promise.resolve([] as GameState[]));
 const navigate = jest.fn();
+const setParams = jest.fn();
 const addListener = jest.fn(() => jest.fn());
 
 beforeEach(() => {
@@ -124,10 +127,32 @@ test('shows unfinished games as board previews and opens a selected room', async
   expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'active12' });
 });
 
-async function renderHome() {
+test('restores the last game only after the server confirms it is unfinished', async () => {
+  const activeGame = createActiveGame();
+  listGames.mockResolvedValueOnce([activeGame]);
+
+  await renderHome({ restoreGameId: activeGame.gameId });
+
+  expect(listGames).toHaveBeenCalledTimes(1);
+  expect(navigate).toHaveBeenCalledWith('Game', { gameId: activeGame.gameId });
+  expect(saveActiveGameId).not.toHaveBeenCalledWith(null);
+});
+
+test('does not restore a finished game and clears its saved id', async () => {
+  const finishedGame = { ...createActiveGame(), phase: Phase.Finished };
+  listGames.mockResolvedValueOnce([finishedGame]);
+
+  await renderHome({ restoreGameId: finishedGame.gameId });
+
+  expect(navigate).not.toHaveBeenCalledWith('Game', { gameId: finishedGame.gameId });
+  expect(saveActiveGameId).toHaveBeenCalledWith(null);
+});
+
+async function renderHome(params?: { restoreGameId?: string }) {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(() => {
-    renderer = ReactTestRenderer.create(<HomeScreen navigation={{ navigate, addListener } as never} route={{} as never} />);
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<HomeScreen navigation={{ navigate, addListener, setParams } as never} route={{ params } as never} />);
+    await Promise.resolve();
   });
   return renderer;
 }

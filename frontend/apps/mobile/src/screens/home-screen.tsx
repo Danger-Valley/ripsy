@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
+import { Phase } from '@rps/core';
 import { ActiveGameCard } from '../components/active-game-card';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
@@ -10,11 +11,12 @@ import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { usePushNotifications } from '../hooks/use-push-notifications';
 import { formatRoomCodeInput, normalizeRoomCode } from '../invitations';
 import type { RootStackParamList } from '../navigation';
+import { saveActiveGameId } from '../storage/active-game';
 import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-export function HomeScreen({ navigation }: Props) {
+export function HomeScreen({ navigation, route }: Props) {
   const isFocused = useIsFocused();
   const { playerId, sessionToken, isReady, error: identityError } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, undefined, isFocused);
@@ -23,6 +25,8 @@ export function HomeScreen({ navigation }: Props) {
   const push = usePushNotifications(sessionToken);
   const [roomCode, setRoomCode] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const hasCheckedRestoredGame = useRef(false);
+  const restoredGameId = route.params?.restoreGameId;
 
   const refreshGames = useCallback(async (showSpinner = false) => {
     if (!isGameConnected) return;
@@ -37,9 +41,27 @@ export function HomeScreen({ navigation }: Props) {
   }, [isGameConnected, listActiveGames]);
 
   useEffect(() => {
-    refreshGames().catch(() => undefined);
+    if (!restoredGameId) refreshGames().catch(() => undefined);
     return navigation.addListener('focus', () => { refreshGames().catch(() => undefined); });
-  }, [navigation, refreshGames]);
+  }, [navigation, refreshGames, restoredGameId]);
+
+  useEffect(() => {
+    if (!isFocused || !isGameConnected || !restoredGameId || hasCheckedRestoredGame.current) return;
+    hasCheckedRestoredGame.current = true;
+    listActiveGames()
+      .then(games => {
+        navigation.setParams({ restoreGameId: undefined });
+        const restoredGame = games.find(candidate => candidate.gameId === restoredGameId && candidate.phase < Phase.Finished);
+        if (restoredGame) {
+          navigation.navigate('Game', { gameId: restoredGame.gameId });
+          return;
+        }
+        saveActiveGameId(null).catch(() => undefined);
+      })
+      .catch(() => {
+        // Stay on Home when freshness cannot be verified. Never open stale state.
+      });
+  }, [isFocused, isGameConnected, listActiveGames, navigation, restoredGameId]);
 
   useEffect(() => {
     if (game.gameState) refreshGames().catch(() => undefined);

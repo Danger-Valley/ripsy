@@ -26,8 +26,8 @@ function App() {
       .then(([initialUrl, initialPushUrl, gameId]) => {
         if (!initialUrl && !initialPushUrl && gameId) {
           setInitialState({
-            index: 1,
-            routes: [{ name: 'Home' }, { name: 'Game', params: { gameId } }],
+            index: 0,
+            routes: [{ name: 'Home', params: { restoreGameId: gameId } }],
           });
         }
       })

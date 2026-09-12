@@ -36,7 +36,7 @@ For offline computer games, the mobile app invokes the same shared game engine d
 - [x] Rename blockchain-era `gamePda`, `publicKey`, and address terminology to game/player terminology.
 - [x] Add runtime protocol validation and typed protocol-version errors.
 - [x] Handle foreground/background transitions, network loss, stale connections, and full-state recovery.
-- [x] Persist and restore the active game.
+- [x] Persist the last active game and restore it only after the backend confirms it is still unfinished.
 - [x] Add native sharing, validated room-code entry, invitation deep-link routing, and iOS Universal Links.
 - [x] Add production Android signing configuration that keeps the upload key and passwords outside Git.
 - [x] Provision and back up the Android upload key, then verify a signed production App Bundle.

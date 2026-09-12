@@ -101,6 +101,7 @@ Use the exported `Phase` constants. Do not hard-code numeric phases in new web c
 - A protocol mismatch is typed as `UNSUPPORTED_PROTOCOL_VERSION`.
 - The reusable socket client has request timeouts, exponential reconnect backoff with jitter, pending-request rejection, and full-state recovery.
 - Native suspends its socket in the background and reconnects/refetches when active.
+- Cold-start recovery never opens a locally saved room ID blindly. Home first calls `listGames`, verifies that the matching game belongs to the player and has `phase < Finished`, and only then navigates to it. A missing or finished game clears the saved recovery ID; an unverifiable game stays closed while offline or on request failure.
 - Web should converge on the reusable `RipsySocketClient` instead of maintaining a second, weaker WebSocket implementation in `use-ripsy-game.ts`.
 - Safe diagnostics must not log credentials, player IDs, room IDs, request IDs, coordinates, lineups, or board state.
 
@@ -240,6 +241,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Signed anonymous sessions | Done | Preserve `/session` token flow. |
 | Runtime protocol parsing | Done | Keep `parseServerMessage` on every message. |
 | Reusable robust socket client | Port/verify | Replace or align the legacy React hook with `RipsySocketClient` recovery semantics. |
+| Safe last-game restoration | Port/verify | Verify saved game membership and unfinished phase through `listGames` before automatic navigation; never open stale local IDs. |
 | Create/join/play commands | Done | Retest after socket-hook convergence. |
 | Automatic join after room entry/deep link | Port/verify | Remove redundant join confirmation screen and board preview. |
 | Active unfinished games on Home | Port/verify | Add native-style list with miniature boards using `listGames`. |

@@ -3,7 +3,7 @@ import { Linking } from 'react-native';
 import { getInitialPushUrl, subscribeToPushUrls } from './push-notifications';
 
 export type RootStackParamList = {
-  Home: undefined;
+  Home: { restoreGameId?: string } | undefined;
   Game: { gameId: string };
   ComputerGame: undefined;
 };

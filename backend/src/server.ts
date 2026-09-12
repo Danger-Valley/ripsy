@@ -114,6 +114,11 @@ const gameSockets = attachGameWebSocketServer({
   sendPush: targets => pushNotifier.send(targets),
 });
 
+const clockInterval = setInterval(() => {
+  void store.expireDueClocks().catch(() => diagnose({ level: 'error', event: 'clock.expiration_failed' }));
+}, 500);
+clockInterval.unref();
+
 await subscriber.pSubscribe(store.eventPattern, (gameId) => {
   void gameSockets.broadcast(gameId);
 });
@@ -176,6 +181,7 @@ server.listen(port, '0.0.0.0', () => {
 async function shutdown(signal: string) {
   diagnose({ level: 'info', event: 'server.shutdown', signal });
   gameSockets.close();
+  clearInterval(clockInterval);
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await Promise.allSettled([subscriber.quit(), commandClient.quit()]);
   process.exit(0);

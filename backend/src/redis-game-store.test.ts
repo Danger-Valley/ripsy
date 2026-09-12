@@ -7,6 +7,7 @@ class FakeRedis implements RedisCommands {
   readonly values = new Map<string, string>();
   readonly sets = new Map<string, Set<string>>();
   readonly events: Array<{ channel: string; message: string }> = [];
+  readonly sortedSets = new Map<string, Map<string, number>>();
 
   async get(key: string) {
     return this.values.get(key) ?? null;
@@ -19,11 +20,15 @@ class FakeRedis implements RedisCommands {
   }
 
   async eval(_script: string, options: { keys: string[]; arguments: string[] }) {
-    const [key, channel] = options.keys;
-    const [expected, next, _ttl, message] = options.arguments;
+    const [key, channel, deadlinesKey] = options.keys;
+    const [expected, next, _ttl, message, deadline] = options.arguments;
     if (!key || !channel || expected === undefined || next === undefined || message === undefined) return 0;
     if (this.values.get(key) !== expected) return 0;
     this.values.set(key, next);
+    if (deadlinesKey) {
+      if (deadline) await this.zAdd(deadlinesKey, { score: Number(deadline), value: message });
+      else await this.zRem(deadlinesKey, message);
+    }
     this.events.push({ channel, message });
     return 1;
   }
@@ -47,6 +52,22 @@ class FakeRedis implements RedisCommands {
   async sMembers(key: string) { return [...(this.sets.get(key) ?? [])]; }
   async sRem(key: string, member: string) { return this.sets.get(key)?.delete(member) ? 1 : 0; }
   async expire() { return true; }
+  async zAdd(key: string, member: { score: number; value: string }) {
+    const set = this.sortedSets.get(key) ?? new Map<string, number>();
+    const existed = set.has(member.value);
+    set.set(member.value, member.score);
+    this.sortedSets.set(key, set);
+    return existed ? 0 : 1;
+  }
+  async zRangeByScore(key: string, min: number, max: number, options?: { LIMIT?: { offset: number; count: number } }) {
+    const values = [...(this.sortedSets.get(key) ?? [])]
+      .filter(([, score]) => score >= min && score <= max)
+      .sort((left, right) => left[1] - right[1])
+      .map(([value]) => value);
+    const offset = options?.LIMIT?.offset ?? 0;
+    return values.slice(offset, options?.LIMIT ? offset + options.LIMIT.count : undefined);
+  }
+  async zRem(key: string, member: string) { return this.sortedSets.get(key)?.delete(member) ? 1 : 0; }
 }
 
 test('persists game state in Redis-compatible storage', async () => {
@@ -121,4 +142,32 @@ test('atomic compare-and-swap admits only one competing player', async () => {
   ]);
   assert.equal(attempts.filter(({ status }) => status === 'fulfilled').length, 1);
   assert.equal(attempts.filter(({ status }) => status === 'rejected').length, 1);
+});
+
+test('multiple store instances safely resolve a Redis clock deadline once', async () => {
+  const redis = new FakeRedis();
+  let nowMs = Date.parse('2026-01-01T00:00:00.000Z');
+  const options = { now: () => new Date(nowMs) };
+  const firstInstance = new RedisGameStore(redis, options);
+  const secondInstance = new RedisGameStore(redis, options);
+  const game = await firstInstance.create('alice');
+  await firstInstance.join(game.gameId, 'bob');
+  const xs = Array.from({ length: 14 }, (_, index) => index % 7);
+  const p0Ys = Array.from({ length: 14 }, (_, index) => 5 + Math.floor(index / 7));
+  const p1Ys = Array.from({ length: 14 }, (_, index) => Math.floor(index / 7));
+  const pieces = [
+    ...Array(4).fill(Piece.Rock), ...Array(4).fill(Piece.Paper),
+    ...Array(4).fill(Piece.Scissors), Piece.Flag, Piece.Trap,
+  ];
+  await firstInstance.submitLineup(game.gameId, 'alice', xs, p0Ys, pieces);
+  await secondInstance.submitLineup(game.gameId, 'bob', xs, p1Ys, pieces);
+
+  nowMs += 600_001;
+  const results = await Promise.all([firstInstance.expireDueClocks(), secondInstance.expireDueClocks()]);
+  const finished = await firstInstance.get(game.gameId, 'alice');
+  assert.equal(results.reduce((sum, value) => sum + value, 0), 1);
+  assert.equal(finished.phase, Phase.Finished);
+  assert.equal(finished.winner, 'bob');
+  assert.equal(finished.finishReason, 'timeout');
+  assert.equal(finished.clock0Ms, 0);
 });

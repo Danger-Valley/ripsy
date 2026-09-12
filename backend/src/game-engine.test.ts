@@ -7,6 +7,7 @@ import {
   gameView,
   joinGame,
   movePiece,
+  settleGameClock,
   submitLineup,
 } from './game-engine.js';
 
@@ -94,4 +95,37 @@ test('applies a legal move without external state', () => {
   assert.equal(game.isP1Turn, true);
   assert.equal(game.tieFrom, 5 * 7);
   assert.equal(game.tieTo, 4 * 7);
+});
+
+test('runs one cumulative ten-minute clock at a time and switches it after a move', () => {
+  const startedAt = new Date('2026-01-01T00:00:00.000Z');
+  const game = createGameRecord('game-1', 'alice', startedAt);
+  joinGame(game, 'bob');
+  submitLineup(game, 'alice', xs, aliceYs, lineup, startedAt);
+  submitLineup(game, 'bob', xs, bobYs, lineup, startedAt);
+
+  movePiece(game, 'alice', 0, 5, 0, 4, new Date(startedAt.getTime() + 30_000));
+  assert.equal(game.clock0Ms, 570_000);
+  assert.equal(game.clock1Ms, 600_000);
+  assert.equal(game.isP1Turn, true);
+
+  movePiece(game, 'bob', 0, 1, 0, 2, new Date(startedAt.getTime() + 50_000));
+  assert.equal(game.clock0Ms, 570_000);
+  assert.equal(game.clock1Ms, 580_000);
+  assert.equal(game.isP1Turn, false);
+});
+
+test('ends the game when the active player runs out of time', () => {
+  const startedAt = new Date('2026-01-01T00:00:00.000Z');
+  const game = createGameRecord('game-1', 'alice', startedAt);
+  joinGame(game, 'bob');
+  submitLineup(game, 'alice', xs, aliceYs, lineup, startedAt);
+  submitLineup(game, 'bob', xs, bobYs, lineup, startedAt);
+
+  assert.equal(settleGameClock(game, new Date(startedAt.getTime() + 600_001)), true);
+  assert.equal(game.phase, Phase.Finished);
+  assert.equal(game.winner, 'bob');
+  assert.equal(game.finishReason, 'timeout');
+  assert.equal(game.clock0Ms, 0);
+  assert.equal(game.clockStartedAt, null);
 });

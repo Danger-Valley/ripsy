@@ -8,6 +8,8 @@ import {
   movePiece,
   parseGameRecord,
   submitLineup,
+  clockDeadline,
+  settleGameClock,
   type GameRecord,
 } from './game-engine.js';
 
@@ -21,6 +23,9 @@ export interface RedisCommands {
   sMembers(key: string): Promise<string[]>;
   sRem(key: string, member: string): Promise<number>;
   expire(key: string, seconds: number): Promise<boolean>;
+  zAdd(key: string, member: { score: number; value: string }): Promise<number>;
+  zRangeByScore(key: string, min: number, max: number, options?: { LIMIT?: { offset: number; count: number } }): Promise<string[]>;
+  zRem(key: string, member: string): Promise<number>;
 }
 
 type Mutation = (game: GameRecord) => void;
@@ -32,6 +37,11 @@ if current ~= ARGV[1] then
   return 0
 end
 redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+if ARGV[5] == '' then
+  redis.call('ZREM', KEYS[3], ARGV[4])
+else
+  redis.call('ZADD', KEYS[3], ARGV[5], ARGV[4])
+end
 redis.call('PUBLISH', KEYS[2], ARGV[4])
 return 1
 `;
@@ -40,6 +50,7 @@ export interface RedisGameStoreOptions {
   keyPrefix?: string;
   gameTtlSeconds?: number;
   maxMutationRetries?: number;
+  now?: () => Date;
 }
 
 export class RedisGameStore {
@@ -47,6 +58,7 @@ export class RedisGameStore {
   private readonly prefix: string;
   private readonly gameTtlSeconds: number;
   private readonly maxMutationRetries: number;
+  private readonly now: () => Date;
 
   constructor(
     private readonly redis: RedisCommands,
@@ -55,6 +67,7 @@ export class RedisGameStore {
     this.prefix = (options.keyPrefix ?? 'ripsy').replace(/:+$/, '');
     this.gameTtlSeconds = options.gameTtlSeconds ?? 60 * 60 * 24 * 7;
     this.maxMutationRetries = options.maxMutationRetries ?? 12;
+    this.now = options.now ?? (() => new Date());
     this.eventPattern = `${this.prefix}:*:events`;
     if (!Number.isInteger(this.gameTtlSeconds) || this.gameTtlSeconds < 60) {
       throw new Error('Game TTL must be at least 60 seconds');
@@ -64,7 +77,7 @@ export class RedisGameStore {
   async create(playerId: string): Promise<GameState> {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const id = randomUUID().slice(0, 8);
-      const game = createGameRecord(id, playerId);
+      const game = createGameRecord(id, playerId, this.now());
       const created = await this.redis.set(this.gameKey(id), JSON.stringify(game), {
         NX: true,
         EX: this.gameTtlSeconds,
@@ -72,7 +85,7 @@ export class RedisGameStore {
       if (created === 'OK') {
         await this.addToPlayerIndex(playerId, id);
         await this.redis.publish(this.eventChannel(id), id);
-        return gameView(game, playerId);
+        return gameView(game, playerId, this.now());
       }
     }
     throw new Error('Could not allocate a unique game ID');
@@ -97,7 +110,7 @@ export class RedisGameStore {
     }))).filter((game): game is GameRecord => game !== null);
     if (staleGameIds.length > 0) await Promise.all(staleGameIds.map(gameId => this.redis.sRem(indexKey, gameId)));
     games.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-    return games.slice(0, MAX_LISTED_GAMES).map(game => gameView(game, playerId));
+    return games.slice(0, MAX_LISTED_GAMES).map(game => gameView(game, playerId, this.now()));
   }
 
   async get(gameId: string, playerId: string): Promise<GameState> {
@@ -105,7 +118,7 @@ export class RedisGameStore {
     if (game.phase < Phase.Finished && (game.p0 === playerId || game.p1 === playerId)) {
       await this.addToPlayerIndex(playerId, gameId);
     }
-    return gameView(game, playerId);
+    return gameView(game, playerId, this.now());
   }
 
   async join(gameId: string, playerId: string): Promise<GameState> {
@@ -121,7 +134,7 @@ export class RedisGameStore {
     ys: number[],
     pieces: number[],
   ): Promise<GameState> {
-    return this.mutate(gameId, playerId, (game) => submitLineup(game, playerId, xs, ys, pieces));
+    return this.mutate(gameId, playerId, (game) => submitLineup(game, playerId, xs, ys, pieces, this.now()));
   }
 
   async move(
@@ -132,18 +145,39 @@ export class RedisGameStore {
     toX: number,
     toY: number,
   ): Promise<GameState> {
-    return this.mutate(gameId, playerId, (game) => movePiece(game, playerId, fromX, fromY, toX, toY));
+    return this.mutate(gameId, playerId, (game) => movePiece(game, playerId, fromX, fromY, toX, toY, this.now()));
   }
 
   async choose(gameId: string, playerId: string, choice: Choice): Promise<GameState> {
-    return this.mutate(gameId, playerId, (game) => chooseWeapon(game, playerId, choice));
+    return this.mutate(gameId, playerId, (game) => chooseWeapon(game, playerId, choice, this.now()));
   }
 
   async views(gameId: string): Promise<Array<{ playerId: string; state: GameState }>> {
     const game = await this.getRecord(gameId);
     return [game.p0, game.p1]
       .filter(Boolean)
-      .map((playerId) => ({ playerId, state: gameView(game, playerId) }));
+      .map((playerId) => ({ playerId, state: gameView(game, playerId, this.now()) }));
+  }
+
+  async expireDueClocks(limit = 100): Promise<number> {
+    const now = this.now();
+    const gameIds = await this.redis.zRangeByScore(this.clockDeadlinesKey(), 0, now.getTime(), {
+      LIMIT: { offset: 0, count: limit },
+    });
+    let expired = 0;
+    await Promise.all(gameIds.map(async gameId => {
+      try {
+        const changed = await this.mutateRecord(gameId, game => settleGameClock(game, now));
+        if (changed) expired += 1;
+      } catch (error) {
+        if (error instanceof Error && error.message === 'Game not found') {
+          await this.redis.zRem(this.clockDeadlinesKey(), gameId);
+          return;
+        }
+        throw error;
+      }
+    }));
+    return expired;
   }
 
   async isReady(): Promise<boolean> {
@@ -155,6 +189,11 @@ export class RedisGameStore {
   }
 
   private async mutate(gameId: string, playerId: string, mutation: Mutation): Promise<GameState> {
+    const game = await this.mutateAndGetRecord(gameId, mutation);
+    return gameView(game, playerId, this.now());
+  }
+
+  private async mutateAndGetRecord(gameId: string, mutation: Mutation): Promise<GameRecord> {
     for (let attempt = 0; attempt < this.maxMutationRetries; attempt += 1) {
       const key = this.gameKey(gameId);
       const current = await this.redis.get(key);
@@ -164,22 +203,35 @@ export class RedisGameStore {
       mutation(game);
       const next = JSON.stringify(game);
       const changed = Number(await this.redis.eval(COMPARE_AND_SWAP, {
-        keys: [key, this.eventChannel(gameId)],
-        arguments: [current, next, String(this.gameTtlSeconds), gameId],
+        keys: [key, this.eventChannel(gameId), this.clockDeadlinesKey()],
+        arguments: [current, next, String(this.gameTtlSeconds), gameId, deadlineArgument(game)],
       }));
 
       if (changed === 1) {
         await this.updatePlayerIndexes(game);
-        return gameView(game, playerId);
+        return game;
       }
     }
     throw new Error('The game changed too quickly; please retry');
   }
 
+  private async mutateRecord(gameId: string, mutation: (game: GameRecord) => boolean): Promise<boolean> {
+    let didChange = false;
+    await this.mutateAndGetRecord(gameId, game => { didChange = mutation(game); });
+    return didChange;
+  }
+
   private async getRecord(gameId: string): Promise<GameRecord> {
     const value = await this.redis.get(this.gameKey(gameId));
     if (!value) throw new Error('Game not found');
-    return parseGameRecord(value);
+    const game = parseGameRecord(value);
+    const deadline = clockDeadline(game);
+    if (deadline !== null && deadline <= this.now().getTime()) {
+      return this.mutateAndGetRecord(gameId, current => { settleGameClock(current, this.now()); });
+    }
+    if (deadline === null) await this.redis.zRem(this.clockDeadlinesKey(), gameId);
+    else await this.redis.zAdd(this.clockDeadlinesKey(), { score: deadline, value: gameId });
+    return game;
   }
 
   private gameKey(gameId: string): string {
@@ -192,6 +244,10 @@ export class RedisGameStore {
 
   private playerGamesKey(playerId: string): string {
     return `${this.prefix}:player:${playerId}:games`;
+  }
+
+  private clockDeadlinesKey(): string {
+    return `${this.prefix}:clock-deadlines`;
   }
 
   private async addToPlayerIndex(playerId: string, gameId: string) {
@@ -208,4 +264,9 @@ export class RedisGameStore {
     }
     await Promise.all(players.map(playerId => this.addToPlayerIndex(playerId, game.id)));
   }
+}
+
+function deadlineArgument(game: GameRecord) {
+  const deadline = clockDeadline(game);
+  return deadline === null ? '' : String(deadline);
 }

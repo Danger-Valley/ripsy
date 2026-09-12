@@ -2,6 +2,7 @@ export const WIDTH = 7;
 export const HEIGHT = 7;
 export const CELLS = WIDTH * HEIGHT;
 export const PROTOCOL_VERSION = 1 as const;
+export const GAME_CLOCK_INITIAL_MS = 10 * 60 * 1000;
 
 export const Piece = {
   Empty: 0,
@@ -38,6 +39,12 @@ export const Choice = {
 } as const;
 export type Choice = (typeof Choice)[keyof typeof Choice];
 
+export const FinishReason = {
+  Flag: 'flag',
+  Timeout: 'timeout',
+} as const;
+export type FinishReason = (typeof FinishReason)[keyof typeof FinishReason];
+
 export type Move = 'rock' | 'paper' | 'scissors';
 export type RoundResult = 'win' | 'lose' | 'draw';
 
@@ -59,6 +66,10 @@ export interface GameState {
   p0: string;
   p1: string;
   winner: string | null;
+  clock0Ms?: number;
+  clock1Ms?: number;
+  clockRunning?: Owner;
+  finishReason?: FinishReason | null;
 }
 
 export type ClientAction =
@@ -245,6 +256,12 @@ export function parseGameState(value: unknown): GameState {
     p0: requireString(state.p0, 'Player 0 ID', true),
     p1: requireString(state.p1, 'Player 1 ID', true),
     winner: state.winner === null ? null : requireString(state.winner, 'Winner ID'),
+    clock0Ms: state.clock0Ms === undefined ? GAME_CLOCK_INITIAL_MS : requireNonNegativeNumber(state.clock0Ms, 'Player 0 clock'),
+    clock1Ms: state.clock1Ms === undefined ? GAME_CLOCK_INITIAL_MS : requireNonNegativeNumber(state.clock1Ms, 'Player 1 clock'),
+    clockRunning: state.clockRunning === undefined ? Owner.None : requireOwner(state.clockRunning, 'Running clock'),
+    finishReason: state.finishReason === undefined || state.finishReason === null
+      ? null
+      : requireFinishReason(state.finishReason),
   };
 }
 
@@ -260,6 +277,25 @@ function requireString(value: unknown, label: string, allowEmpty = false): strin
 
 function requireNumber(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new ProtocolMessageError(`${label} is invalid`);
+  return value;
+}
+
+function requireNonNegativeNumber(value: unknown, label: string): number {
+  const number = requireNumber(value, label);
+  if (number < 0) throw new ProtocolMessageError(`${label} is invalid`);
+  return number;
+}
+
+function requireOwner(value: unknown, label: string): Owner {
+  const owner = requireInteger(value, label);
+  if (!isOwner(owner)) throw new ProtocolMessageError(`${label} is invalid`);
+  return owner;
+}
+
+function requireFinishReason(value: unknown): FinishReason {
+  if (value !== FinishReason.Flag && value !== FinishReason.Timeout) {
+    throw new ProtocolMessageError('Finish reason is invalid');
+  }
   return value;
 }
 

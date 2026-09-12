@@ -4,7 +4,7 @@ import { useRiveFile } from '@rive-app/react-canvas';
 import { useParams } from 'next/navigation';
 import { PlayerBadge } from '../../components/PlayerBadge';
 import { toast } from 'sonner';
-import { usePlayerIdentity, useRipsyGame, isEmptyPlayerId, Owner, HEIGHT, WIDTH, Choice, GameState } from '@rps/game-client';
+import { usePlayerIdentity, useRipsyGame, isEmptyPlayerId, Owner, Phase, HEIGHT, WIDTH, Choice, GameState, GAME_CLOCK_INITIAL_MS } from '@rps/game-client';
 import RpsFigure, { Weapon, WEAPON_NAMES } from './RpsFigure';
 import WeaponSelectionPopup from './WeaponSelectionPopup';
 
@@ -26,6 +26,49 @@ interface Figure {
 
 // Game constants
 const DISTANCE_BETWEEN_FIGURES_DURING_ATTACK = 40;
+
+function GameClockPanel({ state, ownOwner }: { state: GameState; ownOwner: Owner }) {
+  const snapshotAt = useRef(Date.now());
+  const [now, setNow] = useState(snapshotAt.current);
+  useEffect(() => {
+    snapshotAt.current = Date.now();
+    setNow(snapshotAt.current);
+  }, [state.clock0Ms, state.clock1Ms, state.clockRunning, state.phase]);
+  useEffect(() => {
+    if (state.phase !== Phase.Active || state.clockRunning === Owner.None) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(interval);
+  }, [state.clockRunning, state.phase]);
+  const elapsed = state.phase === Phase.Active ? Math.max(0, now - snapshotAt.current) : 0;
+  const p0 = Math.max(0, (state.clock0Ms ?? GAME_CLOCK_INITIAL_MS) - (state.clockRunning === Owner.P0 ? elapsed : 0));
+  const p1 = Math.max(0, (state.clock1Ms ?? GAME_CLOCK_INITIAL_MS) - (state.clockRunning === Owner.P1 ? elapsed : 0));
+  const mine = ownOwner === Owner.P1 ? p1 : p0;
+  const opponent = ownOwner === Owner.P1 ? p0 : p1;
+  const running = state.clockRunning ?? Owner.None;
+  return (
+    <div aria-label="Game clocks" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <WebClock label="You" milliseconds={mine} running={running === ownOwner && state.phase === Phase.Active} />
+      <WebClock label="Opponent" milliseconds={opponent} running={running !== Owner.None && running !== ownOwner && state.phase === Phase.Active} />
+    </div>
+  );
+}
+
+function WebClock({ label, milliseconds, running }: { label: string; milliseconds: number; running: boolean }) {
+  const low = milliseconds <= 60_000;
+  const value = formatClock(milliseconds);
+  const accent = low ? '#ff6b6b' : running ? '#66fcf1' : '#8a9ba8';
+  return (
+    <div aria-label={`${label} time ${value}${running ? ', running' : ', paused'}`} role="timer" style={{ background: running ? '#16262b' : '#0e1419', border: `1px solid ${accent}`, borderRadius: 8, padding: '10px 12px' }}>
+      <div style={{ color: accent, fontSize: 10, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+      <div style={{ color: low ? '#ff6b6b' : '#f4f7f8', fontSize: 24, lineHeight: 1, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+    </div>
+  );
+}
+
+function formatClock(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
+}
 
 export default function GamePage() {
   // Load shared Rive file once and share across all figures
@@ -1389,9 +1432,11 @@ export default function GamePage() {
             marginBottom: 32,
             lineHeight: 1.6,
           }}>
-            {isWinner
-              ? 'Congratulations! You have defeated your opponent.'
-              : 'Better luck next time. Your opponent was stronger this round.'}
+            {gameState.finishReason === 'timeout'
+              ? (isWinner ? 'Your opponent ran out of time.' : 'Your 10-minute clock expired.')
+              : isWinner
+                ? 'Congratulations! You have defeated your opponent.'
+                : 'Better luck next time. Your opponent was stronger this round.'}
           </div>
 
           <div style={{
@@ -1403,7 +1448,8 @@ export default function GamePage() {
             fontSize: 14,
             color: '#8a9ba8',
           }}>
-            <div>Winner: {shortId(String(gameState.winner))}</div>
+            <GameClockPanel state={gameState} ownOwner={isPlayer1 ? Owner.P1 : Owner.P0} />
+            <div style={{ marginTop: 14 }}>Winner: {shortId(String(gameState.winner))}</div>
             <div style={{ marginTop: 4 }}>
               Final score: {gameState.live0} vs {gameState.live1}
             </div>
@@ -1607,6 +1653,10 @@ export default function GamePage() {
       </section>
 
       <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+
+        {gameState && (isPlayer0 || isPlayer1) && (
+          <GameClockPanel state={gameState} ownOwner={isPlayer1 ? Owner.P1 : Owner.P0} />
+        )}
 
         {/* Game Info — always visible */}
         <div style={{ background: '#0e1419', border: '1px solid #2b3a44', borderRadius: 8, padding: 12 }}>

@@ -1,6 +1,8 @@
 import {
   CELLS,
   Choice,
+  FinishReason,
+  GAME_CLOCK_INITIAL_MS,
   GameState,
   HEIGHT,
   isMovablePiece,
@@ -21,12 +23,16 @@ const REQUIRED_PIECES = new Map<number, number>([
 ]);
 
 export interface GameRecord {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   phase: GameState['phase'];
   p0: string;
   p1: string;
   winner: string | null;
+  finishReason: GameState['finishReason'];
+  clock0Ms: number;
+  clock1Ms: number;
+  clockStartedAt: number | null;
   isP1Turn: boolean;
   owners: Owner[];
   pieces: Piece[];
@@ -46,12 +52,16 @@ export interface GameRecord {
 export function createGameRecord(id: string, playerId: string, now = new Date()): GameRecord {
   const timestamp = now.toISOString();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id,
     phase: Phase.Created,
     p0: playerId,
     p1: '',
     winner: null,
+    finishReason: null,
+    clock0Ms: GAME_CLOCK_INITIAL_MS,
+    clock1Ms: GAME_CLOCK_INITIAL_MS,
+    clockStartedAt: null,
     isP1Turn: false,
     owners: Array(CELLS).fill(Owner.None),
     pieces: Array(CELLS).fill(Piece.Empty),
@@ -85,6 +95,7 @@ export function submitLineup(
   xs: number[],
   ys: number[],
   rawPieces: number[],
+  now = new Date(),
 ) {
   requireParticipant(game, playerId);
   if (game.phase >= Phase.Active) {
@@ -140,7 +151,8 @@ export function submitLineup(
       : game.live1 === 14
         ? Phase.LineupP1Set
         : game.p1 ? Phase.Joined : Phase.Created;
-  touch(game);
+  if (game.phase === Phase.Active && game.clockStartedAt === null) game.clockStartedAt = now.getTime();
+  touch(game, now);
 }
 
 export function movePiece(
@@ -150,9 +162,11 @@ export function movePiece(
   fromY: number,
   toX: number,
   toY: number,
+  now = new Date(),
 ) {
   requireParticipant(game, playerId);
   if (game.phase !== Phase.Active) throw new Error('The game is not active');
+  if (settleGameClock(game, now)) return;
   if (game.tiePending) throw new Error('Resolve the current battle first');
   const isP1 = game.p1 === playerId;
   if (game.isP1Turn !== isP1) throw new Error('It is not your turn');
@@ -183,7 +197,7 @@ export function movePiece(
   if (game.owners[to] === Owner.None) {
     relocate(game, from, to, owner, attacker);
     game.isP1Turn = !game.isP1Turn;
-    touch(game);
+    startTurnClock(game, now);
     return;
   }
   if (game.owners[to] !== opponent) throw new Error('Invalid destination');
@@ -191,7 +205,7 @@ export function movePiece(
     remove(game, from, owner);
     game.outcome = -1;
     game.isP1Turn = !game.isP1Turn;
-    touch(game);
+    startTurnClock(game, now);
     return;
   }
   if (defender === Piece.Flag) {
@@ -200,7 +214,9 @@ export function movePiece(
     game.outcome = 1;
     game.phase = Phase.Finished;
     game.winner = playerId;
-    touch(game);
+    game.finishReason = FinishReason.Flag;
+    game.clockStartedAt = null;
+    touch(game, now);
     return;
   }
 
@@ -220,11 +236,12 @@ export function movePiece(
     remove(game, from, owner);
     game.isP1Turn = !game.isP1Turn;
   }
-  touch(game);
+  startTurnClock(game, now);
 }
 
-export function chooseWeapon(game: GameRecord, playerId: string, choice: Choice) {
+export function chooseWeapon(game: GameRecord, playerId: string, choice: Choice, now = new Date()) {
   requireParticipant(game, playerId);
+  if (game.phase === Phase.Active && settleGameClock(game, now)) return;
   if (!game.tiePending) throw new Error('There is no tied battle to resolve');
   if (choice !== Choice.Rock && choice !== Choice.Paper && choice !== Choice.Scissors) {
     throw new Error('Choose rock, paper, or scissors');
@@ -233,7 +250,7 @@ export function chooseWeapon(game: GameRecord, playerId: string, choice: Choice)
   if (game.choices[playerIndex] !== Choice.None) throw new Error('You already chose a weapon');
   game.choices[playerIndex] = choice;
   if (game.choices[0] === Choice.None || game.choices[1] === Choice.None) {
-    touch(game);
+    touch(game, now);
     return;
   }
 
@@ -257,16 +274,17 @@ export function chooseWeapon(game: GameRecord, playerId: string, choice: Choice)
     game.tiePending = false;
   }
   game.choices = [Choice.None, Choice.None];
-  touch(game);
+  touch(game, now);
 }
 
-export function gameView(game: GameRecord, playerId: string): GameState {
+export function gameView(game: GameRecord, playerId: string, now = new Date()): GameState {
   const isParticipant = playerId === game.p0 || playerId === game.p1;
   const ownOwner = playerId === game.p0 ? Owner.P0 : playerId === game.p1 ? Owner.P1 : Owner.None;
   const pieces = game.pieces.map((piece, index) => {
     if (game.phase === Phase.Finished || game.owners[index] === ownOwner) return piece;
     return Piece.Empty;
   });
+  const [clock0Ms, clock1Ms] = effectiveClocks(game, now);
   return {
     gameId: game.id,
     phase: game.phase,
@@ -285,22 +303,79 @@ export function gameView(game: GameRecord, playerId: string): GameState {
     p0: game.p0,
     p1: game.p1,
     winner: game.winner,
+    clock0Ms,
+    clock1Ms,
+    clockRunning: game.phase === Phase.Active ? (game.isP1Turn ? Owner.P1 : Owner.P0) : Owner.None,
+    finishReason: game.finishReason,
   };
 }
 
 export function parseGameRecord(value: string): GameRecord {
-  const game = JSON.parse(value) as GameRecord;
+  const stored = JSON.parse(value) as Omit<Partial<GameRecord>, 'schemaVersion'> & { schemaVersion?: number };
   if (
-    game.schemaVersion !== 1 ||
-    !game.id ||
-    !Array.isArray(game.owners) ||
-    !Array.isArray(game.pieces) ||
-    !Array.isArray(game.choices) ||
-    game.choices.length !== 2
+    (stored.schemaVersion !== 1 && stored.schemaVersion !== 2) ||
+    !stored.id ||
+    !Array.isArray(stored.owners) ||
+    !Array.isArray(stored.pieces) ||
+    !Array.isArray(stored.choices) ||
+    stored.choices.length !== 2
   ) {
     throw new Error('Stored game data is invalid');
   }
-  return game;
+  return {
+    ...(stored as GameRecord),
+    schemaVersion: 2,
+    finishReason: stored.finishReason ?? null,
+    clock0Ms: validClock(stored.clock0Ms),
+    clock1Ms: validClock(stored.clock1Ms),
+    clockStartedAt: stored.phase === Phase.Active
+      ? (typeof stored.clockStartedAt === 'number' ? stored.clockStartedAt : validTimestamp(stored.updatedAt))
+      : null,
+  };
+}
+
+export function settleGameClock(game: GameRecord, now = new Date()): boolean {
+  if (game.phase !== Phase.Active || game.clockStartedAt === null) return false;
+  const elapsed = Math.max(0, now.getTime() - game.clockStartedAt);
+  const key = game.isP1Turn ? 'clock1Ms' : 'clock0Ms';
+  game[key] = Math.max(0, game[key] - elapsed);
+  game.clockStartedAt = now.getTime();
+  if (game[key] > 0) return false;
+  game.phase = Phase.Finished;
+  game.winner = game.isP1Turn ? game.p0 : game.p1;
+  game.finishReason = FinishReason.Timeout;
+  game.clockStartedAt = null;
+  game.tiePending = false;
+  game.choices = [Choice.None, Choice.None];
+  touch(game, now);
+  return true;
+}
+
+export function clockDeadline(game: GameRecord): number | null {
+  if (game.phase !== Phase.Active || game.clockStartedAt === null) return null;
+  return game.clockStartedAt + (game.isP1Turn ? game.clock1Ms : game.clock0Ms);
+}
+
+function effectiveClocks(game: GameRecord, now: Date): [number, number] {
+  if (game.phase !== Phase.Active || game.clockStartedAt === null) return [game.clock0Ms, game.clock1Ms];
+  const elapsed = Math.max(0, now.getTime() - game.clockStartedAt);
+  return game.isP1Turn
+    ? [game.clock0Ms, Math.max(0, game.clock1Ms - elapsed)]
+    : [Math.max(0, game.clock0Ms - elapsed), game.clock1Ms];
+}
+
+function startTurnClock(game: GameRecord, now: Date) {
+  if (game.phase === Phase.Active) game.clockStartedAt = now.getTime();
+  touch(game, now);
+}
+
+function validClock(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : GAME_CLOCK_INITIAL_MS;
+}
+
+function validTimestamp(value: unknown) {
+  const timestamp = typeof value === 'string' ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(timestamp) ? timestamp : Date.now();
 }
 
 function requireParticipant(game: GameRecord, playerId: string) {
@@ -331,6 +406,6 @@ function rps(attacker: number, defender: number): number {
   return -1;
 }
 
-function touch(game: GameRecord) {
-  game.updatedAt = new Date().toISOString();
+function touch(game: GameRecord, now = new Date()) {
+  game.updatedAt = now.toISOString();
 }

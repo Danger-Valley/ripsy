@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Modal, Platform, ScrollView, Share, StyleShee
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
+import { GameClocks } from '../components/game-clocks';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
@@ -164,7 +165,7 @@ export function GameScreen({ navigation, route }: Props) {
 
   const stateMessage = animation.activeKind
     ? getAnimationMessage(animation.activeKind)
-    : getStateMessage(visibleState?.phase, isParticipant, canEditLineup, hasSubmitted, game.isMyTurn);
+    : getStateMessage(visibleState, isParticipant, canEditLineup, hasSubmitted, game.isMyTurn, playerId);
 
   if (!gameId) {
     return (
@@ -219,9 +220,14 @@ export function GameScreen({ navigation, route }: Props) {
             <PrimaryButton accessibilityHint="Opens the system share sheet" variant="secondary" onPress={() => { shareRoom().catch(() => undefined); }}>Invite opponent</PrimaryButton>
           </View>
         ) : (
-          <StatusBanner message={stateMessage} tone={visibleState?.phase === Phase.Finished ? 'success' : 'neutral'} />
+          <StatusBanner
+            message={stateMessage}
+            tone={visibleState?.phase === Phase.Finished ? (visibleState.winner === playerId ? 'success' : 'error') : 'neutral'}
+          />
         )}
         {(actionError || game.error) && <StatusBanner message={actionError || game.error || ''} tone="error" />}
+
+        <GameClocks state={game.gameState} ownOwner={game.ownOwner} />
 
         <GameBoard
           availableMoves={availableMoves}
@@ -366,7 +372,8 @@ function WeaponButton({ choice, label, busy, onChoose }: { choice: WeaponChoice;
   );
 }
 
-function getStateMessage(phase: Phase | undefined, isParticipant: boolean, canEditLineup: boolean, hasSubmitted: boolean, isMyTurn: boolean) {
+function getStateMessage(state: GameState | null, isParticipant: boolean, canEditLineup: boolean, hasSubmitted: boolean, isMyTurn: boolean, playerId: string | null) {
+  const phase = state?.phase;
   if (phase === undefined) return 'Loading the latest game state…';
   if (!isParticipant && (phase === Phase.Created || phase === Phase.LineupP0Set)) return 'This room has an open player slot';
   if (canEditLineup) {
@@ -375,7 +382,10 @@ function getStateMessage(phase: Phase | undefined, isParticipant: boolean, canEd
   }
   if (phase === Phase.Created) return isParticipant ? 'Waiting for an opponent to join' : 'This room has an open player slot';
   if (phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : "Opponent's turn";
-  if (phase === Phase.Finished) return 'Game finished';
+  if (phase === Phase.Finished) {
+    if (state?.finishReason === 'timeout') return state.winner === playerId ? 'Victory — opponent ran out of time' : 'Time expired — you lost';
+    return state?.winner === playerId ? 'Victory' : 'Game finished';
+  }
   return 'Preparing game…';
 }
 

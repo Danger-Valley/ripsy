@@ -22,6 +22,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 - Sticky sessions are not required. Reconnecting clients request a complete fresh snapshot.
 - Web runs on Vercel. The long-lived HTTP/WebSocket backend runs on Railway.
 - Production HTTP and WebSocket endpoint: `https://api.ripsy.fun` / `wss://api.ripsy.fun`.
+- The Railway `Dockerfile` must copy and install `@rps/game-engine` alongside `@rps/backend` and `@rps/core`; production backend imports resolve it as a local npm workspace.
 - Mobile is bare React Native Community CLI with checked-in `ios/` and `android/` projects. Never introduce Expo.
 
 ## Canonical code map

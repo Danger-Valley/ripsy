@@ -53,6 +53,7 @@ test('exposes piece names and only actionable cells as buttons', async () => {
   const pieceVisuals = renderer.root.findAll(node => node.props.testID === 'piece-visual');
   expect(pieceVisuals.length).toBeGreaterThanOrEqual(2);
   expect(pieceVisuals.every(visual => visual.props.pointerEvents === 'none')).toBe(true);
+  expect(StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style).overflow).toBe('visible');
   expect(pieceVisuals.every(visual => {
     const style = StyleSheet.flatten(visual.props.style);
     return style.backgroundColor === undefined && style.borderColor === undefined && style.borderWidth === undefined;

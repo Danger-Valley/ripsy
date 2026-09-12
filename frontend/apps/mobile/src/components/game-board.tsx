@@ -45,7 +45,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
   const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item.piece])), [previewLineup]);
 
   return (
-    <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]}>
+    <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]} testID="game-board">
       {Array.from({ length: HEIGHT }, (_, displayY) => (
         <View key={displayY} style={styles.row}>
           {Array.from({ length: WIDTH }, (_unused, displayX) => {
@@ -147,7 +147,7 @@ function opponentOf(owner: Owner): Owner {
 }
 
 const styles = StyleSheet.create({
-  board: { alignSelf: 'center', borderColor: colors.primaryMuted, borderWidth: 2, borderRadius: 10, overflow: 'hidden' },
+  board: { alignSelf: 'center', borderColor: colors.primaryMuted, borderWidth: 2, borderRadius: 10, overflow: 'visible' },
   row: { flexDirection: 'row' },
   cell: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#142029', borderColor: '#243641', borderWidth: StyleSheet.hairlineWidth },
   alternateCell: { backgroundColor: '#182731' },

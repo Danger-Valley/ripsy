@@ -45,9 +45,12 @@ npm run dev:mobile
 npm run dev:redis
 npm run ios
 npm run android
+npm run build:prod-seeker
 npm test
 npm run build
 ```
+
+`npm run build:prod-seeker` increments the Android and iOS build number, runs the Android release preflight, builds the signed arm64 APK, and publishes it to the stable download link at [ripsy.fun/download](https://ripsy.fun/download). Versioned local copies are saved in `frontend/apps/mobile/builds` and `../files/builds`. Set `RIPSY_SKIP_SEEKER_PUBLISH=1` to build without publishing.
 
 ## Storage and scaling
 

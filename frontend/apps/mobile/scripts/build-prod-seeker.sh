@@ -31,5 +31,10 @@ mkdir -p "${output_directory}" "${shared_output_directory}"
 cp "${source_apk}" "${destination_apk}"
 cp "${source_apk}" "${shared_destination_apk}"
 
+if [[ "${RIPSY_SKIP_SEEKER_PUBLISH:-0}" != "1" ]]; then
+  node "${script_directory}/publish-seeker-apk.mjs" "${source_apk}" "${version_name}" "${version_code}"
+fi
+
 echo "Seeker APK:        ${destination_apk}"
 echo "Shared Seeker APK: ${shared_destination_apk}"
+echo "Download page:     https://ripsy.fun/download"

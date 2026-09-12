@@ -199,7 +199,7 @@ export class RedisGameStore {
       const current = await this.redis.get(key);
       if (!current) throw new Error('Game not found');
 
-      const game = parseGameRecord(current);
+      const game = parseGameRecord(current, this.now());
       mutation(game);
       const next = JSON.stringify(game);
       const changed = Number(await this.redis.eval(COMPARE_AND_SWAP, {
@@ -224,7 +224,11 @@ export class RedisGameStore {
   private async getRecord(gameId: string): Promise<GameRecord> {
     const value = await this.redis.get(this.gameKey(gameId));
     if (!value) throw new Error('Game not found');
-    const game = parseGameRecord(value);
+    const storedVersion = (JSON.parse(value) as { schemaVersion?: number }).schemaVersion;
+    if (storedVersion === 1) {
+      return this.mutateAndGetRecord(gameId, () => undefined);
+    }
+    const game = parseGameRecord(value, this.now());
     const deadline = clockDeadline(game);
     if (deadline !== null && deadline <= this.now().getTime()) {
       return this.mutateAndGetRecord(gameId, current => { settleGameClock(current, this.now()); });

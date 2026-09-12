@@ -310,7 +310,7 @@ export function gameView(game: GameRecord, playerId: string, now = new Date()): 
   };
 }
 
-export function parseGameRecord(value: string): GameRecord {
+export function parseGameRecord(value: string, now = new Date()): GameRecord {
   const stored = JSON.parse(value) as Omit<Partial<GameRecord>, 'schemaVersion'> & { schemaVersion?: number };
   if (
     (stored.schemaVersion !== 1 && stored.schemaVersion !== 2) ||
@@ -329,7 +329,7 @@ export function parseGameRecord(value: string): GameRecord {
     clock0Ms: validClock(stored.clock0Ms),
     clock1Ms: validClock(stored.clock1Ms),
     clockStartedAt: stored.phase === Phase.Active
-      ? (typeof stored.clockStartedAt === 'number' ? stored.clockStartedAt : validTimestamp(stored.updatedAt))
+      ? (typeof stored.clockStartedAt === 'number' ? stored.clockStartedAt : now.getTime())
       : null,
   };
 }
@@ -371,11 +371,6 @@ function startTurnClock(game: GameRecord, now: Date) {
 
 function validClock(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : GAME_CLOCK_INITIAL_MS;
-}
-
-function validTimestamp(value: unknown) {
-  const timestamp = typeof value === 'string' ? Date.parse(value) : Number.NaN;
-  return Number.isFinite(timestamp) ? timestamp : Date.now();
 }
 
 function requireParticipant(game: GameRecord, playerId: string) {

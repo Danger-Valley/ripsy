@@ -171,3 +171,28 @@ test('multiple store instances safely resolve a Redis clock deadline once', asyn
   assert.equal(finished.finishReason, 'timeout');
   assert.equal(finished.clock0Ms, 0);
 });
+
+test('gives a legacy active game a fresh clock and persists its migration on first read', async () => {
+  const redis = new FakeRedis();
+  const nowMs = Date.parse('2026-01-01T00:00:00.000Z');
+  const store = new RedisGameStore(redis, { now: () => new Date(nowMs) });
+  const created = await store.create('alice');
+  const gameKey = [...redis.values.keys()].find(key => key.endsWith(`{${created.gameId}}:game`))!;
+  const legacy = JSON.parse(redis.values.get(gameKey)!) as Record<string, unknown>;
+  legacy.schemaVersion = 1;
+  legacy.phase = Phase.Active;
+  legacy.p1 = 'bob';
+  legacy.updatedAt = '2020-01-01T00:00:00.000Z';
+  delete legacy.clock0Ms;
+  delete legacy.clock1Ms;
+  delete legacy.clockStartedAt;
+  delete legacy.finishReason;
+  redis.values.set(gameKey, JSON.stringify(legacy));
+
+  const state = await store.get(created.gameId, 'alice');
+  const migrated = JSON.parse(redis.values.get(gameKey)!) as Record<string, unknown>;
+  assert.equal(state.phase, Phase.Active);
+  assert.equal(state.clock0Ms, 600_000);
+  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.clockStartedAt, nowMs);
+});

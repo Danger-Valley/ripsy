@@ -58,6 +58,8 @@ Game state is stored in Redis with atomic compare-and-swap mutations. Redis Pub/
 
 Games expire after seven days of inactivity by default. Configure the backend with `REDIS_URL`, `GAME_TTL_SECONDS`, and `RIPSY_REDIS_PREFIX`. Signed anonymous player sessions are stored by each client and verified before WebSocket commands are accepted. See [BACKEND.md](frontend/BACKEND.md) for architecture and [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md) for deployment details.
 
+Agents working on the web gameplay experience should start with [WEB_PARITY_HANDOFF.md](WEB_PARITY_HANDOFF.md). It records the native reference behavior, shared backend contracts, Rive animation details, and the remaining web parity backlog.
+
 ## Game flow
 
 1. Player 0 creates a room and shares its URL.

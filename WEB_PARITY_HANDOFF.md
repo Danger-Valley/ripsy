@@ -309,6 +309,7 @@ This ledger summarizes the recent work that established the native reference. Co
 - `ee36ca2` — real two-client WebSocket integration coverage.
 - `8c589f8` — repeated pregame lineup revisions supported by backend.
 - `c2f95a5` / `74eada0` — multi-instance Redis chess clocks and safe legacy migration.
+- `da242d7` — shared pure game-engine package plus fully local, hidden-information-safe native computer opponent.
 
 ### Mobile room, lineup, board, and Rive UX
 

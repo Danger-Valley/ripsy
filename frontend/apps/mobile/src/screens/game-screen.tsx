@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Choice, HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
+import { Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
@@ -145,13 +145,15 @@ export function GameScreen({ navigation, route }: Props) {
   const onCellPress = (coordinate: Coordinate) => {
     const state = visibleState;
     if (!state || animation.isAnimating || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
-    const owner = state.owners[toIdx(coordinate.x, coordinate.y)];
+    const index = toIdx(coordinate.x, coordinate.y);
+    const owner = state.owners[index];
+    const isMovable = isMovablePiece(state.pieces[index]!);
     if (!selected) {
-      if (owner === game.ownOwner) setSelected(coordinate);
+      if (owner === game.ownOwner && isMovable) setSelected(coordinate);
       return;
     }
     if (owner === game.ownOwner) {
-      setSelected(selected.x === coordinate.x && selected.y === coordinate.y ? null : coordinate);
+      if (isMovable) setSelected(selected.x === coordinate.x && selected.y === coordinate.y ? null : coordinate);
       return;
     }
     if (!availableMoves.some(move => move.x === coordinate.x && move.y === coordinate.y)) return;

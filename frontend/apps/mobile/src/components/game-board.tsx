@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Animated, Image, Pressable, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
 import { useRiveFile, type RiveFile } from '@rive-app/react-native';
-import { HEIGHT, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
+import { HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
 import { colors } from '../theme';
 import type { PieceMoveAnimation } from '../game-animation';
@@ -67,7 +67,8 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
             const isMovingSource = moveAnimation?.from.x === x && moveAnimation.from.y === y;
             const isSelected = selected?.x === x && selected.y === y;
             const isAvailable = availableMoves.some(move => move.x === x && move.y === y);
-            const isActionable = Boolean(interactionEnabled && onCellPress && (selected ? isMine || isAvailable : isMine));
+            const isMovable = isMovablePiece(piece);
+            const isActionable = Boolean(interactionEnabled && onCellPress && (selected ? (isMine && isMovable) || isAvailable : isMine && isMovable));
             const occupant = owner === Owner.None
               ? 'empty'
               : isMine ? `your ${pieceName(piece)}` : 'opponent piece';

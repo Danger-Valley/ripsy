@@ -85,6 +85,29 @@ test('announces selected pieces and legal move targets', async () => {
   expect(move.props.accessibilityRole).toBe('button');
 });
 
+test('does not make traps selectable during an active turn', async () => {
+  const state = createState();
+  state.owners[toIdx(2, 0)] = Owner.P0;
+  state.pieces[toIdx(2, 0)] = Piece.Trap;
+  const onCellPress = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <GameBoard
+        interactionEnabled
+        isPlayer1={false}
+        onCellPress={onCellPress}
+        ownOwner={Owner.P0}
+        state={state}
+      />,
+    );
+  });
+
+  const trapCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 3, your trap');
+  expect(trapCell.props).toMatchObject({ accessibilityRole: 'text', disabled: true });
+  expect(trapCell.props.accessibilityHint).toBeUndefined();
+});
+
 test('renders the local lineup preview as non-interactive before battle', async () => {
   const state = createState();
   state.phase = Phase.Joined;

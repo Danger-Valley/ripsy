@@ -44,6 +44,9 @@ test('always hides weapons for traps', async () => {
 
   expect(mockRiveViewRef.setBooleanInputValue).toHaveBeenCalledWith('WeaponVisible', false);
   expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Trap Idle');
+  expect(mockRiveViewRef.play.mock.invocationCallOrder[0]).toBeLessThan(
+    mockRiveViewRef.triggerInput.mock.invocationCallOrder[0]!,
+  );
 });
 
 test('configures a local weapon before starting playback', async () => {

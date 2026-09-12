@@ -3,6 +3,7 @@ import {
   Choice,
   GameState,
   HEIGHT,
+  isMovablePiece,
   Owner,
   Phase,
   Piece,
@@ -170,7 +171,7 @@ export function movePiece(
   if (game.owners[from] !== owner) throw new Error('That is not your piece');
   if (game.owners[to] === owner) throw new Error('You cannot stack your pieces');
   const attacker = game.pieces[from]!;
-  if (attacker === Piece.Empty || attacker === Piece.Trap) throw new Error('That piece cannot move');
+  if (!isMovablePiece(attacker)) throw new Error('That piece cannot move');
 
   const defender = game.pieces[to]!;
   game.tieFrom = from;

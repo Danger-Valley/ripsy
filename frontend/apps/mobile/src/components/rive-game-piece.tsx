@@ -49,7 +49,6 @@ export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false 
       try {
         riveViewRef.setNumberInputValue('Weapon', piece);
         riveViewRef.setBooleanInputValue('WeaponVisible', piece !== Piece.Empty && piece !== Piece.Trap);
-        if (piece === Piece.Trap && isMine) riveViewRef.triggerInput('Trap Idle');
       } catch {
         // Keep the board usable if this asset's state machine changes.
       }
@@ -70,6 +69,13 @@ export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false 
         await riveViewRef.play();
       } catch {
         riveViewRef.playIfNeeded();
+      }
+      if (cancelled || piece !== Piece.Trap || !isMine) return;
+      try {
+        riveViewRef.triggerInput('Trap Idle');
+        riveViewRef.playIfNeeded();
+      } catch {
+        // Leave the figure unarmed if the trap trigger is unavailable.
       }
     };
 

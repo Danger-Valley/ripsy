@@ -13,6 +13,10 @@ export const Piece = {
 } as const;
 export type Piece = (typeof Piece)[keyof typeof Piece];
 
+export function isMovablePiece(piece: Piece) {
+  return piece !== Piece.Empty && piece !== Piece.Trap;
+}
+
 export const Owner = { None: 0, P0: 1, P1: 2 } as const;
 export type Owner = (typeof Owner)[keyof typeof Owner];
 

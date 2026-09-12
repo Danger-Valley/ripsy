@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
-import { Image, Pressable, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
-import { useRiveFile } from '@rive-app/react-native';
+import { Animated, Image, Pressable, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
+import { useRiveFile, type RiveFile } from '@rive-app/react-native';
 import { HEIGHT, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
 import { colors } from '../theme';
+import type { PieceMoveAnimation } from '../game-animation';
 import { RiveGamePiece } from './rive-game-piece';
 
 const figureAsset = require('../assets/figures/fig1.riv');
@@ -33,11 +34,13 @@ interface Props {
   selected?: Coordinate | null;
   availableMoves?: Coordinate[];
   interactionEnabled?: boolean;
+  moveAnimation?: PieceMoveAnimation | null;
+  moveProgress?: Animated.Value;
   showOpponentFormation?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
 }
 
-export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, showOpponentFormation = false, onCellPress }: Props) {
+export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, moveAnimation, moveProgress, showOpponentFormation = false, onCellPress }: Props) {
   const { width } = useWindowDimensions();
   const { riveFile } = useRiveFile(figureAsset);
   const boardSize = Math.min(width - 32, 600);
@@ -60,6 +63,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
               : isOpponentPreview ? opponentOf(ownOwner) : serverOwner;
             const piece = previewPiece ?? state?.pieces[index] ?? Piece.Empty;
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
+            const isMovingSource = moveAnimation?.from.x === x && moveAnimation.from.y === y;
             const isSelected = selected?.x === x && selected.y === y;
             const isAvailable = availableMoves.some(move => move.x === x && move.y === y);
             const isActionable = Boolean(interactionEnabled && onCellPress && (selected ? isMine || isAvailable : isMine));
@@ -88,7 +92,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                   isAvailable && styles.availableCell,
                   isSelected && styles.selectedCell,
                 ]}>
-                {owner !== Owner.None ? (
+                {owner !== Owner.None && !isMovingSource ? (
                   <View
                     pointerEvents="none"
                     testID="piece-visual"
@@ -118,8 +122,73 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
           })}
         </View>
       ))}
+      {moveAnimation && moveProgress && riveFile ? (
+        <MovingPiece
+          cellSize={cellSize}
+          isMine={moveAnimation.owner === ownOwner}
+          isPlayer1={isPlayer1}
+          move={moveAnimation}
+          progress={moveProgress}
+          riveFile={riveFile}
+        />
+      ) : null}
     </View>
   );
+}
+
+function MovingPiece({ cellSize, isMine, isPlayer1, move, progress, riveFile }: {
+  cellSize: number;
+  isMine: boolean;
+  isPlayer1: boolean;
+  move: PieceMoveAnimation;
+  progress: Animated.Value;
+  riveFile: RiveFile;
+}) {
+  const from = toDisplayCoordinate(move.from, isPlayer1);
+  const to = toDisplayCoordinate(move.to, isPlayer1);
+  const deltaX = (to.x - from.x) * cellSize;
+  const deltaY = (to.y - from.y) * cellSize;
+  const translateX = progress.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [0, deltaX, deltaX],
+    extrapolate: 'clamp',
+  });
+  const translateY = progress.interpolate({
+    inputRange: [0, 0.5, 1, 2],
+    outputRange: [0, deltaY * 0.5 - cellSize * 0.42, deltaY, deltaY],
+    extrapolate: 'clamp',
+  });
+  const opacity = progress.interpolate({
+    inputRange: [0, 0.96, 1, 2],
+    outputRange: [1, 1, 0, 0],
+    extrapolate: 'clamp',
+  });
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.movingCell,
+        {
+          height: cellSize,
+          left: from.x * cellSize,
+          opacity,
+          top: from.y * cellSize,
+          transform: [{ translateX }, { translateY }],
+          width: cellSize,
+        },
+      ]}
+      testID="moving-piece">
+      <View style={[styles.piece, { width: cellSize * 0.88, height: cellSize * 0.88, transform: [{ translateY: -cellSize * 0.43 }] }]}>
+        <RiveGamePiece file={riveFile} isMine={isMine} piece={move.piece} size={cellSize * 1.68} />
+      </View>
+    </Animated.View>
+  );
+}
+
+function toDisplayCoordinate(coordinate: Coordinate, isPlayer1: boolean): Coordinate {
+  return isPlayer1
+    ? { x: WIDTH - 1 - coordinate.x, y: HEIGHT - 1 - coordinate.y }
+    : coordinate;
 }
 
 function moveArrowSource(selected: Coordinate, target: Coordinate, isPlayer1: boolean): ImageSourcePropType {
@@ -154,5 +223,6 @@ const styles = StyleSheet.create({
   availableCell: { backgroundColor: '#12384A' },
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  movingCell: { position: 'absolute', alignItems: 'center', justifyContent: 'center', zIndex: 20, elevation: 20 },
   moveArrow: { width: 22, height: 22, resizeMode: 'contain', tintColor: colors.move },
 });

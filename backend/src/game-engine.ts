@@ -173,6 +173,8 @@ export function movePiece(
   if (attacker === Piece.Empty || attacker === Piece.Trap) throw new Error('That piece cannot move');
 
   const defender = game.pieces[to]!;
+  game.tieFrom = from;
+  game.tieTo = to;
   game.attacker = attacker;
   game.defender = defender;
   game.outcome = 0;

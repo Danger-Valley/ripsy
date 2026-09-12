@@ -92,4 +92,6 @@ test('applies a legal move without external state', () => {
   assert.equal(game.owners[5 * 7], Owner.None);
   assert.equal(game.owners[4 * 7], Owner.P0);
   assert.equal(game.isP1Turn, true);
+  assert.equal(game.tieFrom, 5 * 7);
+  assert.equal(game.tieTo, 4 * 7);
 });

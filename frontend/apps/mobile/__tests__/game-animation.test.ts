@@ -1,5 +1,5 @@
 import { Choice, Owner, Phase, Piece, type GameState } from '@rps/core';
-import { classifyGameTransition, gameStateFingerprint, isCompletedMoveTransition } from '../src/game-animation';
+import { classifyGameTransition, gameStateFingerprint, getPieceMoveAnimation, isCompletedMoveTransition } from '../src/game-animation';
 
 const baseState: GameState = {
   gameId: 'a1b2c3d4',
@@ -59,6 +59,43 @@ test('does not treat initial state, duplicate state, or tie resolution as anothe
     { ...baseState, tiePending: true },
     { ...baseState, tiePending: false, outcome: 1 },
   )).toBe(false);
+});
+
+test('extracts the exact jump coordinates from a confirmed move', () => {
+  const previous = withBoard(baseState, 35, Owner.P0, Piece.Rock);
+  const next = withBoard(
+    { ...previous, isP1Turn: true, tieFrom: { x: 0, y: 5 }, tieTo: { x: 0, y: 4 } },
+    35,
+    Owner.None,
+    Piece.Empty,
+    28,
+    Owner.P0,
+    Piece.Rock,
+  );
+
+  expect(getPieceMoveAnimation(previous, next)).toEqual({
+    from: { x: 0, y: 5 },
+    to: { x: 0, y: 4 },
+    owner: Owner.P0,
+    piece: Piece.Rock,
+  });
+});
+
+test('uses recorded coordinates when an attacking piece loses and only the source changes', () => {
+  const withAttacker = withBoard(baseState, 7, Owner.P0, Piece.Scissors);
+  const previous = withBoard(withAttacker, 0, Owner.P1, Piece.Empty);
+  const next = withBoard(
+    { ...previous, isP1Turn: true, tieFrom: { x: 0, y: 1 }, tieTo: { x: 0, y: 0 } },
+    7,
+    Owner.None,
+    Piece.Empty,
+  );
+
+  expect(getPieceMoveAnimation(previous, next)).toMatchObject({
+    from: { x: 0, y: 1 },
+    to: { x: 0, y: 0 },
+    owner: Owner.P0,
+  });
 });
 
 function withBoard(

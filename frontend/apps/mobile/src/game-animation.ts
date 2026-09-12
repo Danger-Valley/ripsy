@@ -1,6 +1,13 @@
-import { Phase, Piece, type GameState } from '@rps/core';
+import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 
 export type GameAnimationKind = 'move' | 'battle' | 'phase';
+
+export interface PieceMoveAnimation {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  owner: Owner;
+  piece: Piece;
+}
 
 export function gameStateFingerprint(state: GameState): string {
   return JSON.stringify([
@@ -46,6 +53,80 @@ export function isCompletedMoveTransition(previous: GameState, next: GameState):
   const gameFinishedByMove = next.phase === Phase.Finished && boardChanged;
 
   return turnAdvanced || gameFinishedByMove;
+}
+
+export function getPieceMoveAnimation(previous: GameState, next: GameState): PieceMoveAnimation | null {
+  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active || previous.tiePending) return null;
+  const boardChanged = !arraysEqual(previous.owners, next.owners) || !arraysEqual(previous.pieces, next.pieces);
+  const moveConfirmed = previous.isP1Turn !== next.isP1Turn
+    || (!previous.tiePending && next.tiePending)
+    || (next.phase === Phase.Finished && boardChanged);
+  if (!moveConfirmed) return null;
+
+  const attackerOwner = previous.isP1Turn ? Owner.P1 : Owner.P0;
+  const explicitFrom = next.tieFrom;
+  const explicitTo = next.tieTo;
+  if (
+    isBoardCoordinate(explicitFrom)
+    && isBoardCoordinate(explicitTo)
+    && isAdjacent(explicitFrom, explicitTo)
+  ) {
+    const fromIndex = toIdx(explicitFrom.x, explicitFrom.y);
+    const sourceChanged = previous.owners[fromIndex] !== next.owners[fromIndex];
+    if (previous.owners[fromIndex] === attackerOwner && (sourceChanged || next.tiePending)) {
+      return {
+        from: explicitFrom,
+        to: explicitTo,
+        owner: attackerOwner,
+        piece: previous.pieces[fromIndex] ?? Piece.Empty,
+      };
+    }
+  }
+
+  const sourceIndexes = previous.owners
+    .map((owner, index) => ({ owner, index }))
+    .filter(({ owner, index }) => owner === attackerOwner && next.owners[index] !== owner)
+    .map(({ index }) => index);
+  if (sourceIndexes.length !== 1) return null;
+  const fromIndex = sourceIndexes[0]!;
+  const from = { x: fromIndex % WIDTH, y: Math.floor(fromIndex / WIDTH) };
+  const destinationCandidates = adjacentCoordinates(from).filter(coordinate => {
+    const index = toIdx(coordinate.x, coordinate.y);
+    return previous.owners[index] !== next.owners[index] || previous.owners[index] === opponentOf(attackerOwner);
+  });
+  if (destinationCandidates.length !== 1) return null;
+  return {
+    from,
+    to: destinationCandidates[0]!,
+    owner: attackerOwner,
+    piece: previous.pieces[fromIndex] ?? Piece.Empty,
+  };
+}
+
+function isBoardCoordinate(coordinate: { x: number; y: number }): boolean {
+  return Number.isInteger(coordinate.x)
+    && Number.isInteger(coordinate.y)
+    && coordinate.x >= 0
+    && coordinate.x < WIDTH
+    && coordinate.y >= 0
+    && coordinate.y < HEIGHT;
+}
+
+function isAdjacent(from: { x: number; y: number }, to: { x: number; y: number }): boolean {
+  return Math.abs(from.x - to.x) + Math.abs(from.y - to.y) === 1;
+}
+
+function adjacentCoordinates(from: { x: number; y: number }) {
+  return [
+    { x: from.x + 1, y: from.y },
+    { x: from.x - 1, y: from.y },
+    { x: from.x, y: from.y + 1 },
+    { x: from.x, y: from.y - 1 },
+  ].filter(isBoardCoordinate);
+}
+
+function opponentOf(owner: Owner): Owner {
+  return owner === Owner.P0 ? Owner.P1 : Owner.P0;
 }
 
 function arraysEqual(left: readonly number[], right: readonly number[]): boolean {

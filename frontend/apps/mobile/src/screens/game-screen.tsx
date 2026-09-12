@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Choice, HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
@@ -221,19 +221,19 @@ export function GameScreen({ navigation, route }: Props) {
         )}
         {(actionError || game.error) && <StatusBanner message={actionError || game.error || ''} tone="error" />}
 
-        <Animated.View style={{ opacity: animation.opacity, transform: [{ scale: animation.scale }] }}>
-          <GameBoard
-            availableMoves={availableMoves}
-            interactionEnabled={Boolean(!animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending)}
-            isPlayer1={game.isPlayer1}
-            onCellPress={onCellPress}
-            ownOwner={game.ownOwner}
-            previewLineup={canEditLineup ? lineup : undefined}
-            selected={selected}
-            showOpponentFormation={canEditLineup}
-            state={visibleState}
-          />
-        </Animated.View>
+        <GameBoard
+          availableMoves={availableMoves}
+          interactionEnabled={Boolean(!animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending)}
+          isPlayer1={game.isPlayer1}
+          moveAnimation={animation.activeMove}
+          moveProgress={animation.progress}
+          onCellPress={onCellPress}
+          ownOwner={game.ownOwner}
+          previewLineup={canEditLineup ? lineup : undefined}
+          selected={selected}
+          showOpponentFormation={canEditLineup}
+          state={visibleState}
+        />
 
         {canEditLineup && (
           <View style={[styles.lineupPanel, isLineupSaved && styles.lineupPanelReady]} testID="lineup-controls">

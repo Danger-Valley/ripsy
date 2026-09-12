@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated } from 'react-native';
 import type { GameState } from '@rps/core';
-import { classifyGameTransition, gameStateFingerprint, type GameAnimationKind } from '../game-animation';
+import { classifyGameTransition, gameStateFingerprint, getPieceMoveAnimation, type GameAnimationKind, type PieceMoveAnimation } from '../game-animation';
 
 interface QueuedTransition {
   kind: GameAnimationKind;
+  move: PieceMoveAnimation | null;
   state: GameState;
 }
 
@@ -19,6 +20,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const drainRef = useRef<() => void>(() => undefined);
   const [displayedState, setDisplayedState] = useState<GameState | null>(null);
   const [activeKind, setActiveKind] = useState<GameAnimationKind | null>(null);
+  const [activeMove, setActiveMove] = useState<PieceMoveAnimation | null>(null);
 
   drainRef.current = () => {
     if (!mountedRef.current || runningRef.current) return;
@@ -27,9 +29,10 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
 
     runningRef.current = true;
     setActiveKind(transition.kind);
+    setActiveMove(transition.move);
     progress.setValue(0);
     Animated.timing(progress, {
-      duration: transition.kind === 'battle' ? 180 : 120,
+      duration: transition.move ? (transition.kind === 'battle' ? 420 : 360) : 120,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -44,6 +47,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
         if (!settled || !mountedRef.current) return;
         runningRef.current = false;
         setActiveKind(null);
+        setActiveMove(null);
         drainRef.current();
       });
     });
@@ -61,6 +65,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       queueRef.current = [];
       runningRef.current = false;
       setActiveKind(null);
+      setActiveMove(null);
       displayedRef.current = authoritativeState;
       latestStateRef.current = authoritativeState;
       setDisplayedState(authoritativeState);
@@ -70,6 +75,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     const baseline = latestStateRef.current ?? displayedRef.current;
     queueRef.current.push({
       kind: classifyGameTransition(baseline, authoritativeState),
+      move: getPieceMoveAnimation(baseline, authoritativeState),
       state: authoritativeState,
     });
     latestStateRef.current = authoritativeState;
@@ -88,7 +94,9 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   return {
     displayedState,
     activeKind,
+    activeMove,
     isAnimating: activeKind !== null,
+    progress,
     opacity: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.55, 1] }),
     scale: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 1.025, 1] }),
   };

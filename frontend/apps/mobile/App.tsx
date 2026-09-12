@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, Linking, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { linking, type RootStackParamList } from './src/navigation';
-import { GameScreen } from './src/screens/game-screen';
+import { ComputerGameScreen, GameScreen } from './src/screens/game-screen';
 import { HomeScreen } from './src/screens/home-screen';
 import { normalizeRoomCode } from './src/invitations';
 import { loadActiveGameId, saveActiveGameId } from './src/storage/active-game';
@@ -61,6 +61,7 @@ function App() {
         theme={navigationTheme}>
         <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', headerShadowVisible: false }}>
           <Stack.Screen component={HomeScreen} name="Home" options={{ headerShown: false }} />
+          <Stack.Screen component={ComputerGameScreen} name="ComputerGame" options={{ title: 'Battle vs Computer' }} />
           <Stack.Screen
             component={GameScreen}
             name="Game"

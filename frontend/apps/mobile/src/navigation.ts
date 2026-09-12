@@ -5,6 +5,7 @@ import { getInitialPushUrl, subscribeToPushUrls } from './push-notifications';
 export type RootStackParamList = {
   Home: undefined;
   Game: { gameId: string };
+  ComputerGame: undefined;
 };
 
 export const linking: LinkingOptions<RootStackParamList> = {

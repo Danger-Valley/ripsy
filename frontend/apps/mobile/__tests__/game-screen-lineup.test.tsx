@@ -3,7 +3,7 @@ import { Animated } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
-import { GameScreen } from '../src/screens/game-screen';
+import { ComputerGameScreen, GameScreen } from '../src/screens/game-screen';
 import { useGameAnimationQueue } from '../src/hooks/use-game-animation-queue';
 import { useNativeRipsyGame } from '../src/hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../src/hooks/use-player-identity';
@@ -117,6 +117,30 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   await ReactTestRenderer.act(() => {
     renderer.unmount();
   });
+});
+
+test('offline computer battle skips waiting and starts after the local lineup is saved', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <ComputerGameScreen navigation={{ replace: jest.fn() } as never} route={{} as never} />,
+    );
+  });
+
+  expect(renderer.root.findAll(node => node.props.accessibilityHint === 'Opens the system share sheet')).toHaveLength(0);
+  expect(renderer.root.find(node => node.props.testID === 'lineup-controls')).toBeDefined();
+  const save = renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup');
+
+  await ReactTestRenderer.act(async () => {
+    save.props.onPress();
+    await Promise.resolve();
+  });
+
+  expect(renderer.root.findAll(node => node.props.testID === 'lineup-controls')).toHaveLength(0);
+  expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(true);
+  expect(renderer.root.findAll(node => node.props.children === 'Your turn — select a piece').length).toBeGreaterThan(0);
+
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('an open room is joined automatically before showing the board and lineup', async () => {

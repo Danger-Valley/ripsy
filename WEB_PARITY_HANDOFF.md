@@ -14,7 +14,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 ## Non-negotiable architecture
 
 - There is no MagicBlock, Solana, wallet, or smart-contract gameplay path.
-- `backend/` is the authoritative Node.js game server.
+- `frontend/packages/game-engine` is the single rules implementation. Online games invoke it through the Node.js backend; offline computer games invoke it directly on-device.
 - Clients send commands; they do not decide whether moves are legal or calculate authoritative outcomes.
 - Redis contains persistent game state, player game indexes, clock deadlines, and push installations.
 - Redis compare-and-swap protects concurrent mutations.
@@ -29,10 +29,11 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 | Concern | Source of truth |
 | --- | --- |
 | Constants, enums, wire types, runtime parsing | `frontend/packages/core/src/index.ts` |
+| Shared authoritative game rules and player-specific views | `frontend/packages/game-engine/src/index.ts` |
 | Reusable WebSocket client and reconnect behavior | `frontend/packages/game-client/src/ripsy-socket-client.ts` |
 | Existing React web hook | `frontend/packages/game-client/src/use-ripsy-game.ts` |
 | Native game hook | `frontend/apps/mobile/src/hooks/use-native-ripsy-game.ts` |
-| Authoritative rules and hidden player views | `backend/src/game-engine.ts` |
+| Backend compatibility re-export for game rules | `backend/src/game-engine.ts` |
 | Redis CAS, indexes, deadlines, Pub/Sub | `backend/src/redis-game-store.ts` |
 | WebSocket authentication and command routing | `backend/src/game-websocket-server.ts` |
 | Railway process, timeout scheduler, HTTP endpoints | `backend/src/server.ts` |
@@ -102,6 +103,18 @@ Use the exported `Phase` constants. Do not hard-code numeric phases in new web c
 - Native suspends its socket in the background and reconnects/refetches when active.
 - Web should converge on the reusable `RipsySocketClient` instead of maintaining a second, weaker WebSocket implementation in `use-ripsy-game.ts`.
 - Safe diagnostics must not log credentials, player IDs, room IDs, request IDs, coordinates, lineups, or board state.
+
+## Offline computer mode
+
+- Native Home exposes `Play vs computer`; it remains available when the backend is disconnected.
+- The computer game is created and mutated entirely in app memory. It does not create a session, room, Redis record, HTTP request, or WebSocket connection from the battle screen. Leaving Home for this screen suspends and disconnects Home's multiplayer socket.
+- Both online and offline modes call the same `@rps/game-engine` rules, including lineup validation, hidden opponent views, combat, tie choices, flag wins, and cumulative ten-minute clocks.
+- The computer starts with a valid randomized 4/4/4/1/1 lineup. The player can shuffle and save normally; saving starts the game immediately because the computer is already ready.
+- Computer turns wait 550–1200 ms so the response remains readable and existing confirmed-move/Rive animations can play.
+- The first AI is intentionally lightweight: enumerate legal moves, prefer contact, forward pressure and central files, then add bounded randomness. It does not inspect the hidden type of a player piece when scoring a destination.
+- During tied combat, the computer independently chooses Rock, Paper, or Scissors. A completely blocked computer side loses through the existing clock-expiry rule instead of retrying forever.
+- Current local sessions are memory-only and restart when the battle screen/app process is discarded. Persistence and difficulty levels are follow-up features.
+- Web parity is optional for this mode, but a web implementation should reuse `@rps/game-engine` and preserve the no-network and no-hidden-information guarantees.
 
 ## Ten-minute chess clocks
 
@@ -222,6 +235,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Feature | Status | Web action |
 | --- | --- | --- |
 | Authoritative backend rules | Shared | Consume state/commands only; never recreate rules. |
+| Offline computer opponent | Native done, web optional | Reuse `@rps/game-engine` locally; do not route this mode through WebSocket or inspect hidden player piece types in AI scoring. |
 | Redis multi-instance persistence and Pub/Sub | Shared | No web work. |
 | Signed anonymous sessions | Done | Preserve `/session` token flow. |
 | Runtime protocol parsing | Done | Keep `parseServerMessage` on every message. |

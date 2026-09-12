@@ -6,16 +6,19 @@ import { GameBoard, type LineupPiece } from '../components/game-board';
 import { GameClocks } from '../components/game-clocks';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
+import { useLocalComputerGame } from '../hooks/use-local-computer-game';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
 import { useGameAnimationQueue } from '../hooks/use-game-animation-queue';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { isCompletedMoveTransition } from '../game-animation';
 import { haptics } from '../haptics';
 import { createGameInviteUrl, normalizeRoomCode } from '../invitations';
+import { LOCAL_PLAYER_ID } from '../local-computer-game';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
+type ComputerProps = NativeStackScreenProps<RootStackParamList, 'ComputerGame'>;
 type Coordinate = { x: number; y: number };
 type WeaponChoice = typeof Choice.Rock | typeof Choice.Paper | typeof Choice.Scissors;
 type JoinStatus = 'idle' | 'joining' | 'joined' | 'failed';
@@ -30,6 +33,22 @@ export function GameScreen({ navigation, route }: Props) {
   const gameId = normalizeRoomCode(route.params.gameId) ?? '';
   const { playerId, sessionToken } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, gameId);
+
+  return <BattleScreen game={game} gameId={gameId} isComputer={false} navigation={navigation} playerId={playerId} />;
+}
+
+export function ComputerGameScreen({ navigation }: ComputerProps) {
+  const game = useLocalComputerGame();
+  return <BattleScreen game={game} gameId="computer" isComputer navigation={navigation} playerId={LOCAL_PLAYER_ID} />;
+}
+
+function BattleScreen({ game, gameId, isComputer, navigation, playerId }: {
+  game: ReturnType<typeof useNativeRipsyGame> | ReturnType<typeof useLocalComputerGame>;
+  gameId: string;
+  isComputer: boolean;
+  navigation: Props['navigation'] | ComputerProps['navigation'];
+  playerId: string;
+}) {
   const { joinGame } = game;
   const animation = useGameAnimationQueue(game.gameState);
   const visibleState = animation.displayedState ?? game.gameState;
@@ -51,7 +70,7 @@ export function GameScreen({ navigation, route }: Props) {
   ));
   const isLineupSaved = hasSubmitted && !isLineupDirty;
   const canEditLineup = Boolean(isParticipant && game.gameState && game.gameState.phase < Phase.Active);
-  const isWaitingForOpponent = Boolean(game.isPlayer0 && game.gameState && !game.gameState.p1 && game.gameState.phase < Phase.Active);
+  const isWaitingForOpponent = Boolean(!isComputer && game.isPlayer0 && game.gameState && !game.gameState.p1 && game.gameState.phase < Phase.Active);
   const hasOpenPlayerSlot = Boolean(
     game.gameState
     && !isParticipant
@@ -165,7 +184,7 @@ export function GameScreen({ navigation, route }: Props) {
 
   const stateMessage = animation.activeKind
     ? getAnimationMessage(animation.activeKind)
-    : getStateMessage(visibleState, isParticipant, canEditLineup, hasSubmitted, game.isMyTurn, playerId);
+    : getStateMessage(visibleState, isParticipant, canEditLineup, hasSubmitted, game.isMyTurn, playerId, isComputer);
 
   if (!gameId) {
     return (
@@ -372,7 +391,7 @@ function WeaponButton({ choice, label, busy, onChoose }: { choice: WeaponChoice;
   );
 }
 
-function getStateMessage(state: GameState | null, isParticipant: boolean, canEditLineup: boolean, hasSubmitted: boolean, isMyTurn: boolean, playerId: string | null) {
+function getStateMessage(state: GameState | null, isParticipant: boolean, canEditLineup: boolean, hasSubmitted: boolean, isMyTurn: boolean, playerId: string | null, isComputer = false) {
   const phase = state?.phase;
   if (phase === undefined) return 'Loading the latest game state…';
   if (!isParticipant && (phase === Phase.Created || phase === Phase.LineupP0Set)) return 'This room has an open player slot';
@@ -381,7 +400,7 @@ function getStateMessage(state: GameState | null, isParticipant: boolean, canEdi
     return 'Shuffle and save your hidden lineup';
   }
   if (phase === Phase.Created) return isParticipant ? 'Waiting for an opponent to join' : 'This room has an open player slot';
-  if (phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : "Opponent's turn";
+  if (phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : isComputer ? "Computer's turn" : "Opponent's turn";
   if (phase === Phase.Finished) {
     if (state?.finishReason === 'timeout') return state.winner === playerId ? 'Victory — opponent ran out of time' : 'Time expired — you lost';
     return state?.winner === playerId ? 'Victory' : 'Game finished';

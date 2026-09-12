@@ -5,7 +5,7 @@ import { RipsySocketClient, type ConnectionStatus } from '@rps/game-client/socke
 import { getGameWebSocketUrl } from '../config';
 import { reportClientDiagnostic } from '../diagnostics';
 
-export function useNativeRipsyGame(playerId: string, sessionToken: string, gameId?: string) {
+export function useNativeRipsyGame(playerId: string, sessionToken: string, gameId?: string, enabled = true) {
   const clientRef = useRef<RipsySocketClient | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('idle');
@@ -14,6 +14,10 @@ export function useNativeRipsyGame(playerId: string, sessionToken: string, gameI
   const [pendingRequests, setPendingRequests] = useState(0);
 
   useEffect(() => {
+    if (!enabled) {
+      setStatus('suspended');
+      return;
+    }
     if (!playerId || !sessionToken) return;
     let endpoint: string;
     try {
@@ -47,7 +51,7 @@ export function useNativeRipsyGame(playerId: string, sessionToken: string, gameI
       client.disconnect();
       if (clientRef.current === client) clientRef.current = null;
     };
-  }, [gameId, playerId, sessionToken]);
+  }, [enabled, gameId, playerId, sessionToken]);
 
   const run = useCallback(async <Result,>(operation: (client: RipsySocketClient) => Promise<Result>) => {
     const client = clientRef.current;

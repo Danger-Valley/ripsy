@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@rps/core": "*",
+    "@rps/game-engine": "*",
     "firebase-admin": "^14.4.0",
     "redis": "^5.11.0",
     "ws": "^8.18.3"

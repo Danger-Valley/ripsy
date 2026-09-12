@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useIsFocused } from '@react-navigation/native';
 import { ActiveGameCard } from '../components/active-game-card';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
@@ -14,8 +15,9 @@ import { colors, spacing } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export function HomeScreen({ navigation }: Props) {
+  const isFocused = useIsFocused();
   const { playerId, sessionToken, isReady, error: identityError } = usePlayerIdentity();
-  const game = useNativeRipsyGame(playerId, sessionToken);
+  const game = useNativeRipsyGame(playerId, sessionToken, undefined, isFocused);
   const listActiveGames = game.listGames;
   const isGameConnected = game.isConnected;
   const push = usePushNotifications(sessionToken);
@@ -97,6 +99,10 @@ export function HomeScreen({ navigation }: Props) {
               onPress={() => { createGame().catch(() => undefined); }}
               disabled={!isReady || !game.isConnected}
               busy={game.isBusy}>Create game</PrimaryButton>
+            <PrimaryButton
+              accessibilityHint="Starts a completely offline battle against the computer"
+              variant="secondary"
+              onPress={() => navigation.navigate('ComputerGame')}>Play vs computer</PrimaryButton>
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.dividerRow}>
               <View style={styles.divider} /><Text style={styles.or}>OR JOIN</Text><View style={styles.divider} />
             </View>

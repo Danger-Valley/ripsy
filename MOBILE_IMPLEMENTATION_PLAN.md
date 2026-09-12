@@ -4,12 +4,15 @@ This document is the working checklist for rebuilding RIPSY as a real React Nati
 
 ## Architecture we are keeping
 
-- `backend/`: authoritative Node.js WebSocket game server.
+- `frontend/packages/game-engine`: shared authoritative rules used by both the backend and offline play.
+- `backend/`: authoritative Node.js WebSocket transport and persistence layer for multiplayer games.
 - Redis: durable game state, atomic mutations, expiry, and multi-instance Pub/Sub fan-out.
 - `frontend/packages/core`: shared game constants, state, commands, and server-message types.
 - `frontend/apps/web`: existing web client; it must keep working during the native migration.
 
 The backend, not either client, decides whether commands are legal and computes game outcomes. Mobile animations are presentation only.
+
+For offline computer games, the mobile app invokes the same shared game engine directly; it does not duplicate or weaken the rules.
 
 ## Milestone 1: native playable foundation
 
@@ -60,6 +63,16 @@ The backend, not either client, decides whether commands are legal and computes 
 - [x] Configure the `RIPSY Internal` TestFlight group with automatic distribution and invite the Account Holder.
 - [x] Restore release dSYM coverage for React, React Native dependencies, and Hermes crash symbolication.
 - [ ] Upload Android to Play internal testing.
+
+## Milestone 4: offline computer opponent
+
+- [x] Extract the pure game engine into a shared package without changing online backend behavior.
+- [x] Add a `Play vs computer` entry that works independently of backend connectivity.
+- [x] Generate a valid hidden computer lineup and start immediately after the player saves theirs.
+- [x] Add legal-move AI with forward/contact/centre heuristics, bounded randomness, and no access to hidden opponent piece types.
+- [x] Resolve computer tie choices locally and reuse confirmed movement animations, clocks, haptics, and result UI.
+- [ ] Persist an unfinished offline game across app termination.
+- [ ] Add selectable difficulty levels and improve strategy through simulations/evaluation rather than hidden-information access.
 
 ## Implementation order
 

@@ -3,10 +3,11 @@
   "compilerOptions": {
     "paths": {
       "@rps/core": ["../../packages/core/src/index.ts"],
+      "@rps/game-engine": ["../../packages/game-engine/src/index.ts"],
       "@rps/game-client/socket": ["../../packages/game-client/src/ripsy-socket-client.ts"],
       "@rps/game-client/session": ["../../packages/game-client/src/player-session.ts"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", "../../packages/core/src/**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx", "../../packages/core/src/**/*.ts", "../../packages/game-engine/src/**/*.ts"],
   "exclude": ["**/node_modules", "**/Pods"]
 }

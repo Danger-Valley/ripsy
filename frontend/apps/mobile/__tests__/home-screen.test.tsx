@@ -10,6 +10,10 @@ import { usePushNotifications } from '../src/hooks/use-push-notifications';
 jest.mock('../src/hooks/use-native-ripsy-game');
 jest.mock('../src/hooks/use-player-identity');
 jest.mock('../src/hooks/use-push-notifications');
+jest.mock('@react-navigation/native', () => ({
+  ...jest.requireActual('@react-navigation/native'),
+  useIsFocused: () => true,
+}));
 
 const createGame = jest.fn(() => Promise.resolve('abcdef12'));
 const listGames = jest.fn(() => Promise.resolve([] as GameState[]));
@@ -60,6 +64,21 @@ test('creates a game and opens the returned room', async () => {
 
   expect(createGame).toHaveBeenCalledTimes(1);
   expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'abcdef12' });
+});
+
+test('opens a fully local computer battle without waiting for the server', async () => {
+  jest.mocked(useNativeRipsyGame).mockReturnValue({
+    ...jest.mocked(useNativeRipsyGame)('alice-player-id', 'alice-session-token'),
+    status: 'closed',
+    isConnected: false,
+    error: 'Server unavailable',
+  });
+  const renderer = await renderHome();
+  const computerButton = renderer.root.find(node => node.props.accessibilityHint === 'Starts a completely offline battle against the computer');
+
+  expect(computerButton.props.accessibilityState?.disabled).not.toBe(true);
+  await ReactTestRenderer.act(() => computerButton.props.onPress());
+  expect(navigate).toHaveBeenCalledWith('ComputerGame');
 });
 
 test('normalizes a pasted invitation and opens the room', async () => {

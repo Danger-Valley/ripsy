@@ -16,6 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@rps/core": ["packages/core/src/index.ts"],
+      "@rps/game-engine": ["packages/game-engine/src/index.ts"],
       "@rps/game-client": ["packages/game-client/src/index.ts"]
     }
   }

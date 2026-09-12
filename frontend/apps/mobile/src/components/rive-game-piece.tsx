@@ -45,21 +45,35 @@ export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false 
     if (!shouldMountRive || !riveViewRef) return;
     let cancelled = false;
 
-    const configurePiece = () => {
-      if (cancelled) return;
+    const setPieceInputs = () => {
       try {
         riveViewRef.setNumberInputValue('Weapon', piece);
         riveViewRef.setBooleanInputValue('WeaponVisible', piece !== Piece.Empty && piece !== Piece.Trap);
         if (piece === Piece.Trap && isMine) riveViewRef.triggerInput('Trap Idle');
-        riveViewRef.playIfNeeded();
       } catch {
         // Keep the board usable if this asset's state machine changes.
       }
     };
 
-    riveViewRef.awaitViewReady()
-      .then(() => isMine ? riveViewRef.reset() : undefined)
-      .then(configurePiece, configurePiece);
+    const configurePiece = async () => {
+      if (isMine) {
+        try {
+          await riveViewRef.pause();
+          await riveViewRef.reset();
+        } catch {
+          // The view is already known to be ready; continue with its current state.
+        }
+      }
+      if (cancelled) return;
+      setPieceInputs();
+      try {
+        await riveViewRef.play();
+      } catch {
+        riveViewRef.playIfNeeded();
+      }
+    };
+
+    configurePiece().catch(() => undefined);
 
     return () => {
       cancelled = true;
@@ -70,7 +84,7 @@ export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false 
     <View pointerEvents="none" style={[styles.container, { width: size, height: size }]}>
       {shouldMountRive ? (
         <RiveView
-          autoPlay
+          autoPlay={false}
           file={file}
           fit={Fit.Contain}
           hybridRef={setHybridRef}

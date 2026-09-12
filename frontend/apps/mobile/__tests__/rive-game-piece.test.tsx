@@ -6,6 +6,8 @@ import { RiveGamePiece } from '../src/components/rive-game-piece';
 
 const mockRiveViewRef = {
   awaitViewReady: jest.fn(() => Promise.resolve(true)),
+  pause: jest.fn(() => Promise.resolve()),
+  play: jest.fn(() => Promise.resolve()),
   playIfNeeded: jest.fn(),
   reset: jest.fn(() => Promise.resolve()),
   setBooleanInputValue: jest.fn(),
@@ -44,6 +46,26 @@ test('always hides weapons for traps', async () => {
   expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Trap Idle');
 });
 
+test('configures a local weapon before starting playback', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <RiveGamePiece file={{} as never} isMine piece={Piece.Paper} size={80} />,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(renderer.root.findByType('RiveView' as never).props.autoPlay).toBe(false);
+  expect(mockRiveViewRef.pause).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('Weapon', Piece.Paper);
+  expect(mockRiveViewRef.play).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.setNumberInputValue.mock.invocationCallOrder[0]).toBeLessThan(
+    mockRiveViewRef.play.mock.invocationCallOrder[0]!,
+  );
+});
+
 test('starts an opponent preview after a one-time random delay', async () => {
   jest.useFakeTimers();
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
@@ -67,7 +89,7 @@ test('starts an opponent preview after a one-time random delay', async () => {
 
   expect(renderer!.root.findAllByType('RiveView' as never)).toHaveLength(1);
   expect(mockRiveViewRef.reset).not.toHaveBeenCalled();
-  expect(mockRiveViewRef.playIfNeeded).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.play).toHaveBeenCalledTimes(1);
 });
 
 test('does not reset the Android front state machine for opponent figures', async () => {
@@ -78,9 +100,8 @@ test('does not reset the Android front state machine for opponent figures', asyn
     await Promise.resolve();
   });
 
-  expect(mockRiveViewRef.awaitViewReady).toHaveBeenCalledTimes(1);
   expect(mockRiveViewRef.reset).not.toHaveBeenCalled();
-  expect(mockRiveViewRef.playIfNeeded).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.play).toHaveBeenCalledTimes(1);
 });
 
 test('remounts with the front state machine when a figure becomes an opponent', async () => {

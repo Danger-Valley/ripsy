@@ -5,7 +5,7 @@ import { HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } fr
 import { haptics } from '../haptics';
 import { colors } from '../theme';
 import type { PieceMoveAnimation } from '../game-animation';
-import { RiveGamePiece } from './rive-game-piece';
+import { RiveGamePiece, type RiveActionTrigger } from './rive-game-piece';
 
 const figureAsset = require('../assets/figures/fig1.riv');
 const boardBorderWidth = 2;
@@ -150,14 +150,15 @@ function MovingPiece({ cellSize, isMine, isPlayer1, move, progress, riveFile }: 
   const to = toDisplayCoordinate(move.to, isPlayer1);
   const deltaX = (to.x - from.x) * cellSize;
   const deltaY = (to.y - from.y) * cellSize;
+  const jumpTrigger = jumpTriggerForMove(from, to);
   const translateX = progress.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [0, deltaX, deltaX],
+    inputRange: [0, 0.2, 1, 2],
+    outputRange: [0, 0, deltaX, deltaX],
     extrapolate: 'clamp',
   });
   const translateY = progress.interpolate({
-    inputRange: [0, 0.5, 1, 2],
-    outputRange: [0, deltaY * 0.5 - cellSize * 0.42, deltaY, deltaY],
+    inputRange: [0, 0.2, 1, 2],
+    outputRange: [0, 0, deltaY, deltaY],
     extrapolate: 'clamp',
   });
   const opacity = progress.interpolate({
@@ -181,10 +182,16 @@ function MovingPiece({ cellSize, isMine, isPlayer1, move, progress, riveFile }: 
       ]}
       testID="moving-piece">
       <View style={[styles.piece, { width: cellSize * 0.88, height: cellSize * 0.88, transform: [{ translateY: -cellSize * 0.43 }] }]}>
-        <RiveGamePiece file={riveFile} isMine={isMine} piece={move.piece} size={cellSize * 1.68} />
+        <RiveGamePiece actionTrigger={jumpTrigger} file={riveFile} isMine={isMine} piece={move.piece} size={cellSize * 1.68} />
       </View>
     </Animated.View>
   );
+}
+
+function jumpTriggerForMove(from: Coordinate, to: Coordinate): RiveActionTrigger {
+  if (to.x < from.x) return 'Jump Left';
+  if (to.x > from.x) return 'Jump Right';
+  return 'Jump Forward';
 }
 
 function toDisplayCoordinate(coordinate: Coordinate, isPlayer1: boolean): Coordinate {

@@ -3,6 +3,7 @@ import { AccessibilityInfo, Animated, StyleSheet } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
+import { RiveGamePiece } from '../src/components/rive-game-piece';
 
 function createState(): GameState {
   const owners: Owner[] = Array.from({ length: WIDTH * HEIGHT }, () => Owner.None);
@@ -225,6 +226,30 @@ test('renders a moving figure above the board and hides its stationary source', 
   const sourceCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 1, your rock');
   expect(sourceCell.findAll(node => node.props.testID === 'rive-view')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(2);
+  expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.actionTrigger)?.props.actionTrigger).toBe('Jump Forward');
+});
+
+test('maps horizontal jumps using the player-visible board direction', async () => {
+  const state = createState();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <GameBoard
+        isPlayer1
+        moveAnimation={{
+          from: { x: 0, y: 0 },
+          to: { x: 1, y: 0 },
+          owner: Owner.P0,
+          piece: Piece.Rock,
+        }}
+        moveProgress={new Animated.Value(0)}
+        ownOwner={Owner.P1}
+        state={state}
+      />,
+    );
+  });
+
+  expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.actionTrigger)?.props.actionTrigger).toBe('Jump Left');
 });
 
 test('keeps a lineup figure mounted while its piece changes', async () => {

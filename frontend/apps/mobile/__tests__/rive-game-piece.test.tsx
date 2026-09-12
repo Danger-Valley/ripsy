@@ -42,8 +42,23 @@ test('always hides weapons for traps', async () => {
     await Promise.resolve();
   });
 
-  expect(mockRiveViewRef.setBooleanInputValue).toHaveBeenCalledWith('WeaponVisible', false);
+  expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('WeaponVisible', 0);
   expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Trap Idle');
+  expect(mockRiveViewRef.play.mock.invocationCallOrder[0]).toBeLessThan(
+    mockRiveViewRef.triggerInput.mock.invocationCallOrder[0]!,
+  );
+});
+
+test('fires a movement trigger only after the state machine starts', async () => {
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <RiveGamePiece actionTrigger="Jump Right" file={{} as never} isMine piece={Piece.Rock} size={80} />,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Jump Right');
   expect(mockRiveViewRef.play.mock.invocationCallOrder[0]).toBeLessThan(
     mockRiveViewRef.triggerInput.mock.invocationCallOrder[0]!,
   );

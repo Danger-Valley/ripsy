@@ -32,7 +32,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     setActiveMove(transition.move);
     progress.setValue(0);
     Animated.timing(progress, {
-      duration: transition.move ? (transition.kind === 'battle' ? 420 : 360) : 120,
+      duration: transition.move ? (transition.kind === 'battle' ? 560 : 500) : 120,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {

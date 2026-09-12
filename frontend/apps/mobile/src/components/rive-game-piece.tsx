@@ -4,6 +4,7 @@ import { Fit, RiveView, useRive, type RiveFile } from '@rive-app/react-native';
 import { Piece } from '@rps/core';
 
 interface Props {
+  actionTrigger?: RiveActionTrigger;
   file: RiveFile;
   isMine: boolean;
   piece: Piece;
@@ -11,7 +12,17 @@ interface Props {
   staggerStart?: boolean;
 }
 
-export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false }: Props) {
+export type RiveActionTrigger =
+  | 'Jump Forward'
+  | 'Jump Right'
+  | 'Jump Left'
+  | 'Attack Prepare'
+  | 'Attack'
+  | 'Trap Activate'
+  | 'Fall In Trap'
+  | 'Death';
+
+export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, staggerStart = false }: Props) {
   const { riveViewRef, setHybridRef } = useRive();
   const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
   const [shouldMountRive, setShouldMountRive] = useState(!staggerStart);
@@ -48,7 +59,7 @@ export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false 
     const setPieceInputs = () => {
       try {
         riveViewRef.setNumberInputValue('Weapon', piece);
-        riveViewRef.setBooleanInputValue('WeaponVisible', piece !== Piece.Empty && piece !== Piece.Trap);
+        if (isMine) riveViewRef.setNumberInputValue('WeaponVisible', piece !== Piece.Empty && piece !== Piece.Trap ? 1 : 0);
       } catch {
         // Keep the board usable if this asset's state machine changes.
       }
@@ -70,6 +81,15 @@ export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false 
       } catch {
         riveViewRef.playIfNeeded();
       }
+      if (cancelled) return;
+      if (actionTrigger) {
+        try {
+          riveViewRef.triggerInput(actionTrigger);
+          riveViewRef.playIfNeeded();
+        } catch {
+          // Keep the positional move running if an asset trigger is unavailable.
+        }
+      }
       if (cancelled || piece !== Piece.Trap || !isMine) return;
       try {
         riveViewRef.triggerInput('Trap Idle');
@@ -84,7 +104,7 @@ export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false 
     return () => {
       cancelled = true;
     };
-  }, [isMine, piece, riveViewRef, shouldMountRive]);
+  }, [actionTrigger, isMine, piece, riveViewRef, shouldMountRive]);
 
   return (
     <View pointerEvents="none" style={[styles.container, { width: size, height: size }]}>

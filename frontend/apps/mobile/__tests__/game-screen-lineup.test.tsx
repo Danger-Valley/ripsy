@@ -13,6 +13,7 @@ jest.mock('../src/hooks/use-native-ripsy-game');
 jest.mock('../src/hooks/use-player-identity');
 
 let gameState: GameState;
+let nativeGame: ReturnType<typeof useNativeRipsyGame>;
 const submitLineup = jest.fn<Promise<{ type: 'result'; requestId: string }>, [number[], number[], number[]]>(async (xs, ys, pieces) => {
   xs.forEach((x, index) => {
     const boardIndex = ys[index]! * WIDTH + x;
@@ -33,7 +34,7 @@ beforeEach(() => {
     error: null,
   });
   gameState = createdGame();
-  jest.mocked(useNativeRipsyGame).mockReturnValue({
+  nativeGame = {
     gameState,
     status: 'connected',
     error: null,
@@ -51,7 +52,8 @@ beforeEach(() => {
     submitLineup,
     movePiece: jest.fn(() => Promise.resolve({ type: 'result', requestId: 'move' })),
     chooseWeapon: jest.fn(() => Promise.resolve({ type: 'result', requestId: 'choice' })),
-  });
+  };
+  jest.mocked(useNativeRipsyGame).mockReturnValue(nativeGame);
   jest.mocked(useGameAnimationQueue).mockImplementation(state => {
     const progress = new Animated.Value(0);
     return {
@@ -109,6 +111,54 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
 
   expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Lineup saved')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.children === 'Lineup changed. Save it when you are ready.').length).toBeGreaterThan(0);
+
+  await ReactTestRenderer.act(() => {
+    renderer.unmount();
+  });
+});
+
+test('an open room is joined automatically before showing the board and lineup', async () => {
+  gameState = { ...createdGame(), p0: 'bob' };
+  const joinGame = jest.fn(() => Promise.resolve({ type: 'result' as const, requestId: 'join' }));
+  nativeGame = {
+    ...nativeGame,
+    gameState,
+    isPlayer0: false,
+    isMyTurn: false,
+    ownOwner: Owner.None,
+    joinGame,
+  };
+  jest.mocked(useNativeRipsyGame).mockReturnValue(nativeGame);
+
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />,
+    );
+    await Promise.resolve();
+  });
+
+  expect(joinGame).toHaveBeenCalledTimes(1);
+  expect(renderer.root.findAllByType(GameBoard)).toHaveLength(0);
+  expect(renderer.root.findAll(node => node.props.children === 'Join this game')).toHaveLength(0);
+
+  gameState = { ...gameState, p1: 'alice', phase: Phase.Joined };
+  nativeGame = {
+    ...nativeGame,
+    gameState,
+    isPlayer1: true,
+    ownOwner: Owner.P1,
+  };
+  jest.mocked(useNativeRipsyGame).mockReturnValue(nativeGame);
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(
+      <GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />,
+    );
+  });
+
+  expect(renderer.root.findByType(GameBoard)).toBeDefined();
+  expect(renderer.root.find(node => node.props.testID === 'lineup-controls')).toBeDefined();
 
   await ReactTestRenderer.act(() => {
     renderer.unmount();

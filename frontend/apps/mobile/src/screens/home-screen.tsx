@@ -115,10 +115,10 @@ export function HomeScreen({ navigation }: Props) {
               value={roomCode}
             />
             <PrimaryButton
-              accessibilityHint="Opens the entered game room"
+              accessibilityHint="Joins the entered battle automatically"
               variant="secondary"
               onPress={joinByCode}
-              disabled={!normalizeRoomCode(roomCode)}>Open room</PrimaryButton>
+              disabled={!normalizeRoomCode(roomCode)}>Join battle</PrimaryButton>
           </View>
 
           {(identityError || game.error) ? <StatusBanner message={identityError || game.error || ''} tone="error" /> : (

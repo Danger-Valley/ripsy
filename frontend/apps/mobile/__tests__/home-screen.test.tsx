@@ -71,7 +71,7 @@ test('normalizes a pasted invitation and opens the room', async () => {
   });
   expect(renderer.root.findByType(TextInput).props.value).toBe('abcdef12');
 
-  const openButton = renderer.root.find(node => node.props.accessibilityHint === 'Opens the entered game room');
+  const openButton = renderer.root.find(node => node.props.accessibilityHint === 'Joins the entered battle automatically');
   await ReactTestRenderer.act(() => openButton.props.onPress());
   expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'abcdef12' });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { ActivityIndicator, Animated, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Choice, HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
@@ -17,6 +17,7 @@ import { colors, spacing } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
 type Coordinate = { x: number; y: number };
 type WeaponChoice = typeof Choice.Rock | typeof Choice.Paper | typeof Choice.Scissors;
+type JoinStatus = 'idle' | 'joining' | 'joined' | 'failed';
 
 const weaponImages = {
   [Choice.Rock]: require('../assets/weapons/rock.png'),
@@ -34,6 +35,8 @@ export function GameScreen({ navigation, route }: Props) {
   const [isLineupDirty, setIsLineupDirty] = useState(false);
   const [selected, setSelected] = useState<Coordinate | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [joinStatus, setJoinStatus] = useState<JoinStatus>('idle');
+  const [joinError, setJoinError] = useState<string | null>(null);
   const previousPhase = useRef<Phase | undefined>(undefined);
   const previousTiePending = useRef(false);
   const previousMoveState = useRef<GameState | null>(null);
@@ -47,6 +50,29 @@ export function GameScreen({ navigation, route }: Props) {
   const isLineupSaved = hasSubmitted && !isLineupDirty;
   const canEditLineup = Boolean(isParticipant && game.gameState && game.gameState.phase < Phase.Active);
   const isWaitingForOpponent = Boolean(game.isPlayer0 && game.gameState && !game.gameState.p1 && game.gameState.phase < Phase.Active);
+  const hasOpenPlayerSlot = Boolean(
+    game.gameState
+    && !isParticipant
+    && !game.gameState.p1
+    && (game.gameState.phase === Phase.Created || game.gameState.phase === Phase.LineupP0Set),
+  );
+
+  useEffect(() => {
+    setJoinStatus('idle');
+    setJoinError(null);
+  }, [gameId]);
+
+  useEffect(() => {
+    if (!hasOpenPlayerSlot || joinStatus !== 'idle') return;
+    setJoinStatus('joining');
+    setJoinError(null);
+    game.joinGame()
+      .then(() => setJoinStatus('joined'))
+      .catch(cause => {
+        setJoinStatus('failed');
+        setJoinError(cause instanceof Error ? cause.message : 'Could not join this battle');
+      });
+  }, [game.joinGame, hasOpenPlayerSlot, joinStatus]);
 
   useEffect(() => {
     if (!canEditLineup || lineup.length > 0 || !game.gameState) return;
@@ -146,6 +172,33 @@ export function GameScreen({ navigation, route }: Props) {
     );
   }
 
+  if (!game.gameState) {
+    return (
+      <JoinGate
+        gameId={gameId}
+        mode={game.error ? 'failed' : 'loading'}
+        serverError={game.error}
+        onBack={() => navigation.replace('Home')}
+        onRetry={game.error ? () => { game.refresh().catch(() => undefined); } : undefined}
+      />
+    );
+  }
+
+  if (!isParticipant) {
+    if (hasOpenPlayerSlot && joinStatus !== 'failed') {
+      return <JoinGate gameId={gameId} mode="joining" onBack={() => navigation.replace('Home')} />;
+    }
+    return (
+      <JoinGate
+        gameId={gameId}
+        mode={hasOpenPlayerSlot ? 'failed' : 'unavailable'}
+        serverError={joinError || game.error}
+        onBack={() => navigation.replace('Home')}
+        onRetry={hasOpenPlayerSlot ? () => setJoinStatus('idle') : undefined}
+      />
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -181,9 +234,6 @@ export function GameScreen({ navigation, route }: Props) {
           />
         </Animated.View>
 
-        {(game.gameState?.phase === Phase.Created || game.gameState?.phase === Phase.LineupP0Set) && !isParticipant && (
-          <PrimaryButton onPress={() => { perform(game.joinGame).catch(() => undefined); }} busy={game.isBusy}>Join this game</PrimaryButton>
-        )}
         {canEditLineup && (
           <View style={[styles.lineupPanel, isLineupSaved && styles.lineupPanelReady]} testID="lineup-controls">
             <View style={styles.lineupHeader}>
@@ -225,6 +275,54 @@ export function GameScreen({ navigation, route }: Props) {
         isOpen={Boolean(!animation.isAnimating && visibleState?.tiePending && visibleState.playerChoice === Choice.None && isParticipant)}
         onChoose={choice => { perform(() => game.chooseWeapon(choice)).catch(() => undefined); }}
       />
+    </View>
+  );
+}
+
+function JoinGate({ gameId, mode, serverError, onBack, onRetry }: {
+  gameId: string;
+  mode: 'loading' | 'joining' | 'failed' | 'unavailable';
+  serverError?: string | null;
+  onBack: () => void;
+  onRetry?: () => void;
+}) {
+  const isWorking = mode === 'loading' || mode === 'joining';
+  const title = mode === 'loading'
+    ? 'Opening battle'
+    : mode === 'joining'
+      ? 'Joining battle'
+      : mode === 'failed' ? 'Couldn’t join battle' : 'Battle unavailable';
+  const description = mode === 'loading'
+    ? 'Checking the room and its player slot…'
+    : mode === 'joining'
+      ? 'Your place is being secured. Your lineup is next.'
+      : mode === 'failed'
+        ? serverError || 'The room could not be joined. Check your connection and try again.'
+        : 'This room already has two players or the battle has started.';
+
+  return (
+    <View style={styles.joinGate}>
+      <View accessibilityLiveRegion="polite" style={styles.joinCard}>
+        <View style={[styles.joinIcon, !isWorking && styles.joinIconUnavailable]}>
+          {isWorking ? (
+            <ActivityIndicator accessibilityLabel={title} accessibilityRole="progressbar" color={colors.primary} size="large" />
+          ) : (
+            <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.joinIconText}>!</Text>
+          )}
+        </View>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.joinTitle}>{title}</Text>
+        <Text maxFontSizeMultiplier={2} style={styles.joinDescription}>{description}</Text>
+        <View accessibilityLabel={`Room ${gameId}`} style={styles.roomPill}>
+          <Text maxFontSizeMultiplier={1.6} style={styles.roomPillLabel}>ROOM</Text>
+          <Text maxFontSizeMultiplier={1.6} selectable style={styles.roomPillCode}>{gameId}</Text>
+        </View>
+        {!isWorking && (
+          <View style={styles.joinActions}>
+            {onRetry && <PrimaryButton onPress={onRetry}>Try again</PrimaryButton>}
+            <PrimaryButton variant="secondary" onPress={onBack}>Back to home</PrimaryButton>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -324,6 +422,17 @@ function shuffle<T>(items: T[]) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   invalidRoom: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
+  joinGate: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', padding: spacing.xl },
+  joinCard: { width: '100%', maxWidth: 460, alignSelf: 'center', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 24, padding: spacing.xxl, gap: spacing.md },
+  joinIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceStrong, borderColor: colors.primaryMuted, borderWidth: 1, marginBottom: spacing.sm },
+  joinIconUnavailable: { borderColor: colors.danger },
+  joinIconText: { color: colors.danger, fontSize: 34, fontWeight: '900' },
+  joinTitle: { color: colors.text, fontSize: 25, fontWeight: '900', textAlign: 'center' },
+  joinDescription: { color: colors.textMuted, fontSize: 15, lineHeight: 22, textAlign: 'center', maxWidth: 330 },
+  roomPill: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, marginTop: spacing.sm },
+  roomPillLabel: { color: colors.textMuted, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  roomPillCode: { color: colors.primary, fontSize: 14, fontWeight: '900', letterSpacing: 1.5 },
+  joinActions: { alignSelf: 'stretch', gap: spacing.sm, marginTop: spacing.md },
   content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg, gap: spacing.lg, paddingBottom: 48 },
   waitingCard: { backgroundColor: colors.surface, borderColor: colors.primaryMuted, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
   waitingHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

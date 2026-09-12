@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-09-12  
+Last updated: 2026-09-12
 Baseline: `master` at `74eada0`
 
 ## Purpose

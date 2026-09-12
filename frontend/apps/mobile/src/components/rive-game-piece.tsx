@@ -6,16 +6,16 @@ import { Piece } from '@rps/core';
 interface Props {
   file: RiveFile;
   isMine: boolean;
-  mirrored: boolean;
   piece: Piece;
   size: number;
   staggerStart?: boolean;
 }
 
-export function RiveGamePiece({ file, isMine, mirrored, piece, size, staggerStart = false }: Props) {
+export function RiveGamePiece({ file, isMine, piece, size, staggerStart = false }: Props) {
   const { riveViewRef, setHybridRef } = useRive();
   const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
   const [shouldMountRive, setShouldMountRive] = useState(!staggerStart);
+  const stateMachineName = isMine ? 'State Machine Back' : 'State Machine Front';
 
   useEffect(() => {
     if (!staggerStart) {
@@ -57,7 +57,9 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size, staggerStar
       }
     };
 
-    riveViewRef.reset().then(configurePiece, configurePiece);
+    riveViewRef.awaitViewReady()
+      .then(() => riveViewRef.reset())
+      .then(configurePiece, configurePiece);
 
     return () => {
       cancelled = true;
@@ -72,8 +74,9 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size, staggerStar
           file={file}
           fit={Fit.Contain}
           hybridRef={setHybridRef}
-          stateMachineName={isMine ? 'State Machine Back' : 'State Machine Front'}
-          style={[styles.rive, mirrored && styles.mirrored]}
+          key={stateMachineName}
+          stateMachineName={stateMachineName}
+          style={styles.rive}
         />
       ) : null}
     </View>
@@ -83,5 +86,4 @@ export function RiveGamePiece({ file, isMine, mirrored, piece, size, staggerStar
 const styles = StyleSheet.create({
   container: { alignItems: 'center', justifyContent: 'center' },
   rive: { position: 'absolute', inset: 0 },
-  mirrored: { transform: [{ scaleX: -1 }] },
 });

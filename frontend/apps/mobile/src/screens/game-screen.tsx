@@ -29,6 +29,7 @@ export function GameScreen({ navigation, route }: Props) {
   const gameId = normalizeRoomCode(route.params.gameId) ?? '';
   const { playerId, sessionToken } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, gameId);
+  const { joinGame } = game;
   const animation = useGameAnimationQueue(game.gameState);
   const visibleState = animation.displayedState ?? game.gameState;
   const [lineup, setLineup] = useState<LineupPiece[]>([]);
@@ -66,13 +67,13 @@ export function GameScreen({ navigation, route }: Props) {
     if (!hasOpenPlayerSlot || joinStatus !== 'idle') return;
     setJoinStatus('joining');
     setJoinError(null);
-    game.joinGame()
+    joinGame()
       .then(() => setJoinStatus('joined'))
       .catch(cause => {
         setJoinStatus('failed');
         setJoinError(cause instanceof Error ? cause.message : 'Could not join this battle');
       });
-  }, [game.joinGame, hasOpenPlayerSlot, joinStatus]);
+  }, [hasOpenPlayerSlot, joinGame, joinStatus]);
 
   useEffect(() => {
     if (!canEditLineup || lineup.length > 0 || !game.gameState) return;

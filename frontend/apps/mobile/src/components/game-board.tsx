@@ -105,7 +105,6 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                       <RiveGamePiece
                         file={riveFile}
                         isMine={isMine}
-                        mirrored={Boolean(isPlayer1 && !isMine)}
                         piece={piece}
                         size={cellSize * 1.68}
                         staggerStart={isOpponentPreview}

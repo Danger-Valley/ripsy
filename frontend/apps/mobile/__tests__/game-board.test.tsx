@@ -143,6 +143,33 @@ test('renders an unarmed opponent formation during lineup setup', async () => {
   jest.restoreAllMocks();
 });
 
+test('keeps the opponent front-facing when the local player is player 2', async () => {
+  const state = createState();
+  state.phase = Phase.Joined;
+  state.owners.fill(Owner.None);
+  state.pieces.fill(Piece.Empty);
+  state.owners[toIdx(0, HEIGHT - 1)] = Owner.P0;
+  state.pieces[toIdx(0, HEIGHT - 1)] = Piece.Empty;
+
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <GameBoard
+        isPlayer1
+        ownOwner={Owner.P1}
+        previewLineup={[{ x: WIDTH - 1, y: 0, piece: Piece.Scissors }]}
+        state={state}
+      />,
+    );
+  });
+
+  const figures = renderer.root.findAll(node => node.props.testID === 'rive-view');
+  expect(figures.map(figure => figure.props.stateMachineName)).toEqual([
+    'State Machine Front',
+    'State Machine Back',
+  ]);
+});
+
 test('keeps a lineup figure mounted while its piece changes', async () => {
   const state = createState();
   state.phase = Phase.Created;

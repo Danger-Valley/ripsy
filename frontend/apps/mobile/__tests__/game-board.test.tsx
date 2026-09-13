@@ -271,6 +271,7 @@ test('moves horizontally in the player-visible board direction without changing 
 test('stages a battle and sends the attack and death triggers to the right fighters', async () => {
   const state = createState();
   const combat = {
+    resolution: 'resolved' as const,
     from: { x: 0, y: 0 },
     to: { x: 1, y: 0 },
     attackerOwner: Owner.P0,
@@ -312,6 +313,49 @@ test('stages a battle and sends the attack and death triggers to the right fight
   });
   expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Rock)?.props.actionTrigger).toBe('Death');
   expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Paper)?.props.actionTrigger).toBeUndefined();
+});
+
+test('holds both tied fighters enlarged without firing attack or death', async () => {
+  const state = createState();
+  const progress = new Animated.Value(1.35);
+  const combat = {
+    resolution: 'pending' as const,
+    from: { x: 0, y: 0 },
+    to: { x: 1, y: 0 },
+    attackerOwner: Owner.P0,
+    defenderOwner: Owner.P1,
+    attackerPiece: Piece.Rock,
+    defenderPiece: Piece.Rock,
+    winnerOwner: null,
+    winnerPiece: Piece.Empty,
+  };
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <GameBoard
+        combatAnimation={combat}
+        combatPhase="hold"
+        isPlayer1={false}
+        moveProgress={progress}
+        ownOwner={Owner.P0}
+        state={state}
+      />,
+    );
+  });
+
+  expect(renderer.root.findAllByType(RiveGamePiece)).toHaveLength(2);
+  expect(renderer.root.findAllByType(RiveGamePiece).every(figure => figure.props.actionTrigger === undefined)).toBe(true);
+  const fighters = renderer.root.findAll(node => (
+    node.props.testID === 'combat-loser'
+    && StyleSheet.flatten(node.props.style)?.transform?.length === 4
+  ));
+  expect(fighters.length).toBeGreaterThanOrEqual(2);
+  const enlargedFighters = fighters.filter(fighter => {
+    const scale = StyleSheet.flatten(fighter.props.style).transform[2].scale;
+    return scale === 2 || scale.__getValue?.() === 2;
+  });
+  expect(enlargedFighters.length).toBeGreaterThanOrEqual(2);
 });
 
 test('keeps a lineup figure mounted while its piece changes', async () => {

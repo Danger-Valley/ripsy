@@ -27,6 +27,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const latestFingerprintRef = useRef<string | null>(null);
   const queueRef = useRef<QueuedTransition[]>([]);
   const runningRef = useRef(false);
+  const activeCombatRef = useRef<CombatAnimation | null>(null);
   const mountedRef = useRef(true);
   const drainRef = useRef<() => void>(() => undefined);
   const [displayedState, setDisplayedState] = useState<GameState | null>(null);
@@ -40,21 +41,46 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     const transition = queueRef.current.shift();
     if (!transition) return;
 
+    if (transition.state.tiePending && !transition.combat && activeCombatRef.current?.resolution === 'pending') {
+      displayedRef.current = transition.state;
+      setDisplayedState(transition.state);
+      drainRef.current();
+      return;
+    }
+
     runningRef.current = true;
+    const resumesPendingCombat = Boolean(
+      transition.combat?.resolution === 'resolved'
+      && activeCombatRef.current?.resolution === 'pending',
+    );
     setActiveKind(transition.kind);
     setActiveMove(transition.move);
     setActiveCombat(transition.combat);
-    setCombatPhase(transition.combat ? 'prepare' : null);
-    progress.setValue(0);
+    activeCombatRef.current = transition.combat;
+    setCombatPhase(transition.combat ? (resumesPendingCombat ? 'attack' : 'prepare') : null);
+    progress.setValue(resumesPendingCombat ? 1.35 : 0);
 
     if (transition.combat) {
       const combat = transition.combat;
-      Animated.timing(progress, {
-        duration: 400,
-        toValue: 1,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!finished || !mountedRef.current) return;
+      if (combat.resolution === 'pending') {
+        Animated.timing(progress, {
+          duration: 620,
+          easing: Easing.bezier(0.22, 0.72, 0.24, 1),
+          toValue: 1.35,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (!finished || !mountedRef.current) return;
+          displayedRef.current = transition.state;
+          setDisplayedState(transition.state);
+          runningRef.current = false;
+          setActiveKind(null);
+          setCombatPhase('hold');
+          drainRef.current();
+        });
+        return;
+      }
+
+      const finishAttack = () => {
         setCombatPhase('attack');
         Animated.timing(progress, {
           duration: combatAttackDurationMs(combat.winnerPiece) + 100,
@@ -78,6 +104,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
             }).start(({ finished: settled }) => {
               if (!settled || !mountedRef.current) return;
               runningRef.current = false;
+              activeCombatRef.current = null;
               setActiveKind(null);
               setActiveMove(null);
               setActiveCombat(null);
@@ -86,6 +113,20 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
             });
           });
         });
+      };
+
+      if (resumesPendingCombat) {
+        finishAttack();
+        return;
+      }
+
+      Animated.timing(progress, {
+        duration: 400,
+        toValue: 1,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished || !mountedRef.current) return;
+        finishAttack();
       });
       return;
     }
@@ -109,6 +150,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
         setActiveKind(null);
         setActiveMove(null);
         setActiveCombat(null);
+        activeCombatRef.current = null;
         setCombatPhase(null);
         drainRef.current();
       });
@@ -126,6 +168,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       progress.setValue(0);
       queueRef.current = [];
       runningRef.current = false;
+      activeCombatRef.current = null;
       setActiveKind(null);
       setActiveMove(null);
       setActiveCombat(null);
@@ -153,6 +196,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     return () => {
       mountedRef.current = false;
       queueRef.current = [];
+      activeCombatRef.current = null;
       progress.stopAnimation();
     };
   }, [progress]);

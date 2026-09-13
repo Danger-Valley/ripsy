@@ -10,17 +10,18 @@ export interface PieceMoveAnimation {
 }
 
 export interface CombatAnimation {
+  resolution: 'pending' | 'resolved';
   from: { x: number; y: number };
   to: { x: number; y: number };
   attackerOwner: Owner;
   defenderOwner: Owner;
   attackerPiece: Piece;
   defenderPiece: Piece;
-  winnerOwner: Owner;
+  winnerOwner: Owner | null;
   winnerPiece: Piece;
 }
 
-export type CombatAnimationPhase = 'prepare' | 'attack' | 'death';
+export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death';
 
 export function combatAttackDurationMs(piece: Piece) {
   if (piece === Piece.Rock) return 383;
@@ -124,7 +125,7 @@ export function getPieceMoveAnimation(previous: GameState, next: GameState): Pie
 }
 
 export function getCombatAnimation(previous: GameState, next: GameState): CombatAnimation | null {
-  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active || next.outcome === 0 || next.tiePending) return null;
+  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active) return null;
   const from = next.tieFrom;
   const to = next.tieTo;
   if (!isBoardCoordinate(from) || !isBoardCoordinate(to) || !isAdjacent(from, to)) return null;
@@ -143,8 +144,25 @@ export function getCombatAnimation(previous: GameState, next: GameState): Combat
 
   const attackerPiece = next.attacker;
   const defenderPiece = next.defender;
+  if (next.tiePending) {
+    if (previous.tiePending || next.outcome !== 0 || attackerPiece !== defenderPiece) return null;
+    return {
+      resolution: 'pending',
+      from,
+      to,
+      attackerOwner,
+      defenderOwner,
+      attackerPiece,
+      defenderPiece,
+      winnerOwner: null,
+      winnerPiece: Piece.Empty,
+    };
+  }
+  if (next.outcome === 0) return null;
+
   const attackerWon = next.outcome === 1;
   return {
+    resolution: 'resolved',
     from,
     to,
     attackerOwner,

@@ -142,6 +142,7 @@ test('extracts both fighters and the winner from a resolved battle', () => {
   );
 
   expect(getCombatAnimation(previous, next)).toEqual({
+    resolution: 'resolved',
     from: { x: 0, y: 5 },
     to: { x: 0, y: 4 },
     attackerOwner: Owner.P0,
@@ -172,7 +173,7 @@ test('uses the defender as the combat winner when the attack loses', () => {
   });
 });
 
-test('waits for a tied battle choice before creating the combat scene', () => {
+test('creates a held combat scene before asking for tied battle choices', () => {
   const withAttacker = withBoard(baseState, 35, Owner.P0, Piece.Rock);
   const previous = withBoard(withAttacker, 28, Owner.P1, Piece.Empty);
   const tied = {
@@ -184,7 +185,17 @@ test('waits for a tied battle choice before creating the combat scene', () => {
     tieFrom: { x: 0, y: 5 },
     tieTo: { x: 0, y: 4 },
   };
-  expect(getCombatAnimation(previous, tied)).toBeNull();
+  expect(getCombatAnimation(previous, tied)).toEqual({
+    resolution: 'pending',
+    from: { x: 0, y: 5 },
+    to: { x: 0, y: 4 },
+    attackerOwner: Owner.P0,
+    defenderOwner: Owner.P1,
+    attackerPiece: Piece.Rock,
+    defenderPiece: Piece.Rock,
+    winnerOwner: null,
+    winnerPiece: Piece.Empty,
+  });
 
   const resolved = {
     ...tied,
@@ -194,6 +205,7 @@ test('waits for a tied battle choice before creating the combat scene', () => {
     tiePending: false,
   };
   expect(getCombatAnimation(tied, resolved)).toMatchObject({
+    resolution: 'resolved',
     attackerPiece: Piece.Scissors,
     defenderPiece: Piece.Paper,
     winnerOwner: Owner.P0,

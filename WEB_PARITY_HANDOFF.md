@@ -223,10 +223,12 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 
 ### Resolved combat animation
 
-- A Rock/Paper/Scissors battle is derived only from the authoritative resolved state. Do not start the scene while `tiePending` is true; enqueue it when the tie choice produces a non-zero outcome.
+- A Rock/Paper/Scissors battle starts from the authoritative collision state. For an immediate result, run the full sequence below. For `tiePending`, create a pending combat scene before showing the weapon picker.
 - Read both original occupants from the previous board and the revealed weapons/winner from `attacker`, `defender`, and `outcome`. This supports both immediate battles and post-tie resolution without leaking hidden weapons early.
 - Hide both stationary sprites and render two persistent overlay instances above the board. Arrange them horizontally around the midpoint and mirror them so they face each other, including a vertically initiated attack.
 - Match the existing web choreography: fire `Attack Prepare` on both figures; wait 100 ms, move both into the shared fight position over the remaining 300 ms; then animate both to 2× scale.
+- On a tie, use a 620 ms eased prepare/approach, freeze both fighters at 2× scale, switch the combat phase to `hold`, and only then open the weapon picker. Keep that exact scene mounted while either player is choosing; `playerChoice` updates must not clear it.
+- When the server resolves the tie, resume the held scene at the attack phase with the newly revealed choices. Do not replay the approach or reset the board between the picker and the attack.
 - At the attack phase, fire `Attack` only on the authoritative winner. Its numeric `Weapon` input selects the Rock throw, Paper win, or Scissors win timeline. Keep the attack visible for 383 ms (Rock), 500 ms (Paper), or 966 ms (Scissors), plus the web's 100 ms impact offset.
 - After impact, fire `Death` only on the loser for 200 ms. Reveal the new authoritative board only after that beat, then fade the combat overlays during the 260 ms settle.
 - Keep each Rive instance mounted through `Attack Prepare` → `Attack`/`Death`. Changing a trigger must not reset its state machine, or the battle timeline will restart instead of progressing.
@@ -268,6 +270,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Independent opponent idle timing | Port/verify | Use per-instance 60–400 ms stagger and reduced-motion handling. |
 | Explicit animation queue | Port/verify | Replace overlapping timer-driven web combat/movement effects with state-transition queue. |
 | Stable confirmed-move motion | Port/verify | Reuse the mounted, configured Rive figure and animate its container; do not remount it or fire jump triggers that can switch weapons. |
+| Tied-combat hold before picker | Port/verify | Run `Attack Prepare`, approach and 2× scale first; hold the scene through both choices and resume it at `Attack` after resolution. |
 | Full resolved combat scene | Done, migrate to queue | Preserve the existing web choreography and weapon attacks, but drive it from the authoritative transition queue using the sequence documented above. |
 | Light move feedback | Visual equivalent | Provide visible acknowledgement; browser vibration is optional. |
 | Two 10-minute clocks | Done | Keep server snapshots authoritative and verify narrow layouts/result state. |
@@ -300,6 +303,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 - [ ] Traps look like traps and cannot be selected as movable pieces.
 - [ ] Pregame opponent animations are visibly desynchronized.
 - [ ] Every accepted move visibly travels to its destination without remounting Rive or changing its weapon.
+- [ ] A tied collision reaches the enlarged combat hold before the weapon picker appears, and resolving it continues the same scene without replaying the approach.
 - [ ] Lineup controls have clear dirty/saved/ready states and remain editable only before `Active`.
 - [ ] Both 10-minute clocks switch on accepted moves and server timeout finishes the game.
 - [ ] The board fits 320 px-wide mobile web and common desktop layouts without horizontal overflow.

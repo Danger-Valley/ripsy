@@ -200,6 +200,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 
 - Use the single shared `fig1.riv` file, but a separate Rive instance/state machine per piece.
 - Set numeric `Weapon` before playback so Shuffle never briefly renders `S`, `R`, `P`, or a stale weapon.
+- Native Android first initializes playback while the view is hidden, then pauses/resets, writes `Weapon`/`WeaponVisible`, restarts playback, and reveals the view. Without this bootstrap, the native Rive runtime can leave every local figure in its default Scissors state.
 - Own pieces set `WeaponVisible` to 1 only for Rock/Paper/Scissors/Flag and to 0 for Empty/Trap.
 - A trap is a separate Rive state, not a weapon enum value: set `Weapon` to `Piece.Empty` (`0`) and `WeaponVisible` to `0` before playback, reassert both values after playback starts, and only then trigger `Trap Idle`. Never pass `Piece.Trap` into the numeric `Weapon` input.
 - Opponent preview instances mount with an independently generated 60–400 ms delay so 14 idle/blink animations do not synchronize.

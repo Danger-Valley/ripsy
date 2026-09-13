@@ -1,5 +1,5 @@
 import React from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { Piece } from '@rps/core';
 import { RiveGamePiece } from '../src/components/rive-game-piece';
@@ -14,6 +14,7 @@ const mockRiveViewRef = {
   setNumberInputValue: jest.fn(),
   triggerInput: jest.fn(),
 };
+const originalPlatformOS = Platform.OS;
 
 jest.mock('@rive-app/react-native', () => {
   const ReactModule = require('react');
@@ -30,6 +31,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatformOS });
   jest.useRealTimers();
   jest.restoreAllMocks();
 });
@@ -124,6 +126,27 @@ test('configures a local weapon before starting playback', async () => {
   expect(mockRiveViewRef.setNumberInputValue.mock.invocationCallOrder[0]).toBeLessThan(
     mockRiveViewRef.play.mock.invocationCallOrder[0]!,
   );
+});
+
+test('bootstraps Android playback while hidden before applying the weapon', async () => {
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <RiveGamePiece file={{} as never} isMine piece={Piece.Paper} size={80} />,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.play).toHaveBeenCalledTimes(2);
+  expect(mockRiveViewRef.play.mock.invocationCallOrder[0]).toBeLessThan(
+    mockRiveViewRef.setNumberInputValue.mock.invocationCallOrder[0]!,
+  );
+  expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('Weapon', Piece.Paper);
+  const riveStyle = StyleSheet.flatten(renderer.root.findByType('RiveView' as never).props.style);
+  expect(riveStyle.opacity).toBeUndefined();
 });
 
 test('starts an opponent preview after a one-time random delay', async () => {

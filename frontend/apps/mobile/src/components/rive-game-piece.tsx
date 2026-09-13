@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import { Fit, RiveView, useRive, type RiveFile } from '@rive-app/react-native';
 import { Piece } from '@rps/core';
 
@@ -27,6 +27,7 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
   const readyRef = useRef<Promise<void>>(Promise.resolve());
   const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
   const [shouldMountRive, setShouldMountRive] = useState(!staggerStart);
+  const [isConfigured, setIsConfigured] = useState(Platform.OS !== 'android');
   const stateMachineName = isMine ? 'State Machine Back' : 'State Machine Front';
 
   useEffect(() => {
@@ -70,6 +71,19 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
     };
 
     const configurePiece = async () => {
+      const needsAndroidBootstrap = Platform.OS === 'android';
+      if (needsAndroidBootstrap) {
+        setIsConfigured(false);
+        try {
+          // Android does not reliably accept legacy state-machine inputs until
+          // playback has initialized the machine. Keep the view hidden while
+          // bootstrapping so its default Scissors state never reaches screen.
+          await riveViewRef.play();
+        } catch {
+          riveViewRef.playIfNeeded();
+        }
+      }
+      if (cancelled) return;
       if (isMine) {
         try {
           await riveViewRef.pause();
@@ -86,16 +100,18 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
         riveViewRef.playIfNeeded();
       }
       if (cancelled) return;
-      if (cancelled || !isTrap || !isMine) return;
-      try {
-        // Reassert the hidden state after playback starts, before entering the
-        // trap idle state, so a previously reused weapon layer cannot flash.
-        setPieceInputs();
-        riveViewRef.triggerInput('Trap Idle');
-        riveViewRef.playIfNeeded();
-      } catch {
-        // Leave the figure unarmed if the trap trigger is unavailable.
+      if (isTrap && isMine) {
+        try {
+          // Reassert the hidden state after playback starts, before entering the
+          // trap idle state, so a previously reused weapon layer cannot flash.
+          setPieceInputs();
+          riveViewRef.triggerInput('Trap Idle');
+          riveViewRef.playIfNeeded();
+        } catch {
+          // Leave the figure unarmed if the trap trigger is unavailable.
+        }
       }
+      if (!cancelled && needsAndroidBootstrap) setIsConfigured(true);
     };
 
     readyRef.current = configurePiece().catch(() => undefined);
@@ -132,7 +148,7 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
           hybridRef={setHybridRef}
           key={stateMachineName}
           stateMachineName={stateMachineName}
-          style={styles.rive}
+          style={[styles.rive, !isConfigured && styles.riveHidden]}
         />
       ) : null}
     </View>
@@ -142,4 +158,5 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
 const styles = StyleSheet.create({
   container: { alignItems: 'center', justifyContent: 'center' },
   rive: { position: 'absolute', inset: 0 },
+  riveHidden: { opacity: 0 },
 });

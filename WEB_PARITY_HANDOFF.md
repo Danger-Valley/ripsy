@@ -160,7 +160,8 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 ### Home and active games
 
 - Home shows the user’s active and unfinished games.
-- Each item includes a miniature board preview, room identifier, current status, and continuation action.
+- Active games use a compact horizontal snap carousel. A card occupies roughly 84% of the available mobile content width (capped at 420 px), leaving the next card visible as a swipe affordance; the header shows the current page and total count.
+- Each item includes an 80 px miniature board preview, room identifier, current status, and continuation action.
 - Finished games are removed from the Redis player index and should not appear.
 - Relevant native files: `home-screen.tsx`, `active-game-card.tsx`, and `use-native-ripsy-game.ts`.
 

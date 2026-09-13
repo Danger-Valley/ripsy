@@ -6,9 +6,10 @@ interface Props {
   game: GameState;
   playerId: string;
   onPress: () => void;
+  width?: number;
 }
 
-export function ActiveGameCard({ game, playerId, onPress }: Props) {
+export function ActiveGameCard({ game, playerId, onPress, width }: Props) {
   const isPlayer1 = game.p1 === playerId;
   const ownOwner = isPlayer1 ? Owner.P1 : Owner.P0;
   const status = gameStatus(game, playerId);
@@ -18,7 +19,7 @@ export function ActiveGameCard({ game, playerId, onPress }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`Open room ${game.gameId}, ${status}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.card, width ? { width } : undefined, pressed && styles.pressed]}>
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.board}>
         {Array.from({ length: HEIGHT }, (_, displayY) => (
           <View key={displayY} style={styles.boardRow}>
@@ -43,8 +44,8 @@ export function ActiveGameCard({ game, playerId, onPress }: Props) {
       </View>
       <View style={styles.details}>
         <Text maxFontSizeMultiplier={1.8} style={styles.room}>ROOM {game.gameId.toUpperCase()}</Text>
-        <Text maxFontSizeMultiplier={2} style={styles.status}>{status}</Text>
-        <Text maxFontSizeMultiplier={2} style={styles.meta}>
+        <Text maxFontSizeMultiplier={2} numberOfLines={2} style={styles.status}>{status}</Text>
+        <Text maxFontSizeMultiplier={2} numberOfLines={2} style={styles.meta}>
           {game.p1 ? `${ownCount(game, ownOwner)} pieces · 2 players` : `${ownCount(game, ownOwner)} pieces · waiting for player`}
         </Text>
       </View>
@@ -81,19 +82,19 @@ function pieceSymbol(piece: Piece) {
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: spacing.md },
+  card: { minHeight: 108, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: spacing.md },
   pressed: { opacity: 0.72 },
-  board: { width: 100, height: 100, borderRadius: 8, borderWidth: 1, borderColor: colors.primaryMuted, overflow: 'hidden' },
-  boardRow: { flexDirection: 'row', height: 14 },
-  cell: { width: 14, height: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#142029' },
+  board: { width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: colors.primaryMuted, overflow: 'hidden' },
+  boardRow: { flex: 1, flexDirection: 'row' },
+  cell: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#142029' },
   alternateCell: { backgroundColor: '#20313C' },
-  miniPiece: { width: 10, height: 10, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+  miniPiece: { width: 8, height: 8, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   myPiece: { backgroundColor: colors.primary },
   opponentPiece: { backgroundColor: colors.danger },
-  pieceLabel: { color: colors.background, fontSize: 6, fontWeight: '900', lineHeight: 8 },
+  pieceLabel: { color: colors.background, fontSize: 5, fontWeight: '900', lineHeight: 7 },
   details: { flex: 1, gap: spacing.xs },
   room: { color: colors.primaryMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  status: { color: colors.text, fontSize: 17, fontWeight: '800' },
-  meta: { color: colors.textMuted, fontSize: 12 },
-  chevron: { color: colors.primary, fontSize: 32, fontWeight: '300' },
+  status: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  meta: { color: colors.textMuted, fontSize: 11, lineHeight: 15 },
+  chevron: { color: colors.primary, fontSize: 28, fontWeight: '300' },
 });

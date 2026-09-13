@@ -127,6 +127,26 @@ test('shows unfinished games as board previews and opens a selected room', async
   expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'active12' });
 });
 
+test('shows multiple active games in a compact snapping carousel', async () => {
+  const games = ['active12', 'active34', 'active56'].map(gameId => ({ ...createActiveGame(), gameId }));
+  jest.mocked(useNativeRipsyGame).mockReturnValue({
+    ...jest.mocked(useNativeRipsyGame)('alice-player-id', 'alice-session-token'),
+    activeGames: games,
+  });
+  const renderer = await renderHome();
+  const carousel = renderer.root.find(node => node.props.testID === 'active-games-carousel');
+
+  expect(carousel.props.horizontal).toBe(true);
+  expect(carousel.props.snapToInterval).toBeGreaterThan(260);
+  expect(carousel.props.showsHorizontalScrollIndicator).toBe(false);
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Game 1 of 3')).toBeDefined();
+
+  await ReactTestRenderer.act(() => carousel.props.onMomentumScrollEnd({
+    nativeEvent: { contentOffset: { x: carousel.props.snapToInterval, y: 0 } },
+  }));
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Game 2 of 3')).toBeDefined();
+});
+
 test('restores the last game only after the server confirms it is unfinished', async () => {
   const activeGame = createActiveGame();
   listGames.mockResolvedValueOnce([activeGame]);

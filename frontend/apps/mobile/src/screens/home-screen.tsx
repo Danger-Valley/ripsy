@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
 import { Phase } from '@rps/core';
@@ -23,10 +23,15 @@ export function HomeScreen({ navigation, route }: Props) {
   const listActiveGames = game.listGames;
   const isGameConnected = game.isConnected;
   const push = usePushNotifications(sessionToken);
+  const { width: windowWidth } = useWindowDimensions();
   const [roomCode, setRoomCode] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeGamePage, setActiveGamePage] = useState(0);
   const hasCheckedRestoredGame = useRef(false);
   const restoredGameId = route.params?.restoreGameId;
+  const gamesViewportWidth = Math.min(Math.max(0, windowWidth - spacing.xl * 2), 720);
+  const activeGameCardWidth = Math.min(420, Math.max(260, gamesViewportWidth * 0.84));
+  const activeGameSnapInterval = activeGameCardWidth + spacing.sm;
 
   const refreshGames = useCallback(async (showSpinner = false) => {
     if (!isGameConnected) return;
@@ -67,6 +72,15 @@ export function HomeScreen({ navigation, route }: Props) {
     if (game.gameState) refreshGames().catch(() => undefined);
   }, [game.gameState, refreshGames]);
 
+  useEffect(() => {
+    setActiveGamePage(current => Math.min(current, Math.max(0, game.activeGames.length - 1)));
+  }, [game.activeGames.length]);
+
+  const updateActiveGamePage = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const nextPage = Math.round(event.nativeEvent.contentOffset.x / activeGameSnapInterval);
+    setActiveGamePage(Math.max(0, Math.min(nextPage, game.activeGames.length - 1)));
+  };
+
   const createGame = async () => {
     try {
       const gameId = await game.createGame();
@@ -98,16 +112,36 @@ export function HomeScreen({ navigation, route }: Props) {
           <View style={styles.gamesSection}>
             <View style={styles.sectionHeader}>
               <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitle}>Your active games</Text>
-              {game.activeGames.length > 0 && <Text maxFontSizeMultiplier={2} style={styles.gameCount}>{game.activeGames.length}</Text>}
+              {game.activeGames.length > 0 && (
+                <Text accessibilityLabel={`Game ${activeGamePage + 1} of ${game.activeGames.length}`} maxFontSizeMultiplier={2} style={styles.gameCount}>
+                  {activeGamePage + 1} / {game.activeGames.length}
+                </Text>
+              )}
             </View>
-            {game.activeGames.length > 0 ? game.activeGames.map(activeGame => (
-              <ActiveGameCard
-                game={activeGame}
-                key={activeGame.gameId}
-                playerId={playerId}
-                onPress={() => navigation.navigate('Game', { gameId: activeGame.gameId })}
-              />
-            )) : (
+            {game.activeGames.length > 0 ? (
+              <ScrollView
+                accessibilityLabel="Active games"
+                contentContainerStyle={[styles.gamesCarouselContent, { paddingRight: Math.max(0, gamesViewportWidth - activeGameCardWidth) }]}
+                decelerationRate="fast"
+                disableIntervalMomentum
+                horizontal
+                nestedScrollEnabled
+                onMomentumScrollEnd={updateActiveGamePage}
+                showsHorizontalScrollIndicator={false}
+                snapToAlignment="start"
+                snapToInterval={activeGameSnapInterval}
+                testID="active-games-carousel">
+                {game.activeGames.map(activeGame => (
+                  <ActiveGameCard
+                    game={activeGame}
+                    key={activeGame.gameId}
+                    playerId={playerId}
+                    width={activeGameCardWidth}
+                    onPress={() => navigation.navigate('Game', { gameId: activeGame.gameId })}
+                  />
+                ))}
+              </ScrollView>
+            ) : (
               <View style={styles.emptyGames}>
                 <Text maxFontSizeMultiplier={2} style={styles.emptyGamesText}>No unfinished games yet.</Text>
               </View>
@@ -184,6 +218,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: spacing.lg, gap: spacing.md },
   sectionTitle: { color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: spacing.xs },
   gamesSection: { gap: spacing.sm },
+  gamesCarouselContent: { gap: spacing.sm },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   gameCount: { minWidth: 26, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surfaceStrong, color: colors.primary, fontSize: 12, fontWeight: '900', textAlign: 'center' },
   emptyGames: { borderColor: colors.border, borderWidth: 1, borderStyle: 'dashed', borderRadius: 14, padding: spacing.lg },

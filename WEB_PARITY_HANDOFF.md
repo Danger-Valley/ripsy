@@ -230,7 +230,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 - Compare the previous and next full state and enqueue transitions. Do not replace a running transition when another WebSocket state arrives.
 - Use `tieFrom` / `tieTo` first; board-diff inference is only a fallback.
 - Keep the source cell's existing, fully configured Rive instance mounted. Do not create a temporary movement instance: remounting can expose a default or stale weapon while the new instance initializes.
-- Raise only the moving artwork above the board (`zIndex`/elevation), then animate its container from source to destination. Do not raise the cell background or expand the cell's hit target.
+- Raise the moving artwork, its source cell, and its entire source row above later rows while preserving visible overflow. Raising only the child is insufficient on native Android because an opaque sibling row can paint over a vertical move even though the authoritative board and turn have advanced. The cell remains the only hit target; its interactive bounds must not expand with the artwork.
 - Calculate the translation after converting server coordinates into player-visible coordinates so the same motion works for both players and for local/opponent figures.
 - Fire `Jump Left`, `Jump Right`, or `Jump Forward` on that mounted instance. Allow 200 ms for the Rive takeoff, then synchronize the container translation with the asset: 300 ms horizontal travel (500 ms total) or 500 ms vertical travel (700 ms total), using a shallow arc and subtle scale change. Reveal the new authoritative board at the destination and allow a 140 ms settle.
 - If the next authoritative state has `tiePending`, do not run the positional movement yet. Wait for the weapon choices and play the resolved combat sequence instead of jumping into an occupied cell and snapping back.
@@ -362,6 +362,7 @@ This ledger summarizes the recent work that established the native reference. Co
 - `915c016` — automatic join before lineup setup.
 - `5e82b3f` / `dcfaf08` — opponent-facing state machine on both platforms and Android board bounds.
 - `dd4ae9e` / `09500a2` — initial authoritative positional movement and Rive jump-trigger approach (superseded on native by mounted-instance container motion).
+- `c91e54b` — keep the moving source row/cell above opaque sibling rows so computer moves remain visible; local AI coverage now verifies a real board-coordinate change, not only a returned turn.
 
 ### Release tooling that web should preserve
 

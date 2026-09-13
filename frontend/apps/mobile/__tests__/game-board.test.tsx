@@ -202,7 +202,7 @@ test('keeps the opponent front-facing when the local player is player 2', async 
   ]);
 });
 
-test('moves the already configured figure above the board without firing a Rive jump', async () => {
+test('fires a Rive jump on the already configured moving figure', async () => {
   const state = createState();
   const progress = new Animated.Value(0);
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -226,7 +226,7 @@ test('moves the already configured figure above the board without firing a Rive 
   const sourceCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 1, your rock');
   expect(sourceCell.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(2);
-  expect(renderer.root.findAllByType(RiveGamePiece).every(figure => figure.props.actionTrigger === undefined)).toBe(true);
+  expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Forward');
 
   const pieceStyle = StyleSheet.flatten(sourceCell.find(node => node.props.testID === 'piece-visual').props.style);
   expect(pieceStyle).toMatchObject({ zIndex: 20, elevation: 20 });
@@ -237,7 +237,7 @@ test('moves the already configured figure above the board without firing a Rive 
   expect(translateY.__getValue()).toBeLessThan(0);
 });
 
-test('moves horizontally in the player-visible board direction without changing Rive state', async () => {
+test('maps mounted horizontal jump animation to the player-visible direction', async () => {
   const state = createState();
   const progress = new Animated.Value(0);
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -265,7 +265,7 @@ test('moves horizontally in the player-visible board direction without changing 
     progress.setValue(1);
   });
   expect(translateX.__getValue()).toBeLessThan(0);
-  expect(renderer.root.findAllByType(RiveGamePiece).every(figure => figure.props.actionTrigger === undefined)).toBe(true);
+  expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Left');
 });
 
 test('stages a battle and sends the attack and death triggers to the right fighters', async () => {

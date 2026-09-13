@@ -113,6 +113,7 @@ Use the exported `Phase` constants. Do not hard-code numeric phases in new web c
 - Both online and offline modes call the same `@rps/game-engine` rules, including lineup validation, hidden opponent views, combat, tie choices, flag wins, and cumulative ten-minute clocks.
 - The computer starts with a valid randomized 4/4/4/1/1 lineup. The player can shuffle and save normally; saving starts the game immediately because the computer is already ready.
 - Computer turns wait 550–1200 ms so the response remains readable and existing confirmed-move/Rive animations can play.
+- The AI scheduler depends on phase/turn/tie transitions and local action revision, not the whole clock-updated `GameState`. The 250 ms local clock publications must never cancel and restart the longer computer-action timer.
 - The first AI is intentionally lightweight: enumerate legal moves, prefer contact, forward pressure and central files, then add bounded randomness. It does not inspect the hidden type of a player piece when scoring a destination.
 - During tied combat, the computer independently chooses Rock, Paper, or Scissors. A completely blocked computer side loses through the existing clock-expiry rule instead of retrying forever.
 - Current local sessions are memory-only and restart when the battle screen/app process is discarded. Persistence and difficulty levels are follow-up features.
@@ -214,10 +215,10 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 - Never animate an optimistic move. Wait for an authoritative server state transition.
 - Compare the previous and next full state and enqueue transitions. Do not replace a running transition when another WebSocket state arrives.
 - Use `tieFrom` / `tieTo` first; board-diff inference is only a fallback.
-- Keep the source cell's existing, fully configured Rive instance mounted. Do not create a temporary movement instance or fire the Rive jump triggers for ordinary board movement: either approach can expose a default or stale weapon while the new instance initializes.
+- Keep the source cell's existing, fully configured Rive instance mounted. Do not create a temporary movement instance: remounting can expose a default or stale weapon while the new instance initializes.
 - Raise only the moving artwork above the board (`zIndex`/elevation), then animate its container from source to destination. Do not raise the cell background or expand the cell's hit target.
 - Calculate the translation after converting server coordinates into player-visible coordinates so the same motion works for both players and for local/opponent figures.
-- Use one synchronized 520 ms motion: 12% anticipation, a shallow arc peaking near mid-flight with a subtle 0.96→1.04 scale change, then an eased landing. Reveal the new authoritative board at the destination and allow a 140 ms settle.
+- Fire `Jump Left`, `Jump Right`, or `Jump Forward` on that mounted instance. Allow 200 ms for the Rive takeoff, then synchronize the container translation with the asset: 300 ms horizontal travel (500 ms total) or 500 ms vertical travel (700 ms total), using a shallow arc and subtle scale change. Reveal the new authoritative board at the destination and allow a 140 ms settle.
 - If the next authoritative state has `tiePending`, do not run the positional movement yet. Wait for the weapon choices and play the resolved combat sequence instead of jumping into an occupied cell and snapping back.
 - Haptic move feedback fires only when a confirmed turn advance or board-changing finish is observed.
 
@@ -269,7 +270,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Trap rendering and immobility | Shared + Port/verify visual | Use `isMovablePiece`; confirm no weapon leaks through trap art. |
 | Independent opponent idle timing | Port/verify | Use per-instance 60–400 ms stagger and reduced-motion handling. |
 | Explicit animation queue | Port/verify | Replace overlapping timer-driven web combat/movement effects with state-transition queue. |
-| Stable confirmed-move motion | Port/verify | Reuse the mounted, configured Rive figure and animate its container; do not remount it or fire jump triggers that can switch weapons. |
+| Stable confirmed-move motion | Port/verify | Fire the directional jump on the mounted, configured Rive figure and synchronize its container motion; never remount it, which can switch weapons. |
 | Tied-combat hold before picker | Port/verify | Run `Attack Prepare`, approach and 2× scale first; hold the scene through both choices and resume it at `Attack` after resolution. |
 | Full resolved combat scene | Done, migrate to queue | Preserve the existing web choreography and weapon attacks, but drive it from the authoritative transition queue using the sequence documented above. |
 | Light move feedback | Visual equivalent | Provide visible acknowledgement; browser vibration is optional. |
@@ -302,7 +303,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 - [ ] Shuffle never flashes letters, stale weapons, or all-scissors lineups.
 - [ ] Traps look like traps and cannot be selected as movable pieces.
 - [ ] Pregame opponent animations are visibly desynchronized.
-- [ ] Every accepted move visibly travels to its destination without remounting Rive or changing its weapon.
+- [ ] Every accepted move runs the directional Rive jump and visibly travels to its destination without remounting Rive or changing its weapon.
 - [ ] A tied collision reaches the enlarged combat hold before the weapon picker appears, and resolving it continues the same scene without replaying the approach.
 - [ ] Lineup controls have clear dirty/saved/ready states and remain editable only before `Active`.
 - [ ] Both 10-minute clocks switch on accepted moves and server timeout finishes the game.

@@ -6,6 +6,7 @@ import {
   getCombatAnimation,
   getPieceMoveAnimation,
   isCompletedMoveTransition,
+  pieceMoveDurationMs,
 } from '../src/game-animation';
 
 const baseState: GameState = {
@@ -216,6 +217,12 @@ test('matches the Rive attack timing for every weapon', () => {
   expect(combatAttackDurationMs(Piece.Rock)).toBe(383);
   expect(combatAttackDurationMs(Piece.Paper)).toBe(500);
   expect(combatAttackDurationMs(Piece.Scissors)).toBe(966);
+});
+
+test('matches mounted Rive jump timing for horizontal and vertical movement', () => {
+  const move = { from: { x: 1, y: 1 }, to: { x: 2, y: 1 }, owner: Owner.P0, piece: Piece.Rock };
+  expect(pieceMoveDurationMs(move)).toBe(500);
+  expect(pieceMoveDurationMs({ ...move, to: { x: 1, y: 2 } })).toBe(700);
 });
 
 function withBoard(

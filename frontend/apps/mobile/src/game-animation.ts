@@ -30,6 +30,10 @@ export function combatAttackDurationMs(piece: Piece) {
   return 400;
 }
 
+export function pieceMoveDurationMs(move: PieceMoveAnimation) {
+  return move.from.x === move.to.x ? 700 : 500;
+}
+
 export function gameStateFingerprint(state: GameState): string {
   return JSON.stringify([
     state.gameId,

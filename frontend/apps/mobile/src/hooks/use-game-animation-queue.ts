@@ -7,6 +7,7 @@ import {
   gameStateFingerprint,
   getCombatAnimation,
   getPieceMoveAnimation,
+  pieceMoveDurationMs,
   type CombatAnimation,
   type CombatAnimationPhase,
   type GameAnimationKind,
@@ -132,7 +133,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     }
 
     Animated.timing(progress, {
-      duration: transition.move ? 520 : 120,
+      duration: transition.move ? pieceMoveDurationMs(transition.move) : 120,
       easing: transition.move ? Easing.bezier(0.22, 0.75, 0.25, 1) : Easing.linear,
       toValue: 1,
       useNativeDriver: true,

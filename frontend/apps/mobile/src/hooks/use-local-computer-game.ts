@@ -9,6 +9,7 @@ export function useLocalComputerGame() {
   const [gameState, setGameState] = useState<GameState>(() => gameView(recordRef.current!, LOCAL_PLAYER_ID));
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [localActionRevision, setLocalActionRevision] = useState(0);
 
   const publish = useCallback(() => {
     if (recordRef.current) setGameState(gameView(recordRef.current, LOCAL_PLAYER_ID));
@@ -22,6 +23,7 @@ export function useLocalComputerGame() {
     try {
       operation(record);
       setGameState(gameView(record, LOCAL_PLAYER_ID));
+      setLocalActionRevision(revision => revision + 1);
       return { type: 'result' as const, requestId: 'local', state: gameView(record, LOCAL_PLAYER_ID) };
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Local action failed';
@@ -71,7 +73,7 @@ export function useLocalComputerGame() {
       }
     }, 550 + Math.floor(Math.random() * 650));
     return () => clearTimeout(timer);
-  }, [gameState, publish]);
+  }, [gameState.isP1Turn, gameState.phase, gameState.tiePending, localActionRevision, publish]);
 
   return useMemo(() => ({
     gameState,

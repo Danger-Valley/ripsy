@@ -364,6 +364,7 @@ This ledger summarizes the recent work that established the native reference. Co
 - `5e82b3f` / `dcfaf08` — opponent-facing state machine on both platforms and Android board bounds.
 - `dd4ae9e` / `09500a2` — initial authoritative positional movement and Rive jump-trigger approach (superseded on native by mounted-instance container motion).
 - `c91e54b` — keep the moving source row/cell above opaque sibling rows so computer moves remain visible; local AI coverage now verifies a real board-coordinate change, not only a returned turn.
+- `bcda6e5` — pause the local AI until the native presentation queue is idle, guaranteeing the computer move is shown as its own transition after the player's animation.
 
 ### Release tooling that web should preserve
 

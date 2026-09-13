@@ -202,8 +202,9 @@ test('keeps the opponent front-facing when the local player is player 2', async 
   ]);
 });
 
-test('renders a moving figure above the board and hides its stationary source', async () => {
+test('moves the already configured figure above the board without firing a Rive jump', async () => {
   const state = createState();
+  const progress = new Animated.Value(0);
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
@@ -215,22 +216,30 @@ test('renders a moving figure above the board and hides its stationary source', 
           owner: Owner.P0,
           piece: Piece.Rock,
         }}
-        moveProgress={new Animated.Value(0)}
+        moveProgress={progress}
         ownOwner={Owner.P0}
         state={state}
       />,
     );
   });
 
-  expect(renderer.root.findByProps({ testID: 'moving-piece' }).props.pointerEvents).toBe('none');
   const sourceCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 1, your rock');
-  expect(sourceCell.findAll(node => node.props.testID === 'rive-view')).toHaveLength(0);
+  expect(sourceCell.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(2);
-  expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.actionTrigger)?.props.actionTrigger).toBe('Jump Forward');
+  expect(renderer.root.findAllByType(RiveGamePiece).every(figure => figure.props.actionTrigger === undefined)).toBe(true);
+
+  const pieceStyle = StyleSheet.flatten(sourceCell.find(node => node.props.testID === 'piece-visual').props.style);
+  expect(pieceStyle).toMatchObject({ zIndex: 20, elevation: 20 });
+  const translateY = pieceStyle.transform[1].translateY;
+  await ReactTestRenderer.act(() => {
+    progress.setValue(0.48);
+  });
+  expect(translateY.__getValue()).toBeLessThan(0);
 });
 
-test('maps horizontal jumps using the player-visible board direction', async () => {
+test('moves horizontally in the player-visible board direction without changing Rive state', async () => {
   const state = createState();
+  const progress = new Animated.Value(0);
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
@@ -242,14 +251,21 @@ test('maps horizontal jumps using the player-visible board direction', async () 
           owner: Owner.P0,
           piece: Piece.Rock,
         }}
-        moveProgress={new Animated.Value(0)}
+        moveProgress={progress}
         ownOwner={Owner.P1}
         state={state}
       />,
     );
   });
 
-  expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.actionTrigger)?.props.actionTrigger).toBe('Jump Left');
+  const sourceCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 7, opponent piece');
+  const pieceStyle = StyleSheet.flatten(sourceCell.find(node => node.props.testID === 'piece-visual').props.style);
+  const translateX = pieceStyle.transform[0].translateX;
+  await ReactTestRenderer.act(() => {
+    progress.setValue(1);
+  });
+  expect(translateX.__getValue()).toBeLessThan(0);
+  expect(renderer.root.findAllByType(RiveGamePiece).every(figure => figure.props.actionTrigger === undefined)).toBe(true);
 });
 
 test('stages a battle and sends the attack and death triggers to the right fighters', async () => {

@@ -100,16 +100,19 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                   isAvailable && styles.availableCell,
                   isSelected && styles.selectedCell,
                 ]}>
-                {owner !== Owner.None && !isMovingSource && !isCombatant ? (
-                  <View
+                {owner !== Owner.None && !isCombatant ? (
+                  <Animated.View
                     pointerEvents="none"
                     testID="piece-visual"
                     style={[
                       styles.piece,
+                      isMovingSource && styles.movingPiece,
                       {
                         width: cellSize * 0.88,
                         height: cellSize * 0.88,
-                        transform: [{ translateY: -cellSize * (isOpponentPreview ? 0.34 : 0.43) }],
+                        transform: isMovingSource && moveAnimation && moveProgress
+                          ? movingPieceTransform(cellSize, isPlayer1, moveAnimation, moveProgress)
+                          : [{ translateY: -cellSize * (isOpponentPreview ? 0.34 : 0.43) }],
                       },
                     ]}>
                     {riveFile ? (
@@ -121,7 +124,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                         staggerStart={isOpponentPreview}
                       />
                     ) : null}
-                  </View>
+                  </Animated.View>
                 ) : isAvailable && selected ? (
                   <Image source={moveArrowSource(selected, { x, y }, isPlayer1)} style={styles.moveArrow} />
                 ) : null}
@@ -130,16 +133,6 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
           })}
         </View>
       ))}
-      {moveAnimation && moveProgress && riveFile ? (
-        <MovingPiece
-          cellSize={cellSize}
-          isMine={moveAnimation.owner === ownOwner}
-          isPlayer1={isPlayer1}
-          move={moveAnimation}
-          progress={moveProgress}
-          riveFile={riveFile}
-        />
-      ) : null}
       {combatAnimation && combatPhase && moveProgress && riveFile ? (
         <CombatScene
           cellSize={cellSize}
@@ -255,60 +248,36 @@ function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, positi
   );
 }
 
-function MovingPiece({ cellSize, isMine, isPlayer1, move, progress, riveFile }: {
-  cellSize: number;
-  isMine: boolean;
-  isPlayer1: boolean;
-  move: PieceMoveAnimation;
-  progress: Animated.Value;
-  riveFile: RiveFile;
-}) {
+function movingPieceTransform(cellSize: number, isPlayer1: boolean, move: PieceMoveAnimation, progress: Animated.Value) {
   const from = toDisplayCoordinate(move.from, isPlayer1);
   const to = toDisplayCoordinate(move.to, isPlayer1);
   const deltaX = (to.x - from.x) * cellSize;
   const deltaY = (to.y - from.y) * cellSize;
-  const jumpTrigger = jumpTriggerForMove(from, to);
+  const restingOffset = -cellSize * 0.43;
+  const lift = cellSize * 0.22;
   const translateX = progress.interpolate({
-    inputRange: [0, 0.2, 1, 2],
-    outputRange: [0, 0, deltaX, deltaX],
+    inputRange: [0, 0.12, 0.48, 0.85, 1, 2],
+    outputRange: [0, 0, deltaX * 0.48, deltaX * 0.9, deltaX, deltaX],
     extrapolate: 'clamp',
   });
   const translateY = progress.interpolate({
-    inputRange: [0, 0.2, 1, 2],
-    outputRange: [0, 0, deltaY, deltaY],
+    inputRange: [0, 0.12, 0.48, 0.85, 1, 2],
+    outputRange: [
+      restingOffset,
+      restingOffset,
+      restingOffset + deltaY * 0.48 - lift,
+      restingOffset + deltaY * 0.9 - lift * 0.25,
+      restingOffset + deltaY,
+      restingOffset + deltaY,
+    ],
     extrapolate: 'clamp',
   });
-  const opacity = progress.interpolate({
-    inputRange: [0, 0.96, 1, 2],
-    outputRange: [1, 1, 0, 0],
+  const scale = progress.interpolate({
+    inputRange: [0, 0.12, 0.48, 0.85, 1, 2],
+    outputRange: [1, 0.96, 1.04, 1.01, 1, 1],
     extrapolate: 'clamp',
   });
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.movingCell,
-        {
-          height: cellSize,
-          left: from.x * cellSize,
-          opacity,
-          top: from.y * cellSize,
-          transform: [{ translateX }, { translateY }],
-          width: cellSize,
-        },
-      ]}
-      testID="moving-piece">
-      <View style={[styles.piece, { width: cellSize * 0.88, height: cellSize * 0.88, transform: [{ translateY: -cellSize * 0.43 }] }]}>
-        <RiveGamePiece actionTrigger={jumpTrigger} file={riveFile} isMine={isMine} piece={move.piece} size={cellSize * 1.68} />
-      </View>
-    </Animated.View>
-  );
-}
-
-function jumpTriggerForMove(from: Coordinate, to: Coordinate): RiveActionTrigger {
-  if (to.x < from.x) return 'Jump Left';
-  if (to.x > from.x) return 'Jump Right';
-  return 'Jump Forward';
+  return [{ translateX }, { translateY }, { scale }];
 }
 
 function toDisplayCoordinate(coordinate: Coordinate, isPlayer1: boolean): Coordinate {
@@ -349,7 +318,7 @@ const styles = StyleSheet.create({
   availableCell: { backgroundColor: '#12384A' },
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  movingCell: { position: 'absolute', alignItems: 'center', justifyContent: 'center', zIndex: 20, elevation: 20 },
+  movingPiece: { zIndex: 20, elevation: 20 },
   combatant: { position: 'absolute', alignItems: 'center', justifyContent: 'center', elevation: 30 },
   combatWinner: { zIndex: 31 },
   combatLoser: { zIndex: 30 },

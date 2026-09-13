@@ -214,14 +214,11 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 - Never animate an optimistic move. Wait for an authoritative server state transition.
 - Compare the previous and next full state and enqueue transitions. Do not replace a running transition when another WebSocket state arrives.
 - Use `tieFrom` / `tieTo` first; board-diff inference is only a fallback.
-- Hide the stationary source sprite while the moving overlay exists.
-- The overlay moves from source cell to destination cell above the board (`zIndex`/elevation), then the new authoritative board becomes visible.
-- Fire the Rive jump trigger on that moving instance:
-  - display-space left: `Jump Left`
-  - display-space right: `Jump Right`
-  - vertical: `Jump Forward` because the asset has no backward jump
-- Calculate direction after converting server coordinates into player-visible coordinates.
-- Current native timing for a non-combat move is 500 ms, a non-move phase transition is 120 ms, and its settle is 160/260 ms.
+- Keep the source cell's existing, fully configured Rive instance mounted. Do not create a temporary movement instance or fire the Rive jump triggers for ordinary board movement: either approach can expose a default or stale weapon while the new instance initializes.
+- Raise only the moving artwork above the board (`zIndex`/elevation), then animate its container from source to destination. Do not raise the cell background or expand the cell's hit target.
+- Calculate the translation after converting server coordinates into player-visible coordinates so the same motion works for both players and for local/opponent figures.
+- Use one synchronized 520 ms motion: 12% anticipation, a shallow arc peaking near mid-flight with a subtle 0.96→1.04 scale change, then an eased landing. Reveal the new authoritative board at the destination and allow a 140 ms settle.
+- If the next authoritative state has `tiePending`, do not run the positional movement yet. Wait for the weapon choices and play the resolved combat sequence instead of jumping into an occupied cell and snapping back.
 - Haptic move feedback fires only when a confirmed turn advance or board-changing finish is observed.
 
 ### Resolved combat animation
@@ -270,7 +267,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Trap rendering and immobility | Shared + Port/verify visual | Use `isMovablePiece`; confirm no weapon leaks through trap art. |
 | Independent opponent idle timing | Port/verify | Use per-instance 60–400 ms stagger and reduced-motion handling. |
 | Explicit animation queue | Port/verify | Replace overlapping timer-driven web combat/movement effects with state-transition queue. |
-| Jump animation during movement | Partial | Existing web jump code must be tested against the authoritative transition sequence and visible coordinates. |
+| Stable confirmed-move motion | Port/verify | Reuse the mounted, configured Rive figure and animate its container; do not remount it or fire jump triggers that can switch weapons. |
 | Full resolved combat scene | Done, migrate to queue | Preserve the existing web choreography and weapon attacks, but drive it from the authoritative transition queue using the sequence documented above. |
 | Light move feedback | Visual equivalent | Provide visible acknowledgement; browser vibration is optional. |
 | Two 10-minute clocks | Done | Keep server snapshots authoritative and verify narrow layouts/result state. |
@@ -302,7 +299,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 - [ ] Shuffle never flashes letters, stale weapons, or all-scissors lineups.
 - [ ] Traps look like traps and cannot be selected as movable pieces.
 - [ ] Pregame opponent animations are visibly desynchronized.
-- [ ] Every accepted move visibly travels to its destination with the correct jump trigger.
+- [ ] Every accepted move visibly travels to its destination without remounting Rive or changing its weapon.
 - [ ] Lineup controls have clear dirty/saved/ready states and remain editable only before `Active`.
 - [ ] Both 10-minute clocks switch on accepted moves and server timeout finishes the game.
 - [ ] The board fits 320 px-wide mobile web and common desktop layouts without horizontal overflow.
@@ -345,7 +342,7 @@ This ledger summarizes the recent work that established the native reference. Co
 - `d1955ca` — haptics for confirmed moves.
 - `915c016` — automatic join before lineup setup.
 - `5e82b3f` / `dcfaf08` — opponent-facing state machine on both platforms and Android board bounds.
-- `dd4ae9e` / `09500a2` — authoritative positional movement plus Rive jump triggers.
+- `dd4ae9e` / `09500a2` — initial authoritative positional movement and Rive jump-trigger approach (superseded on native by mounted-instance container motion).
 
 ### Release tooling that web should preserve
 

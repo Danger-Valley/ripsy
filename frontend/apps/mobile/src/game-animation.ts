@@ -76,7 +76,7 @@ export function isCompletedMoveTransition(previous: GameState, next: GameState):
 }
 
 export function getPieceMoveAnimation(previous: GameState, next: GameState): PieceMoveAnimation | null {
-  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active || previous.tiePending) return null;
+  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active || previous.tiePending || next.tiePending) return null;
   const boardChanged = !arraysEqual(previous.owners, next.owners) || !arraysEqual(previous.pieces, next.pieces);
   const moveConfirmed = previous.isP1Turn !== next.isP1Turn
     || (!previous.tiePending && next.tiePending)

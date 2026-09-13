@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated } from 'react-native';
+import { Animated, Easing } from 'react-native';
 import type { GameState } from '@rps/core';
 import {
   classifyGameTransition,
@@ -91,7 +91,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     }
 
     Animated.timing(progress, {
-      duration: transition.move ? (transition.kind === 'battle' ? 560 : 500) : 120,
+      duration: transition.move ? 520 : 120,
+      easing: transition.move ? Easing.bezier(0.22, 0.75, 0.25, 1) : Easing.linear,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -99,7 +100,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       displayedRef.current = transition.state;
       setDisplayedState(transition.state);
       Animated.timing(progress, {
-        duration: transition.kind === 'battle' ? 260 : 160,
+        duration: transition.move ? 140 : transition.kind === 'battle' ? 260 : 160,
         toValue: 2,
         useNativeDriver: true,
       }).start(({ finished: settled }) => {

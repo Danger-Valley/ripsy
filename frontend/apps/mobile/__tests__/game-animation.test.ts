@@ -68,6 +68,21 @@ test('does not treat initial state, duplicate state, or tie resolution as anothe
   )).toBe(false);
 });
 
+test('does not move a figure into a tied battle before weapon choices resolve it', () => {
+  const withAttacker = withBoard(baseState, 35, Owner.P0, Piece.Rock);
+  const previous = withBoard(withAttacker, 28, Owner.P1, Piece.Empty);
+  const tied = {
+    ...previous,
+    attacker: Piece.Rock,
+    defender: Piece.Rock,
+    tiePending: true,
+    tieFrom: { x: 0, y: 5 },
+    tieTo: { x: 0, y: 4 },
+  };
+
+  expect(getPieceMoveAnimation(previous, tied)).toBeNull();
+});
+
 test('extracts the exact jump coordinates from a confirmed move', () => {
   const previous = withBoard(baseState, 35, Owner.P0, Piece.Rock);
   const next = withBoard(

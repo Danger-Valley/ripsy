@@ -115,7 +115,7 @@ Use the exported `Phase` constants. Do not hard-code numeric phases in new web c
 - The computer game is created and mutated entirely in app memory. It does not create a session, room, Redis record, HTTP request, or WebSocket connection from the battle screen. Leaving Home for this screen suspends and disconnects Home's multiplayer socket.
 - Both online and offline modes call the same `@rps/game-engine` rules, including lineup validation, hidden opponent views, combat, tie choices, flag wins, and cumulative ten-minute clocks.
 - The computer starts with a valid randomized 4/4/4/1/1 lineup. The player can shuffle and save normally; saving starts the game immediately because the computer is already ready.
-- Computer turns wait 550–1200 ms so the response remains readable and existing confirmed-move/Rive animations can play.
+- Computer turns wait 550–1200 ms **after the native presentation queue becomes idle**. The battle screen reports its animation state back to the local controller, and the AI scheduler remains paused throughout the player's movement/combat animation. Never rely on a fixed delay being longer than every Rive sequence: combat duration varies by weapon.
 - The AI scheduler depends on phase/turn/tie transitions and local action revision, not the whole clock-updated `GameState`. The 250 ms local clock publications must never cancel and restart the longer computer-action timer.
 - The first AI is intentionally lightweight: enumerate legal moves, prefer contact, forward pressure and central files, then add bounded randomness. It does not inspect the hidden type of a player piece when scoring a destination.
 - During tied combat, the computer independently chooses Rock, Paper, or Scissors. A completely blocked computer side loses through the existing clock-expiry rule instead of retrying forever.
@@ -318,6 +318,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 - [ ] Traps look like traps and cannot be selected as movable pieces.
 - [ ] Pregame opponent animations are visibly desynchronized.
 - [ ] Every accepted move runs the directional Rive jump and visibly travels to its destination without remounting Rive or changing its weapon.
+- [ ] Offline AI never publishes its move while the player's previous movement/combat transition is still being presented; its move appears as a separate queued animation before control visibly returns to the player.
 - [ ] A tied collision reaches the enlarged combat hold before the weapon picker appears, and resolving it continues the same scene without replaying the approach.
 - [ ] Lineup controls have clear dirty/saved/ready states and remain editable only before `Active`.
 - [ ] Both 10-minute clocks switch on accepted moves and server timeout finishes the game.

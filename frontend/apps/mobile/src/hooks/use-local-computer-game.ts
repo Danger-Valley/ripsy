@@ -3,7 +3,7 @@ import { Choice, Owner, Phase, type GameState } from '@rps/core';
 import { chooseWeapon, gameView, movePiece, settleGameDeadline, settleGameClock, submitLineup, type GameRecord } from '@rps/game-engine';
 import { chooseComputerMove, chooseComputerWeapon, COMPUTER_PLAYER_ID, createComputerGame, LOCAL_PLAYER_ID } from '../local-computer-game';
 
-export function useLocalComputerGame() {
+export function useLocalComputerGame(presentationBusy = false) {
   const recordRef = useRef<GameRecord | null>(null);
   if (!recordRef.current) recordRef.current = createComputerGame();
   const [gameState, setGameState] = useState<GameState>(() => gameView(recordRef.current!, LOCAL_PLAYER_ID));
@@ -45,7 +45,7 @@ export function useLocalComputerGame() {
 
   useEffect(() => {
     const record = recordRef.current;
-    if (!record || record.phase !== Phase.Active) return;
+    if (!record || record.phase !== Phase.Active || presentationBusy) return;
     const needsChoice = record.tiePending && record.choices[1] === Choice.None;
     const needsMove = record.isP1Turn && !record.tiePending;
     if (!needsChoice && !needsMove) return;
@@ -73,7 +73,7 @@ export function useLocalComputerGame() {
       }
     }, 550 + Math.floor(Math.random() * 650));
     return () => clearTimeout(timer);
-  }, [gameState.isP1Turn, gameState.phase, gameState.tiePending, localActionRevision, publish]);
+  }, [gameState.isP1Turn, gameState.phase, gameState.tiePending, localActionRevision, presentationBusy, publish]);
 
   return useMemo(() => ({
     gameState,

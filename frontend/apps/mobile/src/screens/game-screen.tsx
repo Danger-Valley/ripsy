@@ -39,15 +39,26 @@ export function GameScreen({ navigation, route }: Props) {
 }
 
 export function ComputerGameScreen({ navigation }: ComputerProps) {
-  const game = useLocalComputerGame();
-  return <BattleScreen game={game} gameId="computer" isComputer navigation={navigation} playerId={LOCAL_PLAYER_ID} />;
+  const [presentationBusy, setPresentationBusy] = useState(false);
+  const game = useLocalComputerGame(presentationBusy);
+  return (
+    <BattleScreen
+      game={game}
+      gameId="computer"
+      isComputer
+      navigation={navigation}
+      onAnimationStateChange={setPresentationBusy}
+      playerId={LOCAL_PLAYER_ID}
+    />
+  );
 }
 
-function BattleScreen({ game, gameId, isComputer, navigation, playerId }: {
+function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateChange, playerId }: {
   game: ReturnType<typeof useNativeRipsyGame> | ReturnType<typeof useLocalComputerGame>;
   gameId: string;
   isComputer: boolean;
   navigation: Props['navigation'] | ComputerProps['navigation'];
+  onAnimationStateChange?: (isAnimating: boolean) => void;
   playerId: string;
 }) {
   const { joinGame } = game;
@@ -62,6 +73,12 @@ function BattleScreen({ game, gameId, isComputer, navigation, playerId }: {
   const previousPhase = useRef<Phase | undefined>(undefined);
   const previousTiePending = useRef(false);
   const previousMoveState = useRef<GameState | null>(null);
+
+  useEffect(() => {
+    onAnimationStateChange?.(animation.isAnimating);
+  }, [animation.isAnimating, onAnimationStateChange]);
+
+  useEffect(() => () => onAnimationStateChange?.(false), [onAnimationStateChange]);
 
   const isParticipant = game.isPlayer0 || game.isPlayer1;
   const hasSubmitted = Boolean(game.gameState && (

@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
 import { GameClocks } from '../components/game-clocks';
+import { LineupCountdown } from '../components/lineup-countdown';
 import { PrimaryButton } from '../components/primary-button';
 import { StatusBanner } from '../components/status-banner';
 import { useLocalComputerGame } from '../hooks/use-local-computer-game';
@@ -281,6 +282,9 @@ function BattleScreen({ game, gameId, isComputer, navigation, playerId }: {
                   <Text maxFontSizeMultiplier={1.6} style={styles.savedText}>READY</Text>
                 </View>
               )}
+              {!isLineupSaved && game.gameState?.lineupDeadlineAt && (
+                <LineupCountdown deadlineAt={game.gameState.lineupDeadlineAt} />
+              )}
             </View>
             <View style={styles.lineupActions}>
               <View style={styles.lineupAction}>
@@ -404,6 +408,7 @@ function getStateMessage(state: GameState | null, isParticipant: boolean, canEdi
   if (phase === Phase.Created) return isParticipant ? 'Waiting for an opponent to join' : 'This room has an open player slot';
   if (phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : isComputer ? "Computer's turn" : "Opponent's turn";
   if (phase === Phase.Finished) {
+    if (state?.finishReason === 'lineup_timeout') return 'Game canceled — a lineup was not saved in time';
     if (state?.finishReason === 'timeout') return state.winner === playerId ? 'Victory — opponent ran out of time' : 'Time expired — you lost';
     return state?.winner === playerId ? 'Victory' : 'Game finished';
   }

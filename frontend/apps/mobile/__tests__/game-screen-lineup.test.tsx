@@ -81,6 +81,7 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   expect(renderer.root.find(node => node.props.accessibilityHint === 'Opens the system share sheet')).toBeDefined();
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Waiting for opponent. Your lineup stays editable until the battle begins.')).toBeDefined();
   expect(renderer.root.find(node => node.props.testID === 'lineup-controls')).toBeDefined();
+  expect(renderer.root.find(node => node.props.testID === 'lineup-countdown')).toBeDefined();
   expect(renderer.root.find(node => node.props.accessibilityHint === 'Creates a different random hidden lineup')).toBeDefined();
   expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(false);
   expect(renderer.root.findAll(node => node.props.children === 'Your pieces')).toHaveLength(0);
@@ -212,5 +213,6 @@ function createdGame(): GameState {
     tieFrom: { x: 0, y: 0 },
     tieTo: { x: 0, y: 0 },
     winner: null,
+    lineupDeadlineAt: Date.now() + 180_000,
   };
 }

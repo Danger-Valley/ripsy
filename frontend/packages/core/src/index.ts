@@ -3,6 +3,7 @@ export const HEIGHT = 7;
 export const CELLS = WIDTH * HEIGHT;
 export const PROTOCOL_VERSION = 1 as const;
 export const GAME_CLOCK_INITIAL_MS = 10 * 60 * 1000;
+export const LINEUP_SETUP_DURATION_MS = 3 * 60 * 1000;
 
 export const Piece = {
   Empty: 0,
@@ -42,6 +43,7 @@ export type Choice = (typeof Choice)[keyof typeof Choice];
 export const FinishReason = {
   Flag: 'flag',
   Timeout: 'timeout',
+  LineupTimeout: 'lineup_timeout',
 } as const;
 export type FinishReason = (typeof FinishReason)[keyof typeof FinishReason];
 
@@ -69,6 +71,7 @@ export interface GameState {
   clock0Ms?: number;
   clock1Ms?: number;
   clockRunning?: Owner;
+  lineupDeadlineAt?: number | null;
   finishReason?: FinishReason | null;
 }
 
@@ -259,6 +262,9 @@ export function parseGameState(value: unknown): GameState {
     clock0Ms: state.clock0Ms === undefined ? GAME_CLOCK_INITIAL_MS : requireNonNegativeNumber(state.clock0Ms, 'Player 0 clock'),
     clock1Ms: state.clock1Ms === undefined ? GAME_CLOCK_INITIAL_MS : requireNonNegativeNumber(state.clock1Ms, 'Player 1 clock'),
     clockRunning: state.clockRunning === undefined ? Owner.None : requireOwner(state.clockRunning, 'Running clock'),
+    lineupDeadlineAt: state.lineupDeadlineAt === undefined || state.lineupDeadlineAt === null
+      ? null
+      : requireNonNegativeNumber(state.lineupDeadlineAt, 'Lineup deadline'),
     finishReason: state.finishReason === undefined || state.finishReason === null
       ? null
       : requireFinishReason(state.finishReason),
@@ -293,7 +299,7 @@ function requireOwner(value: unknown, label: string): Owner {
 }
 
 function requireFinishReason(value: unknown): FinishReason {
-  if (value !== FinishReason.Flag && value !== FinishReason.Timeout) {
+  if (value !== FinishReason.Flag && value !== FinishReason.Timeout && value !== FinishReason.LineupTimeout) {
     throw new ProtocolMessageError('Finish reason is invalid');
   }
   return value;

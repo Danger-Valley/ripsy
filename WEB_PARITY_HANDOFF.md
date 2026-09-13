@@ -1,7 +1,7 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-09-12
-Baseline: `master` at `74eada0`
+Last updated: 2026-09-13
+Baseline: `master` plus the lineup-deadline implementation documented below
 
 ## Purpose
 
@@ -61,6 +61,9 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
   - 1 Trap
 - Player 0 uses server rows 5–6. Player 1 uses server rows 0–1.
 - A player may save and replace a lineup any number of times until the game becomes `Phase.Active`.
+- Each player has three minutes to save their first valid lineup. Player 0's deadline starts when the room is created; Player 1's independent deadline starts when they join.
+- The first successful save clears that player's setup deadline permanently. They may continue shuffling and replacing the saved lineup until battle start without restarting or reactivating the timer.
+- If either unsaved deadline expires, the server cancels the whole game as `Phase.Finished`, with `winner: null` and `finishReason: lineup_timeout`.
 - The game becomes active only after both lineups are saved.
 - Player 0 moves first.
 - Lineups and opponent weapons are hidden by `gameView`; never infer or expose hidden pieces client-side.
@@ -141,6 +144,16 @@ Implemented on backend, mobile, and web in `c2f95a5`; legacy migration fixed in 
 - Running clock: turquoise emphasis. Last 60 seconds: red emphasis. Finished timeout copy must say why the user won or lost.
 
 Known backend follow-up: scheduler-driven timeout currently reaches connected clients through WebSocket Pub/Sub, but it does not independently send an FCM push because push dispatch is currently tied to player commands.
+
+## Three-minute lineup deadlines
+
+- `LINEUP_SETUP_DURATION_MS` is shared from `@rps/core` and currently equals 180,000 ms.
+- Redis game schema v3 persists `lineupDeadline0At` and `lineupDeadline1At` as absolute epoch milliseconds. Existing schema-v1/v2 records migrate on first read.
+- Lineup and active-turn deadlines share the existing Redis sorted-set scheduler. Every Railway replica may poll it; CAS guarantees a single cancellation and Pub/Sub broadcasts the authoritative finished state.
+- Wire state exposes only the viewing player's `lineupDeadlineAt`; clients do not need the opponent's private setup deadline.
+- Native ticks the displayed setup countdown locally from the authoritative absolute deadline, but only the server can cancel an online game.
+- During setup the ten-minute chess clocks are hidden. Unsaved lineup UI shows `SAVE IN M:SS`; the final minute uses danger styling. After first save it is replaced by the READY state.
+- Web must implement the same setup countdown and canceled-game copy. It must not create a client-side cancellation or reset the deadline after Shuffle/Save changes.
 
 ## Native UX reference for web
 

@@ -13,7 +13,7 @@ export interface ComputerMove {
 
 export function createComputerGame(random: () => number = Math.random, now = new Date()): GameRecord {
   const game = createGameRecord('computer', LOCAL_PLAYER_ID, now);
-  joinGame(game, COMPUTER_PLAYER_ID);
+  joinGame(game, COMPUTER_PLAYER_ID, now);
   const lineup = randomLineup(false, random);
   submitLineup(game, COMPUTER_PLAYER_ID, lineup.xs, lineup.ys, lineup.pieces, now);
   return game;

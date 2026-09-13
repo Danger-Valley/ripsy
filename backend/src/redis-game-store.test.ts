@@ -79,6 +79,7 @@ test('persists game state in Redis-compatible storage', async () => {
   assert.equal(joined.phase, Phase.Joined);
   assert.equal((await firstInstance.get(created.gameId, 'alice')).p1, 'bob');
   assert.equal(redis.values.size, 1);
+  assert.equal([...redis.sortedSets.values()][0]?.get(created.gameId) !== undefined, true);
   assert.ok(redis.events.length >= 2);
   assert.deepEqual((await firstInstance.list('alice')).map(game => game.gameId), [created.gameId]);
   assert.deepEqual((await secondInstance.list('bob')).map(game => game.gameId), [created.gameId]);
@@ -172,6 +173,26 @@ test('multiple store instances safely resolve a Redis clock deadline once', asyn
   assert.equal(finished.clock0Ms, 0);
 });
 
+test('multiple store instances cancel an unsaved lineup deadline exactly once', async () => {
+  const redis = new FakeRedis();
+  let nowMs = Date.parse('2026-01-01T00:00:00.000Z');
+  const options = { now: () => new Date(nowMs) };
+  const firstInstance = new RedisGameStore(redis, options);
+  const secondInstance = new RedisGameStore(redis, options);
+  const game = await firstInstance.create('alice');
+  await secondInstance.join(game.gameId, 'bob');
+
+  nowMs += 180_001;
+  const results = await Promise.all([firstInstance.expireDueClocks(), secondInstance.expireDueClocks()]);
+  const canceled = await firstInstance.get(game.gameId, 'alice');
+  assert.equal(results.reduce((sum, value) => sum + value, 0), 1);
+  assert.equal(canceled.phase, Phase.Finished);
+  assert.equal(canceled.winner, null);
+  assert.equal(canceled.finishReason, 'lineup_timeout');
+  assert.deepEqual(await firstInstance.list('alice'), []);
+  assert.deepEqual(await secondInstance.list('bob'), []);
+});
+
 test('gives a legacy active game a fresh clock and persists its migration on first read', async () => {
   const redis = new FakeRedis();
   const nowMs = Date.parse('2026-01-01T00:00:00.000Z');
@@ -193,6 +214,6 @@ test('gives a legacy active game a fresh clock and persists its migration on fir
   const migrated = JSON.parse(redis.values.get(gameKey)!) as Record<string, unknown>;
   assert.equal(state.phase, Phase.Active);
   assert.equal(state.clock0Ms, 600_000);
-  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.schemaVersion, 3);
   assert.equal(migrated.clockStartedAt, nowMs);
 });

@@ -9,6 +9,7 @@ import {
   Owner,
   Phase,
   Piece,
+  LINEUP_SETUP_DURATION_MS,
   toIdx,
   toXY,
   WIDTH,
@@ -23,7 +24,7 @@ const REQUIRED_PIECES = new Map<number, number>([
 ]);
 
 export interface GameRecord {
-  schemaVersion: 2;
+  schemaVersion: 3;
   id: string;
   phase: GameState['phase'];
   p0: string;
@@ -33,6 +34,8 @@ export interface GameRecord {
   clock0Ms: number;
   clock1Ms: number;
   clockStartedAt: number | null;
+  lineupDeadline0At: number | null;
+  lineupDeadline1At: number | null;
   isP1Turn: boolean;
   owners: Owner[];
   pieces: Piece[];
@@ -52,7 +55,7 @@ export interface GameRecord {
 export function createGameRecord(id: string, playerId: string, now = new Date()): GameRecord {
   const timestamp = now.toISOString();
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id,
     phase: Phase.Created,
     p0: playerId,
@@ -62,6 +65,8 @@ export function createGameRecord(id: string, playerId: string, now = new Date())
     clock0Ms: GAME_CLOCK_INITIAL_MS,
     clock1Ms: GAME_CLOCK_INITIAL_MS,
     clockStartedAt: null,
+    lineupDeadline0At: now.getTime() + LINEUP_SETUP_DURATION_MS,
+    lineupDeadline1At: null,
     isP1Turn: false,
     owners: Array(CELLS).fill(Owner.None),
     pieces: Array(CELLS).fill(Piece.Empty),
@@ -79,14 +84,16 @@ export function createGameRecord(id: string, playerId: string, now = new Date())
   };
 }
 
-export function joinGame(game: GameRecord, playerId: string) {
+export function joinGame(game: GameRecord, playerId: string, now = new Date()) {
+  if (settleLineupDeadline(game, now)) return;
   if (game.p0 === playerId || game.p1 === playerId) return;
   if (game.p1 || (game.phase !== Phase.Created && game.phase !== Phase.LineupP0Set)) {
     throw new Error('This game already has two players');
   }
   game.p1 = playerId;
+  game.lineupDeadline1At = now.getTime() + LINEUP_SETUP_DURATION_MS;
   if (game.phase === Phase.Created) game.phase = Phase.Joined;
-  touch(game);
+  touch(game, now);
 }
 
 export function submitLineup(
@@ -98,6 +105,7 @@ export function submitLineup(
   now = new Date(),
 ) {
   requireParticipant(game, playerId);
+  if (settleLineupDeadline(game, now)) return;
   if (game.phase >= Phase.Active) {
     throw new Error('Lineups cannot be changed in this game phase');
   }
@@ -141,8 +149,10 @@ export function submitLineup(
   }
   if (isP0) {
     game.live0 = 14;
+    game.lineupDeadline0At = null;
   } else {
     game.live1 = 14;
+    game.lineupDeadline1At = null;
   }
   game.phase = game.p1 && game.live0 === 14 && game.live1 === 14
     ? Phase.Active
@@ -306,6 +316,9 @@ export function gameView(game: GameRecord, playerId: string, now = new Date()): 
     clock0Ms,
     clock1Ms,
     clockRunning: game.phase === Phase.Active ? (game.isP1Turn ? Owner.P1 : Owner.P0) : Owner.None,
+    lineupDeadlineAt: ownOwner === Owner.P0
+      ? game.lineupDeadline0At
+      : ownOwner === Owner.P1 ? game.lineupDeadline1At : null,
     finishReason: game.finishReason,
   };
 }
@@ -313,7 +326,7 @@ export function gameView(game: GameRecord, playerId: string, now = new Date()): 
 export function parseGameRecord(value: string, now = new Date()): GameRecord {
   const stored = JSON.parse(value) as Omit<Partial<GameRecord>, 'schemaVersion'> & { schemaVersion?: number };
   if (
-    (stored.schemaVersion !== 1 && stored.schemaVersion !== 2) ||
+    (stored.schemaVersion !== 1 && stored.schemaVersion !== 2 && stored.schemaVersion !== 3) ||
     !stored.id ||
     !Array.isArray(stored.owners) ||
     !Array.isArray(stored.pieces) ||
@@ -324,14 +337,36 @@ export function parseGameRecord(value: string, now = new Date()): GameRecord {
   }
   return {
     ...(stored as GameRecord),
-    schemaVersion: 2,
+    schemaVersion: 3,
     finishReason: stored.finishReason ?? null,
     clock0Ms: validClock(stored.clock0Ms),
     clock1Ms: validClock(stored.clock1Ms),
     clockStartedAt: stored.phase === Phase.Active
       ? (typeof stored.clockStartedAt === 'number' ? stored.clockStartedAt : now.getTime())
       : null,
+    lineupDeadline0At: legacyLineupDeadline(stored.lineupDeadline0At, stored.phase, stored.live0, stored.createdAt, now),
+    lineupDeadline1At: stored.p1
+      ? legacyLineupDeadline(stored.lineupDeadline1At, stored.phase, stored.live1, stored.updatedAt, now)
+      : null,
   };
+}
+
+export function settleGameDeadline(game: GameRecord, now = new Date()): boolean {
+  return settleLineupDeadline(game, now) || settleGameClock(game, now);
+}
+
+export function settleLineupDeadline(game: GameRecord, now = new Date()): boolean {
+  if (game.phase >= Phase.Active) return false;
+  const deadline = lineupDeadline(game);
+  if (deadline === null || deadline > now.getTime()) return false;
+  game.phase = Phase.Finished;
+  game.winner = null;
+  game.finishReason = FinishReason.LineupTimeout;
+  game.clockStartedAt = null;
+  game.lineupDeadline0At = null;
+  game.lineupDeadline1At = null;
+  touch(game, now);
+  return true;
 }
 
 export function settleGameClock(game: GameRecord, now = new Date()): boolean {
@@ -356,6 +391,17 @@ export function clockDeadline(game: GameRecord): number | null {
   return game.clockStartedAt + (game.isP1Turn ? game.clock1Ms : game.clock0Ms);
 }
 
+export function gameDeadline(game: GameRecord): number | null {
+  return lineupDeadline(game) ?? clockDeadline(game);
+}
+
+function lineupDeadline(game: GameRecord): number | null {
+  if (game.phase >= Phase.Active) return null;
+  const deadlines = [game.lineupDeadline0At, game.lineupDeadline1At]
+    .filter((value): value is number => typeof value === 'number');
+  return deadlines.length > 0 ? Math.min(...deadlines) : null;
+}
+
 function effectiveClocks(game: GameRecord, now: Date): [number, number] {
   if (game.phase !== Phase.Active || game.clockStartedAt === null) return [game.clock0Ms, game.clock1Ms];
   const elapsed = Math.max(0, now.getTime() - game.clockStartedAt);
@@ -371,6 +417,19 @@ function startTurnClock(game: GameRecord, now: Date) {
 
 function validClock(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : GAME_CLOCK_INITIAL_MS;
+}
+
+function legacyLineupDeadline(
+  value: unknown,
+  phase: GameState['phase'] | undefined,
+  livePieces: number | undefined,
+  fallbackTimestamp: string | undefined,
+  now: Date,
+) {
+  if (phase === Phase.Finished || phase === Phase.Active || livePieces === 14) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const fallback = fallbackTimestamp ? Date.parse(fallbackTimestamp) : Number.NaN;
+  return (Number.isFinite(fallback) ? fallback : now.getTime()) + LINEUP_SETUP_DURATION_MS;
 }
 
 function requireParticipant(game: GameRecord, playerId: string) {

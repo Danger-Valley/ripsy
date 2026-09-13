@@ -7,6 +7,7 @@ import {
   gameView,
   joinGame,
   movePiece,
+  settleGameDeadline,
   settleGameClock,
   submitLineup,
 } from './game-engine.js';
@@ -100,7 +101,7 @@ test('applies a legal move without external state', () => {
 test('runs one cumulative ten-minute clock at a time and switches it after a move', () => {
   const startedAt = new Date('2026-01-01T00:00:00.000Z');
   const game = createGameRecord('game-1', 'alice', startedAt);
-  joinGame(game, 'bob');
+  joinGame(game, 'bob', startedAt);
   submitLineup(game, 'alice', xs, aliceYs, lineup, startedAt);
   submitLineup(game, 'bob', xs, bobYs, lineup, startedAt);
 
@@ -118,7 +119,7 @@ test('runs one cumulative ten-minute clock at a time and switches it after a mov
 test('ends the game when the active player runs out of time', () => {
   const startedAt = new Date('2026-01-01T00:00:00.000Z');
   const game = createGameRecord('game-1', 'alice', startedAt);
-  joinGame(game, 'bob');
+  joinGame(game, 'bob', startedAt);
   submitLineup(game, 'alice', xs, aliceYs, lineup, startedAt);
   submitLineup(game, 'bob', xs, bobYs, lineup, startedAt);
 
@@ -128,4 +129,46 @@ test('ends the game when the active player runs out of time', () => {
   assert.equal(game.finishReason, 'timeout');
   assert.equal(game.clock0Ms, 0);
   assert.equal(game.clockStartedAt, null);
+});
+
+test('gives each player three minutes from arrival to save their first lineup', () => {
+  const createdAt = new Date('2026-01-01T00:00:00.000Z');
+  const joinedAt = new Date(createdAt.getTime() + 45_000);
+  const game = createGameRecord('game-1', 'alice', createdAt);
+  assert.equal(game.lineupDeadline0At, createdAt.getTime() + 180_000);
+  assert.equal(game.lineupDeadline1At, null);
+
+  joinGame(game, 'bob', joinedAt);
+  assert.equal(game.lineupDeadline0At, createdAt.getTime() + 180_000);
+  assert.equal(game.lineupDeadline1At, joinedAt.getTime() + 180_000);
+  assert.equal(gameView(game, 'alice', joinedAt).lineupDeadlineAt, game.lineupDeadline0At);
+  assert.equal(gameView(game, 'bob', joinedAt).lineupDeadlineAt, game.lineupDeadline1At);
+});
+
+test('saving a lineup clears only that player deadline and keeps the lineup editable', () => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  const game = createGameRecord('game-1', 'alice', now);
+  joinGame(game, 'bob', now);
+
+  submitLineup(game, 'alice', xs, aliceYs, lineup, new Date(now.getTime() + 30_000));
+  assert.equal(game.lineupDeadline0At, null);
+  assert.equal(game.lineupDeadline1At, now.getTime() + 180_000);
+
+  submitLineup(game, 'alice', xs, aliceYs, [...lineup].reverse(), new Date(now.getTime() + 170_000));
+  assert.equal(game.phase, Phase.LineupP0Set);
+  assert.equal(game.lineupDeadline0At, null);
+});
+
+test('cancels the game without a winner when either lineup deadline expires', () => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  const game = createGameRecord('game-1', 'alice', now);
+  joinGame(game, 'bob', now);
+  submitLineup(game, 'alice', xs, aliceYs, lineup, new Date(now.getTime() + 10_000));
+
+  assert.equal(settleGameDeadline(game, new Date(now.getTime() + 180_001)), true);
+  assert.equal(game.phase, Phase.Finished);
+  assert.equal(game.winner, null);
+  assert.equal(game.finishReason, 'lineup_timeout');
+  assert.equal(game.lineupDeadline0At, null);
+  assert.equal(game.lineupDeadline1At, null);
 });

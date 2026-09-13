@@ -65,6 +65,7 @@ test('validates complete server game state payloads', () => {
   const message = parseServerMessage({ type: 'state', gameId: 'game-1', state });
   assert.equal(message.type, 'state');
   assert.equal(message.state.gameId, 'game-1');
+  assert.equal(message.state.lineupDeadlineAt, state.lineupDeadlineAt);
   assert.throws(
     () => parseServerMessage({ type: 'state', gameId: 'game-1', state: { ...state, owners: [] } }),
     ProtocolMessageError,

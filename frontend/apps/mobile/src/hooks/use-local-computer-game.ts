@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Choice, Owner, Phase, type GameState } from '@rps/core';
-import { chooseWeapon, gameView, movePiece, settleGameClock, submitLineup, type GameRecord } from '@rps/game-engine';
+import { chooseWeapon, gameView, movePiece, settleGameDeadline, settleGameClock, submitLineup, type GameRecord } from '@rps/game-engine';
 import { chooseComputerMove, chooseComputerWeapon, COMPUTER_PLAYER_ID, createComputerGame, LOCAL_PLAYER_ID } from '../local-computer-game';
 
 export function useLocalComputerGame() {
@@ -35,10 +35,10 @@ export function useLocalComputerGame() {
   }, []);
 
   useEffect(() => {
-    if (gameState.phase !== Phase.Active) return;
+    if (gameState.phase === Phase.Finished) return;
     const interval = setInterval(() => {
       const record = recordRef.current;
-      if (record && settleGameClock(record)) publish();
+      if (record && settleGameDeadline(record)) publish();
     }, 250);
     return () => clearInterval(interval);
   }, [gameState.phase, publish]);

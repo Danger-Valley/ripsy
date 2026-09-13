@@ -8,8 +8,8 @@ import {
   movePiece,
   parseGameRecord,
   submitLineup,
-  clockDeadline,
-  settleGameClock,
+  gameDeadline,
+  settleGameDeadline,
   type GameRecord,
 } from './game-engine.js';
 
@@ -83,6 +83,10 @@ export class RedisGameStore {
         EX: this.gameTtlSeconds,
       });
       if (created === 'OK') {
+        const deadline = gameDeadline(game);
+        if (deadline !== null) {
+          await this.redis.zAdd(this.clockDeadlinesKey(), { score: deadline, value: id });
+        }
         await this.addToPlayerIndex(playerId, id);
         await this.redis.publish(this.eventChannel(id), id);
         return gameView(game, playerId, this.now());
@@ -122,8 +126,8 @@ export class RedisGameStore {
   }
 
   async join(gameId: string, playerId: string): Promise<GameState> {
-    const state = await this.mutate(gameId, playerId, (game) => joinGame(game, playerId));
-    await this.addToPlayerIndex(playerId, gameId);
+    const state = await this.mutate(gameId, playerId, (game) => joinGame(game, playerId, this.now()));
+    if (state.p0 === playerId || state.p1 === playerId) await this.addToPlayerIndex(playerId, gameId);
     return state;
   }
 
@@ -167,7 +171,7 @@ export class RedisGameStore {
     let expired = 0;
     await Promise.all(gameIds.map(async gameId => {
       try {
-        const changed = await this.mutateRecord(gameId, game => settleGameClock(game, now));
+        const changed = await this.mutateRecord(gameId, game => settleGameDeadline(game, now));
         if (changed) expired += 1;
       } catch (error) {
         if (error instanceof Error && error.message === 'Game not found') {
@@ -225,13 +229,13 @@ export class RedisGameStore {
     const value = await this.redis.get(this.gameKey(gameId));
     if (!value) throw new Error('Game not found');
     const storedVersion = (JSON.parse(value) as { schemaVersion?: number }).schemaVersion;
-    if (storedVersion === 1) {
+    if (storedVersion !== 3) {
       return this.mutateAndGetRecord(gameId, () => undefined);
     }
     const game = parseGameRecord(value, this.now());
-    const deadline = clockDeadline(game);
+    const deadline = gameDeadline(game);
     if (deadline !== null && deadline <= this.now().getTime()) {
-      return this.mutateAndGetRecord(gameId, current => { settleGameClock(current, this.now()); });
+      return this.mutateAndGetRecord(gameId, current => { settleGameDeadline(current, this.now()); });
     }
     if (deadline === null) await this.redis.zRem(this.clockDeadlinesKey(), gameId);
     else await this.redis.zAdd(this.clockDeadlinesKey(), { score: deadline, value: gameId });
@@ -271,6 +275,6 @@ export class RedisGameStore {
 }
 
 function deadlineArgument(game: GameRecord) {
-  const deadline = clockDeadline(game);
+  const deadline = gameDeadline(game);
   return deadline === null ? '' : String(deadline);
 }

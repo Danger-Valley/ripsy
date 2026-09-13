@@ -17,7 +17,7 @@ Both machines expose the numeric `Weapon` input and these triggers: `Jump Forwar
 
 A trap is not a `Weapon` value in the Rive state machine. Before starting trap idle, set `Weapon` to `Piece.Empty` (`0`) and `WeaponVisible` to `0`, start playback, reassert both values, and then fire `Trap Idle`. Passing `Piece.Trap` into `Weapon` can leave a stale weapon layer visible inside the trap artwork.
 
-On Android, a state machine created with `autoPlay={false}` may ignore `Weapon` until playback initializes it and leave every figure in the asset's default Scissors state. Bootstrap playback with the Rive view hidden, then pause/reset local pieces, apply `Weapon` and `WeaponVisible`, restart playback, and reveal the configured view. iOS can apply the inputs directly before playback.
+Every native Rive view stays hidden until its `Weapon`/`WeaponVisible` inputs and required idle state are applied and playback is ready. This prevents iOS opponent placeholders from briefly exposing the asset's default weapon. Android additionally needs a hidden playback bootstrap before pause/reset because a state machine created with `autoPlay={false}` may otherwise ignore `Weapon` and leave every figure in the default Scissors state.
 
 Mobile movement fires the appropriate jump trigger on the moving Rive instance. Horizontal direction is calculated after converting server coordinates to player-visible board coordinates; vertical movement uses `Jump Forward` because the asset has no backward jump.
 

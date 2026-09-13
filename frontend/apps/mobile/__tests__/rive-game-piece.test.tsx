@@ -149,6 +149,32 @@ test('bootstraps Android playback while hidden before applying the weapon', asyn
   expect(riveStyle.opacity).toBeUndefined();
 });
 
+test('keeps an iOS opponent hidden until its empty weapon state is playing', async () => {
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
+  let resolvePlayback!: () => void;
+  mockRiveViewRef.play.mockImplementationOnce(() => new Promise<void>(resolve => {
+    resolvePlayback = resolve;
+  }));
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <RiveGamePiece file={{} as never} isMine={false} piece={Piece.Empty} size={80} />,
+    );
+    await Promise.resolve();
+  });
+
+  expect(StyleSheet.flatten(renderer.root.findByType('RiveView' as never).props.style).opacity).toBe(0);
+  expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('Weapon', Piece.Empty);
+
+  await ReactTestRenderer.act(async () => {
+    resolvePlayback();
+    await Promise.resolve();
+  });
+
+  expect(StyleSheet.flatten(renderer.root.findByType('RiveView' as never).props.style).opacity).toBeUndefined();
+});
+
 test('starts an opponent preview after a one-time random delay', async () => {
   jest.useFakeTimers();
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);

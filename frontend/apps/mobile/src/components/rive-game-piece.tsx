@@ -27,7 +27,7 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
   const readyRef = useRef<Promise<void>>(Promise.resolve());
   const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
   const [shouldMountRive, setShouldMountRive] = useState(!staggerStart);
-  const [isConfigured, setIsConfigured] = useState(Platform.OS !== 'android');
+  const [isConfigured, setIsConfigured] = useState(false);
   const stateMachineName = isMine ? 'State Machine Back' : 'State Machine Front';
 
   useEffect(() => {
@@ -71,9 +71,9 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
     };
 
     const configurePiece = async () => {
+      setIsConfigured(false);
       const needsAndroidBootstrap = Platform.OS === 'android';
       if (needsAndroidBootstrap) {
-        setIsConfigured(false);
         try {
           // Android does not reliably accept legacy state-machine inputs until
           // playback has initialized the machine. Keep the view hidden while
@@ -111,7 +111,7 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
           // Leave the figure unarmed if the trap trigger is unavailable.
         }
       }
-      if (!cancelled && needsAndroidBootstrap) setIsConfigured(true);
+      if (!cancelled) setIsConfigured(true);
     };
 
     readyRef.current = configurePiece().catch(() => undefined);

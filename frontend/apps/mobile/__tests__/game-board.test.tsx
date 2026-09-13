@@ -236,6 +236,8 @@ test('fires a Rive jump on the already configured moving figure', async () => {
     elevation: 19,
     overflow: 'visible',
   });
+  expect(StyleSheet.flatten(sourceCell.props.style).backgroundColor).toBeUndefined();
+  expect(StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-grid' }).props.style).position).toBe('absolute');
   const translateY = pieceStyle.transform[1].translateY;
   await ReactTestRenderer.act(() => {
     progress.setValue(0.48);
@@ -276,6 +278,7 @@ test('keeps an opponent moving down the board above later rows', async () => {
     elevation: 19,
     overflow: 'visible',
   });
+  expect(StyleSheet.flatten(sourceCell.props.style).backgroundColor).toBeUndefined();
   expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Forward');
 });
 

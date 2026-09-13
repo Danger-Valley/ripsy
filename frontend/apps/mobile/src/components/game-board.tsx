@@ -53,6 +53,22 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
 
   return (
     <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]} testID="game-board">
+      <View pointerEvents="none" style={styles.grid} testID="board-grid">
+        {Array.from({ length: HEIGHT }, (_, displayY) => (
+          <View key={displayY} style={styles.gridRow}>
+            {Array.from({ length: WIDTH }, (_unused, displayX) => (
+              <View
+                key={displayX}
+                style={[
+                  styles.gridCell,
+                  { width: cellSize, height: cellSize },
+                  (displayX + displayY) % 2 === 0 && styles.alternateGridCell,
+                ]}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
       {Array.from({ length: HEIGHT }, (_, displayY) => (
         <View
           key={displayY}
@@ -100,7 +116,6 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                 style={[
                   styles.cell,
                   { width: cellSize, height: cellSize },
-                  (displayX + displayY) % 2 === 0 && styles.alternateCell,
                   isAvailable && styles.availableCell,
                   isSelected && styles.selectedCell,
                   isMovingSource && styles.movingCell,
@@ -330,12 +345,15 @@ function opponentOf(owner: Owner): Owner {
 }
 
 const styles = StyleSheet.create({
-  board: { alignSelf: 'center', borderColor: colors.primaryMuted, borderWidth: boardBorderWidth, borderRadius: 10, overflow: 'visible' },
+  board: { alignSelf: 'center', backgroundColor: '#142029', borderColor: colors.primaryMuted, borderWidth: boardBorderWidth, borderRadius: 10, overflow: 'visible' },
+  grid: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  gridRow: { flexDirection: 'row' },
+  gridCell: { backgroundColor: '#142029', borderColor: '#243641', borderWidth: StyleSheet.hairlineWidth },
+  alternateGridCell: { backgroundColor: '#182731' },
   row: { flexDirection: 'row', overflow: 'visible' },
   movingRow: { position: 'relative', zIndex: 19, elevation: 19 },
-  cell: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#142029', borderColor: '#243641', borderWidth: StyleSheet.hairlineWidth, overflow: 'visible' },
+  cell: { alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   movingCell: { position: 'relative', zIndex: 20, elevation: 20 },
-  alternateCell: { backgroundColor: '#182731' },
   availableCell: { backgroundColor: '#12384A' },
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },

@@ -229,12 +229,54 @@ test('fires a Rive jump on the already configured moving figure', async () => {
   expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Forward');
 
   const pieceStyle = StyleSheet.flatten(sourceCell.find(node => node.props.testID === 'piece-visual').props.style);
-  expect(pieceStyle).toMatchObject({ zIndex: 20, elevation: 20 });
+  expect(pieceStyle).toMatchObject({ zIndex: 21, elevation: 21 });
+  expect(StyleSheet.flatten(sourceCell.props.style)).toMatchObject({ zIndex: 20, elevation: 20, overflow: 'visible' });
+  expect(StyleSheet.flatten(renderer.root.findByProps({ testID: 'moving-source-row' }).props.style)).toMatchObject({
+    zIndex: 19,
+    elevation: 19,
+    overflow: 'visible',
+  });
   const translateY = pieceStyle.transform[1].translateY;
   await ReactTestRenderer.act(() => {
     progress.setValue(0.48);
   });
   expect(translateY.__getValue()).toBeLessThan(0);
+});
+
+test('keeps an opponent moving down the board above later rows', async () => {
+  const state = createState();
+  state.owners.fill(Owner.None);
+  state.pieces.fill(Piece.Empty);
+  state.owners[toIdx(0, 1)] = Owner.P1;
+  state.pieces[toIdx(0, 1)] = Piece.Empty;
+  const progress = new Animated.Value(0.6);
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <GameBoard
+        isPlayer1={false}
+        moveAnimation={{
+          from: { x: 0, y: 1 },
+          to: { x: 0, y: 2 },
+          owner: Owner.P1,
+          piece: Piece.Empty,
+        }}
+        moveProgress={progress}
+        ownOwner={Owner.P0}
+        state={state}
+      />,
+    );
+  });
+
+  const sourceCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 2, column 1, opponent piece');
+  expect(StyleSheet.flatten(sourceCell.props.style)).toMatchObject({ zIndex: 20, elevation: 20, overflow: 'visible' });
+  expect(StyleSheet.flatten(renderer.root.findByProps({ testID: 'moving-source-row' }).props.style)).toMatchObject({
+    zIndex: 19,
+    elevation: 19,
+    overflow: 'visible',
+  });
+  expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Forward');
 });
 
 test('maps mounted horizontal jump animation to the player-visible direction', async () => {

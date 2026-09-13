@@ -49,11 +49,15 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
   const boardSize = Math.min(width - 32, 600);
   const cellSize = (boardSize - boardBorderWidth * 2) / WIDTH;
   const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item.piece])), [previewLineup]);
+  const movingDisplayFrom = moveAnimation ? toDisplayCoordinate(moveAnimation.from, isPlayer1) : null;
 
   return (
     <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]} testID="game-board">
       {Array.from({ length: HEIGHT }, (_, displayY) => (
-        <View key={displayY} style={styles.row}>
+        <View
+          key={displayY}
+          style={[styles.row, movingDisplayFrom?.y === displayY && styles.movingRow]}
+          testID={movingDisplayFrom?.y === displayY ? 'moving-source-row' : undefined}>
           {Array.from({ length: WIDTH }, (_unused, displayX) => {
             const x = isPlayer1 ? WIDTH - 1 - displayX : displayX;
             const y = isPlayer1 ? HEIGHT - 1 - displayY : displayY;
@@ -99,6 +103,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                   (displayX + displayY) % 2 === 0 && styles.alternateCell,
                   isAvailable && styles.availableCell,
                   isSelected && styles.selectedCell,
+                  isMovingSource && styles.movingCell,
                 ]}>
                 {owner !== Owner.None && !isCombatant ? (
                   <Animated.View
@@ -326,13 +331,15 @@ function opponentOf(owner: Owner): Owner {
 
 const styles = StyleSheet.create({
   board: { alignSelf: 'center', borderColor: colors.primaryMuted, borderWidth: boardBorderWidth, borderRadius: 10, overflow: 'visible' },
-  row: { flexDirection: 'row' },
-  cell: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#142029', borderColor: '#243641', borderWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: 'row', overflow: 'visible' },
+  movingRow: { position: 'relative', zIndex: 19, elevation: 19 },
+  cell: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#142029', borderColor: '#243641', borderWidth: StyleSheet.hairlineWidth, overflow: 'visible' },
+  movingCell: { position: 'relative', zIndex: 20, elevation: 20 },
   alternateCell: { backgroundColor: '#182731' },
   availableCell: { backgroundColor: '#12384A' },
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  movingPiece: { zIndex: 20, elevation: 20 },
+  movingPiece: { zIndex: 21, elevation: 21 },
   combatant: { position: 'absolute', alignItems: 'center', justifyContent: 'center', elevation: 30 },
   combatWinner: { zIndex: 31 },
   combatLoser: { zIndex: 30 },

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { HEIGHT, Piece, WIDTH } from '@rps/core';
+import { HEIGHT, Owner, Piece, WIDTH } from '@rps/core';
 import { useLocalComputerGame } from '../src/hooks/use-local-computer-game';
 
 type LocalGame = ReturnType<typeof useLocalComputerGame>;
@@ -37,6 +37,7 @@ test('computer move timer survives local clock updates', async () => {
     await game.movePiece(0, HEIGHT - 2, 0, HEIGHT - 3);
   });
   expect(game.gameState.isP1Turn).toBe(true);
+  const beforeComputerMove = [...game.gameState.owners];
 
   await ReactTestRenderer.act(async () => {
     jest.advanceTimersByTime(1_500);
@@ -44,6 +45,8 @@ test('computer move timer survives local clock updates', async () => {
   });
 
   expect(game.gameState.isP1Turn).toBe(false);
+  expect(game.gameState.owners).not.toEqual(beforeComputerMove);
+  expect(game.gameState.owners.filter(owner => owner === Owner.P1)).toHaveLength(WIDTH * 2);
 
   await ReactTestRenderer.act(() => renderer.unmount());
   jest.restoreAllMocks();

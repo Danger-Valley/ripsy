@@ -162,51 +162,57 @@ export function BattleScreen({ game, gameId, playerId, isComputer = false, onAni
           <span />
         </header>
 
-        {waitingForOpponent ? (
-          <section className={styles.waitingCard}>
-            <span className={styles.waitingSignal}><i /></span>
-            <div><h2>Waiting for opponent</h2><p>The board is a preview. Set your lineup with the controls below.</p></div>
-            <button onClick={() => shareRoom().catch(() => undefined)}>Invite opponent</button>
-          </section>
-        ) : <div className={`${styles.statusBanner} ${renderedState.phase === Phase.Finished ? styles.finishedBanner : ''}`}>{statusMessage}</div>}
-        {actionError && <div className={styles.errorBanner}>{actionError}</div>}
+        <div className={styles.battleLayout}>
+          <div className={styles.statusColumn}>
+            {waitingForOpponent ? (
+              <section className={styles.waitingCard}>
+                <span className={styles.waitingSignal}><i /></span>
+                <div><h2>Waiting for opponent</h2><p>The board is a preview. Set your lineup with the highlighted controls.</p></div>
+                <button onClick={() => shareRoom().catch(() => undefined)}>Invite opponent</button>
+              </section>
+            ) : <div className={`${styles.statusBanner} ${renderedState.phase === Phase.Finished ? styles.finishedBanner : ''}`}>{statusMessage}</div>}
+            {actionError && <div className={styles.errorBanner}>{actionError}</div>}
 
-        {(game.gameState.phase >= Phase.Active && game.gameState.finishReason !== 'lineup_timeout') && (
-          <GameClocks state={game.gameState} ownOwner={game.ownOwner} />
-        )}
+            {(game.gameState.phase >= Phase.Active && game.gameState.finishReason !== 'lineup_timeout') && (
+              <GameClocks state={game.gameState} ownOwner={game.ownOwner} />
+            )}
+          </div>
 
-        <GameBoard
-          availableMoves={availableMoves}
-          combatAnimation={animation.activeCombat}
-          combatPhase={animation.combatPhase}
-          interactionEnabled={!animation.isAnimating && game.isMyTurn && renderedState.phase === Phase.Active && !renderedState.tiePending}
-          isPlayer1={game.isPlayer1}
-          moveAnimation={animation.activeMove}
-          movePhase={animation.movePhase}
-          onCellPress={onCellPress}
-          onMoveActionTriggered={animation.startActiveMove}
-          ownOwner={game.ownOwner}
-          previewLineup={canEditLineup ? lineup : undefined}
-          selected={selected}
-          showOpponentFormation={canEditLineup}
-          state={renderedState}
-        />
+          <div className={styles.boardColumn}>
+            <GameBoard
+              availableMoves={availableMoves}
+              combatAnimation={animation.activeCombat}
+              combatPhase={animation.combatPhase}
+              interactionEnabled={!animation.isAnimating && game.isMyTurn && renderedState.phase === Phase.Active && !renderedState.tiePending}
+              isPlayer1={game.isPlayer1}
+              moveAnimation={animation.activeMove}
+              movePhase={animation.movePhase}
+              onCellPress={onCellPress}
+              onMoveActionTriggered={animation.startActiveMove}
+              ownOwner={game.ownOwner}
+              previewLineup={canEditLineup ? lineup : undefined}
+              selected={selected}
+              showOpponentFormation={canEditLineup}
+              state={renderedState}
+            />
+          </div>
 
-        {canEditLineup && (
-          <section className={`${styles.lineupPanel} ${lineupSaved ? styles.lineupReady : styles.lineupAttention}`}>
-            <div className={styles.lineupHeader}>
-              <div>
-                <span className={styles.eyebrow}>{lineupSaved ? 'YOUR LINEUP' : 'SET YOUR LINEUP HERE ↓'}</span>
-                <p>{lineupSaved ? 'Saved. The battle starts automatically when your opponent is ready.' : hasSubmitted ? 'Lineup changed. Save it again below.' : 'Use Shuffle below, then save your hidden lineup.'}</p>
+          {canEditLineup && (
+            <section className={`${styles.lineupPanel} ${lineupSaved ? styles.lineupReady : styles.lineupAttention}`}>
+              <div className={styles.lineupHeader}>
+                <div>
+                  <span className={styles.eyebrow}>{lineupSaved ? 'YOUR LINEUP' : 'SET YOUR LINEUP HERE ↓'}</span>
+                  <p>{lineupSaved ? 'Saved. The battle starts automatically when your opponent is ready.' : hasSubmitted ? 'Lineup changed. Save it again.' : 'Shuffle, then save your hidden lineup.'}</p>
+                </div>
+                {lineupSaved ? <span className={styles.readyBadge}><i /> READY</span> : game.gameState.lineupDeadlineAt ? <LineupCountdown deadlineAt={game.gameState.lineupDeadlineAt} /> : null}
               </div>
-              {lineupSaved ? <span className={styles.readyBadge}><i /> READY</span> : game.gameState.lineupDeadlineAt ? <LineupCountdown deadlineAt={game.gameState.lineupDeadlineAt} /> : null}
-            </div>
-            <div className={styles.lineupActions}>
-              <button onClick={() => { setSelected(null); setLineup(createRandomLineup(game.isPlayer0)); setLineupDirty(true); }}>Shuffle</button>
-              <button className={styles.primaryButton} disabled={lineupSaved || game.isBusy} onClick={() => saveLineup().catch(() => undefined)}>{lineupSaved ? 'Lineup saved' : hasSubmitted ? 'Save changes' : 'Save lineup'}</button>
-            </div>
-          </section>
-        )}
+              <div className={styles.lineupActions}>
+                <button onClick={() => { setSelected(null); setLineup(createRandomLineup(game.isPlayer0)); setLineupDirty(true); }}>Shuffle</button>
+                <button className={styles.primaryButton} disabled={lineupSaved || game.isBusy} onClick={() => saveLineup().catch(() => undefined)}>{lineupSaved ? 'Lineup saved' : hasSubmitted ? 'Save changes' : 'Save lineup'}</button>
+              </div>
+            </section>
+          )}
+        </div>
       </div>
 
       <WeaponModal busy={game.isBusy} open={!animation.isAnimating && renderedState.tiePending && renderedState.playerChoice === Choice.None} onChoose={choice => perform(() => game.chooseWeapon(choice))} />
@@ -253,7 +259,7 @@ function JoinGate({ gameId, title, copy, busy = false, onBack, onRetry }: { game
 }
 
 function getStateMessage(state: GameState, hasSubmitted: boolean, isMyTurn: boolean, playerId: string, isComputer = false) {
-  if (state.phase < Phase.Active) return hasSubmitted ? 'Lineup saved. You can change it until the battle starts' : 'Set your lineup using the controls below the board';
+  if (state.phase < Phase.Active) return hasSubmitted ? 'Lineup saved. You can change it until the battle starts' : 'Use the lineup controls to get ready';
   if (state.phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : isComputer ? "Computer's turn" : "Opponent's turn";
   if (state.finishReason === 'lineup_timeout') return 'Game canceled — a lineup was not saved in time';
   if (state.finishReason === 'timeout') return state.winner === playerId ? 'Victory — opponent ran out of time' : 'Time expired — you lost';

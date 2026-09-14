@@ -1,5 +1,5 @@
 .page { min-height: 100dvh; padding: 24px 18px 64px; background: #0a1116; color: #edf3f4; }
-.shell { width: min(100%, 760px); margin: 0 auto; display: grid; gap: 18px; }
+.shell { width: min(100%, 1180px); margin: 0 auto; display: grid; gap: 18px; }
 .header { min-height: 72px; display: grid; grid-template-columns: 56px 1fr 56px; align-items: center; }
 .header h1 { margin: 0; color: #f5f8f9; font-size: clamp(20px, 4vw, 28px); text-align: center; letter-spacing: -.02em; }
 .backButton { width: 52px; height: 52px; display: grid; place-items: center; border: 1px solid #25333b; border-radius: 50%; background: #101920; color: white; font-size: 44px; font-weight: 200; line-height: .7; }
@@ -12,6 +12,9 @@
 .waitingCard button { min-height: 44px; padding: 0 16px; border-radius: 11px; font-weight: 800; }
 .waitingSignal { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid #315b59; border-radius: 50%; background: #192a31; }
 .waitingSignal i { width: 10px; height: 10px; border-radius: 50%; background: #5df1e8; box-shadow: 0 0 14px #5df1e8; animation: pulseDot 1.4s ease-in-out infinite; }
+.battleLayout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "board status" "board lineup" "board ."; align-items: start; gap: 16px 24px; }
+.statusColumn { grid-area: status; display: grid; gap: 12px; }
+.boardColumn { grid-area: board; min-width: 0; display: grid; align-items: start; }
 .clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .clock { min-height: 95px; padding: 15px 18px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid #293c46; border-radius: 16px; background: #131f26; }
 .clock > span { color: #87949d; font-size: 10px; font-weight: 900; letter-spacing: .18em; }
@@ -20,7 +23,7 @@
 .runningClock { border-color: #5df1e8; box-shadow: inset 0 0 0 1px rgb(93 241 232 / 14%); }
 .runningClock > span { color: #5df1e8; }
 .runningClock span i { background: #5df1e8; box-shadow: 0 0 8px #5df1e8; }
-.board { --cell: calc(100% / 7); position: relative; width: min(100%, 680px); aspect-ratio: 1; justify-self: center; overflow: visible; isolation: isolate; }
+.board { --cell: calc(100% / 7); position: relative; width: min(100%, calc(100dvh - 140px), 760px); aspect-ratio: 1; justify-self: center; overflow: visible; isolation: isolate; }
 .boardSurface { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); overflow: hidden; border: 2px solid #48aba7; border-radius: 11px; background: #142129; }
 .boardSurface i { border: .5px solid #253842; background: #142129; }
 .boardSurface i:nth-child(even) { background: #182832; }
@@ -39,7 +42,7 @@
 .combatant { position: absolute; left: var(--combat-left); top: var(--combat-top); width: var(--cell); height: var(--cell); opacity: 1; transform: scaleX(var(--face)) scale(var(--combat-scale)); transform-origin: center; transition: left 320ms ease-in-out, top 320ms ease-in-out, transform 320ms ease-in-out, opacity 180ms ease; }
 .combatApproach { animation: combatApproach 620ms cubic-bezier(.22,.72,.24,1) both; }
 .combatSettle { transition-duration: 320ms; }
-.lineupPanel { position: relative; padding: 20px; display: grid; gap: 18px; border: 1px solid #2b414a; border-radius: 18px; background: #121f26; }
+.lineupPanel { grid-area: lineup; position: relative; padding: 20px; display: grid; gap: 18px; border: 1px solid #2b414a; border-radius: 18px; background: #121f26; }
 .lineupAttention { border: 2px solid #54d8d0; animation: lineupGlow 1s ease-in-out infinite alternate; }
 .lineupReady { border-color: #38c881; }
 .lineupHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -74,6 +77,11 @@
 @keyframes lineupGlow { from { box-shadow: 0 0 5px rgb(93 241 232 / 28%); } to { box-shadow: 0 0 22px rgb(93 241 232 / 62%); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes combatApproach { from { left: var(--start-left); top: var(--start-top); transform: scaleX(var(--face)) scale(1); } to { left: var(--combat-left); top: var(--combat-top); transform: scaleX(var(--face)) scale(var(--combat-scale)); } }
+@media (max-width: 900px) {
+  .shell { width: min(100%, 760px); }
+  .battleLayout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "status" "board" "lineup"; gap: 18px; }
+  .board { width: min(100%, 680px); }
+}
 @media (max-width: 620px) {
   .page { padding: 10px 10px 40px; }
   .shell { gap: 13px; }

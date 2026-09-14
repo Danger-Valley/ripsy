@@ -183,6 +183,7 @@ The current web client now mirrors the recent native experience rather than the 
 - Room entry and invitation links automatically join an available player slot. The redundant pre-join board/confirmation screen has been removed.
 - Battle setup includes the three-minute lineup deadline, weaponless front-facing opponent placeholders, shuffle-only editing, grouped glowing lineup controls, repeated pre-battle saves, and explicit READY feedback.
 - The responsive board separates its clipped checkerboard surface from the overflow-visible piece layer. It has cell-bound hit targets, no colored rings, correct trap state, and per-instance opponent idle staggering.
+- At desktop widths above 900 px, Battle uses a two-column layout: the height-constrained square board is the primary left column, while status, errors, clocks, waiting/invite, and lineup controls occupy a compact 320 px right column. Tablet and mobile retain the status → board → controls vertical order.
 - Online and local games share transition classification and the ordered web animation queue. Confirmed movement uses authored Rive jump durations; combat supports prepare/hold, repeated ties, weapon-specific attacks, death, and a smooth winner return.
 - Both cumulative clocks stay mounted through the result state. The web vibrates lightly on supported devices after a confirmed turn advance.
 - `/computer` is fully local and uses the shared game engine; the AI waits until presentation is idle before making its move.

@@ -23,6 +23,13 @@ export interface CombatAnimation {
 
 export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death';
 
+// Read from fig1.riv: Jump Forward is 45 frames and Jump Left/Right are
+// 38 frames, all authored at 60 FPS. Keep container movement on the exact
+// same timeline as the Rive animation instead of scaling it by board distance.
+const RIVE_TIMELINE_FPS = 60;
+const RIVE_JUMP_FORWARD_FRAMES = 45;
+const RIVE_JUMP_HORIZONTAL_FRAMES = 38;
+
 export function combatAttackDurationMs(piece: Piece) {
   if (piece === Piece.Rock) return 383;
   if (piece === Piece.Paper) return 500;
@@ -31,7 +38,10 @@ export function combatAttackDurationMs(piece: Piece) {
 }
 
 export function pieceMoveDurationMs(move: PieceMoveAnimation) {
-  return move.from.x === move.to.x ? 700 : 500;
+  const frameCount = move.from.x === move.to.x
+    ? RIVE_JUMP_FORWARD_FRAMES
+    : RIVE_JUMP_HORIZONTAL_FRAMES;
+  return frameCount / RIVE_TIMELINE_FPS * 1000;
 }
 
 export function gameStateFingerprint(state: GameState): string {

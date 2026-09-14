@@ -221,8 +221,8 @@ test('matches the Rive attack timing for every weapon', () => {
 
 test('matches mounted Rive jump timing for horizontal and vertical movement', () => {
   const move = { from: { x: 1, y: 1 }, to: { x: 2, y: 1 }, owner: Owner.P0, piece: Piece.Rock };
-  expect(pieceMoveDurationMs(move)).toBe(500);
-  expect(pieceMoveDurationMs({ ...move, to: { x: 1, y: 2 } })).toBe(700);
+  expect(pieceMoveDurationMs(move)).toBeCloseTo(633.333, 2);
+  expect(pieceMoveDurationMs({ ...move, to: { x: 1, y: 2 } })).toBe(750);
 });
 
 function withBoard(

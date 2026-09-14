@@ -307,6 +307,10 @@ test('maps mounted horizontal jump animation to the player-visible direction', a
   const pieceStyle = StyleSheet.flatten(sourceCell.find(node => node.props.testID === 'piece-visual').props.style);
   const translateX = pieceStyle.transform[0].translateX;
   await ReactTestRenderer.act(() => {
+    progress.setValue(0.1);
+  });
+  expect(translateX.__getValue()).toBeLessThan(0);
+  await ReactTestRenderer.act(() => {
     progress.setValue(1);
   });
   expect(translateX.__getValue()).toBeLessThan(0);

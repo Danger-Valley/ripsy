@@ -278,18 +278,18 @@ function movingPieceTransform(cellSize: number, isPlayer1: boolean, move: PieceM
   const deltaY = (to.y - from.y) * cellSize;
   const restingOffset = -cellSize * 0.43;
   const lift = cellSize * 0.22;
-  const travelStart = from.x === to.x ? 2 / 7 : 0.4;
-  const peak = travelStart + (1 - travelStart) * 0.45;
-  const landing = travelStart + (1 - travelStart) * 0.82;
+  // Progress 0..1 is the full authored Rive jump timeline. Container travel
+  // starts with the Rive trigger and lands when that timeline finishes.
+  const peak = 0.45;
+  const landing = 0.82;
   const translateX = progress.interpolate({
-    inputRange: [0, travelStart, peak, landing, 1, 2],
-    outputRange: [0, 0, deltaX * 0.48, deltaX * 0.9, deltaX, deltaX],
+    inputRange: [0, peak, landing, 1, 2],
+    outputRange: [0, deltaX * 0.48, deltaX * 0.9, deltaX, deltaX],
     extrapolate: 'clamp',
   });
   const translateY = progress.interpolate({
-    inputRange: [0, travelStart, peak, landing, 1, 2],
+    inputRange: [0, peak, landing, 1, 2],
     outputRange: [
-      restingOffset,
       restingOffset,
       restingOffset + deltaY * 0.48 - lift,
       restingOffset + deltaY * 0.9 - lift * 0.25,
@@ -299,8 +299,8 @@ function movingPieceTransform(cellSize: number, isPlayer1: boolean, move: PieceM
     extrapolate: 'clamp',
   });
   const scale = progress.interpolate({
-    inputRange: [0, travelStart, peak, landing, 1, 2],
-    outputRange: [1, 0.96, 1.04, 1.01, 1, 1],
+    inputRange: [0, peak, landing, 1, 2],
+    outputRange: [1, 1.04, 1.01, 1, 1],
     extrapolate: 'clamp',
   });
   return [{ translateX }, { translateY }, { scale }];

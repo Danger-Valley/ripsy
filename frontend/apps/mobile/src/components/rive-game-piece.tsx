@@ -7,6 +7,8 @@ interface Props {
   actionTrigger?: RiveActionTrigger;
   file: RiveFile;
   isMine: boolean;
+  onActionTriggered?: (trigger: RiveActionTrigger) => void;
+  onConfigured?: () => void;
   piece: Piece;
   size: number;
   staggerStart?: boolean;
@@ -22,9 +24,13 @@ export type RiveActionTrigger =
   | 'Fall In Trap'
   | 'Death';
 
-export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, staggerStart = false }: Props) {
+export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, onConfigured, piece, size, staggerStart = false }: Props) {
   const { riveViewRef, setHybridRef } = useRive();
   const readyRef = useRef<Promise<void>>(Promise.resolve());
+  const actionRequestRef = useRef(0);
+  const lastTriggeredActionRef = useRef<RiveActionTrigger | null>(null);
+  const onConfiguredRef = useRef(onConfigured);
+  onConfiguredRef.current = onConfigured;
   const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
   const [shouldMountRive, setShouldMountRive] = useState(!staggerStart);
   const [isConfigured, setIsConfigured] = useState(false);
@@ -111,7 +117,10 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
           // Leave the figure unarmed if the trap trigger is unavailable.
         }
       }
-      if (!cancelled) setIsConfigured(true);
+      if (!cancelled) {
+        setIsConfigured(true);
+        onConfiguredRef.current?.();
+      }
     };
 
     readyRef.current = configurePiece().catch(() => undefined);
@@ -122,21 +131,35 @@ export function RiveGamePiece({ actionTrigger, file, isMine, piece, size, stagge
   }, [isMine, piece, riveViewRef, shouldMountRive]);
 
   useEffect(() => {
-    if (!shouldMountRive || !riveViewRef || !actionTrigger) return;
+    const requestId = ++actionRequestRef.current;
+    if (!actionTrigger) {
+      lastTriggeredActionRef.current = null;
+      return;
+    }
+    if (!shouldMountRive || !riveViewRef || lastTriggeredActionRef.current === actionTrigger) return;
     let cancelled = false;
     readyRef.current.then(() => {
-      if (cancelled) return;
+      if (
+        cancelled
+        || requestId !== actionRequestRef.current
+        || lastTriggeredActionRef.current === actionTrigger
+      ) return;
+      lastTriggeredActionRef.current = actionTrigger;
       try {
         riveViewRef.triggerInput(actionTrigger);
         riveViewRef.playIfNeeded();
       } catch {
         // Keep the scene running if an optional asset trigger is unavailable.
+      } finally {
+        // Container motion starts only after the Rive trigger has actually
+        // fired, so an initializing state machine cannot desynchronize them.
+        onActionTriggered?.(actionTrigger);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [actionTrigger, riveViewRef, shouldMountRive]);
+  }, [actionTrigger, onActionTriggered, riveViewRef, shouldMountRive]);
 
   return (
     <View pointerEvents="none" style={[styles.container, { width: size, height: size }]}>

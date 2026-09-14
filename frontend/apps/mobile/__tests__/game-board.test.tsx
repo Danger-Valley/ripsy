@@ -282,6 +282,66 @@ test('keeps an opponent moving down the board above later rows', async () => {
   expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Forward');
 });
 
+test('keeps the landed source visible while the destination Rive instance preloads', async () => {
+  const previous = createState();
+  const next: GameState = {
+    ...previous,
+    owners: [...previous.owners],
+    pieces: [...previous.pieces],
+  };
+  next.owners[toIdx(0, 0)] = Owner.None;
+  next.pieces[toIdx(0, 0)] = Piece.Empty;
+  next.owners[toIdx(0, 1)] = Owner.P0;
+  next.pieces[toIdx(0, 1)] = Piece.Rock;
+  const moveAnimation = {
+    from: { x: 0, y: 0 },
+    to: { x: 0, y: 1 },
+    owner: Owner.P0,
+    piece: Piece.Rock,
+  };
+  const onMoveDestinationReady = jest.fn();
+  const progress = new Animated.Value(1);
+  const renderBoard = (state: GameState, move: typeof moveAnimation | null = moveAnimation) => (
+    <GameBoard
+      isPlayer1={false}
+      moveAnimation={move}
+      moveProgress={progress}
+      onMoveDestinationReady={onMoveDestinationReady}
+      ownOwner={Owner.P0}
+      state={state}
+    />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(renderBoard(previous));
+  });
+  const movingInstance = renderer.root
+    .find(node => node.props.accessibilityLabel === 'Row 1, column 1, your rock')
+    .findByType(RiveGamePiece);
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(renderBoard(next));
+  });
+
+  const sourceCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 1, your rock');
+  const destinationCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 2, column 1, your rock');
+  expect(sourceCell.findByType(RiveGamePiece)).toBe(movingInstance);
+  expect(StyleSheet.flatten(destinationCell.find(node => node.props.testID === 'piece-visual').props.style).opacity).toBe(0);
+  expect(destinationCell.findByType(RiveGamePiece).props.onConfigured).toBe(onMoveDestinationReady);
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(renderBoard(next, null));
+  });
+
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 1, empty').findAllByType(RiveGamePiece)).toHaveLength(0);
+  expect(StyleSheet.flatten(
+    renderer.root
+      .find(node => node.props.accessibilityLabel === 'Row 2, column 1, your rock')
+      .find(node => node.props.testID === 'piece-visual').props.style,
+  ).opacity).toBeUndefined();
+});
+
 test('maps mounted horizontal jump animation to the player-visible direction', async () => {
   const state = createState();
   const progress = new Animated.Value(0);

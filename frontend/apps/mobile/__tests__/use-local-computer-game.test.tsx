@@ -27,6 +27,12 @@ function AnimatedGameChild({ game, onAnimationStateChange, onRender }: {
 }) {
   const animation = useGameAnimationQueue(game.gameState);
   React.useEffect(() => onAnimationStateChange(animation.isAnimating), [animation.isAnimating, onAnimationStateChange]);
+  React.useEffect(() => {
+    if (animation.activeMove) animation.startActiveMove();
+  }, [animation.activeMove, animation.startActiveMove]);
+  React.useEffect(() => {
+    if (animation.activeMove) animation.completeActiveMoveLanding();
+  }, [animation.activeMove, animation.completeActiveMoveLanding, animation.displayedState]);
   onRender(game, animation);
   return null;
 }

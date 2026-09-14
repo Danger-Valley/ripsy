@@ -41,9 +41,11 @@ interface Props {
   moveProgress?: Animated.Value;
   showOpponentFormation?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
+  onMoveActionTriggered?: () => void;
+  onMoveDestinationReady?: () => void;
 }
 
-export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, showOpponentFormation = false, onCellPress }: Props) {
+export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, showOpponentFormation = false, onCellPress, onMoveActionTriggered, onMoveDestinationReady }: Props) {
   const { width } = useWindowDimensions();
   const { riveFile } = useRiveFile(figureAsset);
   const boardSize = Math.min(width - 32, 600);
@@ -80,13 +82,18 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
             const index = toIdx(x, y);
             const previewPiece = preview.get(index);
             const serverOwner = state?.owners[index] ?? Owner.None;
-            const isOpponentPreview = Boolean(showOpponentFormation && displayY < 2 && previewPiece === undefined && serverOwner === Owner.None);
-            const owner = previewPiece !== undefined
-              ? ownOwner
-              : isOpponentPreview ? opponentOf(ownOwner) : serverOwner;
-            const piece = previewPiece ?? state?.pieces[index] ?? Piece.Empty;
-            const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isMovingSource = moveAnimation?.from.x === x && moveAnimation.from.y === y;
+            const isMovingDestination = moveAnimation?.to.x === x && moveAnimation.to.y === y;
+            const isOpponentPreview = Boolean(showOpponentFormation && displayY < 2 && previewPiece === undefined && serverOwner === Owner.None);
+            const owner = isMovingSource && moveAnimation
+              ? moveAnimation.owner
+              : previewPiece !== undefined
+                ? ownOwner
+                : isOpponentPreview ? opponentOf(ownOwner) : serverOwner;
+            const piece = isMovingSource && moveAnimation
+              ? moveAnimation.piece
+              : previewPiece ?? state?.pieces[index] ?? Piece.Empty;
+            const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isCombatant = Boolean(combatAnimation && (
               (combatAnimation.from.x === x && combatAnimation.from.y === y)
               || (combatAnimation.to.x === x && combatAnimation.to.y === y)
@@ -127,6 +134,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                     style={[
                       styles.piece,
                       isMovingSource && styles.movingPiece,
+                      isMovingDestination && styles.landingPiecePreload,
                       {
                         width: cellSize * 0.88,
                         height: cellSize * 0.88,
@@ -142,6 +150,8 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                           : undefined}
                         file={riveFile}
                         isMine={isMine}
+                        onActionTriggered={isMovingSource ? onMoveActionTriggered : undefined}
+                        onConfigured={isMovingDestination ? onMoveDestinationReady : undefined}
                         piece={piece}
                         size={cellSize * 1.68}
                         staggerStart={isOpponentPreview}
@@ -358,6 +368,7 @@ const styles = StyleSheet.create({
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   movingPiece: { zIndex: 21, elevation: 21 },
+  landingPiecePreload: { opacity: 0 },
   combatant: { position: 'absolute', alignItems: 'center', justifyContent: 'center', elevation: 30 },
   combatWinner: { zIndex: 31 },
   combatLoser: { zIndex: 30 },

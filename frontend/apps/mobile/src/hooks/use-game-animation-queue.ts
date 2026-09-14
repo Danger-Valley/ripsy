@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing } from 'react-native';
 import type { GameState } from '@rps/core';
 import {
@@ -30,6 +30,10 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const runningRef = useRef(false);
   const activeCombatRef = useRef<CombatAnimation | null>(null);
   const activeTimingCancelRef = useRef<(() => void) | null>(null);
+  const pendingMoveStartRef = useRef<(() => void) | null>(null);
+  const pendingMoveFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingLandingReadyRef = useRef<(() => void) | null>(null);
+  const pendingLandingFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const drainRef = useRef<() => void>(() => undefined);
   const [displayedState, setDisplayedState] = useState<GameState | null>(null);
@@ -43,6 +47,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     toValue: number,
     easing: ((value: number) => number) | undefined,
     onComplete: () => void,
+    deferUntilNextTurn = true,
   ) => {
     activeTimingCancelRef.current?.();
     let animation: Animated.CompositeAnimation | null = null;
@@ -79,7 +84,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     // Let React commit the moving Rive view before the native driver starts.
     // Starting in the same render turn can leave the native animation detached
     // on a physical device, so its completion callback never arrives.
-    startTimer = setTimeout(() => {
+    const start = () => {
       if (settled || !mountedRef.current) return;
       animation = Animated.timing(progress, {
         duration,
@@ -91,8 +96,18 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       // and therefore the local computer turn — permanently blocked.
       watchdogTimer = setTimeout(() => finish(true), duration + 400);
       animation.start(({ finished }) => finish(!finished));
-    }, 0);
+    };
+    if (deferUntilNextTurn) startTimer = setTimeout(start, 0);
+    else start();
   };
+
+  const startActiveMove = useCallback(() => {
+    pendingMoveStartRef.current?.();
+  }, []);
+
+  const completeActiveMoveLanding = useCallback(() => {
+    pendingLandingReadyRef.current?.();
+  }, []);
 
   drainRef.current = () => {
     if (!mountedRef.current || runningRef.current) return;
@@ -107,6 +122,12 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     }
 
     runningRef.current = true;
+    if (pendingMoveFallbackRef.current !== null) clearTimeout(pendingMoveFallbackRef.current);
+    pendingMoveFallbackRef.current = null;
+    pendingMoveStartRef.current = null;
+    if (pendingLandingFallbackRef.current !== null) clearTimeout(pendingLandingFallbackRef.current);
+    pendingLandingFallbackRef.current = null;
+    pendingLandingReadyRef.current = null;
     const resumesPendingCombat = Boolean(
       transition.combat?.resolution === 'resolved'
       && activeCombatRef.current?.resolution === 'pending',
@@ -163,24 +184,77 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       return;
     }
 
-    startProgressTiming(
-      transition.move ? pieceMoveDurationMs(transition.move) : 120,
-      1,
-      transition.move ? Easing.bezier(0.22, 0.75, 0.25, 1) : Easing.linear,
-      () => {
-        displayedRef.current = transition.state;
-        setDisplayedState(transition.state);
-        startProgressTiming(transition.move ? 140 : transition.kind === 'battle' ? 260 : 160, 2, undefined, () => {
-          runningRef.current = false;
-          setActiveKind(null);
-          setActiveMove(null);
-          setActiveCombat(null);
-          activeCombatRef.current = null;
-          setCombatPhase(null);
-          drainRef.current();
-        });
-      },
-    );
+    const completeTransition = () => {
+      runningRef.current = false;
+      setActiveKind(null);
+      setActiveMove(null);
+      setActiveCombat(null);
+      activeCombatRef.current = null;
+      setCombatPhase(null);
+      drainRef.current();
+    };
+
+    const finishMove = () => {
+      displayedRef.current = transition.state;
+      setDisplayedState(transition.state);
+      if (!transition.move) {
+        startProgressTiming(transition.kind === 'battle' ? 260 : 160, 2, undefined, completeTransition);
+        return;
+      }
+
+      let destinationReady = false;
+      let minimumSettleElapsed = false;
+      let completed = false;
+      const finishLanding = () => {
+        if (completed || !destinationReady || !minimumSettleElapsed) return;
+        completed = true;
+        pendingLandingReadyRef.current = null;
+        if (pendingLandingFallbackRef.current !== null) clearTimeout(pendingLandingFallbackRef.current);
+        pendingLandingFallbackRef.current = null;
+        completeTransition();
+      };
+      pendingLandingReadyRef.current = () => {
+        destinationReady = true;
+        finishLanding();
+      };
+      // Keep the translated source instance visible while the destination Rive
+      // instance initializes invisibly beneath it. The fallback prevents a
+      // missing native readiness callback from blocking the turn forever.
+      pendingLandingFallbackRef.current = setTimeout(() => {
+        destinationReady = true;
+        minimumSettleElapsed = true;
+        finishLanding();
+      }, 1_500);
+      startProgressTiming(140, 2, undefined, () => {
+        minimumSettleElapsed = true;
+        finishLanding();
+      });
+    };
+
+    if (transition.move) {
+      let started = false;
+      const beginMove = () => {
+        if (started || !mountedRef.current || pendingMoveStartRef.current !== beginMove) return;
+        started = true;
+        pendingMoveStartRef.current = null;
+        if (pendingMoveFallbackRef.current !== null) clearTimeout(pendingMoveFallbackRef.current);
+        pendingMoveFallbackRef.current = null;
+        startProgressTiming(
+          pieceMoveDurationMs(transition.move!),
+          1,
+          Easing.bezier(0.22, 0.75, 0.25, 1),
+          finishMove,
+          false,
+        );
+      };
+      pendingMoveStartRef.current = beginMove;
+      // Do not deadlock gameplay if a platform never supplies a Rive ref.
+      // Normal movement starts from RiveGamePiece's trigger callback instead.
+      pendingMoveFallbackRef.current = setTimeout(beginMove, 1_500);
+      return;
+    }
+
+    startProgressTiming(120, 1, Easing.linear, finishMove);
   };
 
   useEffect(() => {
@@ -191,6 +265,12 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
 
     if (!displayedRef.current || displayedRef.current.gameId !== authoritativeState.gameId) {
       activeTimingCancelRef.current?.();
+      if (pendingMoveFallbackRef.current !== null) clearTimeout(pendingMoveFallbackRef.current);
+      pendingMoveFallbackRef.current = null;
+      pendingMoveStartRef.current = null;
+      if (pendingLandingFallbackRef.current !== null) clearTimeout(pendingLandingFallbackRef.current);
+      pendingLandingFallbackRef.current = null;
+      pendingLandingReadyRef.current = null;
       progress.stopAnimation();
       progress.setValue(0);
       queueRef.current = [];
@@ -225,6 +305,12 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       queueRef.current = [];
       activeCombatRef.current = null;
       activeTimingCancelRef.current?.();
+      if (pendingMoveFallbackRef.current !== null) clearTimeout(pendingMoveFallbackRef.current);
+      pendingMoveFallbackRef.current = null;
+      pendingMoveStartRef.current = null;
+      if (pendingLandingFallbackRef.current !== null) clearTimeout(pendingLandingFallbackRef.current);
+      pendingLandingFallbackRef.current = null;
+      pendingLandingReadyRef.current = null;
       progress.stopAnimation();
     };
   }, [progress]);
@@ -237,6 +323,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     combatPhase,
     isAnimating: activeKind !== null,
     progress,
+    startActiveMove,
+    completeActiveMoveLanding,
     opacity: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.55, 1] }),
     scale: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 1.025, 1] }),
   };

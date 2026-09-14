@@ -275,6 +275,8 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
           moveAnimation={animation.activeMove}
           moveProgress={animation.progress}
           onCellPress={onCellPress}
+          onMoveActionTriggered={animation.startActiveMove}
+          onMoveDestinationReady={animation.completeActiveMoveLanding}
           ownOwner={game.ownOwner}
           previewLineup={canEditLineup ? lineup : undefined}
           selected={selected}

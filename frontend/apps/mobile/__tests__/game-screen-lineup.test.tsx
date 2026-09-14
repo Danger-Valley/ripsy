@@ -64,6 +64,8 @@ beforeEach(() => {
       combatPhase: null,
       isAnimating: false,
       progress,
+      startActiveMove: jest.fn(),
+      completeActiveMoveLanding: jest.fn(),
       opacity: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.55, 1] }),
       scale: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 1.025, 1] }),
     };

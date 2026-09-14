@@ -67,9 +67,11 @@ test('clears the weapon value and visibility before entering trap idle', async (
 });
 
 test('fires a movement trigger only after the state machine starts', async () => {
+  const onActionTriggered = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
-    ReactTestRenderer.create(
-      <RiveGamePiece actionTrigger="Jump Right" file={{} as never} isMine piece={Piece.Rock} size={80} />,
+    renderer = ReactTestRenderer.create(
+      <RiveGamePiece actionTrigger="Jump Right" file={{} as never} isMine onActionTriggered={onActionTriggered} piece={Piece.Rock} size={80} />,
     );
     await Promise.resolve();
     await Promise.resolve();
@@ -78,6 +80,33 @@ test('fires a movement trigger only after the state machine starts', async () =>
   expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Jump Right');
   expect(mockRiveViewRef.play.mock.invocationCallOrder[0]).toBeLessThan(
     mockRiveViewRef.triggerInput.mock.invocationCallOrder[0]!,
+  );
+  expect(onActionTriggered).toHaveBeenCalledWith('Jump Right');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.update(
+      <RiveGamePiece actionTrigger="Jump Right" file={{} as never} isMine onActionTriggered={onActionTriggered} piece={Piece.Rock} size={80} />,
+    );
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.triggerInput).toHaveBeenCalledTimes(1);
+  expect(onActionTriggered).toHaveBeenCalledTimes(1);
+});
+
+test('reports when a destination instance is configured for a seamless handoff', async () => {
+  const onConfigured = jest.fn();
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <RiveGamePiece file={{} as never} isMine onConfigured={onConfigured} piece={Piece.Paper} size={80} />,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(onConfigured).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.play.mock.invocationCallOrder[0]).toBeLessThan(
+    onConfigured.mock.invocationCallOrder[0]!,
   );
 });
 

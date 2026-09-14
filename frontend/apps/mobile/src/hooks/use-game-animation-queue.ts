@@ -8,6 +8,7 @@ import {
   getCombatAnimation,
   getPieceMoveAnimation,
   pieceMoveDurationMs,
+  REPEATED_TIE_REVEAL_MS,
   type CombatAnimation,
   type CombatAnimationPhase,
   type GameAnimationKind,
@@ -101,6 +102,24 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     else start();
   };
 
+  const startPresentationDelay = (duration: number, onComplete: () => void) => {
+    activeTimingCancelRef.current?.();
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      if (activeTimingCancelRef.current === cancel) activeTimingCancelRef.current = null;
+      if (mountedRef.current) onComplete();
+    }, duration);
+    const cancel = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (activeTimingCancelRef.current === cancel) activeTimingCancelRef.current = null;
+    };
+    activeTimingCancelRef.current = cancel;
+  };
+
   const startActiveMove = useCallback((travelDelayMs = 0) => {
     pendingMoveStartRef.current?.(travelDelayMs);
   }, []);
@@ -132,16 +151,32 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       transition.combat?.resolution === 'resolved'
       && activeCombatRef.current?.resolution === 'pending',
     );
+    const revealsRepeatedTie = Boolean(
+      transition.combat?.resolution === 'pending'
+      && transition.combat.isRepeatedTie
+      && activeCombatRef.current?.resolution === 'pending',
+    );
     setActiveKind(transition.kind);
     setActiveMove(transition.move);
     setActiveCombat(transition.combat);
     activeCombatRef.current = transition.combat;
-    setCombatPhase(transition.combat ? (resumesPendingCombat ? 'attack' : 'prepare') : null);
-    progress.setValue(resumesPendingCombat ? 1.35 : 0);
+    setCombatPhase(transition.combat ? (resumesPendingCombat ? 'attack' : revealsRepeatedTie ? 'hold' : 'prepare') : null);
+    progress.setValue(resumesPendingCombat || revealsRepeatedTie ? 1.35 : 0);
 
     if (transition.combat) {
       const combat = transition.combat;
       if (combat.resolution === 'pending') {
+        if (revealsRepeatedTie) {
+          startPresentationDelay(REPEATED_TIE_REVEAL_MS, () => {
+            displayedRef.current = transition.state;
+            setDisplayedState(transition.state);
+            runningRef.current = false;
+            setActiveKind(null);
+            setCombatPhase('hold');
+            drainRef.current();
+          });
+          return;
+        }
         startProgressTiming(620, 1.35, Easing.bezier(0.22, 0.72, 0.24, 1), () => {
           displayedRef.current = transition.state;
           setDisplayedState(transition.state);

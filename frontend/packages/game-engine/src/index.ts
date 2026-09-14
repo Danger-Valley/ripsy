@@ -47,6 +47,7 @@ export interface GameRecord {
   defender: number;
   outcome: number;
   tiePending: boolean;
+  tieRound: number;
   tieFrom: number;
   tieTo: number;
   createdAt: string;
@@ -79,6 +80,7 @@ export function createGameRecord(id: string, playerId: string, now = new Date())
     defender: Piece.Empty,
     outcome: 0,
     tiePending: false,
+    tieRound: 0,
     tieFrom: 0,
     tieTo: 0,
     createdAt: timestamp,
@@ -206,6 +208,7 @@ export function movePiece(
   game.attacker = attacker;
   game.defender = defender;
   game.outcome = 0;
+  game.tieRound = 0;
 
   if (game.owners[to] === Owner.None) {
     relocate(game, from, to, owner, attacker);
@@ -279,7 +282,9 @@ export function chooseWeapon(game: GameRecord, playerId: string, choice: Choice,
   game.defender = defenderChoice;
   game.outcome = outcome;
 
-  if (outcome !== 0) {
+  if (outcome === 0) {
+    game.tieRound += 1;
+  } else {
     const defenderOwner = attackerOwner === Owner.P0 ? Owner.P1 : Owner.P0;
     if (outcome === 1) {
       remove(game, game.tieTo, defenderOwner);
@@ -289,6 +294,7 @@ export function chooseWeapon(game: GameRecord, playerId: string, choice: Choice,
       game.pieces[game.tieTo] = defenderChoice as Piece;
     }
     game.tiePending = false;
+    game.tieRound = 0;
   }
   game.choices = [Choice.None, Choice.None];
   touch(game, now);
@@ -315,6 +321,7 @@ export function gameView(game: GameRecord, playerId: string, now = new Date()): 
     outcome: game.outcome,
     playerChoice: isParticipant ? game.choices[playerId === game.p0 ? 0 : 1] : Choice.None,
     tiePending: game.tiePending,
+    tieRound: game.tieRound,
     tieFrom: toXY(game.tieFrom),
     tieTo: toXY(game.tieTo),
     p0: game.p0,
@@ -345,6 +352,7 @@ export function parseGameRecord(value: string, now = new Date()): GameRecord {
   return {
     ...(stored as GameRecord),
     schemaVersion: 4,
+    tieRound: validTieRound(stored.tieRound),
     revealed: validRevealed(stored.revealed),
     finishReason: stored.finishReason ?? null,
     clock0Ms: validClock(stored.clock0Ms),
@@ -425,6 +433,10 @@ function startTurnClock(game: GameRecord, now: Date) {
 
 function validClock(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : GAME_CLOCK_INITIAL_MS;
+}
+
+function validTieRound(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
 }
 
 function validRevealed(value: unknown): boolean[] {

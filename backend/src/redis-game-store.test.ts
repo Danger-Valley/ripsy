@@ -208,6 +208,7 @@ test('gives a legacy active game a fresh clock and persists its migration on fir
   delete legacy.clock1Ms;
   delete legacy.clockStartedAt;
   delete legacy.finishReason;
+  delete legacy.tieRound;
   redis.values.set(gameKey, JSON.stringify(legacy));
 
   const state = await store.get(created.gameId, 'alice');
@@ -215,6 +216,7 @@ test('gives a legacy active game a fresh clock and persists its migration on fir
   assert.equal(state.phase, Phase.Active);
   assert.equal(state.clock0Ms, 600_000);
   assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.tieRound, 0);
   assert.deepEqual(migrated.revealed, Array(49).fill(false));
   assert.equal(migrated.clockStartedAt, nowMs);
 });

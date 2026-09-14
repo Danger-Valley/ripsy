@@ -112,6 +112,42 @@ test('rejects spectators and invalid battle choices', () => {
   assert.throws(() => chooseWeapon(game, 'alice', Choice.Rock), /no tied battle/);
 });
 
+test('publishes and counts repeated tied weapon rounds before accepting new choices', () => {
+  const game = createGameRecord('game-1', 'alice');
+  joinGame(game, 'bob');
+  submitLineup(game, 'alice', xs, aliceYs, lineup);
+  submitLineup(game, 'bob', xs, bobYs, lineup);
+
+  game.owners.fill(Owner.None);
+  game.pieces.fill(Piece.Empty);
+  game.revealed.fill(false);
+  game.live0 = 1;
+  game.live1 = 1;
+  game.owners[toIdx(0, 4)] = Owner.P0;
+  game.pieces[toIdx(0, 4)] = Piece.Rock;
+  game.owners[toIdx(0, 3)] = Owner.P1;
+  game.pieces[toIdx(0, 3)] = Piece.Rock;
+
+  movePiece(game, 'alice', 0, 4, 0, 3);
+  assert.equal(game.tiePending, true);
+  assert.equal(game.tieRound, 0);
+
+  chooseWeapon(game, 'alice', Choice.Paper);
+  chooseWeapon(game, 'bob', Choice.Paper);
+
+  assert.equal(game.tiePending, true);
+  assert.equal(game.tieRound, 1);
+  assert.equal(game.attacker, Piece.Paper);
+  assert.equal(game.defender, Piece.Paper);
+  assert.deepEqual(game.choices, [Choice.None, Choice.None]);
+  assert.equal(gameView(game, 'alice').tieRound, 1);
+
+  chooseWeapon(game, 'alice', Choice.Rock);
+  chooseWeapon(game, 'bob', Choice.Scissors);
+  assert.equal(game.tiePending, false);
+  assert.equal(game.tieRound, 0);
+});
+
 test('applies a legal move without external state', () => {
   const game = createGameRecord('game-1', 'alice');
   joinGame(game, 'bob');

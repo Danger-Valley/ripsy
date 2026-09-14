@@ -79,6 +79,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 - Moving onto the opponent flag finishes the game and awards the attacker the win.
 - Normal Rock/Paper/Scissors combat is resolved by the backend.
 - A tied battle sets `tiePending` and requires both players to submit a new weapon choice.
+- `tieRound` starts at zero for each collision, increments whenever both players choose the same replacement weapon, and returns to zero when the battle resolves. It makes every repeated tie observable even when the selected weapon matches the previous one.
 - `tieFrom` and `tieTo` are recorded on every accepted move, including movement into an empty cell. Clients use them to animate the confirmed move.
 
 ### Game phases
@@ -149,7 +150,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 ## Three-minute lineup deadlines
 
 - `LINEUP_SETUP_DURATION_MS` is shared from `@rps/core` and currently equals 180,000 ms.
-- Redis game schema v4 persists `lineupDeadline0At`, `lineupDeadline1At`, and the per-cell `revealed` mask. Existing schema-v1/v2/v3 records migrate on first read.
+- Redis game schema v4 persists `lineupDeadline0At`, `lineupDeadline1At`, the per-cell `revealed` mask, and the additive `tieRound` counter. Existing records without `tieRound` read it as zero so old and new Railway replicas remain compatible during rolling deploys.
 - Lineup and active-turn deadlines share the existing Redis sorted-set scheduler. Every Railway replica may poll it; CAS guarantees a single cancellation and Pub/Sub broadcasts the authoritative finished state.
 - Wire state exposes only the viewing player's `lineupDeadlineAt`; clients do not need the opponent's private setup deadline.
 - Native ticks the displayed setup countdown locally from the authoritative absolute deadline, but only the server can cancel an online game.
@@ -246,6 +247,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 - Hide both stationary sprites and render two persistent overlay instances above the board. Arrange them horizontally around the midpoint with their centers `0.84 × cell size` apart, and mirror them so they face each other, including a vertically initiated attack. This spacing keeps the 2× figures distinct instead of visually collapsing into one another.
 - Match the existing web choreography: fire `Attack Prepare` on both figures; wait 100 ms, move both into the shared fight position over the remaining 300 ms; then animate both to 2× scale.
 - On a tie, use a 620 ms eased prepare/approach, freeze both fighters at 2× scale, switch the combat phase to `hold`, and only then open the weapon picker. Keep that exact scene mounted while either player is choosing; `playerChoice` updates must not clear it.
+- If both replacement choices match, close the picker, update the two held fighters to the newly selected weapon, and keep that enlarged reveal visible for 900 ms. Then reopen a fresh picker for the next `tieRound`. Do not replay `Attack Prepare`, move the overlays, or briefly restore the board between repeated rounds.
 - When the server resolves the tie, resume the held scene at the attack phase with the newly revealed choices. Do not replay the approach or reset the board between the picker and the attack.
 - At the attack phase, fire `Attack` only on the authoritative winner. Its numeric `Weapon` input selects the Rock throw, Paper win, or Scissors win timeline. Keep the attack visible for 383 ms (Rock), 500 ms (Paper), or 966 ms (Scissors), plus the web's 100 ms impact offset.
 - After impact, fire `Death` only on the loser for 200 ms. Reveal the new authoritative board only after that beat, then fade the combat overlays during the 260 ms settle.

@@ -63,6 +63,7 @@ export interface GameState {
   outcome: number;
   playerChoice: Choice;
   tiePending: boolean;
+  tieRound?: number;
   tieFrom: { x: number; y: number };
   tieTo: { x: number; y: number };
   p0: string;
@@ -254,6 +255,7 @@ export function parseGameState(value: unknown): GameState {
     outcome: requireOutcome(state.outcome),
     playerChoice,
     tiePending: requireBoolean(state.tiePending, 'Tie flag'),
+    tieRound: state.tieRound === undefined ? 0 : requireNonNegativeInteger(state.tieRound, 'Tie round'),
     tieFrom: requirePosition(state.tieFrom, 'Tie origin'),
     tieTo: requirePosition(state.tieTo, 'Tie destination'),
     p0: requireString(state.p0, 'Player 0 ID', true),
@@ -288,6 +290,12 @@ function requireNumber(value: unknown, label: string): number {
 
 function requireNonNegativeNumber(value: unknown, label: string): number {
   const number = requireNumber(value, label);
+  if (number < 0) throw new ProtocolMessageError(`${label} is invalid`);
+  return number;
+}
+
+function requireNonNegativeInteger(value: unknown, label: string): number {
+  const number = requireInteger(value, label);
   if (number < 0) throw new ProtocolMessageError(`${label} is invalid`);
   return number;
 }

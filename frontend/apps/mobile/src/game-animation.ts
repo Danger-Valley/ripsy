@@ -11,6 +11,7 @@ export interface PieceMoveAnimation {
 
 export interface CombatAnimation {
   resolution: 'pending' | 'resolved';
+  isRepeatedTie?: boolean;
   from: { x: number; y: number };
   to: { x: number; y: number };
   attackerOwner: Owner;
@@ -30,6 +31,7 @@ const RIVE_TIMELINE_FPS = 60;
 const RIVE_JUMP_FORWARD_FRAMES = 45;
 const RIVE_JUMP_HORIZONTAL_FRAMES = 38;
 export const RIVE_JUMP_TRAVEL_DELAY_MS = 100;
+export const REPEATED_TIE_REVEAL_MS = 900;
 
 export function combatAttackDurationMs(piece: Piece) {
   if (piece === Piece.Rock) return 383;
@@ -57,6 +59,7 @@ export function gameStateFingerprint(state: GameState): string {
     state.outcome,
     state.playerChoice,
     state.tiePending,
+    state.tieRound ?? 0,
     state.tieFrom.x,
     state.tieFrom.y,
     state.tieTo.x,
@@ -72,6 +75,7 @@ export function gameStateFingerprint(state: GameState): string {
 export function classifyGameTransition(previous: GameState, next: GameState): GameAnimationKind {
   const boardChanged = !arraysEqual(previous.owners, next.owners) || !arraysEqual(previous.pieces, next.pieces);
   const battleChanged = previous.tiePending !== next.tiePending
+    || (previous.tieRound ?? 0) !== (next.tieRound ?? 0)
     || previous.live0 !== next.live0
     || previous.live1 !== next.live1
     || (boardChanged && next.defender !== Piece.Empty);
@@ -160,9 +164,12 @@ export function getCombatAnimation(previous: GameState, next: GameState): Combat
   const attackerPiece = next.attacker;
   const defenderPiece = next.defender;
   if (next.tiePending) {
-    if (previous.tiePending || next.outcome !== 0 || attackerPiece !== defenderPiece) return null;
+    const isRepeatedTie = previous.tiePending
+      && (next.tieRound ?? 0) > (previous.tieRound ?? 0);
+    if ((!isRepeatedTie && previous.tiePending) || next.outcome !== 0 || attackerPiece !== defenderPiece) return null;
     return {
       resolution: 'pending',
+      ...(isRepeatedTie ? { isRepeatedTie: true } : {}),
       from,
       to,
       attackerOwner,

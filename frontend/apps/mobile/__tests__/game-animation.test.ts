@@ -38,6 +38,7 @@ test('classifies a board relocation as a move', () => {
 test('classifies casualties and ties as battles', () => {
   expect(classifyGameTransition(baseState, { ...baseState, live1: 13, outcome: 1 })).toBe('battle');
   expect(classifyGameTransition(baseState, { ...baseState, tiePending: true })).toBe('battle');
+  expect(classifyGameTransition(baseState, { ...baseState, tieRound: 1 })).toBe('battle');
 });
 
 test('classifies non-board updates as phase transitions', () => {
@@ -48,6 +49,7 @@ test('fingerprint ignores object identity but tracks visible state', () => {
   expect(gameStateFingerprint({ ...baseState })).toBe(gameStateFingerprint(baseState));
   expect(gameStateFingerprint({ ...baseState, playerChoice: Choice.Paper })).not.toBe(gameStateFingerprint(baseState));
   expect(gameStateFingerprint({ ...baseState, tieTo: { x: 1, y: 2 } })).not.toBe(gameStateFingerprint(baseState));
+  expect(gameStateFingerprint({ ...baseState, tieRound: 1 })).not.toBe(gameStateFingerprint(baseState));
 });
 
 test('detects a confirmed move when the turn advances', () => {
@@ -196,6 +198,19 @@ test('creates a held combat scene before asking for tied battle choices', () => 
     defenderPiece: Piece.Rock,
     winnerOwner: null,
     winnerPiece: Piece.Empty,
+  });
+
+  const repeatedTie = {
+    ...tied,
+    attacker: Piece.Paper,
+    defender: Piece.Paper,
+    tieRound: 1,
+  };
+  expect(getCombatAnimation(tied, repeatedTie)).toMatchObject({
+    resolution: 'pending',
+    isRepeatedTie: true,
+    attackerPiece: Piece.Paper,
+    defenderPiece: Piece.Paper,
   });
 
   const resolved = {

@@ -10,6 +10,7 @@ interface Props {
   onActionTriggered?: (trigger: RiveActionTrigger) => void;
   onConfigured?: () => void;
   piece: Piece;
+  preserveStateOnPieceChange?: boolean;
   size: number;
   staggerStart?: boolean;
 }
@@ -24,9 +25,10 @@ export type RiveActionTrigger =
   | 'Fall In Trap'
   | 'Death';
 
-export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, onConfigured, piece, size, staggerStart = false }: Props) {
+export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, onConfigured, piece, preserveStateOnPieceChange = false, size, staggerStart = false }: Props) {
   const { riveViewRef, setHybridRef } = useRive();
   const readyRef = useRef<Promise<void>>(Promise.resolve());
+  const configuredStateMachineRef = useRef<string | null>(null);
   const actionRequestRef = useRef(0);
   const lastTriggeredActionRef = useRef<RiveActionTrigger | null>(null);
   const onConfiguredRef = useRef(onConfigured);
@@ -77,6 +79,18 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
     };
 
     const configurePiece = async () => {
+      if (preserveStateOnPieceChange && configuredStateMachineRef.current === stateMachineName) {
+        // A tied combat changes Weapon while both figures are held in their
+        // sideways Attack Prepare pose. Resetting here turns the losing Back
+        // figure toward the board before Death, while the winner hides the
+        // same reset by immediately starting Attack.
+        setPieceInputs();
+        if (!cancelled) {
+          setIsConfigured(true);
+          onConfiguredRef.current?.();
+        }
+        return;
+      }
       setIsConfigured(false);
       const needsAndroidBootstrap = Platform.OS === 'android';
       if (needsAndroidBootstrap) {
@@ -118,6 +132,7 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
         }
       }
       if (!cancelled) {
+        configuredStateMachineRef.current = stateMachineName;
         setIsConfigured(true);
         onConfiguredRef.current?.();
       }
@@ -128,7 +143,7 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
     return () => {
       cancelled = true;
     };
-  }, [isMine, piece, riveViewRef, shouldMountRive]);
+  }, [isMine, piece, preserveStateOnPieceChange, riveViewRef, shouldMountRive, stateMachineName]);
 
   useEffect(() => {
     const requestId = ++actionRequestRef.current;

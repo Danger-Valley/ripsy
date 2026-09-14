@@ -425,6 +425,7 @@ test('stages a battle and sends the attack and death triggers to the right fight
     'Attack Prepare',
     'Attack Prepare',
   ]);
+  expect(renderer.root.findAllByType(RiveGamePiece).every(figure => figure.props.preserveStateOnPieceChange)).toBe(true);
 
   await ReactTestRenderer.act(() => {
     renderer.update(renderBoard('attack'));

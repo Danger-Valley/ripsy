@@ -141,6 +141,50 @@ test('plays sequential combat triggers without resetting the state machine', asy
   ]);
 });
 
+test('updates a tied combat weapon without resetting the prepared loser pose', async () => {
+  const renderPiece = (piece: Piece, actionTrigger?: 'Attack Prepare' | 'Death') => (
+    <RiveGamePiece
+      actionTrigger={actionTrigger}
+      file={{} as never}
+      isMine
+      piece={piece}
+      preserveStateOnPieceChange
+      size={80}
+    />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(renderPiece(Piece.Rock, 'Attack Prepare'));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Attack Prepare');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.update(renderPiece(Piece.Paper));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('Weapon', Piece.Paper);
+  expect(mockRiveViewRef.pause).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.play).toHaveBeenCalledTimes(1);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.update(renderPiece(Piece.Paper, 'Death'));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.triggerInput.mock.calls.map(([trigger]) => trigger)).toEqual([
+    'Attack Prepare',
+    'Death',
+  ]);
+});
+
 test('configures a local weapon before starting playback', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {

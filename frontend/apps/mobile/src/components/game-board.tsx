@@ -301,7 +301,14 @@ function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, positi
       ]}
       testID={isWinner ? 'combat-winner' : 'combat-loser'}>
       <View style={[styles.piece, { width: cellSize * 0.88, height: cellSize * 0.88, transform: [{ translateY: -cellSize * 0.43 }] }]}>
-        <RiveGamePiece actionTrigger={trigger} file={riveFile} isMine={isMine} piece={piece} size={cellSize * 1.68} />
+        <RiveGamePiece
+          actionTrigger={trigger}
+          file={riveFile}
+          isMine={isMine}
+          piece={piece}
+          preserveStateOnPieceChange
+          size={cellSize * 1.68}
+        />
       </View>
     </Animated.View>
   );

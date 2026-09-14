@@ -1,0 +1,13 @@
+diff --git a/node_modules/@rive-app/react-native/nitrogen/generated/ios/c++/views/HybridRiveViewComponent.mm b/node_modules/@rive-app/react-native/nitrogen/generated/ios/c++/views/HybridRiveViewComponent.mm
+index 2da18c1..70d6e34 100644
+--- a/node_modules/@rive-app/react-native/nitrogen/generated/ios/c++/views/HybridRiveViewComponent.mm
++++ b/node_modules/@rive-app/react-native/nitrogen/generated/ios/c++/views/HybridRiveViewComponent.mm
+@@ -44,5 +44,8 @@ using namespace margelo::nitro::rive::views;
+ - (instancetype) init {
+   if (self = [super init]) {
++    // React Native 0.87+ requires every RCTViewComponentView subclass to
++    // initialize its concrete props before the first Fabric updateProps call.
++    _props = HybridRiveViewShadowNode::defaultSharedProps();
+     std::shared_ptr<HybridRiveViewSpec> hybridView = RNRive::RNRiveAutolinking::createRiveView();
+     _hybridView = std::dynamic_pointer_cast<HybridRiveViewSpecSwift>(hybridView);
+     [self updateView];

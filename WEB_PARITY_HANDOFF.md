@@ -214,6 +214,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 ### Rive initialization and idle staggering
 
 - Use the single shared `fig1.riv` file, but a separate Rive instance/state machine per piece.
+- Native iOS on React Native 0.87 requires the checked-in `patches/@rive-app+react-native+0.4.20.patch`. It initializes the concrete Fabric props for `HybridRiveViewComponent`; without it, mounting the first game board throws an `RCTViewComponentView updateProps` assertion and crashes. This is native-runtime compatibility only and does not need a web port.
 - Set numeric `Weapon` before playback so Shuffle never briefly renders `S`, `R`, `P`, or a stale weapon.
 - Native Android first initializes playback while the view is hidden, then pauses/resets, writes `Weapon`/`WeaponVisible`, restarts playback, and reveals the view. Without this bootstrap, the native Rive runtime can leave every local figure in its default Scissors state.
 - Both native platforms keep each Rive view hidden until its intended weapon/empty/trap state is configured and playing. This prevents iOS opponent placeholders from flashing the asset's default weapon before becoming correctly unarmed.

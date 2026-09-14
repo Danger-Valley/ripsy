@@ -4,7 +4,7 @@ import { useRiveFile, type RiveFile } from '@rive-app/react-native';
 import { HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
 import { colors } from '../theme';
-import type { CombatAnimation, CombatAnimationPhase, PieceMoveAnimation } from '../game-animation';
+import { OPPONENT_MOVE_TRAVEL_DELAY_MS, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation } from '../game-animation';
 import { RiveGamePiece, type RiveActionTrigger } from './rive-game-piece';
 
 const figureAsset = require('../assets/figures/fig1.riv');
@@ -41,7 +41,7 @@ interface Props {
   moveProgress?: Animated.Value;
   showOpponentFormation?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
-  onMoveActionTriggered?: () => void;
+  onMoveActionTriggered?: (travelDelayMs?: number) => void;
   onMoveDestinationReady?: () => void;
 }
 
@@ -150,7 +150,9 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                           : undefined}
                         file={riveFile}
                         isMine={isMine}
-                        onActionTriggered={isMovingSource ? onMoveActionTriggered : undefined}
+                        onActionTriggered={isMovingSource
+                          ? () => onMoveActionTriggered?.(isMine ? 0 : OPPONENT_MOVE_TRAVEL_DELAY_MS)
+                          : undefined}
                         onConfigured={isMovingDestination ? onMoveDestinationReady : undefined}
                         piece={piece}
                         size={cellSize * 1.68}

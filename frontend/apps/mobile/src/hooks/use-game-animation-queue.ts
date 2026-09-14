@@ -30,7 +30,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const runningRef = useRef(false);
   const activeCombatRef = useRef<CombatAnimation | null>(null);
   const activeTimingCancelRef = useRef<(() => void) | null>(null);
-  const pendingMoveStartRef = useRef<(() => void) | null>(null);
+  const pendingMoveStartRef = useRef<((travelDelayMs?: number) => void) | null>(null);
   const pendingMoveFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingLandingReadyRef = useRef<(() => void) | null>(null);
   const pendingLandingFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -101,8 +101,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     else start();
   };
 
-  const startActiveMove = useCallback(() => {
-    pendingMoveStartRef.current?.();
+  const startActiveMove = useCallback((travelDelayMs = 0) => {
+    pendingMoveStartRef.current?.(travelDelayMs);
   }, []);
 
   const completeActiveMoveLanding = useCallback(() => {
@@ -233,19 +233,30 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
 
     if (transition.move) {
       let started = false;
-      const beginMove = () => {
+      const beginMove = (requestedTravelDelayMs = 0) => {
         if (started || !mountedRef.current || pendingMoveStartRef.current !== beginMove) return;
         started = true;
         pendingMoveStartRef.current = null;
         if (pendingMoveFallbackRef.current !== null) clearTimeout(pendingMoveFallbackRef.current);
         pendingMoveFallbackRef.current = null;
-        startProgressTiming(
-          pieceMoveDurationMs(transition.move!),
-          1,
-          Easing.bezier(0.22, 0.75, 0.25, 1),
-          finishMove,
-          false,
-        );
+        const fullJumpDurationMs = pieceMoveDurationMs(transition.move!);
+        const travelDelayMs = Math.max(0, Math.min(requestedTravelDelayMs, fullJumpDurationMs - 1));
+        const startTravel = () => {
+          pendingMoveFallbackRef.current = null;
+          if (!mountedRef.current) return;
+          startProgressTiming(
+            fullJumpDurationMs - travelDelayMs,
+            1,
+            Easing.bezier(0.22, 0.75, 0.25, 1),
+            finishMove,
+            false,
+          );
+        };
+        // Opponent figures hold their board position for the authored takeoff
+        // before container travel begins, while still landing at the end of the
+        // same Rive jump timeline.
+        if (travelDelayMs > 0) pendingMoveFallbackRef.current = setTimeout(startTravel, travelDelayMs);
+        else startTravel();
       };
       pendingMoveStartRef.current = beginMove;
       // Do not deadlock gameplay if a platform never supplies a Rive ref.

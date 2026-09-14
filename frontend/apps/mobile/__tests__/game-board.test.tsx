@@ -204,6 +204,7 @@ test('keeps the opponent front-facing when the local player is player 2', async 
 
 test('fires a Rive jump on the already configured moving figure', async () => {
   const state = createState();
+  const onMoveActionTriggered = jest.fn();
   const progress = new Animated.Value(0);
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
@@ -217,6 +218,7 @@ test('fires a Rive jump on the already configured moving figure', async () => {
           piece: Piece.Rock,
         }}
         moveProgress={progress}
+        onMoveActionTriggered={onMoveActionTriggered}
         ownOwner={Owner.P0}
         state={state}
       />,
@@ -227,6 +229,8 @@ test('fires a Rive jump on the already configured moving figure', async () => {
   expect(sourceCell.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(2);
   expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Forward');
+  sourceCell.findByType(RiveGamePiece).props.onActionTriggered('Jump Forward');
+  expect(onMoveActionTriggered).toHaveBeenCalledWith(0);
 
   const pieceStyle = StyleSheet.flatten(sourceCell.find(node => node.props.testID === 'piece-visual').props.style);
   expect(pieceStyle).toMatchObject({ zIndex: 21, elevation: 21 });
@@ -252,6 +256,7 @@ test('keeps an opponent moving down the board above later rows', async () => {
   state.owners[toIdx(0, 1)] = Owner.P1;
   state.pieces[toIdx(0, 1)] = Piece.Empty;
   const progress = new Animated.Value(0.6);
+  const onMoveActionTriggered = jest.fn();
   let renderer!: ReactTestRenderer.ReactTestRenderer;
 
   await ReactTestRenderer.act(() => {
@@ -265,6 +270,7 @@ test('keeps an opponent moving down the board above later rows', async () => {
           piece: Piece.Empty,
         }}
         moveProgress={progress}
+        onMoveActionTriggered={onMoveActionTriggered}
         ownOwner={Owner.P0}
         state={state}
       />,
@@ -280,6 +286,8 @@ test('keeps an opponent moving down the board above later rows', async () => {
   });
   expect(StyleSheet.flatten(sourceCell.props.style).backgroundColor).toBeUndefined();
   expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Forward');
+  sourceCell.findByType(RiveGamePiece).props.onActionTriggered('Jump Forward');
+  expect(onMoveActionTriggered).toHaveBeenCalledWith(100);
 });
 
 test('keeps the landed source visible while the destination Rive instance preloads', async () => {

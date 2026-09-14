@@ -57,6 +57,52 @@ test('starts container movement once and only after the mounted Rive trigger rep
   jest.useRealTimers();
 });
 
+test('delays opponent travel by 100 ms and shortens it to preserve the Rive landing time', async () => {
+  jest.useFakeTimers();
+  const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+    reset: jest.fn(),
+    start: jest.fn(),
+    stop: jest.fn(),
+  }));
+  const previous = activeState();
+  const next: GameState = {
+    ...previous,
+    isP1Turn: true,
+    owners: [...previous.owners],
+    pieces: [...previous.pieces],
+    tieFrom: { x: 0, y: 5 },
+    tieTo: { x: 0, y: 4 },
+  };
+  next.owners[toIdx(0, 5)] = Owner.None;
+  next.pieces[toIdx(0, 5)] = Piece.Empty;
+  next.owners[toIdx(0, 4)] = Owner.P0;
+  next.pieces[toIdx(0, 4)] = Piece.Rock;
+  let animation!: AnimationQueue;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<Probe state={previous} onRender={value => { animation = value; }} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.update(<Probe state={next} onRender={value => { animation = value; }} />);
+  });
+  await ReactTestRenderer.act(() => {
+    animation.startActiveMove(100);
+    jest.advanceTimersByTime(99);
+  });
+  expect(timing).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(1);
+  });
+  expect(timing).toHaveBeenCalledTimes(1);
+  expect(timing.mock.calls[0]?.[1]).toMatchObject({ duration: 650, toValue: 1, useNativeDriver: true });
+
+  await ReactTestRenderer.act(() => renderer.unmount());
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+});
+
 function activeState(): GameState {
   const owners: Owner[] = Array.from({ length: 49 }, () => Owner.None);
   const pieces: Piece[] = Array.from({ length: 49 }, () => Piece.Empty);

@@ -29,6 +29,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const queueRef = useRef<QueuedTransition[]>([]);
   const runningRef = useRef(false);
   const activeCombatRef = useRef<CombatAnimation | null>(null);
+  const activeTimingCancelRef = useRef<(() => void) | null>(null);
   const mountedRef = useRef(true);
   const drainRef = useRef<() => void>(() => undefined);
   const [displayedState, setDisplayedState] = useState<GameState | null>(null);
@@ -36,6 +37,62 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const [activeMove, setActiveMove] = useState<PieceMoveAnimation | null>(null);
   const [activeCombat, setActiveCombat] = useState<CombatAnimation | null>(null);
   const [combatPhase, setCombatPhase] = useState<CombatAnimationPhase | null>(null);
+
+  const startProgressTiming = (
+    duration: number,
+    toValue: number,
+    easing: ((value: number) => number) | undefined,
+    onComplete: () => void,
+  ) => {
+    activeTimingCancelRef.current?.();
+    let animation: Animated.CompositeAnimation | null = null;
+    let startTimer: ReturnType<typeof setTimeout> | null = null;
+    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+    let settled = false;
+
+    const clearTimers = () => {
+      if (startTimer !== null) clearTimeout(startTimer);
+      if (watchdogTimer !== null) clearTimeout(watchdogTimer);
+      startTimer = null;
+      watchdogTimer = null;
+    };
+    const cancel = () => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      animation?.stop();
+      if (activeTimingCancelRef.current === cancel) activeTimingCancelRef.current = null;
+    };
+    const finish = (forceEndValue = false) => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      if (forceEndValue) {
+        animation?.stop();
+        progress.setValue(toValue);
+      }
+      if (activeTimingCancelRef.current === cancel) activeTimingCancelRef.current = null;
+      if (mountedRef.current) onComplete();
+    };
+
+    activeTimingCancelRef.current = cancel;
+    // Let React commit the moving Rive view before the native driver starts.
+    // Starting in the same render turn can leave the native animation detached
+    // on a physical device, so its completion callback never arrives.
+    startTimer = setTimeout(() => {
+      if (settled || !mountedRef.current) return;
+      animation = Animated.timing(progress, {
+        duration,
+        easing,
+        toValue,
+        useNativeDriver: true,
+      });
+      // A canceled native callback must never leave the presentation queue —
+      // and therefore the local computer turn — permanently blocked.
+      watchdogTimer = setTimeout(() => finish(true), duration + 400);
+      animation.start(({ finished }) => finish(!finished));
+    }, 0);
+  };
 
   drainRef.current = () => {
     if (!mountedRef.current || runningRef.current) return;
@@ -64,13 +121,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     if (transition.combat) {
       const combat = transition.combat;
       if (combat.resolution === 'pending') {
-        Animated.timing(progress, {
-          duration: 620,
-          easing: Easing.bezier(0.22, 0.72, 0.24, 1),
-          toValue: 1.35,
-          useNativeDriver: true,
-        }).start(({ finished }) => {
-          if (!finished || !mountedRef.current) return;
+        startProgressTiming(620, 1.35, Easing.bezier(0.22, 0.72, 0.24, 1), () => {
           displayedRef.current = transition.state;
           setDisplayedState(transition.state);
           runningRef.current = false;
@@ -83,27 +134,12 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
 
       const finishAttack = () => {
         setCombatPhase('attack');
-        Animated.timing(progress, {
-          duration: combatAttackDurationMs(combat.winnerPiece) + 100,
-          toValue: 2,
-          useNativeDriver: true,
-        }).start(({ finished: attacked }) => {
-          if (!attacked || !mountedRef.current) return;
+        startProgressTiming(combatAttackDurationMs(combat.winnerPiece) + 100, 2, undefined, () => {
           setCombatPhase('death');
-          Animated.timing(progress, {
-            duration: 200,
-            toValue: 3,
-            useNativeDriver: true,
-          }).start(({ finished: died }) => {
-            if (!died || !mountedRef.current) return;
+          startProgressTiming(200, 3, undefined, () => {
             displayedRef.current = transition.state;
             setDisplayedState(transition.state);
-            Animated.timing(progress, {
-              duration: 260,
-              toValue: 4,
-              useNativeDriver: true,
-            }).start(({ finished: settled }) => {
-              if (!settled || !mountedRef.current) return;
+            startProgressTiming(260, 4, undefined, () => {
               runningRef.current = false;
               activeCombatRef.current = null;
               setActiveKind(null);
@@ -121,41 +157,30 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
         return;
       }
 
-      Animated.timing(progress, {
-        duration: 400,
-        toValue: 1,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!finished || !mountedRef.current) return;
+      startProgressTiming(400, 1, undefined, () => {
         finishAttack();
       });
       return;
     }
 
-    Animated.timing(progress, {
-      duration: transition.move ? pieceMoveDurationMs(transition.move) : 120,
-      easing: transition.move ? Easing.bezier(0.22, 0.75, 0.25, 1) : Easing.linear,
-      toValue: 1,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished || !mountedRef.current) return;
-      displayedRef.current = transition.state;
-      setDisplayedState(transition.state);
-      Animated.timing(progress, {
-        duration: transition.move ? 140 : transition.kind === 'battle' ? 260 : 160,
-        toValue: 2,
-        useNativeDriver: true,
-      }).start(({ finished: settled }) => {
-        if (!settled || !mountedRef.current) return;
-        runningRef.current = false;
-        setActiveKind(null);
-        setActiveMove(null);
-        setActiveCombat(null);
-        activeCombatRef.current = null;
-        setCombatPhase(null);
-        drainRef.current();
-      });
-    });
+    startProgressTiming(
+      transition.move ? pieceMoveDurationMs(transition.move) : 120,
+      1,
+      transition.move ? Easing.bezier(0.22, 0.75, 0.25, 1) : Easing.linear,
+      () => {
+        displayedRef.current = transition.state;
+        setDisplayedState(transition.state);
+        startProgressTiming(transition.move ? 140 : transition.kind === 'battle' ? 260 : 160, 2, undefined, () => {
+          runningRef.current = false;
+          setActiveKind(null);
+          setActiveMove(null);
+          setActiveCombat(null);
+          activeCombatRef.current = null;
+          setCombatPhase(null);
+          drainRef.current();
+        });
+      },
+    );
   };
 
   useEffect(() => {
@@ -165,6 +190,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     latestFingerprintRef.current = fingerprint;
 
     if (!displayedRef.current || displayedRef.current.gameId !== authoritativeState.gameId) {
+      activeTimingCancelRef.current?.();
       progress.stopAnimation();
       progress.setValue(0);
       queueRef.current = [];
@@ -198,6 +224,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       mountedRef.current = false;
       queueRef.current = [];
       activeCombatRef.current = null;
+      activeTimingCancelRef.current?.();
       progress.stopAnimation();
     };
   }, [progress]);

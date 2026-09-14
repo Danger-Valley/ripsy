@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 Baseline: `master` plus the lineup-deadline implementation documented below
 
 ## Purpose
@@ -233,6 +233,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 - Render the checkerboard backgrounds/borders as a dedicated static layer below transparent interactive cells and Rive artwork. Raise the moving artwork, its transparent source cell, and its entire transparent source row above later rows while preserving visible overflow. Raising only the child is insufficient on native Android, while raising a row that still owns opaque cell backgrounds clips the heads of figures overflowing from the row below. The cell remains the only hit target; its interactive bounds must not expand with the artwork.
 - Calculate the translation after converting server coordinates into player-visible coordinates so the same motion works for both players and for local/opponent figures.
 - Fire `Jump Left`, `Jump Right`, or `Jump Forward` on that mounted instance. Allow 200 ms for the Rive takeoff, then synchronize the container translation with the asset: 300 ms horizontal travel (500 ms total) or 500 ms vertical travel (700 ms total), using a shallow arc and subtle scale change. Reveal the new authoritative board at the destination and allow a 140 ms settle.
+- Start native-driver timing on the next event-loop turn, after React has committed the moving Rive view. Guard every presentation stage with a duration-bounded watchdog and advance the queue even if the platform reports a canceled animation or loses its completion callback. A permanently busy presentation queue blocks the offline AI scheduler and can leave `Moving piece…` visible forever.
 - If the next authoritative state has `tiePending`, do not run the positional movement yet. Wait for the weapon choices and play the resolved combat sequence instead of jumping into an occupied cell and snapping back.
 - Haptic move feedback fires only when a confirmed turn advance or board-changing finish is observed.
 

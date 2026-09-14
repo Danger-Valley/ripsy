@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import { Animated } from 'react-native';
 import { HEIGHT, Owner, Piece, WIDTH } from '@rps/core';
 import { useLocalComputerGame } from '../src/hooks/use-local-computer-game';
 import { useGameAnimationQueue } from '../src/hooks/use-game-animation-queue';
@@ -132,6 +133,72 @@ test('queues and displays the computer move after the player animation', async (
   await ReactTestRenderer.act(async () => {
     await jest.advanceTimersByTimeAsync(900);
   });
+  expect(animation.displayedState?.owners).toEqual(game.gameState.owners);
+
+  await ReactTestRenderer.act(() => renderer.unmount());
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+});
+
+test('computer still moves if the native animation completion callback is lost', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+  jest.spyOn(Math, 'random').mockReturnValue(0);
+  jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+    reset: jest.fn(),
+    start: jest.fn(),
+    stop: jest.fn(),
+  }));
+  let game!: LocalGame;
+  let animation!: LocalAnimation;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <AnimatedGameProbe onRender={(nextGame, nextAnimation) => {
+        game = nextGame;
+        animation = nextAnimation;
+      }} />,
+    );
+  });
+
+  const cells = Array.from({ length: WIDTH * 2 }, (_, index) => ({
+    x: index % WIDTH,
+    y: HEIGHT - 2 + Math.floor(index / WIDTH),
+  }));
+  const pieces = [
+    Piece.Rock, Piece.Rock, Piece.Rock, Piece.Rock,
+    Piece.Paper, Piece.Paper, Piece.Paper, Piece.Paper,
+    Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Scissors,
+    Piece.Flag, Piece.Trap,
+  ];
+
+  await ReactTestRenderer.act(async () => {
+    await game.submitLineup(cells.map(cell => cell.x), cells.map(cell => cell.y), pieces);
+  });
+  await ReactTestRenderer.act(async () => {
+    await jest.advanceTimersByTimeAsync(2_000);
+  });
+  expect(animation.isAnimating).toBe(false);
+
+  await ReactTestRenderer.act(async () => {
+    await game.movePiece(0, HEIGHT - 2, 0, HEIGHT - 3);
+  });
+  expect(game.gameState.isP1Turn).toBe(true);
+
+  await ReactTestRenderer.act(async () => {
+    await jest.advanceTimersByTimeAsync(2_000);
+  });
+  expect(animation.isAnimating).toBe(false);
+  await ReactTestRenderer.act(async () => {
+    await jest.advanceTimersByTimeAsync(1_000);
+  });
+  expect(game.gameState.isP1Turn).toBe(false);
+
+  await ReactTestRenderer.act(async () => {
+    await jest.advanceTimersByTimeAsync(2_000);
+  });
+  expect(animation.isAnimating).toBe(false);
   expect(animation.displayedState?.owners).toEqual(game.gameState.owners);
 
   await ReactTestRenderer.act(() => renderer.unmount());

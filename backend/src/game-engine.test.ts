@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Choice, Owner, Phase, Piece } from '@rps/core';
+import { Choice, Owner, Phase, Piece, toIdx } from '@rps/core';
 import {
   chooseWeapon,
   createGameRecord,
@@ -75,6 +75,34 @@ test('hides opponent pieces in player-specific views', () => {
   const alice = gameView(game, 'alice');
   const bobPieceIndex = game.owners.findIndex((owner) => owner === Owner.P1);
   assert.equal(alice.pieces[bobPieceIndex], Piece.Empty);
+});
+
+test('keeps a battle survivor weapon visible to the opponent after it moves', () => {
+  const game = createGameRecord('game-1', 'alice');
+  joinGame(game, 'bob');
+  submitLineup(game, 'alice', xs, aliceYs, lineup);
+  submitLineup(game, 'bob', xs, bobYs, lineup);
+
+  game.owners.fill(Owner.None);
+  game.pieces.fill(Piece.Empty);
+  game.revealed.fill(false);
+  game.live0 = 1;
+  game.live1 = 2;
+  game.owners[toIdx(0, 4)] = Owner.P0;
+  game.pieces[toIdx(0, 4)] = Piece.Rock;
+  game.owners[toIdx(0, 3)] = Owner.P1;
+  game.pieces[toIdx(0, 3)] = Piece.Scissors;
+  game.owners[toIdx(2, 1)] = Owner.P1;
+  game.pieces[toIdx(2, 1)] = Piece.Paper;
+
+  movePiece(game, 'alice', 0, 4, 0, 3);
+  assert.equal(gameView(game, 'bob').pieces[toIdx(0, 3)], Piece.Rock);
+  assert.equal(gameView(game, 'alice').pieces[toIdx(2, 1)], Piece.Empty, 'unrevealed pieces stay hidden');
+
+  movePiece(game, 'bob', 2, 1, 2, 2);
+  movePiece(game, 'alice', 0, 3, 0, 2);
+  assert.equal(gameView(game, 'bob').pieces[toIdx(0, 2)], Piece.Rock, 'revealed identity follows the piece');
+  assert.equal(game.revealed[toIdx(0, 3)], false);
 });
 
 test('rejects spectators and invalid battle choices', () => {

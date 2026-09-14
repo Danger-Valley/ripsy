@@ -229,7 +229,7 @@ export class RedisGameStore {
     const value = await this.redis.get(this.gameKey(gameId));
     if (!value) throw new Error('Game not found');
     const storedVersion = (JSON.parse(value) as { schemaVersion?: number }).schemaVersion;
-    if (storedVersion !== 3) {
+    if (storedVersion !== 4) {
       return this.mutateAndGetRecord(gameId, () => undefined);
     }
     const game = parseGameRecord(value, this.now());

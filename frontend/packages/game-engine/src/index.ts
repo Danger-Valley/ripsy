@@ -24,7 +24,7 @@ const REQUIRED_PIECES = new Map<number, number>([
 ]);
 
 export interface GameRecord {
-  schemaVersion: 3;
+  schemaVersion: 4;
   id: string;
   phase: GameState['phase'];
   p0: string;
@@ -39,6 +39,7 @@ export interface GameRecord {
   isP1Turn: boolean;
   owners: Owner[];
   pieces: Piece[];
+  revealed: boolean[];
   choices: [Choice, Choice];
   live0: number;
   live1: number;
@@ -55,7 +56,7 @@ export interface GameRecord {
 export function createGameRecord(id: string, playerId: string, now = new Date()): GameRecord {
   const timestamp = now.toISOString();
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     id,
     phase: Phase.Created,
     p0: playerId,
@@ -70,6 +71,7 @@ export function createGameRecord(id: string, playerId: string, now = new Date())
     isP1Turn: false,
     owners: Array(CELLS).fill(Owner.None),
     pieces: Array(CELLS).fill(Piece.Empty),
+    revealed: Array(CELLS).fill(false),
     choices: [Choice.None, Choice.None],
     live0: 0,
     live1: 0,
@@ -139,6 +141,7 @@ export function submitLineup(
     if (game.owners[index] !== owner) continue;
     game.owners[index] = Owner.None;
     game.pieces[index] = Piece.Empty;
+    game.revealed[index] = false;
   }
   for (const position of positions) {
     if (game.owners[position.index] !== Owner.None) throw new Error('A lineup cell is already occupied');
@@ -211,6 +214,10 @@ export function movePiece(
     return;
   }
   if (game.owners[to] !== opponent) throw new Error('Invalid destination');
+  // Once two pieces have fought, both identities are public knowledge. Keep
+  // that knowledge on the surviving piece as it moves around the board.
+  game.revealed[from] = true;
+  game.revealed[to] = true;
   if (defender === Piece.Trap) {
     remove(game, from, owner);
     game.outcome = -1;
@@ -291,7 +298,7 @@ export function gameView(game: GameRecord, playerId: string, now = new Date()): 
   const isParticipant = playerId === game.p0 || playerId === game.p1;
   const ownOwner = playerId === game.p0 ? Owner.P0 : playerId === game.p1 ? Owner.P1 : Owner.None;
   const pieces = game.pieces.map((piece, index) => {
-    if (game.phase === Phase.Finished || game.owners[index] === ownOwner) return piece;
+    if (game.phase === Phase.Finished || game.owners[index] === ownOwner || game.revealed[index]) return piece;
     return Piece.Empty;
   });
   const [clock0Ms, clock1Ms] = effectiveClocks(game, now);
@@ -326,7 +333,7 @@ export function gameView(game: GameRecord, playerId: string, now = new Date()): 
 export function parseGameRecord(value: string, now = new Date()): GameRecord {
   const stored = JSON.parse(value) as Omit<Partial<GameRecord>, 'schemaVersion'> & { schemaVersion?: number };
   if (
-    (stored.schemaVersion !== 1 && stored.schemaVersion !== 2 && stored.schemaVersion !== 3) ||
+    (stored.schemaVersion !== 1 && stored.schemaVersion !== 2 && stored.schemaVersion !== 3 && stored.schemaVersion !== 4) ||
     !stored.id ||
     !Array.isArray(stored.owners) ||
     !Array.isArray(stored.pieces) ||
@@ -337,7 +344,8 @@ export function parseGameRecord(value: string, now = new Date()): GameRecord {
   }
   return {
     ...(stored as GameRecord),
-    schemaVersion: 3,
+    schemaVersion: 4,
+    revealed: validRevealed(stored.revealed),
     finishReason: stored.finishReason ?? null,
     clock0Ms: validClock(stored.clock0Ms),
     clock1Ms: validClock(stored.clock1Ms),
@@ -419,6 +427,12 @@ function validClock(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : GAME_CLOCK_INITIAL_MS;
 }
 
+function validRevealed(value: unknown): boolean[] {
+  return Array.isArray(value) && value.length === CELLS && value.every(item => typeof item === 'boolean')
+    ? [...value]
+    : Array(CELLS).fill(false);
+}
+
 function legacyLineupDeadline(
   value: unknown,
   phase: GameState['phase'] | undefined,
@@ -437,15 +451,19 @@ function requireParticipant(game: GameRecord, playerId: string) {
 }
 
 function relocate(game: GameRecord, from: number, to: number, owner: Owner, piece: Piece) {
+  const revealed = game.revealed[from] ?? false;
   game.owners[from] = Owner.None;
   game.pieces[from] = Piece.Empty;
+  game.revealed[from] = false;
   game.owners[to] = owner;
   game.pieces[to] = piece;
+  game.revealed[to] = revealed;
 }
 
 function remove(game: GameRecord, index: number, owner: Owner) {
   game.owners[index] = Owner.None;
   game.pieces[index] = Piece.Empty;
+  game.revealed[index] = false;
   if (owner === Owner.P0) game.live0 = Math.max(0, game.live0 - 1);
   if (owner === Owner.P1) game.live1 = Math.max(0, game.live1 - 1);
 }

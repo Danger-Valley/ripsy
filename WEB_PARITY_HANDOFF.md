@@ -67,6 +67,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 - The game becomes active only after both lineups are saved.
 - Player 0 moves first.
 - Lineups and opponent weapons are hidden by `gameView`; never infer or expose hidden pieces client-side.
+- After a piece participates in a resolved or pending attack, its identity is public for the rest of that piece's life. Backend schema v4 stores a per-cell `revealed` mask, moves it with a surviving piece, clears it on removal, and `gameView` returns the real `pieces[index]` value to both players at revealed cells. Web must render that returned weapon instead of replacing every opponent piece with an unarmed placeholder; unrevealed opponent cells still arrive as `Piece.Empty`.
 - During lineup configuration, native interaction is intentionally shuffle-only. Tapping two pieces must not swap their weapons or positions.
 - Saving remains explicit. The UI must distinguish unsaved, changed, saved, and ready states.
 
@@ -148,7 +149,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 ## Three-minute lineup deadlines
 
 - `LINEUP_SETUP_DURATION_MS` is shared from `@rps/core` and currently equals 180,000 ms.
-- Redis game schema v3 persists `lineupDeadline0At` and `lineupDeadline1At` as absolute epoch milliseconds. Existing schema-v1/v2 records migrate on first read.
+- Redis game schema v4 persists `lineupDeadline0At`, `lineupDeadline1At`, and the per-cell `revealed` mask. Existing schema-v1/v2/v3 records migrate on first read.
 - Lineup and active-turn deadlines share the existing Redis sorted-set scheduler. Every Railway replica may poll it; CAS guarantees a single cancellation and Pub/Sub broadcasts the authoritative finished state.
 - Wire state exposes only the viewing player's `lineupDeadlineAt`; clients do not need the opponent's private setup deadline.
 - Native ticks the displayed setup countdown locally from the authoritative absolute deadline, but only the server can cancel an online game.

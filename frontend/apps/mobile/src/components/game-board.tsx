@@ -56,21 +56,23 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
 
   return (
     <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]} testID="game-board">
-      <View pointerEvents="none" style={styles.grid} testID="board-grid">
-        {Array.from({ length: HEIGHT }, (_, displayY) => (
-          <View key={displayY} style={styles.gridRow}>
-            {Array.from({ length: WIDTH }, (_unused, displayX) => (
-              <View
-                key={displayX}
-                style={[
-                  styles.gridCell,
-                  { width: cellSize, height: cellSize },
-                  (displayX + displayY) % 2 === 0 && styles.alternateGridCell,
-                ]}
-              />
-            ))}
-          </View>
-        ))}
+      <View pointerEvents="none" style={styles.boardSurface} testID="board-surface">
+        <View style={styles.grid} testID="board-grid">
+          {Array.from({ length: HEIGHT }, (_, displayY) => (
+            <View key={displayY} style={styles.gridRow}>
+              {Array.from({ length: WIDTH }, (_unused, displayX) => (
+                <View
+                  key={displayX}
+                  style={[
+                    styles.gridCell,
+                    { width: cellSize, height: cellSize },
+                    (displayX + displayY) % 2 === 0 && styles.alternateGridCell,
+                  ]}
+                />
+              ))}
+            </View>
+          ))}
+        </View>
       </View>
       {Array.from({ length: HEIGHT }, (_, displayY) => (
         <View
@@ -358,8 +360,9 @@ function opponentOf(owner: Owner): Owner {
 }
 
 const styles = StyleSheet.create({
-  board: { alignSelf: 'center', backgroundColor: '#142029', borderColor: colors.primaryMuted, borderWidth: boardBorderWidth, borderRadius: 10, overflow: 'visible' },
-  grid: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  board: { alignSelf: 'center', padding: boardBorderWidth, overflow: 'visible' },
+  boardSurface: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#142029', borderColor: colors.primaryMuted, borderWidth: boardBorderWidth, borderRadius: 10, overflow: 'hidden' },
+  grid: { position: 'absolute', top: boardBorderWidth, right: boardBorderWidth, bottom: boardBorderWidth, left: boardBorderWidth },
   gridRow: { flexDirection: 'row' },
   gridCell: { backgroundColor: '#142029', borderColor: '#243641', borderWidth: StyleSheet.hairlineWidth },
   alternateGridCell: { backgroundColor: '#182731' },

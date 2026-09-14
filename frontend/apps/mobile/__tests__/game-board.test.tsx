@@ -54,14 +54,21 @@ test('exposes piece names and only actionable cells as buttons', async () => {
   const pieceVisuals = renderer.root.findAll(node => node.props.testID === 'piece-visual');
   expect(pieceVisuals.length).toBeGreaterThanOrEqual(2);
   expect(pieceVisuals.every(visual => visual.props.pointerEvents === 'none')).toBe(true);
-  expect(StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style).overflow).toBe('visible');
+  const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
+  const surfaceStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-surface' }).props.style);
+  expect(boardStyle.overflow).toBe('visible');
+  expect(surfaceStyle).toMatchObject({
+    borderColor: '#45A29E',
+    borderRadius: 10,
+    borderWidth: 2,
+    overflow: 'hidden',
+  });
   expect(pieceVisuals.every(visual => {
     const style = StyleSheet.flatten(visual.props.style);
     return style.backgroundColor === undefined && style.borderColor === undefined && style.borderWidth === undefined;
   })).toBe(true);
-  const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
   const firstCellStyle = StyleSheet.flatten(cells[0]?.props.style);
-  expect(firstCellStyle.width * WIDTH + boardStyle.borderWidth * 2).toBeCloseTo(boardStyle.width);
+  expect(firstCellStyle.width * WIDTH + surfaceStyle.borderWidth * 2).toBeCloseTo(boardStyle.width);
 });
 
 test('announces selected pieces and legal move targets', async () => {
@@ -462,7 +469,8 @@ test('keeps enlarged combatants visibly separated around the fight midpoint', as
   });
 
   const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
-  const cellSize = (boardStyle.width - boardStyle.borderWidth * 2) / WIDTH;
+  const surfaceStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-surface' }).props.style);
+  const cellSize = (boardStyle.width - surfaceStyle.borderWidth * 2) / WIDTH;
   const leftFighterStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'combat-loser' }).props.style);
   const rightFighterStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'combat-winner' }).props.style);
   const leftFinalX = leftFighterStyle.left + leftFighterStyle.transform[0].translateX.__getValue();

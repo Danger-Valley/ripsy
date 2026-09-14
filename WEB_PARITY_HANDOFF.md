@@ -193,6 +193,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 ### Board geometry and hit testing
 
 - Board must remain square and fit the viewport; native formula is `min(viewport width - 32, 600)`.
+- Render the checkerboard and rounded outer frame inside one clipped surface layer so square corner cells cannot protrude through the curve. Keep piece artwork in a separate visible-overflow layer above it; never clip the whole board just to fix the corners.
 - Player 1 sees both axes reversed so the player’s own formation remains at the bottom.
 - Piece artwork intentionally overflows its cell and the board frame. The board uses visible overflow; never clip heads at the top border.
 - The visual overflow must not expand the interactive hit area. Pointer events belong to the cell, while the Rive visual is non-interactive.

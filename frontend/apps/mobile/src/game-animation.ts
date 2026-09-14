@@ -1,6 +1,6 @@
 import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 
-export type GameAnimationKind = 'move' | 'battle' | 'phase';
+export type GameAnimationKind = 'move' | 'battle' | 'trap' | 'phase';
 
 export interface PieceMoveAnimation {
   from: { x: number; y: number };
@@ -22,6 +22,14 @@ export interface CombatAnimation {
   winnerPiece: Piece;
 }
 
+export interface TrapAnimation {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  attackerOwner: Owner;
+  trapOwner: Owner;
+  attackerPiece: Piece;
+}
+
 export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death' | 'settle';
 
 // Read from fig1.riv: Jump Forward is 45 frames and Jump Left/Right are
@@ -33,6 +41,7 @@ const RIVE_JUMP_HORIZONTAL_FRAMES = 38;
 export const RIVE_JUMP_TRAVEL_DELAY_MS = 100;
 export const REPEATED_TIE_REVEAL_MS = 900;
 export const COMBAT_WINNER_SETTLE_MS = 320;
+export const RIVE_TRAP_DURATION_MS = 47 / RIVE_TIMELINE_FPS * 1000;
 
 export function combatAttackDurationMs(piece: Piece) {
   if (piece === Piece.Rock) return 383;
@@ -75,6 +84,7 @@ export function gameStateFingerprint(state: GameState): string {
 
 export function classifyGameTransition(previous: GameState, next: GameState): GameAnimationKind {
   const boardChanged = !arraysEqual(previous.owners, next.owners) || !arraysEqual(previous.pieces, next.pieces);
+  if (boardChanged && next.defender === Piece.Trap && next.outcome === -1) return 'trap';
   const battleChanged = previous.tiePending !== next.tiePending
     || (previous.tieRound ?? 0) !== (next.tieRound ?? 0)
     || previous.live0 !== next.live0
@@ -98,6 +108,7 @@ export function isCompletedMoveTransition(previous: GameState, next: GameState):
 
 export function getPieceMoveAnimation(previous: GameState, next: GameState): PieceMoveAnimation | null {
   if (previous.gameId !== next.gameId || previous.phase !== Phase.Active || previous.tiePending || next.tiePending) return null;
+  if (next.defender === Piece.Trap && next.outcome === -1) return null;
   const boardChanged = !arraysEqual(previous.owners, next.owners) || !arraysEqual(previous.pieces, next.pieces);
   const moveConfirmed = previous.isP1Turn !== next.isP1Turn
     || (!previous.tiePending && next.tiePending)
@@ -141,6 +152,35 @@ export function getPieceMoveAnimation(previous: GameState, next: GameState): Pie
     to: destinationCandidates[0]!,
     owner: attackerOwner,
     piece: previous.pieces[fromIndex] ?? Piece.Empty,
+  };
+}
+
+export function getTrapAnimation(previous: GameState, next: GameState): TrapAnimation | null {
+  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active) return null;
+  if (next.defender !== Piece.Trap || next.outcome !== -1 || next.tiePending) return null;
+
+  const from = next.tieFrom;
+  const to = next.tieTo;
+  if (!isBoardCoordinate(from) || !isBoardCoordinate(to) || !isAdjacent(from, to)) return null;
+
+  const fromIndex = toIdx(from.x, from.y);
+  const toIndex = toIdx(to.x, to.y);
+  const attackerOwner = previous.owners[fromIndex] ?? Owner.None;
+  const trapOwner = previous.owners[toIndex] ?? Owner.None;
+  if (!isPlayerOwner(attackerOwner) || !isPlayerOwner(trapOwner) || attackerOwner === trapOwner) return null;
+  if (
+    next.owners[fromIndex] !== Owner.None
+    || next.owners[toIndex] !== trapOwner
+    || next.pieces[toIndex] !== Piece.Trap
+  ) return null;
+  if (next.attacker < Piece.Rock || next.attacker > Piece.Flag) return null;
+
+  return {
+    from,
+    to,
+    attackerOwner,
+    trapOwner,
+    attackerPiece: next.attacker as Piece,
   };
 }
 
@@ -208,6 +248,10 @@ function isBoardCoordinate(coordinate: { x: number; y: number }): boolean {
 
 function isBattlePiece(piece: number): piece is Piece {
   return piece === Piece.Rock || piece === Piece.Paper || piece === Piece.Scissors;
+}
+
+function isPlayerOwner(owner: Owner): owner is typeof Owner.P0 | typeof Owner.P1 {
+  return owner === Owner.P0 || owner === Owner.P1;
 }
 
 function isAdjacent(from: { x: number; y: number }, to: { x: number; y: number }): boolean {

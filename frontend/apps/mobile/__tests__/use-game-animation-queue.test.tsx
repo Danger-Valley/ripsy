@@ -2,7 +2,7 @@ import React from 'react';
 import { Animated } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { Choice, Owner, Phase, Piece, toIdx, type GameState } from '@rps/core';
-import { COMBAT_WINNER_SETTLE_MS } from '../src/game-animation';
+import { COMBAT_WINNER_SETTLE_MS, RIVE_TRAP_DURATION_MS } from '../src/game-animation';
 import { useGameAnimationQueue } from '../src/hooks/use-game-animation-queue';
 
 type AnimationQueue = ReturnType<typeof useGameAnimationQueue>;
@@ -101,6 +101,63 @@ test('delays board travel by 100 ms and shortens it to preserve the Rive landing
 
   await ReactTestRenderer.act(() => renderer.unmount());
   jest.restoreAllMocks();
+  jest.useRealTimers();
+});
+
+test('keeps a trap collision mounted until both Rive actions complete their shared timeline', async () => {
+  jest.useFakeTimers();
+  const previous = activeState();
+  previous.owners[toIdx(0, 4)] = Owner.P1;
+  previous.pieces[toIdx(0, 4)] = Piece.Empty;
+  const next: GameState = {
+    ...previous,
+    attacker: Piece.Rock,
+    defender: Piece.Trap,
+    outcome: -1,
+    isP1Turn: true,
+    live0: 0,
+    owners: [...previous.owners],
+    pieces: [...previous.pieces],
+    tieFrom: { x: 0, y: 5 },
+    tieTo: { x: 0, y: 4 },
+  };
+  next.owners[toIdx(0, 5)] = Owner.None;
+  next.pieces[toIdx(0, 5)] = Piece.Empty;
+  next.owners[toIdx(0, 4)] = Owner.P1;
+  next.pieces[toIdx(0, 4)] = Piece.Trap;
+  let animation!: AnimationQueue;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<Probe state={previous} onRender={value => { animation = value; }} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.update(<Probe state={next} onRender={value => { animation = value; }} />);
+  });
+
+  expect(animation.activeKind).toBe('trap');
+  expect(animation.activeMove).toBeNull();
+  expect(animation.activeTrap).toMatchObject({
+    from: { x: 0, y: 5 },
+    to: { x: 0, y: 4 },
+    attackerPiece: Piece.Rock,
+  });
+  expect(animation.displayedState?.pieces[toIdx(0, 4)]).toBe(Piece.Trap);
+
+  await ReactTestRenderer.act(() => {
+    animation.startActiveTrap('Trap Activate');
+    jest.advanceTimersByTime(Math.ceil(RIVE_TRAP_DURATION_MS));
+  });
+  expect(animation.activeKind).toBe('trap');
+
+  await ReactTestRenderer.act(() => {
+    animation.startActiveTrap('Fall In Trap');
+    jest.advanceTimersByTime(Math.ceil(RIVE_TRAP_DURATION_MS));
+  });
+  expect(animation.activeKind).toBeNull();
+  expect(animation.activeTrap).toBeNull();
+
+  await ReactTestRenderer.act(() => renderer.unmount());
   jest.useRealTimers();
 });
 

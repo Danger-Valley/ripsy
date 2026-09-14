@@ -66,6 +66,52 @@ test('clears the weapon value and visibility before entering trap idle', async (
   );
 });
 
+test('activates a mounted trap only after its hidden idle state is configured', async () => {
+  const onActionTriggered = jest.fn();
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <RiveGamePiece
+        actionTrigger="Trap Activate"
+        file={{} as never}
+        isMine
+        onActionTriggered={onActionTriggered}
+        piece={Piece.Trap}
+        size={80}
+      />,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.triggerInput.mock.calls.map(([trigger]) => trigger)).toEqual([
+    'Trap Idle',
+    'Trap Activate',
+  ]);
+  expect(onActionTriggered).toHaveBeenCalledWith('Trap Activate');
+});
+
+test('starts the falling victim animation after its weapon is configured', async () => {
+  const onActionTriggered = jest.fn();
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <RiveGamePiece
+        actionTrigger="Fall In Trap"
+        file={{} as never}
+        isMine
+        onActionTriggered={onActionTriggered}
+        piece={Piece.Paper}
+        size={80}
+      />,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('Weapon', Piece.Paper);
+  expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Fall In Trap');
+  expect(onActionTriggered).toHaveBeenCalledWith('Fall In Trap');
+});
+
 test('fires a movement trigger only after the state machine starts', async () => {
   const onActionTriggered = jest.fn();
   let renderer!: ReactTestRenderer.ReactTestRenderer;

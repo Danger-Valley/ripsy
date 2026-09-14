@@ -8,18 +8,24 @@ import {
   gameStateFingerprint,
   getCombatAnimation,
   getPieceMoveAnimation,
+  getTrapAnimation,
   pieceMoveDurationMs,
   REPEATED_TIE_REVEAL_MS,
+  RIVE_TRAP_DURATION_MS,
   type CombatAnimation,
   type CombatAnimationPhase,
   type GameAnimationKind,
   type PieceMoveAnimation,
+  type TrapAnimation,
 } from '../game-animation';
+
+type TrapTrigger = 'Trap Activate' | 'Fall In Trap';
 
 interface QueuedTransition {
   kind: GameAnimationKind;
   combat: CombatAnimation | null;
   move: PieceMoveAnimation | null;
+  trap: TrapAnimation | null;
   state: GameState;
 }
 
@@ -36,6 +42,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const pendingMoveFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingLandingReadyRef = useRef<(() => void) | null>(null);
   const pendingLandingFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingTrapStartRef = useRef<((trigger?: TrapTrigger) => void) | null>(null);
+  const pendingTrapFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const drainRef = useRef<() => void>(() => undefined);
   const [displayedState, setDisplayedState] = useState<GameState | null>(null);
@@ -43,6 +51,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const [activeMove, setActiveMove] = useState<PieceMoveAnimation | null>(null);
   const [activeCombat, setActiveCombat] = useState<CombatAnimation | null>(null);
   const [combatPhase, setCombatPhase] = useState<CombatAnimationPhase | null>(null);
+  const [activeTrap, setActiveTrap] = useState<TrapAnimation | null>(null);
 
   const startProgressTiming = (
     duration: number,
@@ -129,6 +138,10 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     pendingLandingReadyRef.current?.();
   }, []);
 
+  const startActiveTrap = useCallback((trigger: TrapTrigger) => {
+    pendingTrapStartRef.current?.(trigger);
+  }, []);
+
   drainRef.current = () => {
     if (!mountedRef.current || runningRef.current) return;
     const transition = queueRef.current.shift();
@@ -148,6 +161,9 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     if (pendingLandingFallbackRef.current !== null) clearTimeout(pendingLandingFallbackRef.current);
     pendingLandingFallbackRef.current = null;
     pendingLandingReadyRef.current = null;
+    if (pendingTrapFallbackRef.current !== null) clearTimeout(pendingTrapFallbackRef.current);
+    pendingTrapFallbackRef.current = null;
+    pendingTrapStartRef.current = null;
     const resumesPendingCombat = Boolean(
       transition.combat?.resolution === 'resolved'
       && activeCombatRef.current?.resolution === 'pending',
@@ -160,9 +176,46 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     setActiveKind(transition.kind);
     setActiveMove(transition.move);
     setActiveCombat(transition.combat);
+    setActiveTrap(transition.trap);
     activeCombatRef.current = transition.combat;
     setCombatPhase(transition.combat ? (resumesPendingCombat ? 'attack' : revealsRepeatedTie ? 'hold' : 'prepare') : null);
     progress.setValue(resumesPendingCombat || revealsRepeatedTie ? 1.35 : 0);
+
+    const completeTransition = () => {
+      runningRef.current = false;
+      setActiveKind(null);
+      setActiveMove(null);
+      setActiveCombat(null);
+      setActiveTrap(null);
+      activeCombatRef.current = null;
+      setCombatPhase(null);
+      drainRef.current();
+    };
+
+    if (transition.trap) {
+      const triggered = new Set<TrapTrigger>();
+      let started = false;
+      // The authoritative board keeps the trap mounted in its destination;
+      // the removed attacker is rendered as a temporary overlay above it.
+      displayedRef.current = transition.state;
+      setDisplayedState(transition.state);
+
+      const startTrapTimeline = (trigger?: TrapTrigger) => {
+        if (trigger) triggered.add(trigger);
+        if (trigger && triggered.size < 2) return;
+        if (started) return;
+        started = true;
+        pendingTrapStartRef.current = null;
+        if (pendingTrapFallbackRef.current !== null) clearTimeout(pendingTrapFallbackRef.current);
+        pendingTrapFallbackRef.current = null;
+        startPresentationDelay(RIVE_TRAP_DURATION_MS, completeTransition);
+      };
+
+      pendingTrapStartRef.current = startTrapTimeline;
+      // Never leave gameplay blocked if a native Rive callback is lost.
+      pendingTrapFallbackRef.current = setTimeout(() => startTrapTimeline(), 750);
+      return;
+    }
 
     if (transition.combat) {
       const combat = transition.combat;
@@ -203,6 +256,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
               setActiveKind(null);
               setActiveMove(null);
               setActiveCombat(null);
+              setActiveTrap(null);
               setCombatPhase(null);
               drainRef.current();
             });
@@ -220,16 +274,6 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       });
       return;
     }
-
-    const completeTransition = () => {
-      runningRef.current = false;
-      setActiveKind(null);
-      setActiveMove(null);
-      setActiveCombat(null);
-      activeCombatRef.current = null;
-      setCombatPhase(null);
-      drainRef.current();
-    };
 
     const finishMove = () => {
       displayedRef.current = transition.state;
@@ -319,6 +363,9 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       if (pendingLandingFallbackRef.current !== null) clearTimeout(pendingLandingFallbackRef.current);
       pendingLandingFallbackRef.current = null;
       pendingLandingReadyRef.current = null;
+      if (pendingTrapFallbackRef.current !== null) clearTimeout(pendingTrapFallbackRef.current);
+      pendingTrapFallbackRef.current = null;
+      pendingTrapStartRef.current = null;
       progress.stopAnimation();
       progress.setValue(0);
       queueRef.current = [];
@@ -327,6 +374,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       setActiveKind(null);
       setActiveMove(null);
       setActiveCombat(null);
+      setActiveTrap(null);
       setCombatPhase(null);
       displayedRef.current = authoritativeState;
       latestStateRef.current = authoritativeState;
@@ -335,11 +383,13 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     }
 
     const baseline = latestStateRef.current ?? displayedRef.current;
-    const combat = getCombatAnimation(baseline, authoritativeState);
+    const trap = getTrapAnimation(baseline, authoritativeState);
+    const combat = trap ? null : getCombatAnimation(baseline, authoritativeState);
     queueRef.current.push({
       kind: classifyGameTransition(baseline, authoritativeState),
       combat,
-      move: combat ? null : getPieceMoveAnimation(baseline, authoritativeState),
+      move: combat || trap ? null : getPieceMoveAnimation(baseline, authoritativeState),
+      trap,
       state: authoritativeState,
     });
     latestStateRef.current = authoritativeState;
@@ -359,6 +409,9 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       if (pendingLandingFallbackRef.current !== null) clearTimeout(pendingLandingFallbackRef.current);
       pendingLandingFallbackRef.current = null;
       pendingLandingReadyRef.current = null;
+      if (pendingTrapFallbackRef.current !== null) clearTimeout(pendingTrapFallbackRef.current);
+      pendingTrapFallbackRef.current = null;
+      pendingTrapStartRef.current = null;
       progress.stopAnimation();
     };
   }, [progress]);
@@ -369,9 +422,11 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     activeMove,
     activeCombat,
     combatPhase,
+    activeTrap,
     isAnimating: activeKind !== null,
     progress,
     startActiveMove,
+    startActiveTrap,
     completeActiveMoveLanding,
     opacity: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.55, 1] }),
     scale: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 1.025, 1] }),

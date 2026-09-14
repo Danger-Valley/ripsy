@@ -291,6 +291,7 @@ Verified locally on 2026-09-14 with the production Next.js build and browser che
 
 ### Trap activation animation
 
+- Mobile and web now share the same trap presentation contract; keep both implementations in parity when changing the Rive asset or its timing.
 - A confirmed collision with `defender === Piece.Trap` and `outcome === -1` is its own `trap` presentation transition. Never classify it as a normal move or publish the post-collision board immediately.
 - Publish the authoritative destination trap into the displayed board first so its existing Rive instance stays mounted, then fire `Trap Activate` on that instance and render the removed attacker as an overlay in the same cell with `Fall In Trap`.
 - Start the presentation clock only after both Rive triggers report that they fired, with a bounded fallback if either callback is unavailable. `Trap Front`/`Trap Back` and `Fall In Trap Front`/`Fall In Trap Back` are all 47 frames at 60 FPS, so the synchronized scene lasts 783 ms.

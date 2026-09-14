@@ -5,8 +5,10 @@ import {
   gameStateFingerprint,
   getCombatAnimation,
   getPieceMoveAnimation,
+  getTrapAnimation,
   isCompletedMoveTransition,
   pieceMoveDurationMs,
+  RIVE_TRAP_DURATION_MS,
 } from '../src/game-animation';
 
 const baseState: GameState = {
@@ -121,6 +123,46 @@ test('uses recorded coordinates when an attacking piece loses and only the sourc
     to: { x: 0, y: 0 },
     owner: Owner.P0,
   });
+});
+
+test('extracts a trap collision as its own Rive animation', () => {
+  const withAttacker = withBoard(baseState, 35, Owner.P0, Piece.Rock);
+  // An opponent trap may still be hidden in the previous client state.
+  const previous = withBoard(withAttacker, 28, Owner.P1, Piece.Empty);
+  const next = withBoard(
+    {
+      ...previous,
+      attacker: Piece.Rock,
+      defender: Piece.Trap,
+      outcome: -1,
+      isP1Turn: true,
+      live0: 13,
+      tieFrom: { x: 0, y: 5 },
+      tieTo: { x: 0, y: 4 },
+    },
+    35,
+    Owner.None,
+    Piece.Empty,
+    28,
+    Owner.P1,
+    Piece.Trap,
+  );
+
+  expect(classifyGameTransition(previous, next)).toBe('trap');
+  expect(getPieceMoveAnimation(previous, next)).toBeNull();
+  expect(getCombatAnimation(previous, next)).toBeNull();
+  expect(getTrapAnimation(previous, next)).toEqual({
+    from: { x: 0, y: 5 },
+    to: { x: 0, y: 4 },
+    attackerOwner: Owner.P0,
+    trapOwner: Owner.P1,
+    attackerPiece: Piece.Rock,
+  });
+  expect(Math.round(RIVE_TRAP_DURATION_MS)).toBe(783);
+});
+
+test('does not infer a trap scene without the authoritative trap result', () => {
+  expect(getTrapAnimation(baseState, { ...baseState, defender: Piece.Trap })).toBeNull();
 });
 
 test('extracts both fighters and the winner from a resolved battle', () => {

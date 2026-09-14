@@ -116,6 +116,44 @@ test('does not make traps selectable during an active turn', async () => {
   expect(trapCell.props.accessibilityHint).toBeUndefined();
 });
 
+test('renders synchronized trap activation and falling victim Rive actions', async () => {
+  const state = createState();
+  state.owners.fill(Owner.None);
+  state.pieces.fill(Piece.Empty);
+  state.owners[toIdx(0, 4)] = Owner.P1;
+  state.pieces[toIdx(0, 4)] = Piece.Trap;
+  const onTrapActionTriggered = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <GameBoard
+        isPlayer1={false}
+        onTrapActionTriggered={onTrapActionTriggered}
+        ownOwner={Owner.P0}
+        state={state}
+        trapAnimation={{
+          from: { x: 0, y: 5 },
+          to: { x: 0, y: 4 },
+          attackerOwner: Owner.P0,
+          trapOwner: Owner.P1,
+          attackerPiece: Piece.Rock,
+        }}
+      />,
+    );
+  });
+
+  expect(renderer.root.findByProps({ testID: 'trap-scene' })).toBeDefined();
+  const trapFigures = renderer.root.findAllByType(RiveGamePiece);
+  expect(trapFigures).toHaveLength(2);
+  expect(trapFigures.map(figure => figure.props.actionTrigger).sort()).toEqual([
+    'Fall In Trap',
+    'Trap Activate',
+  ]);
+  expect(trapFigures.find(figure => figure.props.actionTrigger === 'Trap Activate')?.props.piece).toBe(Piece.Trap);
+  expect(trapFigures.find(figure => figure.props.actionTrigger === 'Fall In Trap')?.props.piece).toBe(Piece.Rock);
+});
+
 test('renders the local lineup preview as non-interactive before battle', async () => {
   const state = createState();
   state.phase = Phase.Joined;

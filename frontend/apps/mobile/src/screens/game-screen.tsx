@@ -324,9 +324,11 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
           isPlayer1={game.isPlayer1}
           moveAnimation={animation.activeMove}
           moveProgress={animation.progress}
+          trapAnimation={animation.activeTrap}
           onCellPress={onCellPress}
           onMoveActionTriggered={animation.startActiveMove}
           onMoveDestinationReady={animation.completeActiveMoveLanding}
+          onTrapActionTriggered={animation.startActiveTrap}
           ownOwner={game.ownOwner}
           previewLineup={canEditLineup ? lineup : undefined}
           selected={selected}
@@ -443,8 +445,9 @@ function JoinGate({ gameId, mode, serverError, onBack, onRetry }: {
   );
 }
 
-function getAnimationMessage(kind: 'move' | 'battle' | 'phase') {
+function getAnimationMessage(kind: 'move' | 'battle' | 'trap' | 'phase') {
   if (kind === 'battle') return 'Resolving battle…';
+  if (kind === 'trap') return 'Trap triggered…';
   if (kind === 'move') return 'Moving piece…';
   return 'Updating game…';
 }

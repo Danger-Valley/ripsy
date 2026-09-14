@@ -4,7 +4,7 @@ import { useRiveFile, type RiveFile } from '@rive-app/react-native';
 import { HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
 import { colors } from '../theme';
-import { RIVE_JUMP_TRAVEL_DELAY_MS, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation } from '../game-animation';
+import { RIVE_JUMP_TRAVEL_DELAY_MS, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation, type TrapAnimation } from '../game-animation';
 import { RiveGamePiece, type RiveActionTrigger } from './rive-game-piece';
 
 const figureAsset = require('../assets/figures/fig1.riv');
@@ -40,19 +40,22 @@ interface Props {
   combatPhase?: CombatAnimationPhase | null;
   moveAnimation?: PieceMoveAnimation | null;
   moveProgress?: Animated.Value;
+  trapAnimation?: TrapAnimation | null;
   showOpponentFormation?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
   onMoveActionTriggered?: (travelDelayMs?: number) => void;
   onMoveDestinationReady?: () => void;
+  onTrapActionTriggered?: (trigger: 'Trap Activate' | 'Fall In Trap') => void;
 }
 
-export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, showOpponentFormation = false, onCellPress, onMoveActionTriggered, onMoveDestinationReady }: Props) {
+export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, trapAnimation, showOpponentFormation = false, onCellPress, onMoveActionTriggered, onMoveDestinationReady, onTrapActionTriggered }: Props) {
   const { width } = useWindowDimensions();
   const { riveFile } = useRiveFile(figureAsset);
   const boardSize = Math.min(width - 32, 600);
   const cellSize = (boardSize - boardBorderWidth * 2) / WIDTH;
   const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item.piece])), [previewLineup]);
   const movingDisplayFrom = moveAnimation ? toDisplayCoordinate(moveAnimation.from, isPlayer1) : null;
+  const trapDisplayTo = trapAnimation ? toDisplayCoordinate(trapAnimation.to, isPlayer1) : null;
 
   return (
     <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]} testID="game-board">
@@ -77,7 +80,11 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
       {Array.from({ length: HEIGHT }, (_, displayY) => (
         <View
           key={displayY}
-          style={[styles.row, movingDisplayFrom?.y === displayY && styles.movingRow]}
+          style={[
+            styles.row,
+            movingDisplayFrom?.y === displayY && styles.movingRow,
+            trapDisplayTo?.y === displayY && styles.trapDestinationRow,
+          ]}
           testID={movingDisplayFrom?.y === displayY ? 'moving-source-row' : undefined}>
           {Array.from({ length: WIDTH }, (_unused, displayX) => {
             const x = isPlayer1 ? WIDTH - 1 - displayX : displayX;
@@ -87,6 +94,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
             const serverOwner = state?.owners[index] ?? Owner.None;
             const isMovingSource = moveAnimation?.from.x === x && moveAnimation.from.y === y;
             const isMovingDestination = moveAnimation?.to.x === x && moveAnimation.to.y === y;
+            const isTrapDestination = trapAnimation?.to.x === x && trapAnimation.to.y === y;
             const isOpponentPreview = Boolean(showOpponentFormation && displayY < 2 && previewPiece === undefined && serverOwner === Owner.None);
             const owner = isMovingSource && moveAnimation
               ? moveAnimation.owner
@@ -135,6 +143,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                   isAvailable && styles.availableCell,
                   isSelected && styles.selectedCell,
                   isMovingSource && styles.movingCell,
+                  isTrapDestination && styles.trapDestinationCell,
                 ]}>
                 {owner !== Owner.None && !isCombatant ? (
                   <Animated.View
@@ -154,14 +163,18 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                     ]}>
                     {riveFile ? (
                       <RiveGamePiece
-                        actionTrigger={isMovingSource && moveAnimation
-                          ? jumpTriggerForMove(moveAnimation, isPlayer1)
-                          : undefined}
+                        actionTrigger={isTrapDestination
+                          ? 'Trap Activate'
+                          : isMovingSource && moveAnimation
+                            ? jumpTriggerForMove(moveAnimation, isPlayer1)
+                            : undefined}
                         file={riveFile}
                         isMine={isMine}
-                        onActionTriggered={isMovingSource
-                          ? () => onMoveActionTriggered?.(RIVE_JUMP_TRAVEL_DELAY_MS)
-                          : undefined}
+                        onActionTriggered={isTrapDestination
+                          ? trigger => onTrapActionTriggered?.(trigger as 'Trap Activate')
+                          : isMovingSource
+                            ? () => onMoveActionTriggered?.(RIVE_JUMP_TRAVEL_DELAY_MS)
+                            : undefined}
                         onConfigured={isMovingDestination ? onMoveDestinationReady : undefined}
                         piece={piece}
                         size={cellSize * 1.68}
@@ -188,6 +201,53 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
           riveFile={riveFile}
         />
       ) : null}
+      {trapAnimation && riveFile ? (
+        <TrapScene
+          animation={trapAnimation}
+          cellSize={cellSize}
+          isPlayer1={isPlayer1}
+          onActionTriggered={onTrapActionTriggered}
+          ownOwner={ownOwner}
+          riveFile={riveFile}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function TrapScene({ animation, cellSize, isPlayer1, onActionTriggered, ownOwner, riveFile }: {
+  animation: TrapAnimation;
+  cellSize: number;
+  isPlayer1: boolean;
+  onActionTriggered?: Props['onTrapActionTriggered'];
+  ownOwner: Owner;
+  riveFile: RiveFile;
+}) {
+  const destination = toDisplayCoordinate(animation.to, isPlayer1);
+  return (
+    <View pointerEvents="none" style={styles.trapLayer} testID="trap-scene">
+      <View
+        style={[
+          styles.trapVictim,
+          {
+            height: cellSize,
+            left: boardBorderWidth + destination.x * cellSize,
+            top: boardBorderWidth + destination.y * cellSize,
+            width: cellSize,
+          },
+        ]}>
+        <View style={[styles.piece, { width: cellSize * 0.88, height: cellSize * 0.88, transform: [{ translateY: -cellSize * 0.43 }] }]}>
+          <RiveGamePiece
+            actionTrigger="Fall In Trap"
+            file={riveFile}
+            isMine={animation.attackerOwner === ownOwner}
+            onActionTriggered={trigger => onActionTriggered?.(trigger as 'Fall In Trap')}
+            piece={animation.attackerPiece}
+            preserveStateOnPieceChange
+            size={cellSize * 1.68}
+          />
+        </View>
+      </View>
     </View>
   );
 }
@@ -396,8 +456,10 @@ const styles = StyleSheet.create({
   alternateGridCell: { backgroundColor: '#182731' },
   row: { flexDirection: 'row', overflow: 'visible' },
   movingRow: { position: 'relative', zIndex: 19, elevation: 19 },
+  trapDestinationRow: { position: 'relative', zIndex: 45, elevation: 45 },
   cell: { alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   movingCell: { position: 'relative', zIndex: 20, elevation: 20 },
+  trapDestinationCell: { position: 'relative', zIndex: 46, elevation: 46 },
   availableCell: { backgroundColor: '#12384A' },
   selectedCell: { backgroundColor: '#245D5A', borderColor: colors.primary, borderWidth: 2 },
   piece: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
@@ -406,5 +468,7 @@ const styles = StyleSheet.create({
   combatant: { position: 'absolute', alignItems: 'center', justifyContent: 'center', elevation: 30 },
   combatWinner: { zIndex: 31 },
   combatLoser: { zIndex: 30 },
+  trapLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'visible', zIndex: 40, elevation: 40 },
+  trapVictim: { position: 'absolute', alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   moveArrow: { width: 22, height: 22, resizeMode: 'contain', tintColor: colors.move },
 });

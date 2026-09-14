@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated } from 'react-native';
+import { Animated, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
@@ -74,15 +74,19 @@ beforeEach(() => {
 
 test('creator can shuffle, save, and see the lineup ready state before an opponent joins', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(() => {
+  await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(
       <GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />,
     );
+    await Promise.resolve();
   });
 
   expect(renderer.root.find(node => node.props.accessibilityHint === 'Opens the system share sheet')).toBeDefined();
-  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Waiting for opponent. Your lineup stays editable until the battle begins.')).toBeDefined();
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Waiting for opponent. The board is a preview. Use the controls below it to set your lineup.')).toBeDefined();
   expect(renderer.root.find(node => node.props.testID === 'lineup-controls')).toBeDefined();
+  expect(renderer.root.find(node => node.props.testID === 'lineup-attention-glow')).toBeDefined();
+  expect(renderer.root.findAllByType(Text).filter(node => node.props.children === 'SET YOUR LINEUP HERE ↓')).toHaveLength(1);
+  expect(renderer.root.findAllByType(Text).filter(node => node.props.children === 'The board is a preview. Use Shuffle below, then save.')).toHaveLength(1);
   expect(renderer.root.find(node => node.props.testID === 'lineup-countdown')).toBeDefined();
   expect(renderer.root.find(node => node.props.accessibilityHint === 'Creates a different random hidden lineup')).toBeDefined();
   expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(false);
@@ -106,6 +110,7 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   expect(pieces.filter(piece => piece === Piece.Flag)).toHaveLength(1);
   expect(pieces.filter(piece => piece === Piece.Trap)).toHaveLength(1);
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Lineup saved')).toBeDefined();
+  expect(renderer.root.findAll(node => node.props.testID === 'lineup-attention-glow')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.children === 'Saved. The battle starts automatically when your opponent is ready.').length).toBeGreaterThan(0);
 
   const savedButton = renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup' && node.props.accessibilityState?.disabled);
@@ -117,7 +122,8 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   });
 
   expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Lineup saved')).toHaveLength(0);
-  expect(renderer.root.findAll(node => node.props.children === 'Lineup changed. Save it when you are ready.').length).toBeGreaterThan(0);
+  expect(renderer.root.findAll(node => node.props.testID === 'lineup-attention-glow').length).toBeGreaterThan(0);
+  expect(renderer.root.findAll(node => node.props.children === 'Lineup changed. Save it again below.').length).toBeGreaterThan(0);
 
   await ReactTestRenderer.act(() => {
     renderer.unmount();
@@ -126,10 +132,11 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
 
 test('offline computer battle skips waiting and starts after the local lineup is saved', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(() => {
+  await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(
       <ComputerGameScreen navigation={{ replace: jest.fn() } as never} route={{} as never} />,
     );
+    await Promise.resolve();
   });
 
   expect(renderer.root.findAll(node => node.props.accessibilityHint === 'Opens the system share sheet')).toHaveLength(0);

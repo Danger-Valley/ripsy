@@ -182,6 +182,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 - Show a dedicated “Waiting for opponent” card with an Invite opponent action.
 - Explain that the lineup stays editable until battle start.
 - Keep Shuffle and Save lineup grouped in one `YOUR LINEUP` panel.
+- Treat the board as a non-interactive preview during setup and say so explicitly. The unsaved/dirty native panel uses a persistent turquoise outline plus a soft pulsing glow to direct attention to the controls below the board; with reduced motion enabled, keep the highlighted outline but do not pulse. Remove the attention treatment after Save and restore it after a subsequent Shuffle.
 - Shuffle creates a fresh exact 4/4/4/1/1 composition without intermediate text placeholders or flicker.
 - Do not support tap-to-swap during lineup configuration.
 - After Save, show a visible READY badge and copy explaining that the game can start automatically.

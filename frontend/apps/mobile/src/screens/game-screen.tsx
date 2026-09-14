@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
@@ -73,6 +73,8 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
   const previousPhase = useRef<Phase | undefined>(undefined);
   const previousTiePending = useRef(false);
   const previousMoveState = useRef<GameState | null>(null);
+  const lineupAttention = useRef(new Animated.Value(0)).current;
+  const [reduceMotionEnabled, setReduceMotionEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     onAnimationStateChange?.(animation.isAnimating);
@@ -95,6 +97,54 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
     && !game.gameState.p1
     && (game.gameState.phase === Phase.Created || game.gameState.phase === Phase.LineupP0Set),
   );
+
+  useEffect(() => {
+    let isMounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(enabled => {
+        if (isMounted) setReduceMotionEnabled(enabled);
+      })
+      .catch(() => {
+        if (isMounted) setReduceMotionEnabled(false);
+      });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    lineupAttention.stopAnimation();
+    if (!canEditLineup || isLineupSaved) {
+      lineupAttention.setValue(0);
+      return;
+    }
+    if (reduceMotionEnabled !== false) {
+      lineupAttention.setValue(1);
+      return;
+    }
+    lineupAttention.setValue(0);
+    const pulse = Animated.loop(Animated.sequence([
+      Animated.timing(lineupAttention, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(lineupAttention, {
+        toValue: 0,
+        duration: 500,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]));
+    pulse.start();
+    return () => {
+      pulse.stop();
+      lineupAttention.stopAnimation();
+    };
+  }, [canEditLineup, isLineupSaved, lineupAttention, reduceMotionEnabled]);
 
   useEffect(() => {
     setJoinStatus('idle');
@@ -245,13 +295,13 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
       <ScrollView contentContainerStyle={styles.content}>
         {isWaitingForOpponent ? (
           <View style={styles.waitingCard}>
-            <View accessibilityLabel="Waiting for opponent. Your lineup stays editable until the battle begins." accessible style={styles.waitingHeader}>
+            <View accessibilityLabel="Waiting for opponent. The board is a preview. Use the controls below it to set your lineup." accessible style={styles.waitingHeader}>
               <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.waitingIndicator}>
                 <View style={styles.waitingDot} />
               </View>
               <View style={styles.waitingCopy}>
                 <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.waitingTitle}>Waiting for opponent</Text>
-                <Text maxFontSizeMultiplier={2} style={styles.waitingDescription}>Your lineup stays editable until the battle begins.</Text>
+                <Text maxFontSizeMultiplier={2} style={styles.waitingDescription}>The board is a preview. Set your lineup with the controls below.</Text>
               </View>
             </View>
             <PrimaryButton accessibilityHint="Opens the system share sheet" variant="secondary" onPress={() => { shareRoom().catch(() => undefined); }}>Invite opponent</PrimaryButton>
@@ -285,14 +335,27 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
         />
 
         {canEditLineup && (
-          <View style={[styles.lineupPanel, isLineupSaved && styles.lineupPanelReady]} testID="lineup-controls">
+          <View style={[styles.lineupPanel, !isLineupSaved && styles.lineupPanelAttention, isLineupSaved && styles.lineupPanelReady]} testID="lineup-controls">
+            {!isLineupSaved && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.lineupGlow,
+                  {
+                    opacity: lineupAttention.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.8] }),
+                    transform: [{ scale: lineupAttention.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] }) }],
+                  },
+                ]}
+                testID="lineup-attention-glow"
+              />
+            )}
             <View style={styles.lineupHeader}>
               <View style={styles.lineupCopy}>
-                <Text maxFontSizeMultiplier={2} style={styles.lineupEyebrow}>YOUR LINEUP</Text>
+                <Text maxFontSizeMultiplier={2} style={styles.lineupEyebrow}>{isLineupSaved ? 'YOUR LINEUP' : 'SET YOUR LINEUP HERE ↓'}</Text>
                 <Text maxFontSizeMultiplier={2} style={styles.lineupDescription}>
                   {isLineupSaved
                     ? 'Saved. The battle starts automatically when your opponent is ready.'
-                    : hasSubmitted ? 'Lineup changed. Save it when you are ready.' : 'Shuffle until the lineup feels right.'}
+                    : hasSubmitted ? 'Lineup changed. Save it again below.' : 'The board is a preview. Use Shuffle below, then save.'}
                 </Text>
               </View>
               {isLineupSaved && (
@@ -422,7 +485,7 @@ function getStateMessage(state: GameState | null, isParticipant: boolean, canEdi
   if (!isParticipant && (phase === Phase.Created || phase === Phase.LineupP0Set)) return 'This room has an open player slot';
   if (canEditLineup) {
     if (hasSubmitted) return 'Lineup saved. You can change it until the battle starts';
-    return 'Shuffle and save your hidden lineup';
+    return 'Set your lineup using the controls below the board';
   }
   if (phase === Phase.Created) return isParticipant ? 'Waiting for an opponent to join' : 'This room has an open player slot';
   if (phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : isComputer ? "Computer's turn" : "Opponent's turn";
@@ -499,8 +562,10 @@ const styles = StyleSheet.create({
   waitingCopy: { flex: 1, gap: spacing.xs },
   waitingTitle: { color: colors.text, fontSize: 19, fontWeight: '900' },
   waitingDescription: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
-  lineupPanel: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
+  lineupPanel: { position: 'relative', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
+  lineupPanelAttention: { borderColor: colors.primaryMuted, borderWidth: 2 },
   lineupPanelReady: { borderColor: colors.success },
+  lineupGlow: { position: 'absolute', top: -5, right: -5, bottom: -5, left: -5, borderColor: colors.primary, borderWidth: 2, borderRadius: 21, shadowColor: colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 10, elevation: 5 },
   lineupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   lineupCopy: { flex: 1, gap: spacing.xs },
   lineupEyebrow: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },

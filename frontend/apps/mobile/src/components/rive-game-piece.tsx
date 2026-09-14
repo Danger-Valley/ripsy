@@ -147,7 +147,6 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
       lastTriggeredActionRef.current = actionTrigger;
       try {
         riveViewRef.triggerInput(actionTrigger);
-        riveViewRef.playIfNeeded();
       } catch {
         // Keep the scene running if an optional asset trigger is unavailable.
       } finally {

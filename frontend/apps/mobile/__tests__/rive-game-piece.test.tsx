@@ -78,6 +78,10 @@ test('fires a movement trigger only after the state machine starts', async () =>
   });
 
   expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Jump Right');
+  // triggerInput already resumes the iOS state machine internally. Calling
+  // playIfNeeded again in JS can enqueue a second native play before the first
+  // one updates isPlaying, visibly restarting the jump.
+  expect(mockRiveViewRef.playIfNeeded).not.toHaveBeenCalled();
   expect(mockRiveViewRef.play.mock.invocationCallOrder[0]).toBeLessThan(
     mockRiveViewRef.triggerInput.mock.invocationCallOrder[0]!,
   );

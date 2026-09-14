@@ -80,6 +80,8 @@ test('opens a fully local computer battle without waiting for the server', async
   const computerButton = renderer.root.find(node => node.props.accessibilityHint === 'Starts a completely offline battle against the computer');
 
   expect(computerButton.props.accessibilityState?.disabled).not.toBe(true);
+  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'alert')).toHaveLength(0);
+  expect(renderer.root.findAll(node => typeof node.props.children === 'string' && node.props.children.startsWith('Player '))).toHaveLength(0);
   await ReactTestRenderer.act(() => computerButton.props.onPress());
   expect(navigate).toHaveBeenCalledWith('ComputerGame');
 });
@@ -98,7 +100,7 @@ test('normalizes a pasted invitation and opens the room', async () => {
   expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'abcdef12' });
 });
 
-test('shows identity failures as an alert and keeps game creation disabled', async () => {
+test('keeps technical identity failures off the home screen and disables game creation', async () => {
   jest.mocked(usePlayerIdentity).mockReturnValue({
     playerId: '',
     sessionToken: '',
@@ -106,10 +108,10 @@ test('shows identity failures as an alert and keeps game creation disabled', asy
     error: 'Could not create a player session',
   });
   const renderer = await renderHome();
-  const alert = renderer.root.find(node => node.props.accessibilityRole === 'alert');
   const createButton = renderer.root.find(node => node.props.accessibilityHint === 'Creates a new room and opens it');
 
-  expect(alert.findByType('Text' as never).props.children).toBe('Could not create a player session');
+  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'alert')).toHaveLength(0);
+  expect(renderer.root.findAll(node => node.props.children === 'Could not create a player session')).toHaveLength(0);
   expect(createButton.props.disabled).toBe(true);
 });
 

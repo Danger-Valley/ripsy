@@ -162,6 +162,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 ### Home and active games
 
 - Home shows the user’s active and unfinished games.
+- Home does not expose transport diagnostics or the anonymous internal player ID. Keep connection/session failures out of the page chrome; affected online actions remain disabled while offline, while Play vs computer stays available.
 - Active games use a compact horizontal snap carousel. A card occupies roughly 84% of the available mobile content width (capped at 420 px), leaving the next card visible as a swipe affordance; the header shows the current page and total count.
 - Each item includes an 80 px miniature board preview, room identifier, current status, and continuation action.
 - Finished games are removed from the Redis player index and should not appear.

@@ -5,7 +5,6 @@ import { useIsFocused } from '@react-navigation/native';
 import { Phase } from '@rps/core';
 import { ActiveGameCard } from '../components/active-game-card';
 import { PrimaryButton } from '../components/primary-button';
-import { StatusBanner } from '../components/status-banner';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { usePushNotifications } from '../hooks/use-push-notifications';
@@ -18,7 +17,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export function HomeScreen({ navigation, route }: Props) {
   const isFocused = useIsFocused();
-  const { playerId, sessionToken, isReady, error: identityError } = usePlayerIdentity();
+  const { playerId, sessionToken, isReady } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, undefined, isFocused);
   const listActiveGames = game.listGames;
   const isGameConnected = game.isConnected;
@@ -183,9 +182,6 @@ export function HomeScreen({ navigation, route }: Props) {
               disabled={!normalizeRoomCode(roomCode)}>Join battle</PrimaryButton>
           </View>
 
-          {(identityError || game.error) ? <StatusBanner message={identityError || game.error || ''} tone="error" /> : (
-            <StatusBanner message={game.isConnected ? 'Connected to the game server' : `Server: ${game.status}`} tone={game.isConnected ? 'success' : 'neutral'} />
-          )}
           {(push.status === 'prompt' || push.status === 'denied' || push.status === 'error') && (
             <View style={styles.notificationCard}>
               <Text maxFontSizeMultiplier={2} style={styles.notificationText}>
@@ -198,9 +194,6 @@ export function HomeScreen({ navigation, route }: Props) {
               )}
             </View>
           )}
-          <Text accessibilityLabel={playerId ? `Player identifier ${playerId}` : 'Player identifier initializing'} maxFontSizeMultiplier={2} style={styles.identity}>
-            Player {playerId ? `${playerId.slice(0, 12)}…` : 'initializing…'}
-          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -227,7 +220,6 @@ const styles = StyleSheet.create({
   divider: { backgroundColor: colors.border, height: 1, flex: 1 },
   or: { color: colors.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   input: { minHeight: 50, color: colors.text, backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 12, fontSize: 17, paddingHorizontal: spacing.lg, textAlign: 'center', letterSpacing: 2 },
-  identity: { color: colors.textMuted, fontSize: 11, textAlign: 'center' },
   notificationCard: { gap: spacing.sm },
   notificationText: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
 });

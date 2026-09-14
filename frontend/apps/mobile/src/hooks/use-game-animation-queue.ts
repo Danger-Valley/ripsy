@@ -3,6 +3,7 @@ import { Animated, Easing } from 'react-native';
 import type { GameState } from '@rps/core';
 import {
   classifyGameTransition,
+  COMBAT_WINNER_SETTLE_MS,
   combatAttackDurationMs,
   gameStateFingerprint,
   getCombatAnimation,
@@ -195,7 +196,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
           startProgressTiming(200, 3, undefined, () => {
             displayedRef.current = transition.state;
             setDisplayedState(transition.state);
-            startProgressTiming(260, 4, undefined, () => {
+            setCombatPhase('settle');
+            startProgressTiming(COMBAT_WINNER_SETTLE_MS, 4, Easing.inOut(Easing.cubic), () => {
               runningRef.current = false;
               activeCombatRef.current = null;
               setActiveKind(null);

@@ -22,7 +22,7 @@ export interface CombatAnimation {
   winnerPiece: Piece;
 }
 
-export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death';
+export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death' | 'settle';
 
 // Read from fig1.riv: Jump Forward is 45 frames and Jump Left/Right are
 // 38 frames, all authored at 60 FPS. Keep container movement on the exact
@@ -32,6 +32,7 @@ const RIVE_JUMP_FORWARD_FRAMES = 45;
 const RIVE_JUMP_HORIZONTAL_FRAMES = 38;
 export const RIVE_JUMP_TRAVEL_DELAY_MS = 100;
 export const REPEATED_TIE_REVEAL_MS = 900;
+export const COMBAT_WINNER_SETTLE_MS = 320;
 
 export function combatAttackDurationMs(piece: Piece) {
   if (piece === Piece.Rock) return 383;

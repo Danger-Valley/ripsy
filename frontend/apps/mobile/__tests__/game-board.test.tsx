@@ -479,6 +479,71 @@ test('keeps enlarged combatants visibly separated around the fight midpoint', as
   expect((rightFinalX - leftFinalX) / cellSize).toBeCloseTo(0.84);
 });
 
+test('returns the combat winner into the destination cell before revealing the authoritative piece', async () => {
+  const state = createState();
+  state.owners[toIdx(0, 0)] = Owner.None;
+  state.pieces[toIdx(0, 0)] = Piece.Empty;
+  state.owners[toIdx(1, 0)] = Owner.P0;
+  state.pieces[toIdx(1, 0)] = Piece.Rock;
+  const progress = new Animated.Value(4);
+  const combat = {
+    resolution: 'resolved' as const,
+    from: { x: 0, y: 0 },
+    to: { x: 1, y: 0 },
+    attackerOwner: Owner.P0,
+    defenderOwner: Owner.P1,
+    attackerPiece: Piece.Rock,
+    defenderPiece: Piece.Scissors,
+    winnerOwner: Owner.P0,
+    winnerPiece: Piece.Rock,
+  };
+  const renderBoard = (showCombat: boolean) => (
+    <GameBoard
+      combatAnimation={showCombat ? combat : null}
+      combatPhase={showCombat ? 'settle' : null}
+      isPlayer1={false}
+      moveProgress={progress}
+      ownOwner={Owner.P0}
+      state={state}
+    />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(renderBoard(true));
+  });
+
+  const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
+  const surfaceStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-surface' }).props.style);
+  const cellSize = (boardStyle.width - surfaceStyle.borderWidth * 2) / WIDTH;
+  const winnerStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'combat-winner' }).props.style);
+  const landedX = winnerStyle.left + winnerStyle.transform[0].translateX.__getValue();
+  const landedY = winnerStyle.top + winnerStyle.transform[1].translateY.__getValue();
+  const destinationCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 2, your rock');
+  const destinationVisual = destinationCell.find(node => node.props.testID === 'piece-visual');
+  const preloadedDestination = destinationCell.findByType(RiveGamePiece);
+
+  expect(landedX).toBeCloseTo(cellSize);
+  expect(landedY).toBeCloseTo(0);
+  expect(winnerStyle.transform[2].scale.__getValue()).toBe(1);
+  expect(winnerStyle.opacity.__getValue()).toBe(1);
+  expect(StyleSheet.flatten(destinationVisual.props.style).opacity).toBe(0);
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(renderBoard(false));
+  });
+
+  const revealedDestination = renderer.root
+    .find(node => node.props.accessibilityLabel === 'Row 1, column 2, your rock')
+    .findByType(RiveGamePiece);
+  expect(revealedDestination).toBe(preloadedDestination);
+  expect(StyleSheet.flatten(
+    renderer.root
+      .find(node => node.props.accessibilityLabel === 'Row 1, column 2, your rock')
+      .find(node => node.props.testID === 'piece-visual').props.style,
+  ).opacity).toBeUndefined();
+});
+
 test('holds both tied fighters enlarged without firing attack or death', async () => {
   const state = createState();
   const progress = new Animated.Value(1.35);

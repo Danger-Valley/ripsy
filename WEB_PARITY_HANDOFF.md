@@ -252,7 +252,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 - If both replacement choices match, close the picker, update the two held fighters to the newly selected weapon, and keep that enlarged reveal visible for 900 ms. Then reopen a fresh picker for the next `tieRound`. Do not replay `Attack Prepare`, move the overlays, or briefly restore the board between repeated rounds.
 - When the server resolves the tie, resume the held scene at the attack phase with the newly revealed choices. Do not replay the approach or reset the board between the picker and the attack.
 - At the attack phase, fire `Attack` only on the authoritative winner. Its numeric `Weapon` input selects the Rock throw, Paper win, or Scissors win timeline. Keep the attack visible for 383 ms (Rock), 500 ms (Paper), or 966 ms (Scissors), plus the web's 100 ms impact offset.
-- After impact, fire `Death` only on the loser for 200 ms. Reveal the new authoritative board only after that beat, then fade the combat overlays during the 260 ms settle.
+- After impact, fire `Death` only on the loser for 200 ms. Then publish the new board beneath the combat layer with its destination sprite hidden. Over a 320 ms ease-in-out settle, keep the winning overlay opaque, return it from the enlarged fight position to the authoritative `to` cell, and scale it from 2× to 1×. Reveal the already-preloaded destination sprite only when the overlay lands; never show both copies or fade the winner away.
 - Keep each Rive instance mounted through `Attack Prepare` → `Attack`/`Death`. Changing a trigger must not reset its state machine, or the battle timeline will restart instead of progressing.
 
 ### Haptics and accessibility

@@ -97,7 +97,13 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
               ? moveAnimation.piece
               : previewPiece ?? state?.pieces[index] ?? Piece.Empty;
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
-            const isCombatant = Boolean(combatAnimation && (
+            const isCombatLandingDestination = Boolean(
+              combatAnimation?.resolution === 'resolved'
+              && combatPhase === 'settle'
+              && combatAnimation.to.x === x
+              && combatAnimation.to.y === y,
+            );
+            const isCombatant = Boolean(combatAnimation && !isCombatLandingDestination && (
               (combatAnimation.from.x === x && combatAnimation.from.y === y)
               || (combatAnimation.to.x === x && combatAnimation.to.y === y)
             ));
@@ -137,7 +143,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                     style={[
                       styles.piece,
                       isMovingSource && styles.movingPiece,
-                      isMovingDestination && styles.landingPiecePreload,
+                      (isMovingDestination || isCombatLandingDestination) && styles.landingPiecePreload,
                       {
                         width: cellSize * 0.88,
                         height: cellSize * 0.88,
@@ -212,6 +218,7 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, r
         riveFile={riveFile}
         target={defender}
         targetSide={attackerOnLeft ? -1 : 1}
+        winnerDestination={defender}
       />
       <Combatant
         cellSize={cellSize}
@@ -225,12 +232,13 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, r
         riveFile={riveFile}
         target={attacker}
         targetSide={attackerOnLeft ? 1 : -1}
+        winnerDestination={defender}
       />
     </>
   );
 }
 
-function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, position, progress, riveFile, target, targetSide }: {
+function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, position, progress, riveFile, target, targetSide, winnerDestination }: {
   cellSize: number;
   faceRight: boolean;
   isMine: boolean;
@@ -242,6 +250,7 @@ function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, positi
   riveFile: RiveFile;
   target: Coordinate;
   targetSide: -1 | 1;
+  winnerDestination: Coordinate;
 }) {
   const centerX = ((position.x + target.x + 1) / 2) * cellSize;
   const centerY = ((position.y + target.y + 1) / 2) * cellSize;
@@ -249,12 +258,24 @@ function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, positi
   const finalTop = centerY - cellSize / 2;
   const startLeft = position.x * cellSize;
   const startTop = position.y * cellSize;
-  const translateX = progress.interpolate({ inputRange: [0, 0.25, 1, 4], outputRange: [0, 0, finalLeft - startLeft, finalLeft - startLeft], extrapolate: 'clamp' });
-  const translateY = progress.interpolate({ inputRange: [0, 0.25, 1, 4], outputRange: [0, 0, finalTop - startTop, finalTop - startTop], extrapolate: 'clamp' });
+  const fightTranslateX = finalLeft - startLeft;
+  const fightTranslateY = finalTop - startTop;
+  const winnerTranslateX = winnerDestination.x * cellSize - startLeft;
+  const winnerTranslateY = winnerDestination.y * cellSize - startTop;
+  const translateX = progress.interpolate({
+    inputRange: [0, 0.25, 1, 3, 4],
+    outputRange: [0, 0, fightTranslateX, fightTranslateX, isWinner ? winnerTranslateX : fightTranslateX],
+    extrapolate: 'clamp',
+  });
+  const translateY = progress.interpolate({
+    inputRange: [0, 0.25, 1, 3, 4],
+    outputRange: [0, 0, fightTranslateY, fightTranslateY, isWinner ? winnerTranslateY : fightTranslateY],
+    extrapolate: 'clamp',
+  });
   const scale = progress.interpolate({ inputRange: [0, 1, 1.35, 3, 4], outputRange: [1, 1, 2, 2, 1], extrapolate: 'clamp' });
   const opacity = progress.interpolate({
     inputRange: [0, 2, 3, 4],
-    outputRange: isWinner ? [1, 1, 1, 0] : [1, 1, 0, 0],
+    outputRange: isWinner ? [1, 1, 1, 1] : [1, 1, 0, 0],
     extrapolate: 'clamp',
   });
   const trigger: RiveActionTrigger | undefined = phase === 'prepare'

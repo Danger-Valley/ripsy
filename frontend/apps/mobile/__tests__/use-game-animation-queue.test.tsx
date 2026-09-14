@@ -2,6 +2,7 @@ import React from 'react';
 import { Animated } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { Choice, Owner, Phase, Piece, toIdx, type GameState } from '@rps/core';
+import { COMBAT_WINNER_SETTLE_MS } from '../src/game-animation';
 import { useGameAnimationQueue } from '../src/hooks/use-game-animation-queue';
 
 type AnimationQueue = ReturnType<typeof useGameAnimationQueue>;
@@ -179,6 +180,82 @@ test('reveals both repeated tie weapons before making the picker state available
   });
   expect(animation.activeKind).toBeNull();
   expect(animation.displayedState?.tieRound).toBe(1);
+
+  await ReactTestRenderer.act(() => renderer.unmount());
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+});
+
+test('publishes the resolved board while the winner settles back into its destination cell', async () => {
+  jest.useFakeTimers();
+  const timing = jest.spyOn(Animated, 'timing').mockImplementation((_value, config) => {
+    let completionTimer: ReturnType<typeof setTimeout> | null = null;
+    return {
+      reset: jest.fn(),
+      start: callback => {
+        completionTimer = setTimeout(() => callback?.({ finished: true }), config.duration);
+      },
+      stop: () => {
+        if (completionTimer !== null) clearTimeout(completionTimer);
+      },
+    };
+  });
+  const previous = activeState();
+  previous.owners[toIdx(0, 4)] = Owner.P1;
+  previous.pieces[toIdx(0, 4)] = Piece.Scissors;
+  const resolved: GameState = {
+    ...previous,
+    attacker: Piece.Rock,
+    defender: Piece.Scissors,
+    isP1Turn: true,
+    outcome: 1,
+    owners: [...previous.owners],
+    pieces: [...previous.pieces],
+    tieFrom: { x: 0, y: 5 },
+    tieTo: { x: 0, y: 4 },
+  };
+  resolved.owners[toIdx(0, 5)] = Owner.None;
+  resolved.pieces[toIdx(0, 5)] = Piece.Empty;
+  resolved.owners[toIdx(0, 4)] = Owner.P0;
+  resolved.pieces[toIdx(0, 4)] = Piece.Rock;
+  let animation!: AnimationQueue;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<Probe state={previous} onRender={value => { animation = value; }} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.update(<Probe state={resolved} onRender={value => { animation = value; }} />);
+  });
+
+  expect(animation.combatPhase).toBe('prepare');
+  await ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(400);
+  });
+  expect(animation.combatPhase).toBe('attack');
+
+  await ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(1);
+    jest.advanceTimersByTime(483);
+  });
+  expect(animation.combatPhase).toBe('death');
+
+  await ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(1);
+    jest.advanceTimersByTime(200);
+  });
+  expect(animation.combatPhase).toBe('settle');
+  expect(animation.displayedState?.owners[toIdx(0, 4)]).toBe(Owner.P0);
+  await ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(1);
+  });
+  expect(timing.mock.calls.at(-1)?.[1]).toMatchObject({ duration: COMBAT_WINNER_SETTLE_MS, toValue: 4, useNativeDriver: true });
+
+  await ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(COMBAT_WINNER_SETTLE_MS);
+  });
+  expect(animation.activeKind).toBeNull();
+  expect(animation.combatPhase).toBeNull();
 
   await ReactTestRenderer.act(() => renderer.unmount());
   jest.restoreAllMocks();

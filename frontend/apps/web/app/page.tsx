@@ -55,6 +55,7 @@ export default function HomePage() {
 
       <nav aria-label="Legal and support" style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 13 }}>
         <a href="/download" style={{ color: '#66fcf1' }}>Download Android</a>
+        <a href="/terms" style={{ color: '#8a9ba8' }}>Terms</a>
         <a href="/privacy" style={{ color: '#8a9ba8' }}>Privacy</a>
         <a href="/support" style={{ color: '#8a9ba8' }}>Support</a>
       </nav>

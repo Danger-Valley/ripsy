@@ -1,40 +1,103 @@
-export const metadata = {
+import type { Metadata } from 'next';
+import { LegalDocument, type LegalSection } from '../components/LegalDocument';
+
+export const metadata: Metadata = {
   title: 'Privacy Policy | RIPSY',
-  description: 'How RIPSY handles game and device data.',
+  description: 'How RIPSY collects, uses, retains, and protects game and device data.',
 };
 
-const sectionStyle = { marginTop: 28 } as const;
+const sections: LegalSection[] = [
+  {
+    id: 'scope',
+    title: 'Scope',
+    content: <p>This Privacy Policy explains how RIPSY handles information when you use our website, mobile apps, multiplayer game servers, and related support services (together, the “Service”).</p>,
+  },
+  {
+    id: 'information-we-collect',
+    title: 'Information we collect',
+    content: (
+      <>
+        <p>RIPSY is designed to work without a named account. We process only the information needed to operate and protect the game:</p>
+        <ul>
+          <li><strong>Player and session data:</strong> an anonymous player identifier, session credential, and credential expiration time.</li>
+          <li><strong>Gameplay data:</strong> room membership, lineups, moves, battle choices, results, and game timing.</li>
+          <li><strong>Device and notification data:</strong> a Firebase installation identifier and push registration token when you enable notifications.</li>
+          <li><strong>Technical data:</strong> limited connection, request, protocol, and error diagnostics, plus network metadata routinely processed by our infrastructure providers.</li>
+        </ul>
+        <p>We do not ask for your name, email address, payment details, contacts, precise location, or advertising identifier to play RIPSY.</p>
+      </>
+    ),
+  },
+  {
+    id: 'how-we-use-information',
+    title: 'How we use information',
+    content: (
+      <>
+        <p>We use information to authenticate game actions, synchronize multiplayer sessions, restore games after a reconnect, send opted-in game notifications, prevent abuse, maintain security, and troubleshoot reliability issues.</p>
+        <p>We do not use your information for targeted advertising, sell it, or use it to track you across apps or websites.</p>
+      </>
+    ),
+  },
+  {
+    id: 'sharing',
+    title: 'When we share information',
+    content: (
+      <>
+        <p>We disclose information only to service providers that help us host, store, secure, and deliver the Service, including Firebase for optional push notifications. They may process information only to provide those services to us.</p>
+        <p>We may also disclose information when required by law, to protect the rights and safety of users or the Service, or as part of a business transfer. We do not share information with advertising networks or data brokers.</p>
+      </>
+    ),
+  },
+  {
+    id: 'retention',
+    title: 'Storage and retention',
+    content: (
+      <>
+        <p>Online game records expire from our active backend storage after seven days by default. Push registrations expire after 90 days by default and are refreshed when an opted-in app reconnects. Session credentials are valid for 30 days by default and may remain in your browser storage or device Keychain or Keystore until they expire or you remove the app data.</p>
+        <p>These periods may be shortened or extended when reasonably necessary for security, legal compliance, backups, or resolving a support request.</p>
+      </>
+    ),
+  },
+  {
+    id: 'choices',
+    title: 'Your choices and rights',
+    content: (
+      <>
+        <p>You can decline notifications or disable them at any time in your device settings. You can clear locally stored identifiers by clearing site data or removing the app.</p>
+        <p>Depending on where you live, you may have rights to access, correct, delete, restrict, or object to certain processing of your information. Because RIPSY does not require a named account, we may need information such as your anonymous player identifier to locate a record, and in some cases we may not be able to link a record back to you.</p>
+      </>
+    ),
+  },
+  {
+    id: 'children',
+    title: 'Children’s privacy',
+    content: <p>RIPSY is not directed to children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child has provided personal information through the Service, please contact us so we can review and delete it where appropriate.</p>,
+  },
+  {
+    id: 'security',
+    title: 'Security and transfers',
+    content: <p>We use reasonable technical and organizational safeguards designed to protect information. No online service can guarantee absolute security. Our providers may process information in countries other than your own, subject to the protections required by applicable law.</p>,
+  },
+  {
+    id: 'changes-and-contact',
+    title: 'Changes and contact',
+    content: (
+      <>
+        <p>We may update this policy as the Service changes. We will post the revised policy here and change the effective date above. Material changes will receive additional notice when required by law.</p>
+        <p>For a privacy question or request, contact us through the <a href="https://github.com/Danger-Valley/ripsy/issues">RIPSY support tracker</a>. Please do not include a session credential or other secret in a public issue.</p>
+      </>
+    ),
+  },
+];
 
 export default function PrivacyPage() {
   return (
-    <main style={{ minHeight: '100dvh', background: '#0e1419', color: '#c5c6c7', padding: '48px 20px', fontFamily: 'system-ui, sans-serif' }}>
-      <article style={{ maxWidth: 720, margin: '0 auto', lineHeight: 1.65 }}>
-        <a href="/" style={{ color: '#66fcf1' }}>← RIPSY</a>
-        <h1 style={{ color: '#66fcf1', marginTop: 24 }}>Privacy Policy</h1>
-        <p>Effective September 10, 2026</p>
-
-        <section style={sectionStyle}>
-          <h2>Data we process</h2>
-          <p>RIPSY creates an anonymous player identifier and session credential so the backend can authenticate your game actions. We process room membership, lineups, moves, battle choices, results, and connection diagnostics required to run and protect multiplayer games.</p>
-          <p>If you enable notifications, we process a Firebase installation identifier and push token so we can deliver game updates to your device.</p>
-        </section>
-
-        <section style={sectionStyle}>
-          <h2>How we use data</h2>
-          <p>We use this data only for app functionality, including authentication, multiplayer synchronization, reconnect recovery, notifications, abuse prevention, reliability, and troubleshooting. RIPSY does not use this data for advertising or cross-app tracking.</p>
-        </section>
-
-        <section style={sectionStyle}>
-          <h2>Storage and retention</h2>
-          <p>Active game data and push registrations are stored by our backend in Redis and expire automatically according to server retention settings. Credentials remain in the device Keychain or Keystore until the app data is removed. Infrastructure providers may process limited network metadata needed to operate the service.</p>
-        </section>
-
-        <section style={sectionStyle}>
-          <h2>Your choices</h2>
-          <p>You can decline or disable notifications in system settings. To ask about locally stored credentials, request deletion of backend data, or raise another privacy question, open an issue in the RIPSY support tracker.</p>
-          <p><a href="https://github.com/Danger-Valley/ripsy/issues" style={{ color: '#66fcf1' }}>RIPSY support tracker</a></p>
-        </section>
-      </article>
-    </main>
+    <LegalDocument
+      eyebrow="Your data, clearly explained"
+      title="Privacy Policy"
+      description="RIPSY uses a small amount of pseudonymous data to run multiplayer battles. We don’t sell it, and we don’t use it for advertising."
+      effectiveDate="September 14, 2026"
+      sections={sections}
+    />
   );
 }

@@ -16,6 +16,7 @@ export default function SupportPage() {
         <h2>Report a problem</h2>
         <p>Include your platform, app version, room code, and what happened. Never include a session token or other credential.</p>
         <p><a href="https://github.com/Danger-Valley/ripsy/issues" style={{ color: '#66fcf1' }}>Open the RIPSY support tracker</a></p>
+        <p><a href="/terms" style={{ color: '#66fcf1' }}>Terms of Use</a></p>
         <p><a href="/privacy" style={{ color: '#66fcf1' }}>Privacy Policy</a></p>
       </article>
     </main>

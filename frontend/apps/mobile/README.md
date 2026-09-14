@@ -52,6 +52,14 @@ cd frontend/apps/mobile/android && ./gradlew assembleRelease
 
 The backend-issued anonymous session and current room are stored using iOS Keychain and Android Keystore. When the app returns from the background or regains its connection, it reauthenticates and reloads the latest authoritative game state. Remaining production hardening is tracked in `MOBILE_IMPLEMENTATION_PLAN.md`.
 
+## Solana Mobile wallet
+
+The Android app can connect to an installed wallet through the official Solana Mobile Wallet Adapter protocol. RIPSY requests authorization for `solana:mainnet`, displays the returned public address, and stores the public address, authorization token, and wallet base URI in Android Keystore via `react-native-keychain`. It never receives or stores private keys. Disconnect first asks the wallet to deauthorize the token and then removes the local record, even if the wallet is no longer installed.
+
+MWA's native client SDK is Android-only. The adapter implementation lives in `src/solana-wallet-adapter.android.ts`; the default module is a safe unsupported-platform implementation so the iOS app never imports the Android native module. Wallet connection currently identifies the player locally and is deliberately separate from the WebSocket game session and server-authoritative gameplay.
+
+The app identity URI is `https://www.ripsy.fun`. Its Android association is served by `app/.well-known/assetlinks.json/route.ts` in the web app, using the production `ANDROID_APP_SHA256_CERT_FINGERPRINTS` Vercel environment variable.
+
 ## Game invitations
 
 The Share button sends the canonical `https://www.ripsy.fun/game/<room-code>` URL. The app accepts that Universal/App Link, the `ripsy://game/<room-code>` fallback scheme, a pasted invitation URL, or a plain eight-character room code.

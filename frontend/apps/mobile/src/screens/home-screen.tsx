@@ -5,6 +5,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { Phase } from '@rps/core';
 import { ActiveGameCard } from '../components/active-game-card';
 import { PrimaryButton } from '../components/primary-button';
+import { SolanaWalletCard } from '../components/solana-wallet-card';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { usePushNotifications } from '../hooks/use-push-notifications';
@@ -107,6 +108,8 @@ export function HomeScreen({ navigation, route }: Props) {
             <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={styles.title}>RIPSY</Text>
             <Text maxFontSizeMultiplier={2} style={styles.subtitle}>Arrange your army. Outsmart your opponent. Capture the flag.</Text>
           </View>
+
+          {Platform.OS === 'android' && <SolanaWalletCard />}
 
           <View style={styles.gamesSection}>
             <View style={styles.sectionHeader}>

@@ -13,7 +13,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 ## Non-negotiable architecture
 
-- There is no MagicBlock, Solana, wallet, or smart-contract gameplay path.
+- There is no MagicBlock, Solana, wallet, or smart-contract gameplay path. Android has an optional Solana Mobile Wallet Adapter identity connection, but it is isolated from game rules, WebSockets, and player sessions.
 - `frontend/packages/game-engine` is the single rules implementation. Online games invoke it through the Node.js backend; offline computer games invoke it directly on-device.
 - Clients send commands; they do not decide whether moves are legal or calculate authoritative outcomes.
 - Redis contains persistent game state, player game indexes, clock deadlines, and push installations.
@@ -45,6 +45,8 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 | State-transition animation detection | `frontend/apps/mobile/src/game-animation.ts` |
 | Ordered animation playback | `frontend/apps/mobile/src/hooks/use-game-animation-queue.ts` |
 | Native clocks | `frontend/apps/mobile/src/components/game-clocks.tsx` |
+| Android wallet identity UI and lifecycle | `frontend/apps/mobile/src/components/solana-wallet-card.tsx`, `frontend/apps/mobile/src/hooks/use-solana-wallet.ts` |
+| Android-only MWA adapter and secure session storage | `frontend/apps/mobile/src/solana-wallet-adapter.android.ts`, `frontend/apps/mobile/src/storage/solana-wallet-session.ts` |
 | Current web game implementation | `frontend/apps/web/app/game/[id]/page.tsx` |
 | Current web Rive wrapper | `frontend/apps/web/app/game/[id]/RpsFigure.tsx` |
 
@@ -98,6 +100,16 @@ The shared numeric phases are:
 Use the exported `Phase` constants. Do not hard-code numeric phases in new web code.
 
 ## Authentication, sockets, and recovery
+
+### Optional Android wallet identity
+
+- On Android/Solana Mobile, Home offers an optional Mobile Wallet Adapter connection. iOS intentionally does not render it because the MWA native client SDK is Android-only.
+- Authorization targets `solana:mainnet` and uses the verified app identity URI `https://www.ripsy.fun`.
+- Only the public address, wallet label, authorization token, and wallet base URI are persisted locally in Android Keystore. No private key enters RIPSY.
+- App launch restores and displays the saved address without automatically opening the wallet app.
+- Disconnect deauthorizes the reusable token when possible, then always clears the local record. A missing or stale wallet cannot trap the user in a connected UI state.
+- This is currently local wallet identity only. It does not replace the backend-issued anonymous player session, send a wallet address over WebSocket, sign gameplay commands, or introduce smart contracts.
+- No web wallet-parity work is implied until wallet-backed accounts or signing are scoped separately.
 
 - The backend issues an anonymous signed session through `POST /session`.
 - Clients authenticate the WebSocket using `{ type: "authenticate", token, protocolVersion }`.

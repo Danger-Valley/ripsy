@@ -144,6 +144,7 @@ Implemented on backend, mobile, and web in `c2f95a5`; legacy migration fixed in 
 - Client displays tick locally every 250 ms from the last authoritative snapshot; clients never declare a timeout themselves.
 - Display uses `Math.ceil(ms / 1000)`, tabular digits, and `M:SS` formatting.
 - Running clock: turquoise emphasis. Last 60 seconds: red emphasis. Finished timeout copy must say why the user won or lost.
+- Keep both clocks mounted in their final paused state after `phase` becomes `Finished`; removing the clock row makes the game board jump upward at game over.
 
 Known backend follow-up: scheduler-driven timeout currently reaches connected clients through WebSocket Pub/Sub, but it does not independently send an FCM push because push dispatch is currently tied to player commands.
 

@@ -26,7 +26,9 @@ export function GameClocks({ state, ownOwner }: { state: GameState; ownOwner: Ow
   const myClockRunning = state.clockRunning === ownOwner && state.phase === Phase.Active;
   const opponentClockRunning = state.clockRunning !== Owner.None && state.clockRunning !== ownOwner && state.phase === Phase.Active;
 
-  if (state.phase !== Phase.Active) return null;
+  // Keep the finished snapshot mounted so the board does not jump upward when
+  // the status banner switches to the game-over result.
+  if (state.phase !== Phase.Active && state.phase !== Phase.Finished) return null;
 
   return (
     <View accessibilityRole="timer" style={styles.row} testID="game-clocks">

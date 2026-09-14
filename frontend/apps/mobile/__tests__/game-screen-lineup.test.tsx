@@ -155,6 +155,38 @@ test('offline computer battle skips waiting and starts after the local lineup is
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
+test('keeps both clocks mounted after the game finishes', async () => {
+  gameState = {
+    ...createdGame(),
+    phase: Phase.Finished,
+    p1: 'bob',
+    winner: 'alice',
+    clock0Ms: 421_000,
+    clock1Ms: 0,
+    clockRunning: Owner.None,
+    finishReason: 'timeout',
+  };
+  nativeGame = {
+    ...nativeGame,
+    gameState,
+  };
+  jest.mocked(useNativeRipsyGame).mockReturnValue(nativeGame);
+
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />,
+    );
+    await Promise.resolve();
+  });
+
+  expect(renderer.root.find(node => node.props.testID === 'game-clocks')).toBeDefined();
+  expect(renderer.root.findAllByType(Text).filter(node => node.props.children === '7:01')).toHaveLength(1);
+  expect(renderer.root.findAllByType(Text).filter(node => node.props.children === '0:00')).toHaveLength(1);
+
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('an open room is joined automatically before showing the board and lineup', async () => {
   gameState = { ...createdGame(), p0: 'bob' };
   const joinGame = jest.fn(() => Promise.resolve({ type: 'result' as const, requestId: 'join' }));

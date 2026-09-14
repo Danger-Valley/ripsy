@@ -3,7 +3,7 @@
 import { isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, HEIGHT, type GameState } from '@rps/core';
 import { useRiveFile } from '@rive-app/react-canvas';
 import RpsFigure, { Weapon, type TriggerName } from './RpsFigure';
-import { RIVE_JUMP_TRAVEL_DELAY_MS, pieceMoveDurationMs, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation } from './game-animation';
+import { RIVE_JUMP_TRAVEL_DELAY_MS, pieceMoveDurationMs, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation, type TrapAnimation } from './game-animation';
 import styles from './game.module.css';
 
 export interface LineupPiece { x: number; y: number; piece: Piece }
@@ -21,9 +21,11 @@ interface Props {
   movePhase: 'takeoff' | 'travel' | 'landing' | null;
   combatAnimation: CombatAnimation | null;
   combatPhase: CombatAnimationPhase | null;
+  trapAnimation: TrapAnimation | null;
   showOpponentFormation: boolean;
   onCellPress: (coordinate: Coordinate) => void;
   onMoveActionTriggered: () => void;
+  onTrapActionTriggered: (trigger: 'Trap Activate' | 'Fall In Trap') => void;
 }
 
 export function GameBoard(props: Props) {
@@ -54,6 +56,7 @@ export function GameBoard(props: Props) {
           const isMine = owner === props.ownOwner && props.ownOwner !== Owner.None;
           const combatLanding = Boolean(props.combatAnimation?.resolution === 'resolved' && props.combatPhase === 'settle' && same(props.combatAnimation.to, coordinate));
           const combatant = Boolean(props.combatAnimation && !combatLanding && (same(props.combatAnimation.from, coordinate) || same(props.combatAnimation.to, coordinate)));
+          const trapDestination = same(props.trapAnimation?.to, coordinate);
           const selected = same(props.selected, coordinate);
           const available = props.availableMoves.some(move => same(move, coordinate));
           const actionable = props.interactionEnabled && (props.selected ? (isMine && isMovablePiece(piece)) || available : isMine && isMovablePiece(piece));
@@ -61,7 +64,7 @@ export function GameBoard(props: Props) {
             <button
               aria-label={`Row ${display.y + 1}, column ${display.x + 1}, ${owner === Owner.None ? 'empty' : isMine ? `your ${pieceName(piece)}` : 'opponent piece'}`}
               aria-pressed={selected}
-              className={`${styles.cell} ${available ? styles.availableCell : ''} ${selected ? styles.selectedCell : ''}`}
+              className={`${styles.cell} ${available ? styles.availableCell : ''} ${selected ? styles.selectedCell : ''} ${trapDestination ? styles.trapDestinationCell : ''}`}
               disabled={!actionable}
               key={displayIndex}
               onClick={() => props.onCellPress(coordinate)}
@@ -73,11 +76,11 @@ export function GameBoard(props: Props) {
                 >
                   {riveReady ? <RpsFigure
                     isMyFigure={isMine}
-                    onActionTriggered={movingSource ? props.onMoveActionTriggered : undefined}
+                    onActionTriggered={trapDestination ? trigger => props.onTrapActionTriggered(trigger as 'Trap Activate') : movingSource ? props.onMoveActionTriggered : undefined}
                     riveFile={riveReady}
                     staggerStart={opponentPreview}
                     style={{ width: '168%', height: '168%', position: 'absolute', inset: '-34%' }}
-                    trigger={movingSource && props.moveAnimation ? jumpTrigger(props.moveAnimation, props.isPlayer1) : undefined}
+                    trigger={trapDestination ? 'Trap Activate' : movingSource && props.moveAnimation ? jumpTrigger(props.moveAnimation, props.isPlayer1) : undefined}
                     weapon={piece as Weapon}
                   /> : null}
                 </div>
@@ -90,8 +93,22 @@ export function GameBoard(props: Props) {
       {riveReady && props.combatAnimation && props.combatPhase && (
         <CombatScene combat={props.combatAnimation} isPlayer1={props.isPlayer1} ownOwner={props.ownOwner} phase={props.combatPhase} riveFile={riveReady} />
       )}
+      {riveReady && props.trapAnimation && (
+        <TrapScene animation={props.trapAnimation} isPlayer1={props.isPlayer1} onActionTriggered={props.onTrapActionTriggered} ownOwner={props.ownOwner} riveFile={riveReady} />
+      )}
     </div>
   );
+}
+
+function TrapScene({ animation, isPlayer1, onActionTriggered, ownOwner, riveFile }: { animation: TrapAnimation; isPlayer1: boolean; onActionTriggered: Props['onTrapActionTriggered']; ownOwner: Owner; riveFile: unknown }) {
+  const destination = toDisplay(animation.to, isPlayer1);
+  return <div className={styles.trapLayer}>
+    <div className={styles.trapVictim} style={{ '--trap-left': `${destination.x / WIDTH * 100}%`, '--trap-top': `${destination.y / HEIGHT * 100}%` } as React.CSSProperties}>
+      <div className={styles.pieceVisual}>
+        <RpsFigure isMyFigure={animation.attackerOwner === ownOwner} onActionTriggered={trigger => onActionTriggered(trigger as 'Fall In Trap')} preserveStateOnWeaponChange riveFile={riveFile} style={{ width: '168%', height: '168%', position: 'absolute', inset: '-34%' }} trigger="Fall In Trap" weapon={animation.attackerPiece as Weapon} />
+      </div>
+    </div>
+  </div>;
 }
 
 function CombatScene({ combat, isPlayer1, ownOwner, phase, riveFile }: { combat: CombatAnimation; isPlayer1: boolean; ownOwner: Owner; phase: CombatAnimationPhase; riveFile: unknown }) {

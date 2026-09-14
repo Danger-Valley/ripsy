@@ -1,6 +1,6 @@
 import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 
-export type GameAnimationKind = 'move' | 'battle' | 'phase';
+export type GameAnimationKind = 'move' | 'battle' | 'trap' | 'phase';
 export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death' | 'settle';
 
 export interface PieceMoveAnimation {
@@ -23,12 +23,21 @@ export interface CombatAnimation {
   winnerPiece: Piece;
 }
 
+export interface TrapAnimation {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  attackerOwner: Owner;
+  trapOwner: Owner;
+  attackerPiece: Piece;
+}
+
 const RIVE_TIMELINE_FPS = 60;
 const RIVE_JUMP_FORWARD_FRAMES = 45;
 const RIVE_JUMP_HORIZONTAL_FRAMES = 38;
 export const RIVE_JUMP_TRAVEL_DELAY_MS = 100;
 export const REPEATED_TIE_REVEAL_MS = 900;
 export const COMBAT_WINNER_SETTLE_MS = 320;
+export const RIVE_TRAP_DURATION_MS = 47 / RIVE_TIMELINE_FPS * 1000;
 
 export function combatAttackDurationMs(piece: Piece) {
   if (piece === Piece.Rock) return 383;
@@ -48,6 +57,7 @@ export function gameStateFingerprint(state: GameState) {
 
 export function classifyGameTransition(previous: GameState, next: GameState): GameAnimationKind {
   const boardChanged = !arraysEqual(previous.owners, next.owners) || !arraysEqual(previous.pieces, next.pieces);
+  if (boardChanged && next.defender === Piece.Trap && next.outcome === -1) return 'trap';
   const battleChanged = previous.tiePending !== next.tiePending
     || (previous.tieRound ?? 0) !== (next.tieRound ?? 0)
     || previous.live0 !== next.live0
@@ -60,6 +70,7 @@ export function classifyGameTransition(previous: GameState, next: GameState): Ga
 
 export function getPieceMoveAnimation(previous: GameState, next: GameState): PieceMoveAnimation | null {
   if (previous.gameId !== next.gameId || previous.phase !== Phase.Active || previous.tiePending || next.tiePending) return null;
+  if (next.defender === Piece.Trap && next.outcome === -1) return null;
   const boardChanged = !arraysEqual(previous.owners, next.owners) || !arraysEqual(previous.pieces, next.pieces);
   const confirmed = previous.isP1Turn !== next.isP1Turn || (next.phase === Phase.Finished && boardChanged);
   if (!confirmed) return null;
@@ -77,6 +88,22 @@ export function getPieceMoveAnimation(previous: GameState, next: GameState): Pie
   const candidates = neighbours(from).filter(to => previous.owners[toIdx(to.x, to.y)] !== next.owners[toIdx(to.x, to.y)]);
   if (candidates.length !== 1) return null;
   return { from, to: candidates[0]!, owner, piece: previous.pieces[index] ?? Piece.Empty };
+}
+
+export function getTrapAnimation(previous: GameState, next: GameState): TrapAnimation | null {
+  if (previous.gameId !== next.gameId || previous.phase !== Phase.Active) return null;
+  if (next.defender !== Piece.Trap || next.outcome !== -1 || next.tiePending) return null;
+  const from = next.tieFrom;
+  const to = next.tieTo;
+  if (!validCoordinate(from) || !validCoordinate(to) || !adjacent(from, to)) return null;
+  const fromIndex = toIdx(from.x, from.y);
+  const toIndex = toIdx(to.x, to.y);
+  const attackerOwner = previous.owners[fromIndex] ?? Owner.None;
+  const trapOwner = previous.owners[toIndex] ?? Owner.None;
+  if (!isPlayer(attackerOwner) || !isPlayer(trapOwner) || attackerOwner === trapOwner) return null;
+  if (next.owners[fromIndex] !== Owner.None || next.owners[toIndex] !== trapOwner || next.pieces[toIndex] !== Piece.Trap) return null;
+  if (next.attacker < Piece.Rock || next.attacker > Piece.Flag) return null;
+  return { from, to, attackerOwner, trapOwner, attackerPiece: next.attacker as Piece };
 }
 
 export function getCombatAnimation(previous: GameState, next: GameState): CombatAnimation | null {

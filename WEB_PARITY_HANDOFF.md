@@ -289,6 +289,14 @@ Verified locally on 2026-09-14 with the production Next.js build and browser che
 - After impact, fire `Death` only on the loser for 200 ms. Then publish the new board beneath the combat layer with its destination sprite hidden. Over a 320 ms ease-in-out settle, keep the winning overlay opaque, return it from the enlarged fight position to the authoritative `to` cell, and scale it from 2× to 1×. Reveal the already-preloaded destination sprite only when the overlay lands; never show both copies or fade the winner away.
 - Keep each Rive instance mounted through `Attack Prepare` → `Attack`/`Death`. Changing a trigger must not reset its state machine, or the battle timeline will restart instead of progressing.
 
+### Trap activation animation
+
+- A confirmed collision with `defender === Piece.Trap` and `outcome === -1` is its own `trap` presentation transition. Never classify it as a normal move or publish the post-collision board immediately.
+- Publish the authoritative destination trap into the displayed board first so its existing Rive instance stays mounted, then fire `Trap Activate` on that instance and render the removed attacker as an overlay in the same cell with `Fall In Trap`.
+- Start the presentation clock only after both Rive triggers report that they fired, with a bounded fallback if either callback is unavailable. `Trap Front`/`Trap Back` and `Fall In Trap Front`/`Fall In Trap Back` are all 47 frames at 60 FPS, so the synchronized scene lasts 783 ms.
+- Keep the trap cell above the falling attacker so the trap artwork closes over the victim. After the authored timeline completes, remove only the victim overlay; the activated trap remains in its authoritative destination cell.
+- A revealed opponent trap opened from a refreshed state must initialize through `Trap Activate`; the Back machine may use `Trap Idle`. In both cases keep `Weapon = Piece.Empty` and `WeaponVisible = 0` so no stale weapon leaks through the trap art.
+
 ### Haptics and accessibility
 
 - Mobile uses light selection haptics, move haptics, warning feedback for tied battles, and success feedback for lineup save/game finish.

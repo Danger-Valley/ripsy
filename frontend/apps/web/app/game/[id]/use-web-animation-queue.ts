@@ -6,20 +6,24 @@ import {
   COMBAT_WINNER_SETTLE_MS,
   REPEATED_TIE_REVEAL_MS,
   RIVE_JUMP_TRAVEL_DELAY_MS,
+  RIVE_TRAP_DURATION_MS,
   classifyGameTransition,
   combatAttackDurationMs,
   gameStateFingerprint,
   getCombatAnimation,
   getPieceMoveAnimation,
+  getTrapAnimation,
   pieceMoveDurationMs,
   type CombatAnimation,
   type CombatAnimationPhase,
   type GameAnimationKind,
   type PieceMoveAnimation,
+  type TrapAnimation,
 } from './game-animation';
 
 type MovePhase = 'takeoff' | 'travel' | 'landing';
-type QueuedTransition = { kind: GameAnimationKind; combat: CombatAnimation | null; move: PieceMoveAnimation | null; state: GameState };
+type TrapTrigger = 'Trap Activate' | 'Fall In Trap';
+type QueuedTransition = { kind: GameAnimationKind; combat: CombatAnimation | null; move: PieceMoveAnimation | null; trap: TrapAnimation | null; state: GameState };
 
 export function useWebAnimationQueue(authoritativeState: GameState | null) {
   const displayedRef = useRef<GameState | null>(null);
@@ -30,6 +34,7 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
   const activeCombatRef = useRef<CombatAnimation | null>(null);
   const timersRef = useRef<number[]>([]);
   const startMoveRef = useRef<(() => void) | null>(null);
+  const startTrapRef = useRef<((trigger?: TrapTrigger) => void) | null>(null);
   const drainRef = useRef<() => void>(() => undefined);
   const [displayedState, setDisplayedState] = useState<GameState | null>(null);
   const [activeKind, setActiveKind] = useState<GameAnimationKind | null>(null);
@@ -37,6 +42,7 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
   const [movePhase, setMovePhase] = useState<MovePhase | null>(null);
   const [activeCombat, setActiveCombat] = useState<CombatAnimation | null>(null);
   const [combatPhase, setCombatPhase] = useState<CombatAnimationPhase | null>(null);
+  const [activeTrap, setActiveTrap] = useState<TrapAnimation | null>(null);
 
   const later = (callback: () => void, delay: number) => {
     const timer = window.setTimeout(() => {
@@ -55,6 +61,8 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
     setMovePhase(null);
     setActiveCombat(null);
     setCombatPhase(null);
+    setActiveTrap(null);
+    startTrapRef.current = null;
     activeCombatRef.current = null;
     drainRef.current();
   };
@@ -71,7 +79,7 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
       return;
     }
 
-    if (transition.kind === 'phase' && !transition.combat && !transition.move) {
+    if (transition.kind === 'phase' && !transition.combat && !transition.move && !transition.trap) {
       displayedRef.current = transition.state;
       setDisplayedState(transition.state);
       drainRef.current();
@@ -82,6 +90,25 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
     setActiveKind(transition.kind);
     const resumesCombat = transition.combat?.resolution === 'resolved' && activeCombatRef.current?.resolution === 'pending';
     const repeatedTie = transition.combat?.resolution === 'pending' && transition.combat.isRepeatedTie && activeCombatRef.current?.resolution === 'pending';
+
+    if (transition.trap) {
+      const triggered = new Set<TrapTrigger>();
+      let started = false;
+      displayedRef.current = transition.state;
+      setDisplayedState(transition.state);
+      setActiveTrap(transition.trap);
+      const start = (trigger?: TrapTrigger) => {
+        if (trigger) triggered.add(trigger);
+        if (trigger && triggered.size < 2) return;
+        if (started) return;
+        started = true;
+        startTrapRef.current = null;
+        later(() => finish(transition.state), RIVE_TRAP_DURATION_MS);
+      };
+      startTrapRef.current = start;
+      later(() => start(), 750);
+      return;
+    }
 
     if (transition.combat) {
       const combat = transition.combat;
@@ -170,8 +197,9 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
       return;
     }
     const baseline = latestRef.current ?? displayedRef.current;
-    const combat = getCombatAnimation(baseline, authoritativeState);
-    queueRef.current.push({ kind: classifyGameTransition(baseline, authoritativeState), combat, move: combat ? null : getPieceMoveAnimation(baseline, authoritativeState), state: authoritativeState });
+    const trap = getTrapAnimation(baseline, authoritativeState);
+    const combat = trap ? null : getCombatAnimation(baseline, authoritativeState);
+    queueRef.current.push({ kind: classifyGameTransition(baseline, authoritativeState), combat, move: combat || trap ? null : getPieceMoveAnimation(baseline, authoritativeState), trap, state: authoritativeState });
     latestRef.current = authoritativeState;
     if (navigator.vibrate && baseline.isP1Turn !== authoritativeState.isP1Turn) navigator.vibrate(12);
     drainRef.current();
@@ -180,8 +208,10 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
   useEffect(() => () => {
     for (const timer of timersRef.current) window.clearTimeout(timer);
     timersRef.current = [];
+    startTrapRef.current = null;
   }, []);
 
   const startActiveMove = useCallback(() => startMoveRef.current?.(), []);
-  return { displayedState, activeKind, activeMove, movePhase, activeCombat, combatPhase, isAnimating: activeKind !== null, startActiveMove };
+  const startActiveTrap = useCallback((trigger: TrapTrigger) => startTrapRef.current?.(trigger), []);
+  return { displayedState, activeKind, activeMove, movePhase, activeCombat, combatPhase, activeTrap, isAnimating: activeKind !== null, startActiveMove, startActiveTrap };
 }

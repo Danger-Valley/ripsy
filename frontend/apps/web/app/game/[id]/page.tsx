@@ -152,7 +152,7 @@ export function BattleScreen({ game, gameId, playerId, isComputer = false, onAni
   }
 
   const renderedState = visibleState ?? game.gameState;
-  const statusMessage = animation.activeKind ? animation.activeKind === 'battle' ? 'Resolving battle…' : 'Moving piece…' : getStateMessage(renderedState, hasSubmitted, game.isMyTurn, playerId, isComputer);
+  const statusMessage = animation.activeKind ? animation.activeKind === 'battle' ? 'Resolving battle…' : animation.activeKind === 'trap' ? 'Trap triggered…' : 'Moving piece…' : getStateMessage(renderedState, hasSubmitted, game.isMyTurn, playerId, isComputer);
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
@@ -189,11 +189,13 @@ export function BattleScreen({ game, gameId, playerId, isComputer = false, onAni
               movePhase={animation.movePhase}
               onCellPress={onCellPress}
               onMoveActionTriggered={animation.startActiveMove}
+              onTrapActionTriggered={animation.startActiveTrap}
               ownOwner={game.ownOwner}
               previewLineup={canEditLineup ? lineup : undefined}
               selected={selected}
               showOpponentFormation={canEditLineup}
               state={renderedState}
+              trapAnimation={animation.activeTrap}
             />
           </div>
 

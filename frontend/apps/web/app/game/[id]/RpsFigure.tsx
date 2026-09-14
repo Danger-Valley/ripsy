@@ -37,6 +37,7 @@ export default function RpsFigure({ weapon, trigger, style, isMyFigure, staggerS
   const stateMachine = isMyFigure ? 'State Machine Back' : 'State Machine Front';
   const initialDelay = useRef(60 + Math.floor(Math.random() * 340)).current;
   const lastTrigger = useRef<TriggerName | null>(null);
+  const trapStateInitialized = useRef(false);
   const [shouldMount, setShouldMount] = useState(!staggerStart);
   const [configured, setConfigured] = useState(false);
   const { rive, RiveComponent } = useRive({
@@ -62,18 +63,22 @@ export default function RpsFigure({ weapon, trigger, style, isMyFigure, staggerS
     if (weaponInput && 'value' in weaponInput) weaponInput.value = isTrap ? Weapon.None : weapon;
     const visibleInput = inputs.find(input => input.name === 'WeaponVisible' && 'value' in input);
     if (visibleInput && 'value' in visibleInput) visibleInput.value = weapon !== Weapon.None && !isTrap;
-    if (isTrap && isMyFigure) {
-      const trapIdle = inputs.find(input => input.name === 'Trap Idle' && typeof input.fire === 'function');
-      trapIdle?.fire?.();
+    if (!isTrap) trapStateInitialized.current = false;
+    if (isTrap && !trapStateInitialized.current && trigger !== 'Trap Activate') {
+      const initialTrapTrigger = inputs.find(input => input.name === (isMyFigure ? 'Trap Idle' : 'Trap Activate') && typeof input.fire === 'function');
+      initialTrapTrigger?.fire?.();
+      trapStateInitialized.current = Boolean(initialTrapTrigger);
     }
     requestAnimationFrame(() => setConfigured(true));
-  }, [isMyFigure, preserveStateOnWeaponChange, rive, shouldMount, stateMachine, weapon]);
+  }, [isMyFigure, preserveStateOnWeaponChange, rive, shouldMount, stateMachine, trigger, weapon]);
 
   useEffect(() => {
     if (!rive || !trigger || !configured || lastTrigger.current === trigger) return;
     lastTrigger.current = trigger;
     const inputs = rive.stateMachineInputs?.(stateMachine) ?? [];
-    inputs.find(input => input.name === trigger && typeof input.fire === 'function')?.fire?.();
+    const triggerInput = inputs.find(input => input.name === trigger && typeof input.fire === 'function');
+    triggerInput?.fire?.();
+    if (trigger === 'Trap Activate' && triggerInput) trapStateInitialized.current = true;
     onActionTriggered?.(trigger);
   }, [configured, onActionTriggered, rive, stateMachine, trigger]);
 

@@ -252,9 +252,9 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
             false,
           );
         };
-        // Opponent figures hold their board position for the authored takeoff
-        // before container travel begins, while still landing at the end of the
-        // same Rive jump timeline.
+        // Figures hold their board position for the authored takeoff before
+        // container travel begins, while still landing at the end of the same
+        // Rive jump timeline.
         if (travelDelayMs > 0) pendingMoveFallbackRef.current = setTimeout(startTravel, travelDelayMs);
         else startTravel();
       };

@@ -230,7 +230,7 @@ test('fires a Rive jump on the already configured moving figure', async () => {
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(2);
   expect(sourceCell.findByType(RiveGamePiece).props.actionTrigger).toBe('Jump Forward');
   sourceCell.findByType(RiveGamePiece).props.onActionTriggered('Jump Forward');
-  expect(onMoveActionTriggered).toHaveBeenCalledWith(0);
+  expect(onMoveActionTriggered).toHaveBeenCalledWith(100);
 
   const pieceStyle = StyleSheet.flatten(sourceCell.find(node => node.props.testID === 'piece-visual').props.style);
   expect(pieceStyle).toMatchObject({ zIndex: 21, elevation: 21 });

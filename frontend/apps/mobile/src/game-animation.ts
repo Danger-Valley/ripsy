@@ -29,7 +29,7 @@ export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death';
 const RIVE_TIMELINE_FPS = 60;
 const RIVE_JUMP_FORWARD_FRAMES = 45;
 const RIVE_JUMP_HORIZONTAL_FRAMES = 38;
-export const OPPONENT_MOVE_TRAVEL_DELAY_MS = 100;
+export const RIVE_JUMP_TRAVEL_DELAY_MS = 100;
 
 export function combatAttackDurationMs(piece: Piece) {
   if (piece === Piece.Rock) return 383;

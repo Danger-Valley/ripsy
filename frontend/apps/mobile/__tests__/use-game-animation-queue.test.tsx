@@ -57,7 +57,7 @@ test('starts container movement once and only after the mounted Rive trigger rep
   jest.useRealTimers();
 });
 
-test('delays opponent travel by 100 ms and shortens it to preserve the Rive landing time', async () => {
+test('delays board travel by 100 ms and shortens it to preserve the Rive landing time', async () => {
   jest.useFakeTimers();
   const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
     reset: jest.fn(),

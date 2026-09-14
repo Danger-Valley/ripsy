@@ -368,6 +368,7 @@ This ledger summarizes the recent work that established the native reference. Co
 
 ### Mobile room, lineup, board, and Rive UX
 
+- `01c9bf4` — optional Android Solana Mobile Wallet Adapter identity, secure remembered public address/session context, and reliable local disconnect; gameplay remains server-authoritative and wallet-independent.
 - `240da34` / `f89ee24` / `aca5d1e` — reset and initialize Rive weapon state without Shuffle flicker.
 - `f32c97b` / `42afa9b` / `d9d77e0` / `dec636f` / `d5576f8` — larger, progressively raised piece layout.
 - `da3a0f6` — active unfinished games with miniature boards on Home.

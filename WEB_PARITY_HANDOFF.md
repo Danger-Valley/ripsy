@@ -48,7 +48,11 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 | Android wallet identity UI and lifecycle | `frontend/apps/mobile/src/components/solana-wallet-card.tsx`, `frontend/apps/mobile/src/hooks/use-solana-wallet.ts` |
 | Android-only MWA adapter and secure session storage | `frontend/apps/mobile/src/solana-wallet-adapter.android.ts`, `frontend/apps/mobile/src/storage/solana-wallet-session.ts` |
 | Current web game implementation | `frontend/apps/web/app/game/[id]/page.tsx` |
-| Current web Rive wrapper | `frontend/apps/web/app/game/[id]/RpsFigure.tsx` |
+| Web board and Rive wrapper | `frontend/apps/web/app/game/[id]/GameBoard.tsx`, `frontend/apps/web/app/game/[id]/RpsFigure.tsx` |
+| Web transition detection and animation queue | `frontend/apps/web/app/game/[id]/game-animation.ts`, `frontend/apps/web/app/game/[id]/use-web-animation-queue.ts` |
+| Local web computer mode | `frontend/apps/web/app/computer/local-computer-game.ts`, `frontend/apps/web/app/computer/use-local-computer-game.ts` |
+| Web Home and active-game carousel | `frontend/apps/web/app/page.tsx`, `frontend/apps/web/app/page.module.css` |
+| Optional browser wallet identity | `frontend/apps/web/app/hooks/use-browser-wallet.ts`, `frontend/apps/web/app/components/WalletCard.tsx` |
 
 ## Authoritative game contract
 
@@ -101,15 +105,16 @@ Use the exported `Phase` constants. Do not hard-code numeric phases in new web c
 
 ## Authentication, sockets, and recovery
 
-### Optional Android wallet identity
+### Optional wallet identity
 
 - On Android/Solana Mobile, Home offers an optional Mobile Wallet Adapter connection. iOS intentionally does not render it because the MWA native client SDK is Android-only.
 - Authorization targets `solana:mainnet` and uses the verified app identity URI `https://www.ripsy.fun`.
 - Only the public address, wallet label, authorization token, and wallet base URI are persisted locally in Android Keystore. No private key enters RIPSY.
 - App launch restores and displays the saved address without automatically opening the wallet app.
 - Disconnect deauthorizes the reusable token when possible, then always clears the local record. A missing or stale wallet cannot trap the user in a connected UI state.
-- This is currently local wallet identity only. It does not replace the backend-issued anonymous player session, send a wallet address over WebSocket, sign gameplay commands, or introduce smart contracts.
-- No web wallet-parity work is implied until wallet-backed accounts or signing are scoped separately.
+- Web Home offers the equivalent optional identity control through Wallet Standard. It remembers only the wallet name and public address in local storage, attempts a silent reconnect only when the saved wallet is still installed and advertises silent connect, and supports copy and disconnect.
+- This is currently local wallet identity only on both platforms. It does not replace the backend-issued anonymous player session, send a wallet address over WebSocket, sign gameplay commands, or introduce smart contracts.
+- Browser Wallet Standard and Android Mobile Wallet Adapter are intentionally different transports. Wallet-backed accounts, signatures, and gameplay authorization remain out of scope until designed separately.
 
 - The backend issues an anonymous signed session through `POST /session`.
 - Clients authenticate the WebSocket using `{ type: "authenticate", token, protocolVersion }`.
@@ -120,7 +125,7 @@ Use the exported `Phase` constants. Do not hard-code numeric phases in new web c
 - The reusable socket client has request timeouts, exponential reconnect backoff with jitter, pending-request rejection, and full-state recovery.
 - Native suspends its socket in the background and reconnects/refetches when active.
 - Cold-start recovery never opens a locally saved room ID blindly. Home first calls `listGames`, verifies that the matching game belongs to the player and has `phase < Finished`, and only then navigates to it. A missing or finished game clears the saved recovery ID; an unverifiable game stays closed while offline or on request failure.
-- Web should converge on the reusable `RipsySocketClient` instead of maintaining a second, weaker WebSocket implementation in `use-ripsy-game.ts`.
+- Web uses the reusable `RipsySocketClient` from `use-ripsy-game.ts`, including request timeouts, reconnect recovery, runtime parsing, visibility suspend/resume, and full-state refresh.
 - Safe diagnostics must not log credentials, player IDs, room IDs, request IDs, coordinates, lineups, or board state.
 
 ## Offline computer mode
@@ -134,7 +139,7 @@ Use the exported `Phase` constants. Do not hard-code numeric phases in new web c
 - The first AI is intentionally lightweight: enumerate legal moves, prefer contact, forward pressure and central files, then add bounded randomness. It does not inspect the hidden type of a player piece when scoring a destination.
 - During tied combat, the computer independently chooses Rock, Paper, or Scissors. A completely blocked computer side loses through the existing clock-expiry rule instead of retrying forever.
 - Current local sessions are memory-only and restart when the battle screen/app process is discarded. Persistence and difficulty levels are follow-up features.
-- Web parity is optional for this mode, but a web implementation should reuse `@rps/game-engine` and preserve the no-network and no-hidden-information guarantees.
+- Web implements the same fully local mode under `/computer`. It reuses `@rps/game-engine`, the native-style legal-move scoring and tie choice, and pauses AI decisions while the presentation queue is busy. No room, socket, or backend request is created by this battle screen.
 
 ## Ten-minute chess clocks
 
@@ -168,7 +173,21 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 - Wire state exposes only the viewing player's `lineupDeadlineAt`; clients do not need the opponent's private setup deadline.
 - Native ticks the displayed setup countdown locally from the authoritative absolute deadline, but only the server can cancel an online game.
 - During setup the ten-minute chess clocks are hidden. Unsaved lineup UI shows `SAVE IN M:SS`; the final minute uses danger styling. After first save it is replaced by the READY state.
-- Web must implement the same setup countdown and canceled-game copy. It must not create a client-side cancellation or reset the deadline after Shuffle/Save changes.
+- Web implements the same setup countdown and canceled-game copy. It does not create a client-side cancellation or reset the deadline after Shuffle/Save changes.
+
+## Current web implementation status
+
+The current web client now mirrors the recent native experience rather than the original contract-era UI:
+
+- Home lists unfinished games in a compact horizontal snap carousel with miniature boards, validates a saved recovery room against `listGames`, and provides Create, Join, Play vs computer, and optional wallet identity actions.
+- Room entry and invitation links automatically join an available player slot. The redundant pre-join board/confirmation screen has been removed.
+- Battle setup includes the three-minute lineup deadline, weaponless front-facing opponent placeholders, shuffle-only editing, grouped glowing lineup controls, repeated pre-battle saves, and explicit READY feedback.
+- The responsive board separates its clipped checkerboard surface from the overflow-visible piece layer. It has cell-bound hit targets, no colored rings, correct trap state, and per-instance opponent idle staggering.
+- Online and local games share transition classification and the ordered web animation queue. Confirmed movement uses authored Rive jump durations; combat supports prepare/hold, repeated ties, weapon-specific attacks, death, and a smooth winner return.
+- Both cumulative clocks stay mounted through the result state. The web vibrates lightly on supported devices after a confirmed turn advance.
+- `/computer` is fully local and uses the shared game engine; the AI waits until presentation is idle before making its move.
+
+Verified locally on 2026-09-14 with the production Next.js build and browser checks at desktop and 390 × 844 widths. The local computer flow was played through both player and AI moves. A live two-browser production multiplayer pass remains an acceptance check because local browser sessions could not complete the production handshake in the verification environment.
 
 ## Native UX reference for web
 
@@ -284,32 +303,33 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Feature | Status | Web action |
 | --- | --- | --- |
 | Authoritative backend rules | Shared | Consume state/commands only; never recreate rules. |
-| Offline computer opponent | Native done, web optional | Reuse `@rps/game-engine` locally; do not route this mode through WebSocket or inspect hidden player piece types in AI scoring. |
+| Offline computer opponent | Done | Reuses `@rps/game-engine` locally and pauses AI while presentation is busy. |
 | Redis multi-instance persistence and Pub/Sub | Shared | No web work. |
 | Signed anonymous sessions | Done | Preserve `/session` token flow. |
 | Runtime protocol parsing | Done | Keep `parseServerMessage` on every message. |
-| Reusable robust socket client | Port/verify | Replace or align the legacy React hook with `RipsySocketClient` recovery semantics. |
-| Safe last-game restoration | Port/verify | Verify saved game membership and unfinished phase through `listGames` before automatic navigation; never open stale local IDs. |
-| Create/join/play commands | Done | Retest after socket-hook convergence. |
-| Automatic join after room entry/deep link | Port/verify | Remove redundant join confirmation screen and board preview. |
-| Active unfinished games on Home | Port/verify | Add native-style list with miniature boards using `listGames`. |
-| Waiting opponent + Invite card | Port/verify | Match the compact native waiting hierarchy. |
-| Editable lineup until both ready | Done, verify UX | Ensure repeated saves work before `Active`. |
-| Shuffle-only lineup editing | Port/verify | Disable piece-to-piece swapping in setup. |
-| Saved/dirty/READY lineup states | Port/verify | Mirror native labels and disabled saved button. |
-| Opponent pregame formation | Done, verify | Keep placeholders front-facing and weaponless. |
-| Board responsive bounds | Port/verify | Prevent overflow on narrow Android/mobile browser widths. |
-| Piece art overflow without clipping | Port/verify | Let heads cross the frame without enlarging hit targets. |
-| No background circles | Port/verify | Remove all opponent/own decorative rings. |
-| Opponent always faces local player | Done, verify both sides | Use Front state machine; test Player 0 and Player 1. |
-| Trap rendering and immobility | Shared + Port/verify visual | Use `isMovablePiece`; confirm no weapon leaks through trap art. |
-| Independent opponent idle timing | Port/verify | Use per-instance 60–400 ms stagger and reduced-motion handling. |
-| Explicit animation queue | Port/verify | Replace overlapping timer-driven web combat/movement effects with state-transition queue. |
-| Stable confirmed-move motion | Port/verify | Fire the directional jump on the mounted, configured Rive figure and synchronize its container motion; never remount it, which can switch weapons. |
-| Tied-combat hold before picker | Port/verify | Run `Attack Prepare`, approach and 2× scale first; hold the scene through both choices and resume it at `Attack` after resolution. |
-| Full resolved combat scene | Done, migrate to queue | Preserve the existing web choreography and weapon attacks, but drive it from the authoritative transition queue using the sequence documented above. |
-| Light move feedback | Visual equivalent | Provide visible acknowledgement; browser vibration is optional. |
-| Two 10-minute clocks | Done | Keep server snapshots authoritative and verify narrow layouts/result state. |
+| Reusable robust socket client | Done | `useRipsyGame` delegates transport and recovery to `RipsySocketClient`. |
+| Safe last-game restoration | Done | Saved IDs open only after membership in the unfinished `listGames` result is verified. |
+| Create/join/play commands | Done | Exposed through the shared client hook. |
+| Automatic join after room entry/deep link | Done | A compact join gate replaces the redundant preview screen. |
+| Active unfinished games on Home | Done | Horizontal snap carousel with miniature boards. |
+| Waiting opponent + Invite card | Done | Compact waiting hierarchy and Web Share/clipboard invitation. |
+| Editable lineup until both ready | Done | Repeated saves remain available until `Active`. |
+| Shuffle-only lineup editing | Done | Setup board is a non-interactive preview. |
+| Saved/dirty/READY lineup states | Done | Native-equivalent labels, glow, and disabled saved button. |
+| Opponent pregame formation | Done | Front-facing weaponless placeholders. |
+| Board responsive bounds | Done | Square board verified at 390 px viewport without overflow. |
+| Piece art overflow without clipping | Done | Separate surface, cells, and visible artwork layers. |
+| No background circles | Done | Removed from both sides. |
+| Opponent always faces local player | Done | Opponent figures use the Front state machine. |
+| Trap rendering and immobility | Done | Shared movement rule plus explicit trap Rive state with hidden weapon. |
+| Independent opponent idle timing | Done | Per-instance stagger with reduced-motion handling. |
+| Explicit animation queue | Done | Authoritative transitions are classified and presented serially. |
+| Stable confirmed-move motion | Done | Rive trigger and container travel use the authored fixed timelines. |
+| Tied-combat hold before picker | Done | Picker opens after prepare/hold and repeated ties reveal before reopening. |
+| Full resolved combat scene | Done | Weapon attack, death, and winner-return sequence runs through the queue. |
+| Light move feedback | Done where supported | Visible state plus `navigator.vibrate(12)` on confirmed turn advance. |
+| Two 10-minute clocks | Done | Server snapshots remain authoritative; clocks stay mounted at result. |
+| Optional browser wallet identity | Done | Wallet Standard connect/reconnect/disconnect/copy, isolated from gameplay. |
 | Timeout result copy | Done | Preserve `finishReason === "timeout"` messaging and final clocks. |
 | Push notifications | Mobile only | No parity requirement unless web push is scoped later. |
 | Android APK download page | Done | Stable page is `/download`; unrelated to gameplay parity. |

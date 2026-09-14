@@ -1,170 +1,125 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Choice, Owner, Piece, PROTOCOL_VERSION, ProtocolVersionError, parseServerMessage, toIdx, toXY, WIDTH, HEIGHT } from '@rps/core';
-import type { ClientAction, GameState, ServerMessage } from '@rps/core';
+import { Choice, HEIGHT, Owner, Piece, WIDTH, toIdx, toXY, type GameState } from '@rps/core';
 import { usePlayerIdentity } from './player-identity';
-
-type PendingRequest = {
-  resolve: (message: Extract<ServerMessage, { type: 'result' }>) => void;
-  reject: (error: Error) => void;
-};
-
-type ClientActionInput = ClientAction extends infer Action
-  ? Action extends { requestId: string }
-    ? Omit<Action, 'requestId'>
-    : never
-  : never;
+import { RipsySocketClient, type ConnectionStatus } from './ripsy-socket-client';
 
 const endpoint = () => process.env.NEXT_PUBLIC_GAME_WS_URL ?? 'ws://localhost:8080';
 
 export function useRipsyGame(gameId?: string) {
   const { playerId, sessionToken } = usePlayerIdentity();
-  const socketRef = useRef<WebSocket | null>(null);
-  const pendingRef = useRef(new Map<string, PendingRequest>());
+  const clientRef = useRef<RipsySocketClient | null>(null);
   const stateRef = useRef<GameState | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [loading, setLoading] = useState(Boolean(gameId));
+  const [activeGames, setActiveGames] = useState<GameState[]>([]);
+  const [status, setStatus] = useState<ConnectionStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState(0);
 
   const updateState = useCallback((state: GameState) => {
     stateRef.current = state;
     setGameState(state);
-    setLoading(false);
     setError(null);
   }, []);
 
   useEffect(() => {
     if (!playerId || !sessionToken) return;
-    let disposed = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const connect = () => {
-      if (disposed) return;
-      const socket = new WebSocket(endpoint());
-      socketRef.current = socket;
-      socket.onopen = () => {
-        setError(null);
-        socket.send(JSON.stringify({ type: 'authenticate', token: sessionToken, protocolVersion: PROTOCOL_VERSION }));
-      };
-      socket.onmessage = (event) => {
-        let message: ServerMessage;
-        try {
-          message = parseServerMessage(JSON.parse(event.data as string) as unknown);
-        } catch (cause) {
-          setError(cause instanceof ProtocolVersionError ? cause.message : 'The game server sent an invalid message');
-          socket.close(1002, 'Invalid server message');
-          return;
-        }
-        if (message.type === 'connected') {
-          setIsInitialized(true);
-          if (gameId) send({ type: 'getGame', requestId: crypto.randomUUID(), gameId }).catch(() => undefined);
-        }
-        if (message.type === 'state' && (!gameId || message.gameId === gameId)) updateState(message.state);
-        if (message.type === 'result') {
-          if (message.state) updateState(message.state);
-          const pending = pendingRef.current.get(message.requestId);
-          pending?.resolve(message);
-          pendingRef.current.delete(message.requestId);
-        }
-        if (message.type === 'error') {
-          setLoading(false);
-          const error = message.code === 'UNSUPPORTED_PROTOCOL_VERSION'
-            ? new ProtocolVersionError(message.expectedProtocolVersion ?? PROTOCOL_VERSION, message.receivedProtocolVersion)
-            : new Error(message.message);
-          setError(error.message);
-          if (message.requestId) {
-            pendingRef.current.get(message.requestId)?.reject(error);
-            pendingRef.current.delete(message.requestId);
-          }
-        }
-      };
-      socket.onclose = (event) => {
-        if (socketRef.current === socket) socketRef.current = null;
-        setIsInitialized(false);
-        if (!disposed && event.code !== 1002 && event.code !== 1008) reconnectTimer = setTimeout(connect, 1500);
-      };
-      socket.onerror = () => setError('Cannot connect to the game server');
+    const client = new RipsySocketClient({ endpoint: endpoint(), playerId, sessionToken });
+    clientRef.current = client;
+    const unsubscribeState = client.onState(updateState);
+    const unsubscribeStatus = client.onStatus(nextStatus => {
+      setStatus(nextStatus);
+      if (nextStatus === 'connected') setError(null);
+    });
+    const unsubscribeError = client.onError(cause => setError(cause.message));
+    const syncVisibility = () => {
+      if (document.visibilityState === 'hidden') client.suspend();
+      else client.connect(gameId);
     };
-
-    connect();
+    document.addEventListener('visibilitychange', syncVisibility);
+    syncVisibility();
     return () => {
-      disposed = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      socketRef.current?.close();
-      for (const pending of pendingRef.current.values()) pending.reject(new Error('Connection closed'));
-      pendingRef.current.clear();
+      document.removeEventListener('visibilitychange', syncVisibility);
+      unsubscribeState();
+      unsubscribeStatus();
+      unsubscribeError();
+      client.disconnect();
+      if (clientRef.current === client) clientRef.current = null;
     };
   }, [gameId, playerId, sessionToken, updateState]);
 
-  const send = useCallback(async (action: ClientAction) => {
-    const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) throw new Error('Game server is not connected');
-    setLoading(true);
+  const run = useCallback(async <Result,>(operation: (client: RipsySocketClient) => Promise<Result>) => {
+    const client = clientRef.current;
+    if (!client) throw new Error('Game client is not ready');
+    setPendingRequests(value => value + 1);
     setError(null);
-    return new Promise<Extract<ServerMessage, { type: 'result' }>>((resolve, reject) => {
-      pendingRef.current.set(action.requestId, { resolve, reject });
-      socket.send(JSON.stringify(action));
-    }).finally(() => setLoading(false));
+    try {
+      return await operation(client);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'The request failed';
+      setError(message);
+      throw cause;
+    } finally {
+      setPendingRequests(value => Math.max(0, value - 1));
+    }
   }, []);
 
-  const request = useCallback(async (action: ClientActionInput) => {
-    return send({ ...action, requestId: crypto.randomUUID() } as ClientAction);
-  }, [send]);
+  const listGames = useCallback(() => run(async client => {
+    const result = await client.request({ type: 'listGames' });
+    const games = result.games ?? [];
+    setActiveGames(games);
+    return games;
+  }), [run]);
 
   const createGame = useCallback(async () => {
-    const result = await request({ type: 'createGame' });
+    const result = await run(client => client.request({ type: 'createGame' }));
     if (!result.gameId) throw new Error('The server did not return a game ID');
     return { gameId: result.gameId };
-  }, [request]);
+  }, [run]);
 
   const refreshFreshGameState = useCallback(async () => {
     if (!gameId) return null;
-    const result = await request({ type: 'getGame', gameId });
+    const result = await run(client => client.request({ type: 'getGame', gameId }));
     return result.state ?? null;
-  }, [gameId, request]);
-
+  }, [gameId, run]);
   const refreshGameState = useCallback(async () => { await refreshFreshGameState(); }, [refreshFreshGameState]);
-  const joinGame = useCallback(async (id: string) => { await request({ type: 'joinGame', gameId: id }); }, [request]);
+  const joinGame = useCallback(async (id = gameId) => {
+    if (!id) throw new Error('Missing game ID');
+    await run(client => client.request({ type: 'joinGame', gameId: id }));
+  }, [gameId, run]);
   const submitCustomLineup = useCallback(async (xs: number[], ys: number[], pieces: number[]) => {
     if (!gameId) throw new Error('Missing game ID');
-    await request({ type: 'submitLineup', gameId, xs, ys, pieces });
-  }, [gameId, request]);
+    await run(client => client.request({ type: 'submitLineup', gameId, xs, ys, pieces }));
+  }, [gameId, run]);
   const movePiece = useCallback(async (fromX: number, fromY: number, toX: number, toY: number) => {
     if (!gameId) throw new Error('Missing game ID');
-    await request({ type: 'movePiece', gameId, fromX, fromY, toX, toY });
-  }, [gameId, request]);
+    await run(client => client.request({ type: 'movePiece', gameId, fromX, fromY, toX, toY }));
+  }, [gameId, run]);
   const chooseWeapon = useCallback(async (choice: Choice) => {
     if (!gameId) throw new Error('Missing game ID');
-    await request({ type: 'chooseWeapon', gameId, choice });
-  }, [gameId, request]);
+    await run(client => client.request({ type: 'chooseWeapon', gameId, choice }));
+  }, [gameId, run]);
 
   const isPlayer0 = Boolean(gameState && playerId && gameState.p0 === playerId);
   const isPlayer1 = Boolean(gameState && playerId && gameState.p1 === playerId);
+  const ownOwner = isPlayer0 ? Owner.P0 : isPlayer1 ? Owner.P1 : Owner.None;
   const isMyTurn = Boolean(gameState && ((isPlayer0 && !gameState.isP1Turn) || (isPlayer1 && gameState.isP1Turn)));
   const isPlayerChoice = useCallback(() => Boolean(stateRef.current && stateRef.current.playerChoice !== Choice.None), []);
 
   return useMemo(() => ({
-    gameState,
-    loading,
-    error,
-    createGame,
-    joinGame,
-    submitCustomLineup,
-    movePiece,
-    chooseWeapon,
-    refreshGameState,
-    refreshFreshGameState,
-    isPlayer0,
-    isPlayer1,
-    isMyTurn,
-    isPlayerChoice,
-    isInitialized,
+    gameState, activeGames, status, error,
+    loading: pendingRequests > 0,
+    isBusy: pendingRequests > 0,
+    isInitialized: status === 'connected',
+    isConnected: status === 'connected',
+    createGame, listGames, joinGame, submitCustomLineup, submitLineup: submitCustomLineup,
+    movePiece, chooseWeapon, refreshGameState, refreshFreshGameState, refresh: refreshFreshGameState,
+    isPlayer0, isPlayer1, ownOwner, isMyTurn, isPlayerChoice,
     getAvailableMoves: (fromX: number, fromY: number) => [
       { x: fromX + 1, y: fromY }, { x: fromX - 1, y: fromY },
       { x: fromX, y: fromY + 1 }, { x: fromX, y: fromY - 1 },
     ].filter(({ x, y }) => x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT),
     isValidMove: (fromX: number, fromY: number, toX: number, toY: number) => Math.abs(fromX - toX) + Math.abs(fromY - toY) === 1,
-  }), [chooseWeapon, createGame, error, gameState, isInitialized, isMyTurn, isPlayer0, isPlayer1, joinGame, loading, movePiece, refreshFreshGameState, refreshGameState, submitCustomLineup, isPlayerChoice]);
+  }), [activeGames, chooseWeapon, createGame, error, gameState, isMyTurn, isPlayer0, isPlayer1, joinGame, listGames, movePiece, ownOwner, pendingRequests, refreshFreshGameState, refreshGameState, status, submitCustomLineup, isPlayerChoice]);
 }
 
 export { Choice, HEIGHT, Owner, Piece, WIDTH, toIdx, toXY } from '@rps/core';

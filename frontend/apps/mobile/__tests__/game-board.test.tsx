@@ -432,6 +432,45 @@ test('stages a battle and sends the attack and death triggers to the right fight
   expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Paper)?.props.actionTrigger).toBeUndefined();
 });
 
+test('keeps enlarged combatants visibly separated around the fight midpoint', async () => {
+  const state = createState();
+  const progress = new Animated.Value(1.35);
+  const combat = {
+    resolution: 'resolved' as const,
+    from: { x: 0, y: 0 },
+    to: { x: 1, y: 0 },
+    attackerOwner: Owner.P0,
+    defenderOwner: Owner.P1,
+    attackerPiece: Piece.Rock,
+    defenderPiece: Piece.Paper,
+    winnerOwner: Owner.P1,
+    winnerPiece: Piece.Paper,
+  };
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <GameBoard
+        combatAnimation={combat}
+        combatPhase="attack"
+        isPlayer1={false}
+        moveProgress={progress}
+        ownOwner={Owner.P0}
+        state={state}
+      />,
+    );
+  });
+
+  const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
+  const cellSize = (boardStyle.width - boardStyle.borderWidth * 2) / WIDTH;
+  const leftFighterStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'combat-loser' }).props.style);
+  const rightFighterStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'combat-winner' }).props.style);
+  const leftFinalX = leftFighterStyle.left + leftFighterStyle.transform[0].translateX.__getValue();
+  const rightFinalX = rightFighterStyle.left + rightFighterStyle.transform[0].translateX.__getValue();
+
+  expect((rightFinalX - leftFinalX) / cellSize).toBeCloseTo(0.84);
+});
+
 test('holds both tied fighters enlarged without firing attack or death', async () => {
   const state = createState();
   const progress = new Animated.Value(1.35);

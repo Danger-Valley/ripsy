@@ -243,7 +243,7 @@ Known backend follow-up: scheduler-driven timeout currently reaches connected cl
 
 - A Rock/Paper/Scissors battle starts from the authoritative collision state. For an immediate result, run the full sequence below. For `tiePending`, create a pending combat scene before showing the weapon picker.
 - Read both original occupants from the previous board and the revealed weapons/winner from `attacker`, `defender`, and `outcome`. This supports both immediate battles and post-tie resolution without leaking hidden weapons early.
-- Hide both stationary sprites and render two persistent overlay instances above the board. Arrange them horizontally around the midpoint and mirror them so they face each other, including a vertically initiated attack.
+- Hide both stationary sprites and render two persistent overlay instances above the board. Arrange them horizontally around the midpoint with their centers `0.84 × cell size` apart, and mirror them so they face each other, including a vertically initiated attack. This spacing keeps the 2× figures distinct instead of visually collapsing into one another.
 - Match the existing web choreography: fire `Attack Prepare` on both figures; wait 100 ms, move both into the shared fight position over the remaining 300 ms; then animate both to 2× scale.
 - On a tie, use a 620 ms eased prepare/approach, freeze both fighters at 2× scale, switch the combat phase to `hold`, and only then open the weapon picker. Keep that exact scene mounted while either player is choosing; `playerChoice` updates must not clear it.
 - When the server resolves the tie, resume the held scene at the attack phase with the newly revealed choices. Do not replay the approach or reset the board between the picker and the attack.

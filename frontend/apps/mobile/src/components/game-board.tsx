@@ -9,6 +9,7 @@ import { RiveGamePiece, type RiveActionTrigger } from './rive-game-piece';
 
 const figureAsset = require('../assets/figures/fig1.riv');
 const boardBorderWidth = 2;
+const combatHalfSeparationInCells = 0.42;
 const arrowAssets = {
   up: require('../assets/arrows/up.png'),
   down: require('../assets/arrows/down.png'),
@@ -242,7 +243,7 @@ function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, positi
 }) {
   const centerX = ((position.x + target.x + 1) / 2) * cellSize;
   const centerY = ((position.y + target.y + 1) / 2) * cellSize;
-  const finalLeft = centerX + targetSide * cellSize * 0.24 - cellSize / 2;
+  const finalLeft = centerX + targetSide * cellSize * combatHalfSeparationInCells - cellSize / 2;
   const finalTop = centerY - cellSize / 2;
   const startLeft = position.x * cellSize;
   const startTop = position.y * cellSize;

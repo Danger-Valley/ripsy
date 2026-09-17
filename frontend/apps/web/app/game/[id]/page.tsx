@@ -196,6 +196,7 @@ export function BattleScreen({ game, gameId, playerId, isComputer = false, onAni
               showOpponentFormation={canEditLineup}
               state={renderedState}
               trapAnimation={animation.activeTrap}
+              trapAnimationSequence={animation.activeTrapSequence}
             />
           </div>
 

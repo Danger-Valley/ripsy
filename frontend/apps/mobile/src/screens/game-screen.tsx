@@ -325,6 +325,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
           moveAnimation={animation.activeMove}
           moveProgress={animation.progress}
           trapAnimation={animation.activeTrap}
+          trapAnimationSequence={animation.activeTrapSequence}
           onCellPress={onCellPress}
           onMoveActionTriggered={animation.startActiveMove}
           onMoveDestinationReady={animation.completeActiveMoveLanding}

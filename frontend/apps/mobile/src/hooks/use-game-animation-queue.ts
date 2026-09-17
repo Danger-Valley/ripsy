@@ -52,6 +52,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const [activeCombat, setActiveCombat] = useState<CombatAnimation | null>(null);
   const [combatPhase, setCombatPhase] = useState<CombatAnimationPhase | null>(null);
   const [activeTrap, setActiveTrap] = useState<TrapAnimation | null>(null);
+  const [activeTrapSequence, setActiveTrapSequence] = useState(0);
 
   const startProgressTiming = (
     duration: number,
@@ -177,6 +178,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     setActiveMove(transition.move);
     setActiveCombat(transition.combat);
     setActiveTrap(transition.trap);
+    if (transition.trap) setActiveTrapSequence(sequence => sequence + 1);
     activeCombatRef.current = transition.combat;
     setCombatPhase(transition.combat ? (resumesPendingCombat ? 'attack' : revealsRepeatedTie ? 'hold' : 'prepare') : null);
     progress.setValue(resumesPendingCombat || revealsRepeatedTie ? 1.35 : 0);
@@ -423,6 +425,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     activeCombat,
     combatPhase,
     activeTrap,
+    activeTrapSequence,
     isAnimating: activeKind !== null,
     progress,
     startActiveMove,

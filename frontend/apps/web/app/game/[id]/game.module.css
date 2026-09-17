@@ -38,8 +38,8 @@
 .movingPiece { z-index: 30; transform: translate(var(--move-x, 0), calc(var(--move-y, 0) - 43%)); transition: transform var(--move-ms, 0ms) cubic-bezier(.22,.75,.25,1); }
 .preloadedPiece { opacity: 0; }
 .trapDestinationCell { z-index: 45; }
-.trapLayer { pointer-events: none; position: absolute; z-index: 40; inset: 2px; overflow: visible; }
-.trapVictim { position: absolute; left: var(--trap-left); top: var(--trap-top); width: var(--cell); height: var(--cell); }
+.trapLayer { pointer-events: none; position: absolute; z-index: 60; inset: 2px; overflow: visible; }
+.trapVictim { position: absolute; z-index: 61; left: var(--trap-left); top: var(--trap-top); width: var(--cell); height: var(--cell); }
 .moveArrow { position: absolute; z-index: 4; width: 24px; height: 24px; inset: 50% auto auto 50%; transform: translate(-50%, -50%); object-fit: contain; filter: hue-rotate(115deg) saturate(1.4); }
 .combatLayer { pointer-events: none; position: absolute; z-index: 40; inset: 2px; overflow: visible; }
 .combatant { position: absolute; left: var(--combat-left); top: var(--combat-top); width: var(--cell); height: var(--cell); opacity: 1; transform: scaleX(var(--face)) scale(var(--combat-scale)); transform-origin: center; transition: left 320ms ease-in-out, top 320ms ease-in-out, transform 320ms ease-in-out, opacity 180ms ease; }

@@ -125,25 +125,33 @@ test('renders synchronized trap activation and falling victim Rive actions', asy
   const onTrapActionTriggered = jest.fn();
   let renderer!: ReactTestRenderer.ReactTestRenderer;
 
+  const renderBoard = (trapAnimationSequence: number) => (
+    <GameBoard
+      isPlayer1={false}
+      onTrapActionTriggered={onTrapActionTriggered}
+      ownOwner={Owner.P0}
+      state={state}
+      trapAnimation={{
+        from: { x: 0, y: 5 },
+        to: { x: 0, y: 4 },
+        attackerOwner: Owner.P0,
+        trapOwner: Owner.P1,
+        attackerPiece: Piece.Rock,
+      }}
+      trapAnimationSequence={trapAnimationSequence}
+    />
+  );
+
   await ReactTestRenderer.act(() => {
-    renderer = ReactTestRenderer.create(
-      <GameBoard
-        isPlayer1={false}
-        onTrapActionTriggered={onTrapActionTriggered}
-        ownOwner={Owner.P0}
-        state={state}
-        trapAnimation={{
-          from: { x: 0, y: 5 },
-          to: { x: 0, y: 4 },
-          attackerOwner: Owner.P0,
-          trapOwner: Owner.P1,
-          attackerPiece: Piece.Rock,
-        }}
-      />,
-    );
+    renderer = ReactTestRenderer.create(renderBoard(1));
   });
 
-  expect(renderer.root.findByProps({ testID: 'trap-scene' })).toBeDefined();
+  const trapScene = renderer.root.findByProps({ testID: 'trap-scene' });
+  const trapSceneStyle = StyleSheet.flatten(trapScene.props.style);
+  const trapCell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 5, column 1, opponent piece');
+  const trapCellStyle = StyleSheet.flatten(trapCell.props.style);
+  expect(trapSceneStyle.zIndex).toBeGreaterThan(trapCellStyle.zIndex);
+  expect(trapSceneStyle.elevation).toBeGreaterThan(trapCellStyle.elevation);
   const trapFigures = renderer.root.findAllByType(RiveGamePiece);
   expect(trapFigures).toHaveLength(2);
   expect(trapFigures.map(figure => figure.props.actionTrigger).sort()).toEqual([
@@ -152,6 +160,20 @@ test('renders synchronized trap activation and falling victim Rive actions', asy
   ]);
   expect(trapFigures.find(figure => figure.props.actionTrigger === 'Trap Activate')?.props.piece).toBe(Piece.Trap);
   expect(trapFigures.find(figure => figure.props.actionTrigger === 'Fall In Trap')?.props.piece).toBe(Piece.Rock);
+  const firstTrapFigure = trapFigures.find(figure => figure.props.actionTrigger === 'Trap Activate');
+  const firstVictimFigure = trapFigures.find(figure => figure.props.actionTrigger === 'Fall In Trap');
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(renderBoard(2));
+  });
+
+  const repeatedTrapFigures = renderer.root.findAllByType(RiveGamePiece);
+  expect(repeatedTrapFigures.find(figure => figure.props.actionTrigger === 'Trap Activate')).not.toBe(
+    firstTrapFigure,
+  );
+  expect(repeatedTrapFigures.find(figure => figure.props.actionTrigger === 'Fall In Trap')).not.toBe(
+    firstVictimFigure,
+  );
 });
 
 test('renders the local lineup preview as non-interactive before battle', async () => {

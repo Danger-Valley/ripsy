@@ -43,6 +43,7 @@ interface Props {
   moveAnimation?: PieceMoveAnimation | null;
   moveProgress?: Animated.Value;
   trapAnimation?: TrapAnimation | null;
+  trapAnimationSequence?: number;
   showOpponentFormation?: boolean;
   onCellPress?: (coordinate: Coordinate) => void;
   onMoveActionTriggered?: (travelDelayMs?: number) => void;
@@ -50,7 +51,7 @@ interface Props {
   onTrapActionTriggered?: (trigger: 'Trap Activate' | 'Fall In Trap') => void;
 }
 
-export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, trapAnimation, showOpponentFormation = false, onCellPress, onMoveActionTriggered, onMoveDestinationReady, onTrapActionTriggered }: Props) {
+export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, trapAnimation, trapAnimationSequence = 0, showOpponentFormation = false, onCellPress, onMoveActionTriggered, onMoveDestinationReady, onTrapActionTriggered }: Props) {
   const { width } = useWindowDimensions();
   const { riveFile: figure1File } = useRiveFile(figure1Asset);
   const { riveFile: figure2File } = useRiveFile(figure2Asset);
@@ -180,6 +181,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
                             : undefined}
                         file={riveFile}
                         isMine={isMine}
+                        key={isTrapDestination ? `trap-${trapAnimationSequence}` : 'piece'}
                         onActionTriggered={isTrapDestination
                           ? trigger => onTrapActionTriggered?.(trigger as 'Trap Activate')
                           : isMovingSource
@@ -220,6 +222,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
           onActionTriggered={onTrapActionTriggered}
           ownOwner={ownOwner}
           riveFile={trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
+          key={`trap-victim-${trapAnimationSequence}`}
         />
       ) : null}
     </View>
@@ -480,7 +483,7 @@ const styles = StyleSheet.create({
   combatant: { position: 'absolute', alignItems: 'center', justifyContent: 'center', elevation: 30 },
   combatWinner: { zIndex: 31 },
   combatLoser: { zIndex: 30 },
-  trapLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'visible', zIndex: 40, elevation: 40 },
-  trapVictim: { position: 'absolute', alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
+  trapLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'visible', zIndex: 60, elevation: 60 },
+  trapVictim: { position: 'absolute', alignItems: 'center', justifyContent: 'center', overflow: 'visible', zIndex: 61, elevation: 61 },
   moveArrow: { width: 22, height: 22, resizeMode: 'contain', tintColor: colors.move },
 });

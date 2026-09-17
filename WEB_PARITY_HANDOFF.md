@@ -293,9 +293,10 @@ Verified locally on 2026-09-14 with the production Next.js build and browser che
 
 - Mobile and web now share the same trap presentation contract; keep both implementations in parity when changing the Rive asset or its timing.
 - A confirmed collision with `defender === Piece.Trap` and `outcome === -1` is its own `trap` presentation transition. Never classify it as a normal move or publish the post-collision board immediately.
-- Publish the authoritative destination trap into the displayed board first so its existing Rive instance stays mounted, then fire `Trap Activate` on that instance and render the removed attacker as an overlay in the same cell with `Fall In Trap`.
+- Publish the authoritative destination trap into the displayed board first, keep that event's Rive instance mounted for the full timeline, then fire `Trap Activate` on it and render the removed attacker as an overlay in the same cell with `Fall In Trap`.
 - Start the presentation clock only after both Rive triggers report that they fired, with a bounded fallback if either callback is unavailable. `Trap Front`/`Trap Back` and `Fall In Trap Front`/`Fall In Trap Back` are all 47 frames at 60 FPS, so the synchronized scene lasts 783 ms.
-- Keep the trap cell above the falling attacker so the trap artwork closes over the victim. After the authored timeline completes, remove only the victim overlay; the activated trap remains in its authoritative destination cell.
+- Keep the falling attacker overlay above the trap cell (`bring to front`) so the complete victim animation remains visible instead of disappearing behind the trap artwork. After the authored timeline completes, remove only the victim overlay; the activated trap remains in its authoritative destination cell.
+- Give every trap collision a monotonically increasing presentation sequence and key both the stationary trap and victim Rive instances with it. Consecutive collisions may be committed by React without an intermediate empty render; trigger-name deduplication must therefore never suppress the second `Trap Activate` / `Fall In Trap` pair.
 - A revealed opponent trap opened from a refreshed state must initialize through `Trap Activate`; the Back machine may use `Trap Idle`. In both cases keep `Weapon = Piece.Empty` and `WeaponVisible = 0` so no stale weapon leaks through the trap art.
 
 ### Haptics and accessibility

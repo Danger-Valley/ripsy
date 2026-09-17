@@ -67,6 +67,7 @@ beforeEach(() => {
       activeCombat: null,
       combatPhase: null,
       activeTrap: null,
+      activeTrapSequence: 0,
       isAnimating: false,
       progress,
       startActiveMove: jest.fn(),

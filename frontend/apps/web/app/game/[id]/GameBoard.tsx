@@ -22,6 +22,7 @@ interface Props {
   combatAnimation: CombatAnimation | null;
   combatPhase: CombatAnimationPhase | null;
   trapAnimation: TrapAnimation | null;
+  trapAnimationSequence: number;
   showOpponentFormation: boolean;
   onCellPress: (coordinate: Coordinate) => void;
   onMoveActionTriggered: () => void;
@@ -84,6 +85,7 @@ export function GameBoard(props: Props) {
                 >
                   {figuresReady && riveFile ? <RpsFigure
                     isMyFigure={isMine}
+                    key={trapDestination ? `trap-${props.trapAnimationSequence}` : 'piece'}
                     onActionTriggered={trapDestination ? trigger => props.onTrapActionTriggered(trigger as 'Trap Activate') : movingSource ? props.onMoveActionTriggered : undefined}
                     riveFile={riveFile}
                     staggerStart={opponentPreview}
@@ -102,7 +104,7 @@ export function GameBoard(props: Props) {
         <CombatScene combat={props.combatAnimation} figure1File={figure1File} figure2File={figure2File} isPlayer1={props.isPlayer1} ownOwner={props.ownOwner} phase={props.combatPhase} />
       )}
       {figuresReady && props.trapAnimation && (
-        <TrapScene animation={props.trapAnimation} isPlayer1={props.isPlayer1} onActionTriggered={props.onTrapActionTriggered} ownOwner={props.ownOwner} riveFile={props.trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
+        <TrapScene animation={props.trapAnimation} isPlayer1={props.isPlayer1} key={`trap-victim-${props.trapAnimationSequence}`} onActionTriggered={props.onTrapActionTriggered} ownOwner={props.ownOwner} riveFile={props.trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
       )}
     </div>
   );

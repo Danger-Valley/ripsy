@@ -43,6 +43,7 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
   const [activeCombat, setActiveCombat] = useState<CombatAnimation | null>(null);
   const [combatPhase, setCombatPhase] = useState<CombatAnimationPhase | null>(null);
   const [activeTrap, setActiveTrap] = useState<TrapAnimation | null>(null);
+  const [activeTrapSequence, setActiveTrapSequence] = useState(0);
 
   const later = (callback: () => void, delay: number) => {
     const timer = window.setTimeout(() => {
@@ -97,6 +98,7 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
       displayedRef.current = transition.state;
       setDisplayedState(transition.state);
       setActiveTrap(transition.trap);
+      setActiveTrapSequence(sequence => sequence + 1);
       const start = (trigger?: TrapTrigger) => {
         if (trigger) triggered.add(trigger);
         if (trigger && triggered.size < 2) return;
@@ -213,5 +215,5 @@ export function useWebAnimationQueue(authoritativeState: GameState | null) {
 
   const startActiveMove = useCallback(() => startMoveRef.current?.(), []);
   const startActiveTrap = useCallback((trigger: TrapTrigger) => startTrapRef.current?.(trigger), []);
-  return { displayedState, activeKind, activeMove, movePhase, activeCombat, combatPhase, activeTrap, isAnimating: activeKind !== null, startActiveMove, startActiveTrap };
+  return { displayedState, activeKind, activeMove, movePhase, activeCombat, combatPhase, activeTrap, activeTrapSequence, isAnimating: activeKind !== null, startActiveMove, startActiveTrap };
 }

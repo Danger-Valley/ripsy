@@ -109,6 +109,10 @@ test('keeps a trap collision mounted until both Rive actions complete their shar
   const previous = activeState();
   previous.owners[toIdx(0, 4)] = Owner.P1;
   previous.pieces[toIdx(0, 4)] = Piece.Empty;
+  previous.owners[toIdx(1, 5)] = Owner.P0;
+  previous.pieces[toIdx(1, 5)] = Piece.Paper;
+  previous.owners[toIdx(1, 4)] = Owner.P1;
+  previous.pieces[toIdx(1, 4)] = Piece.Trap;
   const next: GameState = {
     ...previous,
     attacker: Piece.Rock,
@@ -142,6 +146,7 @@ test('keeps a trap collision mounted until both Rive actions complete their shar
     to: { x: 0, y: 4 },
     attackerPiece: Piece.Rock,
   });
+  expect(animation.activeTrapSequence).toBe(1);
   expect(animation.displayedState?.pieces[toIdx(0, 4)]).toBe(Piece.Trap);
 
   await ReactTestRenderer.act(() => {
@@ -156,6 +161,33 @@ test('keeps a trap collision mounted until both Rive actions complete their shar
   });
   expect(animation.activeKind).toBeNull();
   expect(animation.activeTrap).toBeNull();
+
+  const afterSecondTrap: GameState = {
+    ...next,
+    attacker: Piece.Paper,
+    defender: Piece.Trap,
+    outcome: -1,
+    isP1Turn: false,
+    live0: 0,
+    owners: [...next.owners],
+    pieces: [...next.pieces],
+    tieFrom: { x: 1, y: 5 },
+    tieTo: { x: 1, y: 4 },
+  };
+  afterSecondTrap.owners[toIdx(1, 5)] = Owner.None;
+  afterSecondTrap.pieces[toIdx(1, 5)] = Piece.Empty;
+
+  await ReactTestRenderer.act(() => {
+    renderer.update(<Probe state={afterSecondTrap} onRender={value => { animation = value; }} />);
+  });
+
+  expect(animation.activeKind).toBe('trap');
+  expect(animation.activeTrapSequence).toBe(2);
+  expect(animation.activeTrap).toMatchObject({
+    from: { x: 1, y: 5 },
+    to: { x: 1, y: 4 },
+    attackerPiece: Piece.Paper,
+  });
 
   await ReactTestRenderer.act(() => renderer.unmount());
   jest.useRealTimers();

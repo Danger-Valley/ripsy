@@ -1,4 +1,4 @@
-import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
+import { FigureVariant, HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 
 export type GameAnimationKind = 'move' | 'battle' | 'trap' | 'phase';
 
@@ -7,6 +7,7 @@ export interface PieceMoveAnimation {
   to: { x: number; y: number };
   owner: Owner;
   piece: Piece;
+  figureVariant?: FigureVariant;
 }
 
 export interface CombatAnimation {
@@ -18,6 +19,8 @@ export interface CombatAnimation {
   defenderOwner: Owner;
   attackerPiece: Piece;
   defenderPiece: Piece;
+  attackerFigureVariant?: FigureVariant;
+  defenderFigureVariant?: FigureVariant;
   winnerOwner: Owner | null;
   winnerPiece: Piece;
 }
@@ -28,6 +31,7 @@ export interface TrapAnimation {
   attackerOwner: Owner;
   trapOwner: Owner;
   attackerPiece: Piece;
+  attackerFigureVariant?: FigureVariant;
 }
 
 export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death' | 'settle';
@@ -79,6 +83,7 @@ export function gameStateFingerprint(state: GameState): string {
     state.winner,
     state.owners,
     state.pieces,
+    state.figureVariants,
   ]);
 }
 
@@ -131,6 +136,7 @@ export function getPieceMoveAnimation(previous: GameState, next: GameState): Pie
         to: explicitTo,
         owner: attackerOwner,
         piece: previous.pieces[fromIndex] ?? Piece.Empty,
+        ...(previous.figureVariants ? { figureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1 } : {}),
       };
     }
   }
@@ -152,6 +158,7 @@ export function getPieceMoveAnimation(previous: GameState, next: GameState): Pie
     to: destinationCandidates[0]!,
     owner: attackerOwner,
     piece: previous.pieces[fromIndex] ?? Piece.Empty,
+    ...(previous.figureVariants ? { figureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1 } : {}),
   };
 }
 
@@ -181,6 +188,7 @@ export function getTrapAnimation(previous: GameState, next: GameState): TrapAnim
     attackerOwner,
     trapOwner,
     attackerPiece: next.attacker as Piece,
+    ...(previous.figureVariants ? { attackerFigureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1 } : {}),
   };
 }
 
@@ -217,6 +225,10 @@ export function getCombatAnimation(previous: GameState, next: GameState): Combat
       defenderOwner,
       attackerPiece,
       defenderPiece,
+      ...(previous.figureVariants ? {
+        attackerFigureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1,
+        defenderFigureVariant: previous.figureVariants[toIndex] ?? FigureVariant.Fig1,
+      } : {}),
       winnerOwner: null,
       winnerPiece: Piece.Empty,
     };
@@ -232,6 +244,10 @@ export function getCombatAnimation(previous: GameState, next: GameState): Combat
     defenderOwner,
     attackerPiece,
     defenderPiece,
+    ...(previous.figureVariants ? {
+      attackerFigureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1,
+      defenderFigureVariant: previous.figureVariants[toIndex] ?? FigureVariant.Fig1,
+    } : {}),
     winnerOwner: attackerWon ? attackerOwner : defenderOwner,
     winnerPiece: attackerWon ? attackerPiece : defenderPiece,
   };

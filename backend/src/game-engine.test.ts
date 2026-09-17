@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Choice, Owner, Phase, Piece, toIdx } from '@rps/core';
+import { Choice, FigureVariant, Owner, Phase, Piece, toIdx } from '@rps/core';
 import {
   chooseWeapon,
   createGameRecord,
@@ -33,6 +33,24 @@ test('creates, joins, and starts a game after both lineups', () => {
   assert.equal(game.phase, Phase.Active);
   assert.equal(game.live0, 14);
   assert.equal(game.live1, 14);
+});
+
+test('assigns seven of each figure and keeps the figure variant through moves', () => {
+  const game = createGameRecord('game-figures', 'alice');
+  joinGame(game, 'bob');
+  submitLineup(game, 'alice', xs, aliceYs, lineup);
+  submitLineup(game, 'bob', xs, bobYs, lineup);
+
+  const aliceVariants = game.figureVariants.filter((variant, index) => game.owners[index] === Owner.P0 && variant !== FigureVariant.Empty);
+  assert.equal(aliceVariants.filter(variant => variant === FigureVariant.Fig1).length, 7);
+  assert.equal(aliceVariants.filter(variant => variant === FigureVariant.Fig2).length, 7);
+
+  const from = toIdx(0, 5);
+  const to = toIdx(0, 4);
+  const variant = game.figureVariants[from];
+  movePiece(game, 'alice', 0, 5, 0, 4);
+  assert.equal(game.figureVariants[from], FigureVariant.Empty);
+  assert.equal(game.figureVariants[to], variant);
 });
 
 test('lets the creator save and replace a lineup before an opponent joins', () => {

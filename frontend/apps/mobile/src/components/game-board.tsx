@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
 import { Animated, Image, Pressable, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
 import { useRiveFile, type RiveFile } from '@rive-app/react-native';
-import { HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
+import { FigureVariant, HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
 import { colors } from '../theme';
 import { RIVE_JUMP_TRAVEL_DELAY_MS, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation, type TrapAnimation } from '../game-animation';
 import { RiveGamePiece, type RiveActionTrigger } from './rive-game-piece';
 
-const figureAsset = require('../assets/figures/fig1.riv');
+const figure1Asset = require('../assets/figures/fig1.riv');
+const figure2Asset = require('../assets/figures/fig2.riv');
 const boardBorderWidth = 2;
 const combatHalfSeparationInCells = 0.42;
 const arrowAssets = {
@@ -21,6 +22,7 @@ export interface LineupPiece {
   x: number;
   y: number;
   piece: Piece;
+  figureVariant?: FigureVariant;
 }
 
 interface Coordinate {
@@ -50,10 +52,11 @@ interface Props {
 
 export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, trapAnimation, showOpponentFormation = false, onCellPress, onMoveActionTriggered, onMoveDestinationReady, onTrapActionTriggered }: Props) {
   const { width } = useWindowDimensions();
-  const { riveFile } = useRiveFile(figureAsset);
+  const { riveFile: figure1File } = useRiveFile(figure1Asset);
+  const { riveFile: figure2File } = useRiveFile(figure2Asset);
   const boardSize = Math.min(width - 32, 600);
   const cellSize = (boardSize - boardBorderWidth * 2) / WIDTH;
-  const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item.piece])), [previewLineup]);
+  const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item])), [previewLineup]);
   const movingDisplayFrom = moveAnimation ? toDisplayCoordinate(moveAnimation.from, isPlayer1) : null;
   const trapDisplayTo = trapAnimation ? toDisplayCoordinate(trapAnimation.to, isPlayer1) : null;
 
@@ -90,20 +93,27 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
             const x = isPlayer1 ? WIDTH - 1 - displayX : displayX;
             const y = isPlayer1 ? HEIGHT - 1 - displayY : displayY;
             const index = toIdx(x, y);
-            const previewPiece = preview.get(index);
+            const previewItem = preview.get(index);
             const serverOwner = state?.owners[index] ?? Owner.None;
             const isMovingSource = moveAnimation?.from.x === x && moveAnimation.from.y === y;
             const isMovingDestination = moveAnimation?.to.x === x && moveAnimation.to.y === y;
             const isTrapDestination = trapAnimation?.to.x === x && trapAnimation.to.y === y;
-            const isOpponentPreview = Boolean(showOpponentFormation && displayY < 2 && previewPiece === undefined && serverOwner === Owner.None);
+            const isOpponentPreview = Boolean(showOpponentFormation && displayY < 2 && previewItem === undefined && serverOwner === Owner.None);
             const owner = isMovingSource && moveAnimation
               ? moveAnimation.owner
-              : previewPiece !== undefined
+              : previewItem !== undefined
                 ? ownOwner
                 : isOpponentPreview ? opponentOf(ownOwner) : serverOwner;
             const piece = isMovingSource && moveAnimation
               ? moveAnimation.piece
-              : previewPiece ?? state?.pieces[index] ?? Piece.Empty;
+              : previewItem?.piece ?? state?.pieces[index] ?? Piece.Empty;
+            const figureVariant = isMovingSource && moveAnimation
+              ? moveAnimation.figureVariant
+              : previewItem?.figureVariant
+                ?? (isOpponentPreview
+                  ? ((displayX + displayY * WIDTH) % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2)
+                  : state?.figureVariants?.[index] ?? FigureVariant.Fig1);
+            const riveFile = figureVariant === FigureVariant.Fig2 ? figure2File : figure1File;
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isCombatLandingDestination = Boolean(
               combatAnimation?.resolution === 'resolved'
@@ -190,7 +200,7 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
           })}
         </View>
       ))}
-      {combatAnimation && combatPhase && moveProgress && riveFile ? (
+      {combatAnimation && combatPhase && moveProgress && figure1File && figure2File ? (
         <CombatScene
           cellSize={cellSize}
           combat={combatAnimation}
@@ -198,17 +208,18 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
           ownOwner={ownOwner}
           phase={combatPhase}
           progress={moveProgress}
-          riveFile={riveFile}
+          figure1File={figure1File}
+          figure2File={figure2File}
         />
       ) : null}
-      {trapAnimation && riveFile ? (
+      {trapAnimation && figure1File && figure2File ? (
         <TrapScene
           animation={trapAnimation}
           cellSize={cellSize}
           isPlayer1={isPlayer1}
           onActionTriggered={onTrapActionTriggered}
           ownOwner={ownOwner}
-          riveFile={riveFile}
+          riveFile={trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
         />
       ) : null}
     </View>
@@ -252,14 +263,15 @@ function TrapScene({ animation, cellSize, isPlayer1, onActionTriggered, ownOwner
   );
 }
 
-function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, riveFile }: {
+function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, figure1File, figure2File }: {
   cellSize: number;
   combat: CombatAnimation;
   isPlayer1: boolean;
   ownOwner: Owner;
   phase: CombatAnimationPhase;
   progress: Animated.Value;
-  riveFile: RiveFile;
+  figure1File: RiveFile;
+  figure2File: RiveFile;
 }) {
   const attacker = toDisplayCoordinate(combat.from, isPlayer1);
   const defender = toDisplayCoordinate(combat.to, isPlayer1);
@@ -275,7 +287,7 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, r
         piece={combat.attackerPiece}
         position={attacker}
         progress={progress}
-        riveFile={riveFile}
+        riveFile={combat.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
         target={defender}
         targetSide={attackerOnLeft ? -1 : 1}
         winnerDestination={defender}
@@ -289,7 +301,7 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, r
         piece={combat.defenderPiece}
         position={defender}
         progress={progress}
-        riveFile={riveFile}
+        riveFile={combat.defenderFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
         target={attacker}
         targetSide={attackerOnLeft ? 1 : -1}
         winnerDestination={defender}

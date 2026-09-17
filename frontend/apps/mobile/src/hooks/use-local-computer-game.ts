@@ -90,7 +90,7 @@ export function useLocalComputerGame(presentationBusy = false) {
     createGame: async () => gameState.gameId,
     refresh: async () => gameState,
     joinGame: async () => ({ type: 'result' as const, requestId: 'local' }),
-    submitLineup: (xs: number[], ys: number[], pieces: number[]) => run(game => submitLineup(game, LOCAL_PLAYER_ID, xs, ys, pieces)),
+    submitLineup: (xs: number[], ys: number[], pieces: number[], figureVariants?: number[]) => run(game => submitLineup(game, LOCAL_PLAYER_ID, xs, ys, pieces, new Date(), figureVariants)),
     movePiece: (fromX: number, fromY: number, toX: number, toY: number) => run(game => movePiece(game, LOCAL_PLAYER_ID, fromX, fromY, toX, toY)),
     chooseWeapon: (choice: Choice) => run(game => chooseWeapon(game, LOCAL_PLAYER_ID, choice)),
   }), [error, gameState, isBusy, run]);

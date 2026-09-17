@@ -1,6 +1,7 @@
 import {
   CELLS,
   Choice,
+  FigureVariant,
   FinishReason,
   GAME_CLOCK_INITIAL_MS,
   GameState,
@@ -24,7 +25,7 @@ const REQUIRED_PIECES = new Map<number, number>([
 ]);
 
 export interface GameRecord {
-  schemaVersion: 4;
+  schemaVersion: 5;
   id: string;
   phase: GameState['phase'];
   p0: string;
@@ -39,6 +40,7 @@ export interface GameRecord {
   isP1Turn: boolean;
   owners: Owner[];
   pieces: Piece[];
+  figureVariants: FigureVariant[];
   revealed: boolean[];
   choices: [Choice, Choice];
   live0: number;
@@ -57,7 +59,7 @@ export interface GameRecord {
 export function createGameRecord(id: string, playerId: string, now = new Date()): GameRecord {
   const timestamp = now.toISOString();
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     id,
     phase: Phase.Created,
     p0: playerId,
@@ -72,6 +74,7 @@ export function createGameRecord(id: string, playerId: string, now = new Date())
     isP1Turn: false,
     owners: Array(CELLS).fill(Owner.None),
     pieces: Array(CELLS).fill(Piece.Empty),
+    figureVariants: Array(CELLS).fill(FigureVariant.Empty),
     revealed: Array(CELLS).fill(false),
     choices: [Choice.None, Choice.None],
     live0: 0,
@@ -107,6 +110,7 @@ export function submitLineup(
   ys: number[],
   rawPieces: number[],
   now = new Date(),
+  rawFigureVariants?: number[],
 ) {
   requireParticipant(game, playerId);
   if (settleLineupDeadline(game, now)) return;
@@ -115,6 +119,14 @@ export function submitLineup(
   }
   if (xs.length !== 14 || ys.length !== 14 || rawPieces.length !== 14) {
     throw new Error('A lineup must contain exactly 14 pieces');
+  }
+  const figureVariants = rawFigureVariants ?? randomFigureVariants();
+  if (
+    figureVariants.length !== 14
+    || figureVariants.filter(value => value === FigureVariant.Fig1).length !== 7
+    || figureVariants.filter(value => value === FigureVariant.Fig2).length !== 7
+  ) {
+    throw new Error('A lineup must contain seven of each figure variant');
   }
   const isP0 = game.p0 === playerId;
 
@@ -128,7 +140,7 @@ export function submitLineup(
     const piece = rawPieces[index]!;
     if (!REQUIRED_PIECES.has(piece)) throw new Error('Lineup contains an invalid piece');
     counts.set(piece, (counts.get(piece) ?? 0) + 1);
-    return { index: toIdx(x, y!), piece: piece as Piece };
+    return { index: toIdx(x, y!), piece: piece as Piece, figureVariant: figureVariants[index] as FigureVariant };
   });
 
   if (new Set(positions.map(({ index }) => index)).size !== positions.length) {
@@ -143,6 +155,7 @@ export function submitLineup(
     if (game.owners[index] !== owner) continue;
     game.owners[index] = Owner.None;
     game.pieces[index] = Piece.Empty;
+    game.figureVariants[index] = FigureVariant.Empty;
     game.revealed[index] = false;
   }
   for (const position of positions) {
@@ -151,6 +164,7 @@ export function submitLineup(
   for (const position of positions) {
     game.owners[position.index] = owner;
     game.pieces[position.index] = position.piece;
+    game.figureVariants[position.index] = position.figureVariant;
   }
   if (isP0) {
     game.live0 = 14;
@@ -314,6 +328,7 @@ export function gameView(game: GameRecord, playerId: string, now = new Date()): 
     isP1Turn: game.isP1Turn,
     owners: [...game.owners],
     pieces,
+    figureVariants: [...game.figureVariants],
     live0: game.live0,
     live1: game.live1,
     attacker: game.attacker,
@@ -340,7 +355,7 @@ export function gameView(game: GameRecord, playerId: string, now = new Date()): 
 export function parseGameRecord(value: string, now = new Date()): GameRecord {
   const stored = JSON.parse(value) as Omit<Partial<GameRecord>, 'schemaVersion'> & { schemaVersion?: number };
   if (
-    (stored.schemaVersion !== 1 && stored.schemaVersion !== 2 && stored.schemaVersion !== 3 && stored.schemaVersion !== 4) ||
+    (stored.schemaVersion !== 1 && stored.schemaVersion !== 2 && stored.schemaVersion !== 3 && stored.schemaVersion !== 4 && stored.schemaVersion !== 5) ||
     !stored.id ||
     !Array.isArray(stored.owners) ||
     !Array.isArray(stored.pieces) ||
@@ -351,9 +366,10 @@ export function parseGameRecord(value: string, now = new Date()): GameRecord {
   }
   return {
     ...(stored as GameRecord),
-    schemaVersion: 4,
+    schemaVersion: 5,
     tieRound: validTieRound(stored.tieRound),
     revealed: validRevealed(stored.revealed),
+    figureVariants: validFigureVariants(stored.figureVariants, stored.owners),
     finishReason: stored.finishReason ?? null,
     clock0Ms: validClock(stored.clock0Ms),
     clock1Ms: validClock(stored.clock1Ms),
@@ -445,6 +461,35 @@ function validRevealed(value: unknown): boolean[] {
     : Array(CELLS).fill(false);
 }
 
+function validFigureVariants(value: unknown, owners: Owner[] | undefined): FigureVariant[] {
+  if (
+    Array.isArray(value)
+    && value.length === CELLS
+    && value.every(item => item === FigureVariant.Empty || item === FigureVariant.Fig1 || item === FigureVariant.Fig2)
+  ) return [...value] as FigureVariant[];
+  const variants: FigureVariant[] = Array(CELLS).fill(FigureVariant.Empty);
+  for (const owner of [Owner.P0, Owner.P1]) {
+    (owners ?? []).forEach((cellOwner, index) => {
+      if (cellOwner !== owner) return;
+      const assigned = variants.filter((variant, variantIndex) => (owners ?? [])[variantIndex] === owner && variant !== FigureVariant.Empty).length;
+      variants[index] = assigned % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2;
+    });
+  }
+  return variants;
+}
+
+function randomFigureVariants(): FigureVariant[] {
+  const variants: FigureVariant[] = [
+    ...Array<FigureVariant>(7).fill(FigureVariant.Fig1),
+    ...Array<FigureVariant>(7).fill(FigureVariant.Fig2),
+  ];
+  for (let index = variants.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [variants[index], variants[swapIndex]] = [variants[swapIndex]!, variants[index]!];
+  }
+  return variants;
+}
+
 function legacyLineupDeadline(
   value: unknown,
   phase: GameState['phase'] | undefined,
@@ -464,18 +509,22 @@ function requireParticipant(game: GameRecord, playerId: string) {
 
 function relocate(game: GameRecord, from: number, to: number, owner: Owner, piece: Piece) {
   const revealed = game.revealed[from] ?? false;
+  const figureVariant = game.figureVariants[from] ?? FigureVariant.Fig1;
   game.owners[from] = Owner.None;
   game.pieces[from] = Piece.Empty;
   game.revealed[from] = false;
+  game.figureVariants[from] = FigureVariant.Empty;
   game.owners[to] = owner;
   game.pieces[to] = piece;
   game.revealed[to] = revealed;
+  game.figureVariants[to] = figureVariant;
 }
 
 function remove(game: GameRecord, index: number, owner: Owner) {
   game.owners[index] = Owner.None;
   game.pieces[index] = Piece.Empty;
   game.revealed[index] = false;
+  game.figureVariants[index] = FigureVariant.Empty;
   if (owner === Owner.P0) game.live0 = Math.max(0, game.live0 - 1);
   if (owner === Owner.P1) game.live1 = Math.max(0, game.live1 - 1);
 }

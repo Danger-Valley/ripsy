@@ -19,7 +19,7 @@ export interface GameStore {
   list(playerId: string): Promise<GameState[]>;
   get(gameId: string, playerId: string): Promise<GameState>;
   join(gameId: string, playerId: string): Promise<GameState>;
-  submitLineup(gameId: string, playerId: string, xs: number[], ys: number[], pieces: number[]): Promise<GameState>;
+  submitLineup(gameId: string, playerId: string, xs: number[], ys: number[], pieces: number[], figureVariants?: number[]): Promise<GameState>;
   move(gameId: string, playerId: string, fromX: number, fromY: number, toX: number, toY: number): Promise<GameState>;
   choose(gameId: string, playerId: string, choice: Choice): Promise<GameState>;
   views(gameId: string): Promise<Array<{ playerId: string; state: GameState }>>;
@@ -143,7 +143,7 @@ export function attachGameWebSocketServer({
           break;
         case 'submitLineup':
           gameId = action.gameId;
-          state = await store.submitLineup(gameId, playerId, action.xs, action.ys, action.pieces);
+          state = await store.submitLineup(gameId, playerId, action.xs, action.ys, action.pieces, action.figureVariants);
           break;
         case 'movePiece':
           gameId = action.gameId;

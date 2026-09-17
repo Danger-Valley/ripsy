@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
+import { Choice, FigureVariant, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
 import { GameClocks } from '../components/game-clocks';
 import { LineupCountdown } from '../components/lineup-countdown';
@@ -501,13 +501,14 @@ function getStateMessage(state: GameState | null, isParticipant: boolean, canEdi
 }
 
 function saveLineup(
-  submit: (xs: number[], ys: number[], pieces: number[]) => Promise<unknown>,
+  submit: (xs: number[], ys: number[], pieces: number[], figureVariants?: number[]) => Promise<unknown>,
   lineup: LineupPiece[],
 ) {
   return submit(
     lineup.map(item => item.x),
     lineup.map(item => item.y),
     lineup.map(item => item.piece),
+    lineup.map(item => item.figureVariant ?? FigureVariant.Fig1),
   );
 }
 
@@ -515,7 +516,7 @@ function lineupFromState(state: GameState, owner: Owner): LineupPiece[] {
   const lineup: LineupPiece[] = [];
   for (let index = 0; index < state.owners.length; index += 1) {
     if (state.owners[index] !== owner || state.pieces[index] === Piece.Empty) continue;
-    lineup.push({ x: index % WIDTH, y: Math.floor(index / WIDTH), piece: state.pieces[index]! });
+    lineup.push({ x: index % WIDTH, y: Math.floor(index / WIDTH), piece: state.pieces[index]!, figureVariant: state.figureVariants?.[index] ?? FigureVariant.Fig1 });
   }
   return lineup;
 }
@@ -531,9 +532,14 @@ function createRandomLineup(isPlayer0: boolean): LineupPiece[] {
     x: index % WIDTH,
     y: isPlayer0 ? HEIGHT - 2 + Math.floor(index / WIDTH) : Math.floor(index / WIDTH),
   }));
+  const figureVariants = [
+    ...Array(7).fill(FigureVariant.Fig1),
+    ...Array(7).fill(FigureVariant.Fig2),
+  ] as FigureVariant[];
   shuffle(pieces);
   shuffle(cells);
-  return pieces.map((piece, index) => ({ ...cells[index]!, piece }));
+  shuffle(figureVariants);
+  return pieces.map((piece, index) => ({ ...cells[index]!, piece, figureVariant: figureVariants[index]! }));
 }
 
 function shuffle<T>(items: T[]) {

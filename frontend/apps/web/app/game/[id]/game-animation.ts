@@ -1,4 +1,4 @@
-import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
+import { FigureVariant, HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 
 export type GameAnimationKind = 'move' | 'battle' | 'trap' | 'phase';
 export type CombatAnimationPhase = 'prepare' | 'hold' | 'attack' | 'death' | 'settle';
@@ -8,6 +8,7 @@ export interface PieceMoveAnimation {
   to: { x: number; y: number };
   owner: Owner;
   piece: Piece;
+  figureVariant?: FigureVariant;
 }
 
 export interface CombatAnimation {
@@ -19,6 +20,8 @@ export interface CombatAnimation {
   defenderOwner: Owner;
   attackerPiece: Piece;
   defenderPiece: Piece;
+  attackerFigureVariant?: FigureVariant;
+  defenderFigureVariant?: FigureVariant;
   winnerOwner: Owner | null;
   winnerPiece: Piece;
 }
@@ -29,6 +32,7 @@ export interface TrapAnimation {
   attackerOwner: Owner;
   trapOwner: Owner;
   attackerPiece: Piece;
+  attackerFigureVariant?: FigureVariant;
 }
 
 const RIVE_TIMELINE_FPS = 60;
@@ -52,7 +56,7 @@ export function pieceMoveDurationMs(move: PieceMoveAnimation) {
 }
 
 export function gameStateFingerprint(state: GameState) {
-  return JSON.stringify([state.gameId, state.phase, state.isP1Turn, state.live0, state.live1, state.attacker, state.defender, state.outcome, state.playerChoice, state.tiePending, state.tieRound ?? 0, state.tieFrom, state.tieTo, state.p0, state.p1, state.winner, state.owners, state.pieces]);
+  return JSON.stringify([state.gameId, state.phase, state.isP1Turn, state.live0, state.live1, state.attacker, state.defender, state.outcome, state.playerChoice, state.tiePending, state.tieRound ?? 0, state.tieFrom, state.tieTo, state.p0, state.p1, state.winner, state.owners, state.pieces, state.figureVariants]);
 }
 
 export function classifyGameTransition(previous: GameState, next: GameState): GameAnimationKind {
@@ -78,7 +82,7 @@ export function getPieceMoveAnimation(previous: GameState, next: GameState): Pie
   if (validCoordinate(next.tieFrom) && validCoordinate(next.tieTo) && adjacent(next.tieFrom, next.tieTo)) {
     const fromIndex = toIdx(next.tieFrom.x, next.tieFrom.y);
     if (previous.owners[fromIndex] === owner && previous.owners[fromIndex] !== next.owners[fromIndex]) {
-      return { from: next.tieFrom, to: next.tieTo, owner, piece: previous.pieces[fromIndex] ?? Piece.Empty };
+      return { from: next.tieFrom, to: next.tieTo, owner, piece: previous.pieces[fromIndex] ?? Piece.Empty, ...(previous.figureVariants ? { figureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1 } : {}) };
     }
   }
   const sources = previous.owners.map((value, index) => ({ value, index })).filter(({ value, index }) => value === owner && next.owners[index] !== owner);
@@ -87,7 +91,7 @@ export function getPieceMoveAnimation(previous: GameState, next: GameState): Pie
   const from = { x: index % WIDTH, y: Math.floor(index / WIDTH) };
   const candidates = neighbours(from).filter(to => previous.owners[toIdx(to.x, to.y)] !== next.owners[toIdx(to.x, to.y)]);
   if (candidates.length !== 1) return null;
-  return { from, to: candidates[0]!, owner, piece: previous.pieces[index] ?? Piece.Empty };
+  return { from, to: candidates[0]!, owner, piece: previous.pieces[index] ?? Piece.Empty, ...(previous.figureVariants ? { figureVariant: previous.figureVariants[index] ?? FigureVariant.Fig1 } : {}) };
 }
 
 export function getTrapAnimation(previous: GameState, next: GameState): TrapAnimation | null {
@@ -103,7 +107,7 @@ export function getTrapAnimation(previous: GameState, next: GameState): TrapAnim
   if (!isPlayer(attackerOwner) || !isPlayer(trapOwner) || attackerOwner === trapOwner) return null;
   if (next.owners[fromIndex] !== Owner.None || next.owners[toIndex] !== trapOwner || next.pieces[toIndex] !== Piece.Trap) return null;
   if (next.attacker < Piece.Rock || next.attacker > Piece.Flag) return null;
-  return { from, to, attackerOwner, trapOwner, attackerPiece: next.attacker as Piece };
+  return { from, to, attackerOwner, trapOwner, attackerPiece: next.attacker as Piece, ...(previous.figureVariants ? { attackerFigureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1 } : {}) };
 }
 
 export function getCombatAnimation(previous: GameState, next: GameState): CombatAnimation | null {
@@ -113,15 +117,17 @@ export function getCombatAnimation(previous: GameState, next: GameState): Combat
   if (!validCoordinate(from) || !validCoordinate(to) || !adjacent(from, to)) return null;
   const attackerOwner = previous.owners[toIdx(from.x, from.y)] ?? Owner.None;
   const defenderOwner = previous.owners[toIdx(to.x, to.y)] ?? Owner.None;
+  const fromIndex = toIdx(from.x, from.y);
+  const toIndex = toIdx(to.x, to.y);
   if (!isPlayer(attackerOwner) || !isPlayer(defenderOwner) || attackerOwner === defenderOwner || !isBattlePiece(next.attacker) || !isBattlePiece(next.defender)) return null;
   if (next.tiePending) {
     const isRepeatedTie = previous.tiePending && (next.tieRound ?? 0) > (previous.tieRound ?? 0);
     if ((!isRepeatedTie && previous.tiePending) || next.outcome !== 0 || next.attacker !== next.defender) return null;
-    return { resolution: 'pending', ...(isRepeatedTie ? { isRepeatedTie: true } : {}), from, to, attackerOwner, defenderOwner, attackerPiece: next.attacker, defenderPiece: next.defender, winnerOwner: null, winnerPiece: Piece.Empty };
+    return { resolution: 'pending', ...(isRepeatedTie ? { isRepeatedTie: true } : {}), from, to, attackerOwner, defenderOwner, attackerPiece: next.attacker, defenderPiece: next.defender, ...(previous.figureVariants ? { attackerFigureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1, defenderFigureVariant: previous.figureVariants[toIndex] ?? FigureVariant.Fig1 } : {}), winnerOwner: null, winnerPiece: Piece.Empty };
   }
   if (next.outcome === 0) return null;
   const attackerWon = next.outcome === 1;
-  return { resolution: 'resolved', from, to, attackerOwner, defenderOwner, attackerPiece: next.attacker, defenderPiece: next.defender, winnerOwner: attackerWon ? attackerOwner : defenderOwner, winnerPiece: attackerWon ? next.attacker : next.defender };
+  return { resolution: 'resolved', from, to, attackerOwner, defenderOwner, attackerPiece: next.attacker, defenderPiece: next.defender, ...(previous.figureVariants ? { attackerFigureVariant: previous.figureVariants[fromIndex] ?? FigureVariant.Fig1, defenderFigureVariant: previous.figureVariants[toIndex] ?? FigureVariant.Fig1 } : {}), winnerOwner: attackerWon ? attackerOwner : defenderOwner, winnerPiece: attackerWon ? next.attacker : next.defender };
 }
 
 function validCoordinate(value: { x: number; y: number }) { return Number.isInteger(value.x) && Number.isInteger(value.y) && value.x >= 0 && value.x < WIDTH && value.y >= 0 && value.y < HEIGHT; }

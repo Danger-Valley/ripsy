@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Choice, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, HEIGHT, type GameState } from '@rps/core';
+import { Choice, FigureVariant, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, HEIGHT, type GameState } from '@rps/core';
 import { usePlayerIdentity, useRipsyGame } from '@rps/game-client';
 import { toast } from 'sonner';
 import { GameBoard, type LineupPiece } from './GameBoard';
@@ -23,7 +23,7 @@ export interface BattleController {
   isMyTurn: boolean;
   joinGame: (gameId?: string) => Promise<unknown>;
   refresh: () => Promise<unknown>;
-  submitCustomLineup: (xs: number[], ys: number[], pieces: number[]) => Promise<unknown>;
+  submitCustomLineup: (xs: number[], ys: number[], pieces: number[], figureVariants?: number[]) => Promise<unknown>;
   movePiece: (fromX: number, fromY: number, toX: number, toY: number) => Promise<unknown>;
   chooseWeapon: (choice: Choice) => Promise<unknown>;
 }
@@ -111,7 +111,7 @@ export function BattleScreen({ game, gameId, playerId, isComputer = false, onAni
   };
 
   const saveLineup = async () => {
-    const saved = await perform(() => game.submitCustomLineup(lineup.map(item => item.x), lineup.map(item => item.y), lineup.map(item => item.piece)));
+    const saved = await perform(() => game.submitCustomLineup(lineup.map(item => item.x), lineup.map(item => item.y), lineup.map(item => item.piece), lineup.map(item => item.figureVariant ?? FigureVariant.Fig1)));
     if (saved) {
       setLineupDirty(false);
       toast.success('Lineup saved. The battle can start at any moment.');
@@ -268,8 +268,8 @@ function getStateMessage(state: GameState, hasSubmitted: boolean, isMyTurn: bool
   return state.winner === playerId ? 'Victory' : 'Game finished';
 }
 
-function lineupFromState(state: GameState, owner: Owner) { return state.owners.flatMap((value, index) => value === owner && state.pieces[index] !== Piece.Empty ? [{ x: index % WIDTH, y: Math.floor(index / WIDTH), piece: state.pieces[index]! }] : []); }
-function createRandomLineup(isPlayer0: boolean): LineupPiece[] { const pieces: Piece[] = [Piece.Rock, Piece.Rock, Piece.Rock, Piece.Rock, Piece.Paper, Piece.Paper, Piece.Paper, Piece.Paper, Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Flag, Piece.Trap]; const cells = Array.from({ length: WIDTH * 2 }, (_, index) => ({ x: index % WIDTH, y: isPlayer0 ? HEIGHT - 2 + Math.floor(index / WIDTH) : Math.floor(index / WIDTH) })); shuffle(pieces); shuffle(cells); return pieces.map((piece, index) => ({ ...cells[index]!, piece })); }
+function lineupFromState(state: GameState, owner: Owner) { return state.owners.flatMap((value, index) => value === owner && state.pieces[index] !== Piece.Empty ? [{ x: index % WIDTH, y: Math.floor(index / WIDTH), piece: state.pieces[index]!, figureVariant: state.figureVariants?.[index] ?? FigureVariant.Fig1 }] : []); }
+function createRandomLineup(isPlayer0: boolean): LineupPiece[] { const pieces: Piece[] = [Piece.Rock, Piece.Rock, Piece.Rock, Piece.Rock, Piece.Paper, Piece.Paper, Piece.Paper, Piece.Paper, Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Flag, Piece.Trap]; const figureVariants = [...Array(7).fill(FigureVariant.Fig1), ...Array(7).fill(FigureVariant.Fig2)] as FigureVariant[]; const cells = Array.from({ length: WIDTH * 2 }, (_, index) => ({ x: index % WIDTH, y: isPlayer0 ? HEIGHT - 2 + Math.floor(index / WIDTH) : Math.floor(index / WIDTH) })); shuffle(pieces); shuffle(figureVariants); shuffle(cells); return pieces.map((piece, index) => ({ ...cells[index]!, piece, figureVariant: figureVariants[index]! })); }
 function shuffle<T>(items: T[]) { for (let index = items.length - 1; index > 0; index -= 1) { const target = Math.floor(Math.random() * (index + 1)); [items[index], items[target]] = [items[target]!, items[index]!]; } }
 function normalizeRoomCode(value: string | string[] | undefined) { const raw = Array.isArray(value) ? value[0] : value; return raw?.trim().toLowerCase().replace(/[^a-z0-9]/g, '') ?? ''; }
 function same(a: Coordinate, b: Coordinate) { return a.x === b.x && a.y === b.y; }

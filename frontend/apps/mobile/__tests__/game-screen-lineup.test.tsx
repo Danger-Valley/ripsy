@@ -1,7 +1,7 @@
 import React from 'react';
 import { Animated, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
-import { HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
+import { FigureVariant, HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
 import { ComputerGameScreen, GameScreen } from '../src/screens/game-screen';
 import { useGameAnimationQueue } from '../src/hooks/use-game-animation-queue';
@@ -14,11 +14,15 @@ jest.mock('../src/hooks/use-player-identity');
 
 let gameState: GameState;
 let nativeGame: ReturnType<typeof useNativeRipsyGame>;
-const submitLineup = jest.fn<Promise<{ type: 'result'; requestId: string }>, [number[], number[], number[]]>(async (xs, ys, pieces) => {
+const submitLineup = jest.fn<Promise<{ type: 'result'; requestId: string }>, [number[], number[], number[], number[]?]>(async (xs, ys, pieces, figureVariants) => {
   xs.forEach((x, index) => {
     const boardIndex = ys[index]! * WIDTH + x;
     gameState.owners[boardIndex] = Owner.P0;
     gameState.pieces[boardIndex] = pieces[index] as Piece;
+    if (figureVariants) {
+      gameState.figureVariants ??= Array(WIDTH * HEIGHT).fill(FigureVariant.Empty);
+      gameState.figureVariants[boardIndex] = figureVariants[index] as FigureVariant;
+    }
   });
   gameState.live0 = 14;
   gameState.phase = Phase.LineupP0Set;
@@ -102,7 +106,7 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   });
 
   expect(submitLineup).toHaveBeenCalledTimes(1);
-  const [xs, ys, pieces] = submitLineup.mock.calls[0]!;
+  const [xs, ys, pieces, figureVariants] = submitLineup.mock.calls[0]!;
   expect(xs).toHaveLength(14);
   expect(ys).toHaveLength(14);
   expect(new Set(ys)).toEqual(new Set([HEIGHT - 2, HEIGHT - 1]));
@@ -111,6 +115,8 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   expect(pieces.filter(piece => piece === Piece.Scissors)).toHaveLength(4);
   expect(pieces.filter(piece => piece === Piece.Flag)).toHaveLength(1);
   expect(pieces.filter(piece => piece === Piece.Trap)).toHaveLength(1);
+  expect(figureVariants?.filter(variant => variant === FigureVariant.Fig1)).toHaveLength(7);
+  expect(figureVariants?.filter(variant => variant === FigureVariant.Fig2)).toHaveLength(7);
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Lineup saved')).toBeDefined();
   expect(renderer.root.findAll(node => node.props.testID === 'lineup-attention-glow')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.children === 'Saved. The battle starts automatically when your opponent is ready.').length).toBeGreaterThan(0);

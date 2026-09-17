@@ -1,4 +1,6 @@
-# `fig1.riv` runtime contract
+# `fig1.riv` / `fig2.riv` runtime contract
+
+Both character assets expose the same artboard, state machines, inputs, animation names, and authored timings. The board may therefore select either asset per piece while reusing the complete movement, combat, trap, and death pipeline below.
 
 The file contains one `Artboard` with two state machines:
 

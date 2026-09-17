@@ -215,7 +215,7 @@ test('gives a legacy active game a fresh clock and persists its migration on fir
   const migrated = JSON.parse(redis.values.get(gameKey)!) as Record<string, unknown>;
   assert.equal(state.phase, Phase.Active);
   assert.equal(state.clock0Ms, 600_000);
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 5);
   assert.equal(migrated.tieRound, 0);
   assert.deepEqual(migrated.revealed, Array(49).fill(false));
   assert.equal(migrated.clockStartedAt, nowMs);

@@ -137,8 +137,9 @@ export class RedisGameStore {
     xs: number[],
     ys: number[],
     pieces: number[],
+    figureVariants?: number[],
   ): Promise<GameState> {
-    return this.mutate(gameId, playerId, (game) => submitLineup(game, playerId, xs, ys, pieces, this.now()));
+    return this.mutate(gameId, playerId, (game) => submitLineup(game, playerId, xs, ys, pieces, this.now(), figureVariants));
   }
 
   async move(

@@ -381,6 +381,14 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 
 This ledger summarizes the recent work that established the native reference. Consult `git show <commit>` for exact diffs.
 
+### Multiple figure variants
+
+- Each saved lineup now carries a `figureVariants` array alongside `owners` and `pieces`. Variant `1` selects `fig1.riv`, variant `2` selects `fig2.riv`, and empty cells use `0`.
+- A Shuffle creates exactly seven figures of each variant, randomized independently from weapons and cells. The optional `submitLineup.figureVariants` protocol field preserves rollout compatibility with older clients; the server generates a balanced random split when it is absent.
+- Figure variants are authoritative game state. They move with a surviving piece and are cleared when a piece is removed, so reconnects, Redis persistence, combat overlays, trap animation, web, and mobile always render the same character.
+- Stored games migrate to schema version 5. Legacy records receive a stable alternating split per player, and legacy server payloads are parsed with the same safe fallback.
+- `fig1.riv` and `fig2.riv` intentionally share the same runtime contract, so all existing state-machine triggers and timing synchronization apply to both.
+
 ### Backend, protocol, scaling, and delivery foundation
 
 - `8304ac4` — bare React Native game foundation.

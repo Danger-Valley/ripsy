@@ -22,6 +22,9 @@ export function isMovablePiece(piece: Piece) {
 export const Owner = { None: 0, P0: 1, P1: 2 } as const;
 export type Owner = (typeof Owner)[keyof typeof Owner];
 
+export const FigureVariant = { Empty: 0, Fig1: 1, Fig2: 2 } as const;
+export type FigureVariant = (typeof FigureVariant)[keyof typeof FigureVariant];
+
 export const Phase = {
   Created: 0,
   Joined: 1,
@@ -56,6 +59,7 @@ export interface GameState {
   isP1Turn: boolean;
   owners: Owner[];
   pieces: Piece[];
+  figureVariants?: FigureVariant[];
   live0: number;
   live1: number;
   attacker: number;
@@ -81,7 +85,7 @@ export type ClientAction =
   | { type: 'listGames'; requestId: string }
   | { type: 'getGame'; requestId: string; gameId: string }
   | { type: 'joinGame'; requestId: string; gameId: string }
-  | { type: 'submitLineup'; requestId: string; gameId: string; xs: number[]; ys: number[]; pieces: number[] }
+  | { type: 'submitLineup'; requestId: string; gameId: string; xs: number[]; ys: number[]; pieces: number[]; figureVariants?: number[] }
   | { type: 'movePiece'; requestId: string; gameId: string; fromX: number; fromY: number; toX: number; toY: number }
   | { type: 'chooseWeapon'; requestId: string; gameId: string; choice: Choice };
 
@@ -155,6 +159,9 @@ export function parseClientMessage(value: unknown): ClientMessage {
       xs: requireIntegerArray(message.xs, 'Lineup x coordinates'),
       ys: requireIntegerArray(message.ys, 'Lineup y coordinates'),
       pieces: requireIntegerArray(message.pieces, 'Lineup pieces'),
+      ...(message.figureVariants === undefined ? {} : {
+        figureVariants: requireIntegerArray(message.figureVariants, 'Lineup figure variants'),
+      }),
     };
   }
   if (type === 'movePiece') {
@@ -240,6 +247,12 @@ export function parseGameState(value: unknown): GameState {
   const pieces = requireIntegerArray(state.pieces, 'Game pieces');
   if (owners.length !== CELLS || !owners.every(isOwner)) throw new ProtocolMessageError('Game owners are invalid');
   if (pieces.length !== CELLS || !pieces.every(isPiece)) throw new ProtocolMessageError('Game pieces are invalid');
+  const figureVariants = state.figureVariants === undefined
+    ? legacyFigureVariants(owners)
+    : requireIntegerArray(state.figureVariants, 'Game figure variants');
+  if (figureVariants.length !== CELLS || !figureVariants.every(isFigureVariant)) {
+    throw new ProtocolMessageError('Game figure variants are invalid');
+  }
   const playerChoice = requireInteger(state.playerChoice, 'Player choice');
   if (!isChoice(playerChoice)) throw new ProtocolMessageError('Player choice is invalid');
   return {
@@ -248,6 +261,7 @@ export function parseGameState(value: unknown): GameState {
     isP1Turn: requireBoolean(state.isP1Turn, 'Turn flag'),
     owners,
     pieces,
+    figureVariants,
     live0: requireCount(state.live0, 'Player 0 live count'),
     live1: requireCount(state.live1, 'Player 1 live count'),
     attacker: requirePiece(state.attacker, 'Attacker'),
@@ -366,6 +380,21 @@ function isChoice(value: number): value is Choice {
 
 function isOwner(value: number): value is Owner {
   return value === Owner.None || value === Owner.P0 || value === Owner.P1;
+}
+
+function isFigureVariant(value: number): value is FigureVariant {
+  return value === FigureVariant.Empty || value === FigureVariant.Fig1 || value === FigureVariant.Fig2;
+}
+
+function legacyFigureVariants(owners: number[]): FigureVariant[] {
+  const variants: FigureVariant[] = Array(CELLS).fill(FigureVariant.Empty);
+  for (const owner of [Owner.P0, Owner.P1]) {
+    const indexes = owners.map((value, index) => ({ value, index })).filter(item => item.value === owner);
+    indexes.forEach(({ index }, position) => {
+      variants[index] = position % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2;
+    });
+  }
+  return variants;
 }
 
 function isPiece(value: number): value is Piece {

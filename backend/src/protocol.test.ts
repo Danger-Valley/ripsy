@@ -38,6 +38,17 @@ test('validates client actions instead of trusting parsed JSON', () => {
     () => parseClientMessage({ type: 'movePiece', requestId: 'request-1', gameId: 'game-1', fromX: '0' }),
     ProtocolMessageError,
   );
+  const variants = [...Array(7).fill(1), ...Array(7).fill(2)];
+  const lineup = parseClientMessage({
+    type: 'submitLineup',
+    requestId: 'request-lineup',
+    gameId: 'game-1',
+    xs: Array(14).fill(0),
+    ys: Array(14).fill(0),
+    pieces: Array(14).fill(1),
+    figureVariants: variants,
+  });
+  assert.deepEqual(lineup.type === 'submitLineup' ? lineup.figureVariants : undefined, variants);
 });
 
 test('rejects unsupported client protocol versions with a typed error', () => {
@@ -73,6 +84,10 @@ test('validates complete server game state payloads', () => {
   );
   assert.throws(
     () => parseServerMessage({ type: 'state', gameId: 'game-1', state: { ...state, tieRound: -1 } }),
+    ProtocolMessageError,
+  );
+  assert.throws(
+    () => parseServerMessage({ type: 'state', gameId: 'game-1', state: { ...state, figureVariants: [] } }),
     ProtocolMessageError,
   );
   const list = parseServerMessage({ type: 'result', requestId: 'request-list', games: [state] });

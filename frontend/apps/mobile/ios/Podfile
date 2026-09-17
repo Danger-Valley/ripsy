@@ -41,5 +41,14 @@ target 'RipsyMobile' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Xcode 27 no longer accepts dependency targets below iOS 15, even when
+    # the application itself already targets a newer version. Some Firebase
+    # and Rive privacy resource bundles still publish older deployment values.
+    installer.pods_project.targets.each do |pod_target|
+      pod_target.build_configurations.each do |build_configuration|
+        build_configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+      end
+    end
   end
 end

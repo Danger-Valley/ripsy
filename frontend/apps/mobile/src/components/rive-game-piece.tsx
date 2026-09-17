@@ -176,7 +176,7 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
   }, [actionTrigger, onActionTriggered, riveViewRef, shouldMountRive]);
 
   return (
-    <View pointerEvents="none" style={[styles.container, { width: size, height: size }]}>
+    <View pointerEvents="none" style={[styles.container, !isMine && styles.opponent, { width: size, height: size }]} testID="rive-piece">
       {shouldMountRive ? (
         <RiveView
           autoPlay={false}
@@ -194,6 +194,7 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center', justifyContent: 'center' },
+  opponent: { transform: [{ scaleX: -1 }] },
   rive: { position: 'absolute', inset: 0 },
   riveHidden: { opacity: 0 },
 });

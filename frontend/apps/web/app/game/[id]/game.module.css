@@ -42,7 +42,7 @@
 .trapVictim { position: absolute; z-index: 61; left: var(--trap-left); top: var(--trap-top); width: var(--cell); height: var(--cell); }
 .moveArrow { position: absolute; z-index: 4; width: 24px; height: 24px; inset: 50% auto auto 50%; transform: translate(-50%, -50%); object-fit: contain; filter: hue-rotate(115deg) saturate(1.4); }
 .combatLayer { pointer-events: none; position: absolute; z-index: 40; inset: 2px; overflow: visible; }
-.combatant { position: absolute; left: var(--combat-left); top: var(--combat-top); width: var(--cell); height: var(--cell); opacity: 1; transform: scaleX(var(--face)) scale(var(--combat-scale)); transform-origin: center; transition: left 320ms ease-in-out, top 320ms ease-in-out, transform 320ms ease-in-out, opacity 180ms ease; }
+.combatant { position: absolute; left: var(--combat-left); top: var(--combat-top); width: var(--cell); height: var(--cell); opacity: 1; transform: scale(var(--combat-scale)); transform-origin: center; transition: left 320ms ease-in-out, top 320ms ease-in-out, transform 320ms ease-in-out, opacity 180ms ease; }
 .combatApproach { animation: combatApproach 620ms cubic-bezier(.22,.72,.24,1) both; }
 .combatSettle { transition-duration: 320ms; }
 .lineupPanel { grid-area: lineup; position: relative; padding: 20px; display: grid; gap: 18px; border: 1px solid #2b414a; border-radius: 18px; background: #121f26; }
@@ -79,7 +79,7 @@
 @keyframes pulseDot { 50% { opacity: .4; transform: scale(.72); } }
 @keyframes lineupGlow { from { box-shadow: 0 0 5px rgb(93 241 232 / 28%); } to { box-shadow: 0 0 22px rgb(93 241 232 / 62%); } }
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes combatApproach { from { left: var(--start-left); top: var(--start-top); transform: scaleX(var(--face)) scale(1); } to { left: var(--combat-left); top: var(--combat-top); transform: scaleX(var(--face)) scale(var(--combat-scale)); } }
+@keyframes combatApproach { from { left: var(--start-left); top: var(--start-top); transform: scale(1); } to { left: var(--combat-left); top: var(--combat-top); transform: scale(var(--combat-scale)); } }
 @media (max-width: 900px) {
   .shell { width: min(100%, 760px); }
   .battleLayout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "status" "board" "lineup"; gap: 18px; }

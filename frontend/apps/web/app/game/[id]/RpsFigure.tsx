@@ -87,5 +87,6 @@ export default function RpsFigure({ weapon, trigger, style, isMyFigure, staggerS
   }, [trigger]);
 
   if (!shouldMount) return null;
-  return <RiveComponent style={{ ...style, opacity: configured ? 1 : 0 }} />;
+  const transform = [style?.transform, !isMyFigure ? 'scaleX(-1)' : undefined].filter(Boolean).join(' ') || undefined;
+  return <RiveComponent style={{ ...style, opacity: configured ? 1 : 0, transform }} />;
 }

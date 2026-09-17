@@ -357,3 +357,24 @@ test('remounts with the front state machine when a figure becomes an opponent', 
   expect(front).not.toBe(back);
   expect(front.props.stateMachineName).toBe('State Machine Front');
 });
+
+test('mirrors only opponent figures so their weapon stays in the opposite hand', async () => {
+  const renderPiece = (isMine: boolean) => (
+    <RiveGamePiece file={{} as never} isMine={isMine} piece={Piece.Rock} size={80} />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(renderPiece(true));
+    await Promise.resolve();
+  });
+  expect(StyleSheet.flatten(renderer.root.findByProps({ testID: 'rive-piece' }).props.style).transform).toBeUndefined();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.update(renderPiece(false));
+    await Promise.resolve();
+  });
+  expect(StyleSheet.flatten(renderer.root.findByProps({ testID: 'rive-piece' }).props.style).transform).toEqual([
+    { scaleX: -1 },
+  ]);
+});

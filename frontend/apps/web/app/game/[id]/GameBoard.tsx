@@ -124,14 +124,15 @@ function TrapScene({ animation, isPlayer1, onActionTriggered, ownOwner, riveFile
 function CombatScene({ combat, figure1File, figure2File, isPlayer1, ownOwner, phase }: { combat: CombatAnimation; figure1File: unknown; figure2File: unknown; isPlayer1: boolean; ownOwner: Owner; phase: CombatAnimationPhase }) {
   const attacker = toDisplay(combat.from, isPlayer1);
   const defender = toDisplay(combat.to, isPlayer1);
-  const attackerOnLeft = attacker.x <= defender.x;
+  const attackerIsMine = combat.attackerOwner === ownOwner;
+  const defenderIsMine = combat.defenderOwner === ownOwner;
   return <div className={styles.combatLayer}>
-    <Combatant combat={combat} faceRight={attackerOnLeft} isMine={combat.attackerOwner === ownOwner} isWinner={combat.winnerOwner === combat.attackerOwner} phase={phase} piece={combat.attackerPiece} position={attacker} target={defender} targetSide={attackerOnLeft ? -1 : 1} riveFile={combat.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
-    <Combatant combat={combat} faceRight={!attackerOnLeft} isMine={combat.defenderOwner === ownOwner} isWinner={combat.winnerOwner === combat.defenderOwner} phase={phase} piece={combat.defenderPiece} position={defender} target={attacker} targetSide={attackerOnLeft ? 1 : -1} riveFile={combat.defenderFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
+    <Combatant combat={combat} isMine={attackerIsMine} isWinner={combat.winnerOwner === combat.attackerOwner} phase={phase} piece={combat.attackerPiece} position={attacker} target={defender} targetSide={attackerIsMine ? -1 : 1} riveFile={combat.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
+    <Combatant combat={combat} isMine={defenderIsMine} isWinner={combat.winnerOwner === combat.defenderOwner} phase={phase} piece={combat.defenderPiece} position={defender} target={attacker} targetSide={defenderIsMine ? -1 : 1} riveFile={combat.defenderFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
   </div>;
 }
 
-function Combatant({ combat, faceRight, isMine, isWinner, phase, piece, position, target, targetSide, riveFile }: { combat: CombatAnimation; faceRight: boolean; isMine: boolean; isWinner: boolean; phase: CombatAnimationPhase; piece: Piece; position: Coordinate; target: Coordinate; targetSide: -1 | 1; riveFile: unknown }) {
+function Combatant({ combat, isMine, isWinner, phase, piece, position, target, targetSide, riveFile }: { combat: CombatAnimation; isMine: boolean; isWinner: boolean; phase: CombatAnimationPhase; piece: Piece; position: Coordinate; target: Coordinate; targetSide: -1 | 1; riveFile: unknown }) {
   const centerX = (position.x + target.x + 1) / 2;
   const centerY = (position.y + target.y + 1) / 2;
   const fightX = centerX + targetSide * .42 - .5;
@@ -145,7 +146,7 @@ function Combatant({ combat, faceRight, isMine, isWinner, phase, piece, position
   return (
     <div
       className={`${styles.combatant} ${phase === 'prepare' ? styles.combatApproach : ''} ${phase === 'settle' ? styles.combatSettle : ''}`}
-      style={{ '--start-left': `${position.x / WIDTH * 100}%`, '--start-top': `${position.y / HEIGHT * 100}%`, '--combat-left': `${left / WIDTH * 100}%`, '--combat-top': `${top / HEIGHT * 100}%`, '--combat-scale': scale, '--face': faceRight ? 1 : -1, opacity: hidden ? 0 : 1 } as React.CSSProperties}
+      style={{ '--start-left': `${position.x / WIDTH * 100}%`, '--start-top': `${position.y / HEIGHT * 100}%`, '--combat-left': `${left / WIDTH * 100}%`, '--combat-top': `${top / HEIGHT * 100}%`, '--combat-scale': scale, opacity: hidden ? 0 : 1 } as React.CSSProperties}
     >
       <div className={styles.pieceVisual}>
         {riveFile ? <RpsFigure isMyFigure={isMine} preserveStateOnWeaponChange riveFile={riveFile} style={{ width: '168%', height: '168%', position: 'absolute', inset: '-34%' }} trigger={trigger} weapon={piece as Weapon} /> : null}

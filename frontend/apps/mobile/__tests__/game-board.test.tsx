@@ -500,7 +500,7 @@ test('stages a battle and sends the attack and death triggers to the right fight
   expect(renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Paper)?.props.actionTrigger).toBeUndefined();
 });
 
-test('keeps enlarged combatants visibly separated around the fight midpoint', async () => {
+test('keeps the local fighter left and the opponent right regardless of attacker position', async () => {
   const state = createState();
   const progress = new Animated.Value(1.35);
   const combat = {
@@ -523,7 +523,7 @@ test('keeps enlarged combatants visibly separated around the fight midpoint', as
         combatPhase="attack"
         isPlayer1={false}
         moveProgress={progress}
-        ownOwner={Owner.P0}
+        ownOwner={Owner.P1}
         state={state}
       />,
     );
@@ -532,12 +532,20 @@ test('keeps enlarged combatants visibly separated around the fight midpoint', as
   const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
   const surfaceStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-surface' }).props.style);
   const cellSize = (boardStyle.width - surfaceStyle.borderWidth * 2) / WIDTH;
-  const leftFighterStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'combat-loser' }).props.style);
-  const rightFighterStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'combat-winner' }).props.style);
-  const leftFinalX = leftFighterStyle.left + leftFighterStyle.transform[0].translateX.__getValue();
-  const rightFinalX = rightFighterStyle.left + rightFighterStyle.transform[0].translateX.__getValue();
+  const fighters = renderer.root.findAll(node => node.props.testID === 'combat-winner' || node.props.testID === 'combat-loser');
+  const localFighter = fighters.find(fighter => fighter.findByType(RiveGamePiece).props.isMine);
+  const opponentFighter = fighters.find(fighter => !fighter.findByType(RiveGamePiece).props.isMine);
+  expect(localFighter).toBeDefined();
+  expect(opponentFighter).toBeDefined();
+  const localStyle = StyleSheet.flatten(localFighter!.props.style);
+  const opponentStyle = StyleSheet.flatten(opponentFighter!.props.style);
+  const localFinalX = localStyle.left + localStyle.transform[0].translateX.__getValue();
+  const opponentFinalX = opponentStyle.left + opponentStyle.transform[0].translateX.__getValue();
 
-  expect((rightFinalX - leftFinalX) / cellSize).toBeCloseTo(0.84);
+  expect(localFinalX).toBeLessThan(opponentFinalX);
+  expect((opponentFinalX - localFinalX) / cellSize).toBeCloseTo(0.84);
+  expect(localStyle.transform).toHaveLength(3);
+  expect(opponentStyle.transform).toHaveLength(3);
 });
 
 test('returns the combat winner into the destination cell before revealing the authoritative piece', async () => {
@@ -638,7 +646,7 @@ test('holds both tied fighters enlarged without firing attack or death', async (
   expect(renderer.root.findAllByType(RiveGamePiece).every(figure => figure.props.actionTrigger === undefined)).toBe(true);
   const fighters = renderer.root.findAll(node => (
     node.props.testID === 'combat-loser'
-    && StyleSheet.flatten(node.props.style)?.transform?.length === 4
+    && StyleSheet.flatten(node.props.style)?.transform?.length === 3
   ));
   expect(fighters.length).toBeGreaterThanOrEqual(2);
   const enlargedFighters = fighters.filter(fighter => {

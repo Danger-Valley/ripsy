@@ -278,13 +278,13 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, f
 }) {
   const attacker = toDisplayCoordinate(combat.from, isPlayer1);
   const defender = toDisplayCoordinate(combat.to, isPlayer1);
-  const attackerOnLeft = attacker.x <= defender.x;
+  const attackerIsMine = combat.attackerOwner === ownOwner;
+  const defenderIsMine = combat.defenderOwner === ownOwner;
   return (
     <>
       <Combatant
         cellSize={cellSize}
-        faceRight={attackerOnLeft}
-        isMine={combat.attackerOwner === ownOwner}
+        isMine={attackerIsMine}
         isWinner={combat.winnerOwner === combat.attackerOwner}
         phase={phase}
         piece={combat.attackerPiece}
@@ -292,13 +292,12 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, f
         progress={progress}
         riveFile={combat.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
         target={defender}
-        targetSide={attackerOnLeft ? -1 : 1}
+        targetSide={attackerIsMine ? -1 : 1}
         winnerDestination={defender}
       />
       <Combatant
         cellSize={cellSize}
-        faceRight={!attackerOnLeft}
-        isMine={combat.defenderOwner === ownOwner}
+        isMine={defenderIsMine}
         isWinner={combat.winnerOwner === combat.defenderOwner}
         phase={phase}
         piece={combat.defenderPiece}
@@ -306,16 +305,15 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, f
         progress={progress}
         riveFile={combat.defenderFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
         target={attacker}
-        targetSide={attackerOnLeft ? 1 : -1}
+        targetSide={defenderIsMine ? -1 : 1}
         winnerDestination={defender}
       />
     </>
   );
 }
 
-function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, position, progress, riveFile, target, targetSide, winnerDestination }: {
+function Combatant({ cellSize, isMine, isWinner, phase, piece, position, progress, riveFile, target, targetSide, winnerDestination }: {
   cellSize: number;
-  faceRight: boolean;
   isMine: boolean;
   isWinner: boolean;
   phase: CombatAnimationPhase;
@@ -369,7 +367,7 @@ function Combatant({ cellSize, faceRight, isMine, isWinner, phase, piece, positi
           left: startLeft,
           opacity,
           top: startTop,
-          transform: [{ translateX }, { translateY }, { scale }, { scaleX: faceRight ? 1 : -1 }],
+          transform: [{ translateX }, { translateY }, { scale }],
           width: cellSize,
         },
         isWinner ? styles.combatWinner : styles.combatLoser,

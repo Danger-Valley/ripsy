@@ -90,6 +90,23 @@ test('activates a mounted trap only after its hidden idle state is configured', 
   expect(onActionTriggered).toHaveBeenCalledWith('Trap Activate');
 });
 
+test('keeps a revealed opponent trap in trap state after the collision scene', async () => {
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <RiveGamePiece
+        file={{} as never}
+        isMine={false}
+        piece={Piece.Trap}
+        size={80}
+      />,
+    );
+    await Promise.resolve();
+  });
+
+  expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('Weapon', Piece.Empty);
+  expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Trap Activate');
+});
+
 test('starts the falling victim animation after its weapon is configured', async () => {
   const onActionTriggered = jest.fn();
   await ReactTestRenderer.act(async () => {

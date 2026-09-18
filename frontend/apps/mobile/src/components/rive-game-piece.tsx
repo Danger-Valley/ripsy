@@ -120,12 +120,15 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
         riveViewRef.playIfNeeded();
       }
       if (cancelled) return;
-      if (isTrap && isMine) {
+      if (isTrap && (isMine || actionTrigger !== 'Trap Activate')) {
         try {
           // Reassert the hidden state after playback starts, before entering the
-          // trap idle state, so a previously reused weapon layer cannot flash.
+          // trap state, so a previously reused weapon layer cannot flash. A
+          // local trap uses its idle state; an opponent trap uses Trap Activate
+          // so the revealed destination remains visibly a trap after the
+          // temporary collision scene is removed.
           setPieceInputs();
-          riveViewRef.triggerInput('Trap Idle');
+          riveViewRef.triggerInput(isMine ? 'Trap Idle' : 'Trap Activate');
           riveViewRef.playIfNeeded();
         } catch {
           // Leave the figure unarmed if the trap trigger is unavailable.

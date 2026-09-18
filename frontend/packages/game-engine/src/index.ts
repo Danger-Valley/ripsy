@@ -6,6 +6,7 @@ import {
   GAME_CLOCK_INITIAL_MS,
   GameState,
   HEIGHT,
+  canMoveTo,
   isMovablePiece,
   Owner,
   Phase,
@@ -215,6 +216,7 @@ export function movePiece(
   if (game.owners[to] === owner) throw new Error('You cannot stack your pieces');
   const attacker = game.pieces[from]!;
   if (!isMovablePiece(attacker)) throw new Error('That piece cannot move');
+  if (!canMoveTo(attacker, game.owners[to]!)) throw new Error('The flag can only move to an empty cell');
 
   const defender = game.pieces[to]!;
   game.tieFrom = from;

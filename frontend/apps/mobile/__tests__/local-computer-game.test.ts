@@ -1,4 +1,4 @@
-import { Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH } from '@rps/core';
+import { canMoveTo, Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH } from '@rps/core';
 import { submitLineup } from '@rps/game-engine';
 import {
   chooseComputerMove,
@@ -57,8 +57,27 @@ test('computer tie-break choice is always rock, paper, or scissors', () => {
   expect(chooseComputerWeapon(() => 0.999)).toBe(Choice.Scissors);
 });
 
-test('flags and traps are stationary computer pieces', () => {
-  expect(isMovablePiece(Piece.Flag)).toBe(false);
+test('flags can move only into empty cells while traps remain stationary', () => {
+  expect(isMovablePiece(Piece.Flag)).toBe(true);
+  expect(canMoveTo(Piece.Flag, Owner.None)).toBe(true);
+  expect(canMoveTo(Piece.Flag, Owner.P0)).toBe(false);
   expect(isMovablePiece(Piece.Trap)).toBe(false);
   expect(isMovablePiece(Piece.Rock)).toBe(true);
+});
+
+test('computer never selects a flag attack', () => {
+  const game = createComputerGame(() => 0.5);
+  game.owners.fill(Owner.None);
+  game.pieces.fill(Piece.Empty);
+  game.owners[toIdx(0, 1)] = Owner.P1;
+  game.pieces[toIdx(0, 1)] = Piece.Flag;
+  game.owners[toIdx(0, 0)] = Owner.P0;
+  game.pieces[toIdx(0, 0)] = Piece.Rock;
+  game.phase = Phase.Active;
+  game.isP1Turn = true;
+
+  const move = chooseComputerMove(game, () => 0);
+  expect(move).not.toBeNull();
+  expect(move).not.toMatchObject({ fromX: 0, fromY: 1, toX: 0, toY: 0 });
+  expect(game.owners[toIdx(move!.toX, move!.toY)]).toBe(Owner.None);
 });

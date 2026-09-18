@@ -1,4 +1,4 @@
-import { Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, toXY, WIDTH } from '@rps/core';
+import { canMoveTo, Choice, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, toXY, WIDTH } from '@rps/core';
 import { createGameRecord, joinGame, submitLineup, type GameRecord } from '@rps/game-engine';
 
 export const LOCAL_PLAYER_ID = 'local-player';
@@ -22,8 +22,9 @@ export function chooseComputerMove(game: GameRecord, random: () => number = Math
       const toX = source.x + dx;
       const toY = source.y + dy;
       if (toX < 0 || toX >= WIDTH || toY < 0 || toY >= HEIGHT) continue;
-      const targetOwner = game.owners[toIdx(toX, toY)];
+      const targetOwner = game.owners[toIdx(toX, toY)] ?? Owner.None;
       if (targetOwner === Owner.P1) continue;
+      if (!canMoveTo(game.pieces[from]!, targetOwner)) continue;
       const contact = targetOwner === Owner.P0 ? 18 : 0;
       const pressure = (toY - source.y) * 3 + toY * .35;
       const centre = 3 - Math.abs(3 - toX);

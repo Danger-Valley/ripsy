@@ -180,7 +180,7 @@ test('applies a legal move without external state', () => {
   assert.equal(game.tieTo, 4 * 7);
 });
 
-test('rejects moving a flag or trap', () => {
+test('allows flags to move into empty cells but rejects flag attacks and trap moves', () => {
   const game = createGameRecord('game-stationary-pieces', 'alice');
   joinGame(game, 'bob');
   submitLineup(game, 'alice', xs, aliceYs, lineup);
@@ -190,13 +190,22 @@ test('rejects moving a flag or trap', () => {
   game.pieces.fill(Piece.Empty);
   game.owners[toIdx(0, 5)] = Owner.P1;
   game.pieces[toIdx(0, 5)] = Piece.Flag;
-  game.owners[toIdx(0, 4)] = Owner.P0;
-  game.pieces[toIdx(0, 4)] = Piece.Rock;
   game.isP1Turn = true;
-  assert.throws(() => movePiece(game, 'bob', 0, 5, 0, 4), /piece cannot move/);
+  movePiece(game, 'bob', 0, 5, 0, 4);
+  assert.equal(game.owners[toIdx(0, 4)], Owner.P1);
 
-  game.pieces[toIdx(0, 5)] = Piece.Trap;
-  assert.throws(() => movePiece(game, 'bob', 0, 5, 0, 4), /piece cannot move/);
+  game.owners.fill(Owner.None);
+  game.pieces.fill(Piece.Empty);
+  game.owners[toIdx(1, 5)] = Owner.P1;
+  game.pieces[toIdx(1, 5)] = Piece.Flag;
+  game.owners[toIdx(1, 4)] = Owner.P0;
+  game.pieces[toIdx(1, 4)] = Piece.Rock;
+  game.isP1Turn = true;
+  assert.throws(() => movePiece(game, 'bob', 1, 5, 1, 4), /flag can only move/);
+
+  game.owners[toIdx(1, 5)] = Owner.P1;
+  game.pieces[toIdx(1, 5)] = Piece.Trap;
+  assert.throws(() => movePiece(game, 'bob', 1, 5, 1, 4), /piece cannot move/);
 });
 
 test('runs one cumulative ten-minute clock at a time and switches it after a move', () => {

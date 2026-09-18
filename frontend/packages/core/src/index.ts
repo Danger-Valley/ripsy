@@ -16,9 +16,13 @@ export const Piece = {
 export type Piece = (typeof Piece)[keyof typeof Piece];
 
 export function isMovablePiece(piece: Piece) {
-  // Only weapon-bearing fighters can move. Flags and traps are stationary
-  // objectives, even though a flag is still a valid lineup piece.
-  return piece === Piece.Rock || piece === Piece.Paper || piece === Piece.Scissors;
+  // Traps are stationary, while flags can reposition but cannot attack.
+  return piece === Piece.Rock || piece === Piece.Paper || piece === Piece.Scissors || piece === Piece.Flag;
+}
+
+export function canMoveTo(piece: Piece, targetOwner: Owner) {
+  if (!isMovablePiece(piece)) return false;
+  return piece !== Piece.Flag || targetOwner === Owner.None;
 }
 
 export const Owner = { None: 0, P0: 1, P1: 2 } as const;

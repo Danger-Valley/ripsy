@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Choice, FigureVariant, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, HEIGHT, type GameState } from '@rps/core';
+import { canMoveTo, Choice, FigureVariant, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, HEIGHT, type GameState } from '@rps/core';
 import { usePlayerIdentity, useRipsyGame } from '@rps/game-client';
 import { toast } from 'sonner';
 import { GameBoard, type LineupPiece } from './GameBoard';
@@ -99,10 +99,13 @@ export function BattleScreen({ game, gameId, playerId, isComputer = false, onAni
   useEffect(() => { if (!game.gameState?.tiePending) setSelected(null); }, [game.gameState?.tiePending]);
 
   const availableMoves = useMemo(() => {
-    if (!selected || animation.isAnimating || !game.isMyTurn || visibleState?.phase !== Phase.Active) return [];
+    const state = visibleState;
+    if (!selected || !state || animation.isAnimating || !game.isMyTurn || state.phase !== Phase.Active) return [];
+    const selectedPiece = state.pieces[toIdx(selected.x, selected.y)] ?? Piece.Empty;
     return [{ x: selected.x + 1, y: selected.y }, { x: selected.x - 1, y: selected.y }, { x: selected.x, y: selected.y + 1 }, { x: selected.x, y: selected.y - 1 }]
-      .filter(position => position.x >= 0 && position.x < WIDTH && position.y >= 0 && position.y < HEIGHT);
-  }, [animation.isAnimating, game.isMyTurn, selected, visibleState?.phase]);
+      .filter(position => position.x >= 0 && position.x < WIDTH && position.y >= 0 && position.y < HEIGHT)
+      .filter(position => canMoveTo(selectedPiece, state.owners[toIdx(position.x, position.y)] ?? Owner.None));
+  }, [animation.isAnimating, game.isMyTurn, selected, visibleState]);
 
   const perform = async (operation: () => Promise<unknown>) => {
     setActionError(null);

@@ -165,6 +165,39 @@ test('does not infer a trap scene without the authoritative trap result', () => 
   expect(getTrapAnimation(baseState, { ...baseState, defender: Piece.Trap })).toBeNull();
 });
 
+test('extracts a trap collision when the opponent attacks the local trap', () => {
+  const previous = withBoard(
+    withBoard(baseState, 7, Owner.P1, Piece.Rock),
+    0,
+    Owner.P0,
+    Piece.Trap,
+  );
+  const next = withBoard(
+    {
+      ...previous,
+      attacker: Piece.Rock,
+      defender: Piece.Trap,
+      outcome: -1,
+      isP1Turn: false,
+      live1: 13,
+      tieFrom: { x: 0, y: 1 },
+      tieTo: { x: 0, y: 0 },
+    },
+    7,
+    Owner.None,
+    Piece.Empty,
+  );
+
+  expect(classifyGameTransition(previous, next)).toBe('trap');
+  expect(getTrapAnimation(previous, next)).toMatchObject({
+    from: { x: 0, y: 1 },
+    to: { x: 0, y: 0 },
+    attackerOwner: Owner.P1,
+    trapOwner: Owner.P0,
+    attackerPiece: Piece.Rock,
+  });
+});
+
 test('extracts both fighters and the winner from a resolved battle', () => {
   const withAttacker = withBoard(baseState, 35, Owner.P0, Piece.Rock);
   const previous = withBoard(withAttacker, 28, Owner.P1, Piece.Empty);

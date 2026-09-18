@@ -180,6 +180,25 @@ test('applies a legal move without external state', () => {
   assert.equal(game.tieTo, 4 * 7);
 });
 
+test('rejects moving a flag or trap', () => {
+  const game = createGameRecord('game-stationary-pieces', 'alice');
+  joinGame(game, 'bob');
+  submitLineup(game, 'alice', xs, aliceYs, lineup);
+  submitLineup(game, 'bob', xs, bobYs, lineup);
+
+  game.owners.fill(Owner.None);
+  game.pieces.fill(Piece.Empty);
+  game.owners[toIdx(0, 5)] = Owner.P1;
+  game.pieces[toIdx(0, 5)] = Piece.Flag;
+  game.owners[toIdx(0, 4)] = Owner.P0;
+  game.pieces[toIdx(0, 4)] = Piece.Rock;
+  game.isP1Turn = true;
+  assert.throws(() => movePiece(game, 'bob', 0, 5, 0, 4), /piece cannot move/);
+
+  game.pieces[toIdx(0, 5)] = Piece.Trap;
+  assert.throws(() => movePiece(game, 'bob', 0, 5, 0, 4), /piece cannot move/);
+});
+
 test('runs one cumulative ten-minute clock at a time and switches it after a move', () => {
   const startedAt = new Date('2026-01-01T00:00:00.000Z');
   const game = createGameRecord('game-1', 'alice', startedAt);

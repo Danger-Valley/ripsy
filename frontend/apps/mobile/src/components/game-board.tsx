@@ -214,14 +214,14 @@ export function GameBoard({ state, ownOwner, isPlayer1, previewLineup, selected,
           figure2File={figure2File}
         />
       ) : null}
-      {trapAnimation && figure1File && figure2File ? (
+      {trapAnimation && (trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File) ? (
         <TrapScene
           animation={trapAnimation}
           cellSize={cellSize}
           isPlayer1={isPlayer1}
           onActionTriggered={onTrapActionTriggered}
           ownOwner={ownOwner}
-          riveFile={trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
+          riveFile={trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File! : figure1File!}
           key={`trap-victim-${trapAnimationSequence}`}
         />
       ) : null}

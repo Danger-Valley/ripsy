@@ -56,3 +56,9 @@ test('computer tie-break choice is always rock, paper, or scissors', () => {
   expect(chooseComputerWeapon(() => 0.5)).toBe(Choice.Paper);
   expect(chooseComputerWeapon(() => 0.999)).toBe(Choice.Scissors);
 });
+
+test('flags and traps are stationary computer pieces', () => {
+  expect(isMovablePiece(Piece.Flag)).toBe(false);
+  expect(isMovablePiece(Piece.Trap)).toBe(false);
+  expect(isMovablePiece(Piece.Rock)).toBe(true);
+});

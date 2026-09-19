@@ -441,6 +441,7 @@ This ledger summarizes the recent work that established the native reference. Co
 
 ### Release tooling that web should preserve
 
+- `e00794e` — browserless native Privy email login, embedded Solana wallet creation, disconnect, and in-app transaction approval; the backend remains responsible for constructing, validating, and broadcasting shop transactions.
 - `4a3b32b` / `4ed3a94` — `npm run build:prod-seeker`, build-number bump, and local APK copies.
 - `32cf97a` — publish versioned Seeker APK builds to the stable `ripsy.fun/download` flow.
 - `f635d82` / `edde6e4` / `af31112` — Vercel monorepo install/build fixes and web-only patch behavior.

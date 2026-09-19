@@ -23,7 +23,10 @@ final class PrivyWalletModule: NSObject {
     super.init()
   }
 
-  @objc static func requiresMainQueueSetup() -> Bool { false }
+  // Privy reads UIKit/keychain-backed auth state during initialization. React
+  // Native otherwise creates modules on its worker queue, which triggers a
+  // libdispatch main-queue assertion as soon as the Shop requests auth state.
+  @objc static func requiresMainQueueSetup() -> Bool { true }
 
   @objc(getState:rejecter:)
   func getState(
@@ -143,7 +146,7 @@ final class PrivyWalletModule: NSObject {
     _ reject: @escaping RCTPromiseRejectBlock,
     operation: @escaping () async throws -> Any?
   ) {
-    Task {
+    Task { @MainActor in
       do { resolve(try await operation()) }
       catch let error as WalletError { reject("PRIVY_WALLET_ERROR", error.localizedDescription, error) }
       catch { reject("PRIVY_WALLET_ERROR", "Wallet request failed. Please try again.", error) }

@@ -63,6 +63,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 - Backend `shop-config.ts`, `shop-chain.ts`, `shop-service.ts` provide catalog, atomic payment + Core mint, exact signed-message verification, Redis-backed cross-replica idempotency and confirmation/recovery. Keep wallet/payment keys out of game state and public env.
 - Web `/shop` supports Wallet Standard and configured Privy embedded Solana wallets. Dynamic Privy loading stays out of the game route. Wallets can be reconnected to recover an existing order; changing wallets never changes the receiving address of that order.
 - Native Android supports MWA plus Privy's native Kotlin embedded-wallet SDK; iOS uses Privy's native Swift SDK. Email OTP, restored session, wallet creation, disconnect and approval happen inside the app—there is no hosted/browser checkout and no Expo dependency. Native code returns only the public address and serialized signed transaction to JS; auth tokens and private keys remain inside Privy. iOS external signing remains unsupported.
+- The iOS React Native bridge must create the Privy module on the main queue and run every Privy operation on `MainActor`. Privy touches UIKit/keychain-backed auth state; calling it from React Native's module worker queue triggers a `libdispatch` main-queue assertion when Figure Shop opens.
 - For every wallet path, the backend constructs the atomic SOL payment + Core mint transaction and partially signs it. The client signs the unchanged serialized transaction but never broadcasts it directly. The backend verifies the exact message and all required signatures, persists the signed bytes, and submits/reconciles them through its private RPC.
 - Configuration defaults to disabled/devnet with no invented prices. Unconfigured Privy shows an explicit unavailable button. Do not claim paid mainnet or real-wallet flows are verified until running the setup/release checks in `FIGURE_SHOP_SETUP.md`.
 - No equip controls, ownership-based board appearance, supply limit, or inventory synchronization in this step; these are follow-up features, not completed parity items.
@@ -441,6 +442,7 @@ This ledger summarizes the recent work that established the native reference. Co
 
 ### Release tooling that web should preserve
 
+- `6442e6c` — keep Privy's iOS module initialization and wallet operations on the main actor so opening Figure Shop cannot crash the native app.
 - `e00794e` — browserless native Privy email login, embedded Solana wallet creation, disconnect, and in-app transaction approval; the backend remains responsible for constructing, validating, and broadcasting shop transactions.
 - `4a3b32b` / `4ed3a94` — `npm run build:prod-seeker`, build-number bump, and local APK copies.
 - `32cf97a` — publish versioned Seeker APK builds to the stable `ripsy.fun/download` flow.

@@ -9,6 +9,9 @@ import {
   RedisPushInstallationStore,
 } from './push-notifications.js';
 import { attachGameWebSocketServer } from './game-websocket-server.js';
+import { loadShopConfig } from './shop-config.js';
+import { createShopChain } from './shop-chain.js';
+import { ShopError, ShopService, type ShopRedis } from './shop-service.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -46,9 +49,46 @@ try {
   diagnose({ level: 'error', event: 'push.configuration_invalid' });
 }
 const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
+const shopConfig = loadShopConfig(process.env);
+const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix);
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+  if (requestUrl.pathname.startsWith('/shop/')) {
+    if (!applyCors(request.headers.origin, response)) return;
+    response.setHeader('cache-control', 'no-store');
+    response.setHeader('content-type', 'application/json');
+    if (request.method === 'OPTIONS') { response.writeHead(204).end(); return; }
+    try {
+      if (request.method === 'GET' && requestUrl.pathname === '/shop/catalog') {
+        response.writeHead(200).end(JSON.stringify(shop.catalog()));
+        return;
+      }
+      const playerId = verifyBearerSession(request.headers.authorization);
+      if (request.method === 'POST' && requestUrl.pathname === '/shop/orders') {
+        const result = await shop.create(playerId, await readJsonBody(request));
+        response.writeHead(201).end(JSON.stringify(result));
+        return;
+      }
+      const match = /^\/shop\/orders\/([a-f0-9]{64})(\/submit)?$/.exec(requestUrl.pathname);
+      if (match && request.method === 'GET' && !match[2]) {
+        const result = await shop.get(playerId, match[1]!);
+        response.writeHead(200).end(JSON.stringify(result));
+        return;
+      }
+      if (match && request.method === 'POST' && match[2]) {
+        const body = await readJsonBody(request);
+        const result = await shop.submit(playerId, match[1]!, body.transaction);
+        response.writeHead(200).end(JSON.stringify(result));
+        return;
+      }
+      response.writeHead(404).end(JSON.stringify({ error: 'Shop endpoint not found' }));
+    } catch (error) {
+      const status = error instanceof BodyTooLargeError ? 413 : error instanceof AuthenticationError ? 401 : error instanceof ShopError ? error.status : 503;
+      response.writeHead(status).end(JSON.stringify({ error: error instanceof ShopError ? error.message : status === 503 ? 'The shop is temporarily unavailable. Try again shortly.' : error instanceof Error ? error.message : 'Invalid request' }));
+    }
+    return;
+  }
   if (request.url === '/health') {
     const ready = await store.isReady();
     response.writeHead(ready ? 200 : 503, { 'content-type': 'application/json' });
@@ -130,7 +170,7 @@ function applyCors(origin: string | undefined, response: import('node:http').Ser
   }
   if (origin) response.setHeader('access-control-allow-origin', origin);
   response.setHeader('access-control-allow-headers', 'authorization, content-type');
-  response.setHeader('access-control-allow-methods', 'POST, DELETE, OPTIONS');
+  response.setHeader('access-control-allow-methods', 'GET, POST, DELETE, OPTIONS');
   response.setHeader('vary', 'Origin');
   return true;
 }

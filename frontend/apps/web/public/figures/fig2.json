@@ -1,0 +1,8 @@
+{
+  "name": "RIPSY Figure 02",
+  "description": "A new face for your collection. A Metaplex Core collectible.",
+  "image": "https://www.ripsy.fun/figures/fig2.png",
+  "external_url": "https://www.ripsy.fun/shop",
+  "attributes": [{"trait_type":"Figure","value":"fig2"},{"trait_type":"Series","value":"RIPSY Originals"}],
+  "properties": {"category":"image","files":[{"uri":"https://www.ripsy.fun/figures/fig2.png","type":"image/png"}]}
+}

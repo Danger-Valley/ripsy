@@ -20,6 +20,7 @@
     "build:prod-seeker": "npm run build:prod-seeker -w @rps/mobile",
     "mobile:release:preflight": "npm run release:preflight -w @rps/mobile --",
     "rive:timings": "node scripts/inspect-rive-timings.mjs",
+    "shop:previews": "node scripts/export-figure-previews.mjs",
     "dev:redis": "docker compose up redis",
     "build": "npm run typecheck -w @rps/backend && npm run build -w @rps/web && npm run typecheck -w @rps/mobile",
     "test": "npm run test:backend && npm run test:mobile",
@@ -32,6 +33,11 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@solana-program/memo": "0.12.0",
+    "@solana-program/system": "0.13.0",
+    "@solana-program/token": "0.15.0",
+    "@solana/kit": "^7.1.1",
+    "typescript": "^5.9.3",
     "concurrently": "^9.2.1"
   },
   "dependencies": {

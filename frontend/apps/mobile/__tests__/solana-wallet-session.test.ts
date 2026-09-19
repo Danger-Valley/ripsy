@@ -4,6 +4,7 @@ import {
   loadSolanaWalletSession,
   parseSolanaWalletSession,
   saveSolanaWalletSession,
+  subscribeSolanaWallet,
   type SolanaWalletSession,
 } from '../src/storage/solana-wallet-session';
 
@@ -44,4 +45,15 @@ test('loads, saves, and clears the wallet session in protected storage', async (
     expect.objectContaining({ service: 'com.dangervalley.ripsy.solana-wallet' }),
   );
   expect(Keychain.resetGenericPassword).toHaveBeenCalledWith({ service: 'com.dangervalley.ripsy.solana-wallet' });
+});
+
+test('home and shop observers share saved wallet changes and unsubscribe cleanly', async () => {
+  const observer = jest.fn();
+  const unsubscribe = subscribeSolanaWallet(observer);
+  await saveSolanaWalletSession(session);
+  await clearSolanaWalletSession();
+  expect(observer.mock.calls).toEqual([[session], [null]]);
+  unsubscribe();
+  await saveSolanaWalletSession(session);
+  expect(observer).toHaveBeenCalledTimes(2);
 });

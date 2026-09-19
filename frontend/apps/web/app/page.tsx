@@ -111,6 +111,11 @@ export default function HomePage() {
           {game.error && <p className={styles.inlineError}>{game.error}</p>}
         </section>
 
+        <section className={`${styles.section} ${styles.battleCard}`}>
+          <span className={styles.eyebrow}>THE FIGURE COLLECTION</span>
+          <h2>Your next favourite fighter.</h2>
+          <a className={styles.computerButton} href="/shop">Explore figure shop →</a>
+        </section>
         <WalletCard />
 
         <footer className={styles.footer}>

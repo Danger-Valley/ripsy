@@ -9,6 +9,7 @@ import {
   clearSolanaWalletSession,
   loadSolanaWalletSession,
   saveSolanaWalletSession,
+  subscribeSolanaWallet,
   type SolanaWalletSession,
 } from '../storage/solana-wallet-session';
 
@@ -21,6 +22,10 @@ export function useSolanaWallet() {
 
   useEffect(() => {
     let active = true;
+    const unsubscribe = subscribeSolanaWallet(nextSession => {
+      setSession(nextSession);
+      setStatus(nextSession ? 'connected' : 'disconnected');
+    });
     loadSolanaWalletSession()
       .then(storedSession => {
         if (!active) return;
@@ -32,7 +37,7 @@ export function useSolanaWallet() {
         setStatus('disconnected');
         setError('Could not restore the saved wallet.');
       });
-    return () => { active = false; };
+    return () => { active = false; unsubscribe(); };
   }, []);
 
   const connect = useCallback(async () => {

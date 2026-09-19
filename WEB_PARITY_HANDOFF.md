@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-09-14
+Last updated: 2026-09-19
 Baseline: `master` plus the lineup-deadline implementation documented below
 
 ## Purpose
@@ -13,7 +13,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 ## Non-negotiable architecture
 
-- There is no MagicBlock, Solana, wallet, or smart-contract gameplay path. Android has an optional Solana Mobile Wallet Adapter identity connection, but it is isolated from game rules, WebSockets, and player sessions.
+- There is no MagicBlock, Solana, wallet, or smart-contract gameplay path. Optional wallet connection and the separate Metaplex Core figure shop are isolated from game rules, WebSockets, and player sessions. NFT ownership does not gate gameplay or equip figures yet.
 - `frontend/packages/game-engine` is the single rules implementation. Online games invoke it through the Node.js backend; offline computer games invoke it directly on-device.
 - Clients send commands; they do not decide whether moves are legal or calculate authoritative outcomes.
 - Redis contains persistent game state, player game indexes, clock deadlines, and push installations.
@@ -55,6 +55,16 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 | Optional browser wallet identity | `frontend/apps/web/app/hooks/use-browser-wallet.ts`, `frontend/apps/web/app/components/WalletCard.tsx` |
 
 ## Authoritative game contract
+
+### Figure shop (separate from game state, added 2026-09-19)
+
+- Native and web Home link to a figure shop. Both show static first-frame `Idle` + `NoWeapon` previews exported from the real fig1/fig2 Rive assets, separate server-owned SOL prices, receiving wallet, explicit purchase review, transaction status and explorer receipts.
+- Shared contract: `@rps/core/shop`; HTTP client and durable purchase state machine: `@rps/game-client/shop` and `@rps/game-client/use-shop`. Shop uses the existing player bearer session, not game WebSocket actions. No gameplay protocol/schema change is required.
+- Backend `shop-config.ts`, `shop-chain.ts`, `shop-service.ts` provide catalog, atomic payment + Core mint, exact signed-message verification, Redis-backed cross-replica idempotency and confirmation/recovery. Keep wallet/payment keys out of game state and public env.
+- Web `/shop` supports Wallet Standard and configured Privy embedded Solana wallets. Dynamic Privy loading stays out of the game route. Wallets can be reconnected to recover an existing order; changing wallets never changes the receiving address of that order.
+- Native Android uses MWA and Keychain purchase recovery. **Native Privy is hosted checkout**, not a native SDK: open `/shop?source=mobile&wallet=privy`, then fixed `ripsy://shop` return. Browser Privy wallet/order storage is separate from the native session. No auth token or private key is carried in a URL. iOS external signing remains unsupported.
+- Configuration defaults to disabled/devnet with no invented prices. Unconfigured Privy shows an explicit unavailable button. Do not claim paid mainnet or real-wallet flows are verified until running the setup/release checks in `FIGURE_SHOP_SETUP.md`.
+- No equip controls, ownership-based board appearance, supply limit, or inventory synchronization in this step; these are follow-up features, not completed parity items.
 
 ### Board and lineup
 

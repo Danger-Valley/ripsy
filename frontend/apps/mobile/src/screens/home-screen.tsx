@@ -111,6 +111,12 @@ export function HomeScreen({ navigation, route }: Props) {
 
           {Platform.OS === 'android' && <SolanaWalletCard />}
 
+          <View style={styles.card}>
+            <Text style={styles.eyebrow}>THE FIGURE COLLECTION</Text>
+            <Text style={styles.sectionTitle}>Your next favourite fighter.</Text>
+            <PrimaryButton variant="secondary" onPress={() => navigation.navigate('Shop')}>Explore figure shop →</PrimaryButton>
+          </View>
+
           <View style={styles.gamesSection}>
             <View style={styles.sectionHeader}>
               <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitle}>Your active games</Text>

@@ -19,6 +19,7 @@ jest.mock('../src/storage/solana-wallet-session', () => ({
   loadSolanaWalletSession: jest.fn(),
   saveSolanaWalletSession: jest.fn(),
   clearSolanaWalletSession: jest.fn(),
+  subscribeSolanaWallet: jest.fn(() => jest.fn()),
 }));
 
 const session: SolanaWalletSession = {

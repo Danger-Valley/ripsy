@@ -10,6 +10,10 @@
     "test": "node --import tsx --test src/*.test.ts"
   },
   "dependencies": {
+    "@metaplex-foundation/mpl-core": "^1.10.0",
+    "@metaplex-foundation/mpl-toolbox": "^0.11.5",
+    "@metaplex-foundation/umi": "^1.6.0",
+    "@metaplex-foundation/umi-bundle-defaults": "^1.6.0",
     "@rps/core": "*",
     "@rps/game-engine": "*",
     "firebase-admin": "^14.4.0",

@@ -6,6 +6,7 @@ export type RootStackParamList = {
   Home: { restoreGameId?: string } | undefined;
   Game: { gameId: string };
   ComputerGame: undefined;
+  Shop: undefined;
 };
 
 export const linking: LinkingOptions<RootStackParamList> = {
@@ -14,6 +15,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
     screens: {
       Home: '',
       Game: 'game/:gameId',
+      Shop: 'shop',
     },
   },
   async getInitialURL() {

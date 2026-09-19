@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getWallets } from '@wallet-standard/app';
-import { StandardConnect, StandardDisconnect, type StandardConnectFeature, type StandardDisconnectFeature } from '@wallet-standard/features';
+import { StandardConnect, StandardDisconnect, StandardEvents, type StandardConnectFeature, type StandardDisconnectFeature, type StandardEventsFeature } from '@wallet-standard/features';
 import type { Wallet, WalletAccount } from '@wallet-standard/base';
+import { SolanaSignTransaction, type SolanaSignTransactionFeature } from '@solana/wallet-standard-features';
+import { getBase64Decoder, getBase64Encoder } from '@solana/kit';
+import type { MintOrder } from '@rps/core/shop';
 
 const STORAGE_KEY = 'ripsy.wallet.v1';
 
@@ -50,6 +53,24 @@ export function useBrowserWallet() {
       .finally(() => setBusy(false));
   }, [busy, remembered, wallet, wallets]);
 
+  useEffect(() => {
+    if (!wallet || !(StandardEvents in wallet.features)) return;
+    const features = wallet.features as Wallet['features'] & StandardEventsFeature;
+    return features[StandardEvents].on('change', change => {
+      if (!change.accounts) return;
+      const accounts = change.accounts.filter(candidate => candidate.chains.some(chain => chain.startsWith('solana:')));
+      const next = accounts.find(candidate => candidate.address === account?.address) ?? accounts[0] ?? null;
+      setAccount(next);
+      if (next) {
+        persist(wallet.name, next.address);
+        setRemembered({ name: wallet.name, address: next.address });
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+        setWallet(null); setRemembered(null);
+      }
+    });
+  }, [account?.address, wallet]);
+
   const connect = useCallback(async (selected: Wallet) => {
     setBusy(true);
     setError(null);
@@ -87,6 +108,17 @@ export function useBrowserWallet() {
     }
   }, [wallet]);
 
+  const signShopTransaction = useCallback(async (order: MintOrder) => {
+    if (!wallet || !account || account.address !== order.buyer) throw new Error('Connect the wallet selected for this purchase.');
+    if (!(SolanaSignTransaction in wallet.features)) throw new Error('This wallet does not support transaction signing.');
+    const features = wallet.features as Wallet['features'] & SolanaSignTransactionFeature;
+    const [signed] = await features[SolanaSignTransaction].signTransaction({
+      account, transaction: Uint8Array.from(getBase64Encoder().encode(order.transaction)), chain: order.cluster === 'devnet' ? 'solana:devnet' : 'solana:mainnet',
+    });
+    if (!signed) throw new Error('The wallet did not sign this purchase.');
+    return getBase64Decoder().decode(signed.signedTransaction);
+  }, [account, wallet]);
+
   return useMemo(() => ({
     wallets,
     wallet,
@@ -96,7 +128,8 @@ export function useBrowserWallet() {
     error,
     connect,
     disconnect,
-  }), [account, busy, connect, disconnect, error, remembered, wallet, wallets]);
+    signShopTransaction,
+  }), [account, busy, connect, disconnect, error, remembered, wallet, wallets, signShopTransaction]);
 }
 
 function supportsSolanaConnect(wallet: Wallet): wallet is Wallet & StandardConnectFeature {

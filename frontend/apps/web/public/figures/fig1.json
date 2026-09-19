@@ -1,0 +1,8 @@
+{
+  "name": "RIPSY Figure 01",
+  "description": "The original RIPSY fighter. A Metaplex Core collectible.",
+  "image": "https://www.ripsy.fun/figures/fig1.png",
+  "external_url": "https://www.ripsy.fun/shop",
+  "attributes": [{"trait_type":"Figure","value":"fig1"},{"trait_type":"Series","value":"RIPSY Originals"}],
+  "properties": {"category":"image","files":[{"uri":"https://www.ripsy.fun/figures/fig1.png","type":"image/png"}]}
+}

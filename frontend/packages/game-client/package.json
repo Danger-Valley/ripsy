@@ -8,7 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./socket": "./src/ripsy-socket-client.ts",
-    "./session": "./src/player-session.ts"
+    "./session": "./src/player-session.ts",
+    "./shop": "./src/shop-client.ts",
+    "./use-shop": "./src/use-shop.ts"
   },
   "dependencies": {
     "@rps/core": "*"

@@ -9,6 +9,11 @@ export type SolanaWalletSession = Readonly<{
 }>;
 
 const keychainService = 'com.dangervalley.ripsy.solana-wallet';
+const listeners = new Set<(session: SolanaWalletSession | null) => void>();
+export function subscribeSolanaWallet(listener: (session: SolanaWalletSession | null) => void) {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
 
 export function parseSolanaWalletSession(value: string | null): SolanaWalletSession | null {
   if (!value) return null;
@@ -49,8 +54,10 @@ export async function saveSolanaWalletSession(session: SolanaWalletSession): Pro
     service: keychainService,
     accessible: Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
   });
+  listeners.forEach(listener => listener(session));
 }
 
 export async function clearSolanaWalletSession(): Promise<void> {
   await Keychain.resetGenericPassword({ service: keychainService });
+  listeners.forEach(listener => listener(null));
 }

@@ -44,6 +44,10 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>PrivyAppId</key>
+	<string>$(PRIVY_APP_ID)</string>
+	<key>PrivyClientId</key>
+	<string>$(PRIVY_CLIENT_ID)</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

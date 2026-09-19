@@ -7,6 +7,8 @@ required_variables=(
   APP_STORE_CONNECT_API_KEY_ID
   APP_STORE_CONNECT_API_ISSUER_ID
   APP_STORE_CONNECT_API_KEY_PATH
+  PRIVY_APP_ID
+  PRIVY_CLIENT_ID
 )
 
 for variable_name in "${required_variables[@]}"; do
@@ -82,6 +84,8 @@ xcodebuild \
   -authenticationKeyPath "${APP_STORE_CONNECT_API_KEY_PATH}" \
   -authenticationKeyID "${APP_STORE_CONNECT_API_KEY_ID}" \
   -authenticationKeyIssuerID "${APP_STORE_CONNECT_API_ISSUER_ID}" \
+  PRIVY_APP_ID="${PRIVY_APP_ID}" \
+  PRIVY_CLIENT_ID="${PRIVY_CLIENT_ID}" \
   archive
 
 "${script_directory}/install-react-native-dsyms.sh" "${archive_path}"

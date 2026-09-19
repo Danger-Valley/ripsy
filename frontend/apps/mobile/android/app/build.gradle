@@ -15,6 +15,9 @@ def releaseVersion = new Properties()
 if (versionFile.exists()) {
     versionFile.withInputStream { releaseVersion.load(it) }
 }
+def privyAppId = System.getenv("PRIVY_APP_ID") ?: (project.findProperty("PRIVY_APP_ID") ?: "")
+def privyClientId = System.getenv("PRIVY_CLIENT_ID") ?: (project.findProperty("PRIVY_CLIENT_ID") ?: "")
+def buildConfigString = { value -> "\"${value.toString().replace('\\', '\\\\').replace('\"', '\\\"')}\"" }
 
 if (file("google-services.json").exists()) {
     apply plugin: "com.google.gms.google-services"
@@ -99,10 +102,15 @@ android {
     namespace "com.dangervalley.ripsy"
     defaultConfig {
         applicationId "com.dangervalley.ripsy"
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion 28
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode Integer.parseInt(System.getenv("RIPSY_VERSION_CODE") ?: releaseVersion.getProperty("VERSION_CODE", "1"))
         versionName System.getenv("RIPSY_VERSION_NAME") ?: releaseVersion.getProperty("VERSION_NAME", "1.0.0")
+        buildConfigField "String", "PRIVY_APP_ID", buildConfigString(privyAppId)
+        buildConfigField "String", "PRIVY_CLIENT_ID", buildConfigString(privyClientId)
+    }
+    buildFeatures {
+        buildConfig true
     }
     signingConfigs {
         debug {
@@ -137,6 +145,7 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("io.privy:privy-core:0.14.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

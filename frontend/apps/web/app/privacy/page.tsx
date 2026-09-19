@@ -22,9 +22,10 @@ const sections: LegalSection[] = [
           <li><strong>Player and session data:</strong> an anonymous player identifier, session credential, and credential expiration time.</li>
           <li><strong>Gameplay data:</strong> room membership, lineups, moves, battle choices, results, and game timing.</li>
           <li><strong>Device and notification data:</strong> a Firebase installation identifier and push registration token when you enable notifications.</li>
+          <li><strong>Optional figure shop data:</strong> if you use the shop, your public Solana wallet address, purchase and mint transaction records, and an email address when you choose Privy email sign-in. RIPSY does not receive your wallet private key.</li>
           <li><strong>Technical data:</strong> limited connection, request, protocol, and error diagnostics, plus network metadata routinely processed by our infrastructure providers.</li>
         </ul>
-        <p>We do not ask for your name, email address, payment details, contacts, precise location, or advertising identifier to play RIPSY.</p>
+        <p>We do not ask for your name, email address, wallet, payment details, contacts, precise location, or advertising identifier to play RIPSY. Email and wallet data are needed only if you voluntarily use the optional figure shop and its embedded-wallet sign-in.</p>
       </>
     ),
   },
@@ -33,7 +34,7 @@ const sections: LegalSection[] = [
     title: 'How we use information',
     content: (
       <>
-        <p>We use information to authenticate game actions, synchronize multiplayer sessions, restore games after a reconnect, send opted-in game notifications, prevent abuse, maintain security, and troubleshoot reliability issues.</p>
+        <p>We use information to authenticate game actions, synchronize multiplayer sessions, restore games after a reconnect, send opted-in game notifications, create and reconcile optional figure-shop purchases and mints, prevent abuse, maintain security, and troubleshoot reliability issues.</p>
         <p>We do not use your information for targeted advertising, sell it, or use it to track you across apps or websites.</p>
       </>
     ),
@@ -43,7 +44,7 @@ const sections: LegalSection[] = [
     title: 'When we share information',
     content: (
       <>
-        <p>We disclose information only to service providers that help us host, store, secure, and deliver the Service, including Firebase for optional push notifications. They may process information only to provide those services to us.</p>
+        <p>We disclose information only to service providers that help us host, store, secure, and deliver the Service, including Firebase for optional push notifications and Privy for optional embedded-wallet authentication and signing. Public wallet addresses and transaction data submitted to Solana are publicly visible by design. Providers may process information only to provide their services to us.</p>
         <p>We may also disclose information when required by law, to protect the rights and safety of users or the Service, or as part of a business transfer. We do not share information with advertising networks or data brokers.</p>
       </>
     ),
@@ -53,7 +54,7 @@ const sections: LegalSection[] = [
     title: 'Storage and retention',
     content: (
       <>
-        <p>Online game records expire from our active backend storage after seven days by default. Push registrations expire after 90 days by default and are refreshed when an opted-in app reconnects. Session credentials are valid for 30 days by default and may remain in your browser storage or device Keychain or Keystore until they expire or you remove the app data.</p>
+        <p>Online game records expire from our active backend storage after seven days by default. Push registrations and figure-shop order recovery records expire after 90 days by default. Session credentials are valid for 30 days by default and may remain in your browser storage or device Keychain or Keystore until they expire or you remove the app data. Privy may retain the optional embedded-wallet account and email according to its service terms; confirmed Solana transactions remain on the public blockchain.</p>
         <p>These periods may be shortened or extended when reasonably necessary for security, legal compliance, backups, or resolving a support request.</p>
       </>
     ),
@@ -63,7 +64,7 @@ const sections: LegalSection[] = [
     title: 'Your choices and rights',
     content: (
       <>
-        <p>You can decline notifications or disable them at any time in your device settings. You can clear locally stored identifiers by clearing site data or removing the app.</p>
+        <p>You can decline notifications or disable them at any time in your device settings. You can disconnect an optional wallet in RIPSY and clear locally stored identifiers by clearing site data or removing the app. Disconnecting does not erase public blockchain transactions or assets already minted to an address.</p>
         <p>Depending on where you live, you may have rights to access, correct, delete, restrict, or object to certain processing of your information. Because RIPSY does not require a named account, we may need information such as your anonymous player identifier to locate a record, and in some cases we may not be able to link a record back to you.</p>
       </>
     ),
@@ -96,7 +97,7 @@ export default function PrivacyPage() {
       eyebrow="Your data, clearly explained"
       title="Privacy Policy"
       description="RIPSY uses a small amount of pseudonymous data to run multiplayer battles. We don’t sell it, and we don’t use it for advertising."
-      effectiveDate="September 14, 2026"
+      effectiveDate="September 19, 2026"
       sections={sections}
     />
   );

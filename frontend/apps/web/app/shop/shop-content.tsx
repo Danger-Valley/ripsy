@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePlayerIdentity } from '@rps/game-client';
@@ -26,12 +26,6 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
   const [walletKind, setWalletKind] = useState<'external' | 'privy'>('external');
   const [walletMenu, setWalletMenu] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [fromMobile, setFromMobile] = useState(false);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setFromMobile(params.get('source') === 'mobile');
-    if (params.get('wallet') === 'privy') setWalletKind('privy');
-  }, []);
   const address = walletKind === 'privy' ? embedded?.address : external.isConnected ? external.address : null;
   const order = shop.order;
   const error = actionError || shop.error || external.error || sessionError;
@@ -43,7 +37,6 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
 
   return <main className={styles.page}>
     <nav className={styles.nav}><Link href="/">← RIPSY</Link><span>FIGURE SHOP</span><span className={styles.network}>{shop.catalog?.cluster === 'mainnet-beta' ? 'Solana Mainnet' : 'Devnet · Test SOL'}</span></nav>
-    {fromMobile && <div className={styles.actions}><a href="ripsy://shop">← Return to the app</a><span>Your Privy wallet is managed securely in this browser.</span></div>}
     <header className={styles.hero}><p className={styles.eyebrow}>THE FIGURE COLLECTION</p><h1>Make it yours.</h1><p>Same fighting spirit. Your own collectible.<br />Mint a RIPSY figure straight to your Solana wallet.</p></header>
 
     <section className={styles.wallet} aria-label="Choose your wallet">

@@ -58,6 +58,17 @@ The Android app can connect to an installed wallet through the official Solana M
 
 MWA's native client SDK is Android-only. The adapter implementation lives in `src/solana-wallet-adapter.android.ts`; the default module is a safe unsupported-platform implementation so the iOS app never imports the Android native module. Wallet connection currently identifies the player locally and is deliberately separate from the WebSocket game session and server-authoritative gameplay.
 
+The figure shop also supports a native Privy embedded Solana wallet on iOS and
+Android. Email OTP, restored login, wallet creation, disconnect and transaction
+approval remain in the app; no browser checkout or Expo package is used. Build
+with the public `PRIVY_APP_ID` and `PRIVY_CLIENT_ID` values from Privy Dashboard.
+The native SDK keeps credentials and key material out of JavaScript. The backend
+constructs the payment + Core mint transaction; mobile signs it and returns it to
+the backend for exact-message verification, persistence and RPC submission.
+
+Privy's current native SDK requirements make the minimum versions iOS 17 and
+Android API 28.
+
 The app identity URI is `https://www.ripsy.fun`. Its Android association is served by `app/.well-known/assetlinks.json/route.ts` in the web app, using the production `ANDROID_APP_SHA256_CERT_FINGERPRINTS` Vercel environment variable.
 
 ## Game invitations

@@ -8,11 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		50A338B7CB483C13A8D2F9A9 /* Privy in Frameworks */ = {isa = PBXBuildFile; productRef = 027C005E5F7104B5D477A66B /* Privy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		91549C8316848F758D3C8CAA /* PrivyWalletModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 658173CA129F595147B6456D /* PrivyWalletModule.swift */; };
 		91F3597B1E615CB506D07FB9 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 39DF8062369C5B3A0C7EF989 /* GoogleService-Info.plist */; };
 		969E19E361185F558F200EC7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		AB159168AD808DE1B3DC5DBC /* libPods-RipsyMobile.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 9B3522B76F102BB58E769166 /* libPods-RipsyMobile.a */; };
+		C523E441FD8C813C7A330ABB /* PrivyWalletModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 376B3E93BF2CE46F84260FBE /* PrivyWalletModule.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,7 +25,9 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = RipsyMobile/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = RipsyMobile/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		25E3D504B1ABEDA42D9D4B91 /* Pods-RipsyMobile.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RipsyMobile.debug.xcconfig"; path = "Target Support Files/Pods-RipsyMobile/Pods-RipsyMobile.debug.xcconfig"; sourceTree = "<group>"; };
+		376B3E93BF2CE46F84260FBE /* PrivyWalletModule.m */ = {isa = PBXFileReference; explicitFileType = sourcecode.c.objc; lastKnownFileType = sourcecode.c.objc; name = PrivyWalletModule.m; path = RipsyMobile/PrivyWalletModule.m; sourceTree = "<group>"; };
 		39DF8062369C5B3A0C7EF989 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; lastKnownFileType = text.plist; name = "GoogleService-Info.plist"; path = "RipsyMobile/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		658173CA129F595147B6456D /* PrivyWalletModule.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; lastKnownFileType = sourcecode.swift; name = PrivyWalletModule.swift; path = RipsyMobile/PrivyWalletModule.swift; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = RipsyMobile/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = RipsyMobile/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		9B3522B76F102BB58E769166 /* libPods-RipsyMobile.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-RipsyMobile.a"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -36,6 +41,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AB159168AD808DE1B3DC5DBC /* libPods-RipsyMobile.a in Frameworks */,
+				50A338B7CB483C13A8D2F9A9 /* Privy in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -51,6 +57,8 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
+				658173CA129F595147B6456D /* PrivyWalletModule.swift */,
+				376B3E93BF2CE46F84260FBE /* PrivyWalletModule.m */,
 			);
 			name = RipsyMobile;
 			sourceTree = "<group>";
@@ -124,6 +132,9 @@
 			dependencies = (
 			);
 			name = RipsyMobile;
+			packageProductDependencies = (
+				027C005E5F7104B5D477A66B /* Privy */,
+			);
 			productName = RipsyMobile;
 			productReference = 13B07F961A680F5B00A75B9A /* RipsyMobile.app */;
 			productType = "com.apple.product-type.application";
@@ -150,6 +161,9 @@
 				Base,
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
+			packageReferences = (
+				462B92E4AA3DC4827FA410CC /* XCRemoteSwiftPackageReference "privy-ios" */,
+			);
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -267,6 +281,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				91549C8316848F758D3C8CAA /* PrivyWalletModule.swift in Sources */,
+				C523E441FD8C813C7A330ABB /* PrivyWalletModule.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -286,7 +302,7 @@
 				DEVELOPMENT_TEAM = L28H25M8LS;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = RipsyMobile/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -297,6 +313,8 @@
 					"-ObjC",
 					"-lc++",
 				);
+				PRIVY_APP_ID = "";
+				PRIVY_CLIENT_ID = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.dangervalley.ripsy;
 				PRODUCT_NAME = RipsyMobile;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -319,7 +337,7 @@
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = L28H25M8LS;
 				INFOPLIST_FILE = RipsyMobile/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -330,6 +348,8 @@
 					"-ObjC",
 					"-lc++",
 				);
+				PRIVY_APP_ID = "";
+				PRIVY_CLIENT_ID = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.dangervalley.ripsy;
 				PRODUCT_NAME = RipsyMobile;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -388,7 +408,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
@@ -463,7 +483,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
@@ -517,6 +537,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		462B92E4AA3DC4827FA410CC /* XCRemoteSwiftPackageReference "privy-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/privy-io/privy-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.16.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		027C005E5F7104B5D477A66B /* Privy */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 462B92E4AA3DC4827FA410CC /* XCRemoteSwiftPackageReference "privy-ios" */;
+			productName = Privy;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 83CBB9F71A601CBA00E9B192 /* Project object */;
 }

@@ -18,18 +18,17 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 - Android/Seeker: the existing remembered MWA wallet signs inside its wallet app.
   Reauthorization uses the order's exact Solana network and receiving account.
 - Web: Wallet Standard transaction signing or Privy Solana embedded wallet.
-- Native Privy: **Continue with Privy in browser** opens
-  `https://www.ripsy.fun/shop?source=mobile&wallet=privy`. Login, wallet creation,
-  funding address, signature approval, and pending purchase recovery stay in that
-  browser. A fixed `ripsy://shop` link returns to the app. No auth token, transaction,
-  or private key is passed in a deep link. Browser identity/orders are separate
-  from native identity/orders; the native screen does not claim that a browser
-  wallet is a native connected wallet.
-- No Expo packages or native Privy bridge were added. A fully native Privy login
-  requires a separate integration decision. iOS external wallet signing is not
-  implemented; the hosted checkout is the available collecting route on iOS.
+- Native Privy: email OTP, restored auth session, embedded Solana wallet creation,
+  disconnect and transaction approval all run inside the bare React Native app.
+  iOS uses Privy's Swift SDK; Android uses Privy's native Kotlin SDK. No Expo
+  package, WebView, hosted checkout or browser round trip is used.
+- Privy's native SDK securely owns the auth session and embedded key material.
+  React Native receives only the public address and the final serialized signed
+  transaction. The app never receives a private key or Privy access token.
+- iOS external wallet signing is not implemented; iOS users can collect through
+  the in-app Privy embedded wallet. Android users can choose MWA or Privy.
 - A new embedded wallet must be funded with SOL on the selected network before
-  purchasing. The receiving address can be copied from web checkout. No automatic
+  purchasing. The receiving address can be copied from the connected-wallet display. No automatic
   transfer, delegated signer, gas sponsorship, or private-key custody is enabled.
 
 ## Decisions/credentials still required
@@ -46,10 +45,11 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
    mint rent/protocol/network fees as well as the product price. The treasury can
    be separate from the signing authority. Keep Redis durable with persistence
    and backups; orders are payment recovery records, not an expendable cache.
-5. Create/configure a Privy app; provide its public app ID and optional public
-   client ID. Add production and development origins, enable Solana embedded
-   wallets, and the email/Google/Apple methods that you want to offer. No Privy
-   app secret is needed by this client-controlled signing implementation.
+5. Create/configure a Privy app and a mobile app client; provide its public app ID
+   and required public client ID as `PRIVY_APP_ID` / `PRIVY_CLIENT_ID` when building
+   mobile. Add production/development web origins, enable Solana embedded wallets,
+   and email login. No Privy app secret is needed by this client signing flow.
+   Native Privy raises the deployment minimums to iOS 17 and Android API 28.
 
 ## Railway backend variables
 
@@ -84,6 +84,15 @@ supported preview origins. Orders use the existing bearer player session from
 Rebuild the web app after changing public environment variables. Without a Privy
 app ID the page still renders, but the login button explicitly says “Privy coming
 soon.” Privy is dynamically loaded only on the shop route.
+
+## Native build variables
+
+- `PRIVY_APP_ID`: public Privy application ID.
+- `PRIVY_CLIENT_ID`: public native app-client ID from Privy Dashboard.
+
+Pass both variables to `npm run ios:beta`, `npm run build:prod-seeker`, or the
+underlying Xcode/Gradle build. Release preflight treats missing values as a failed
+configuration. These are public identifiers bundled into the app, not secrets.
 
 Publish `/figures/fig1.png`, `/figures/fig2.png`, and matching JSON files before
 enabling minting. Metadata currently uses absolute `www.ripsy.fun` image URLs;
@@ -136,17 +145,20 @@ owned on-chain independently of those records.
   restored signed transactions, corrupt storage, and terminal orders.
 - Run backend/mobile/web tests and all typechecks; build web production.
 - **Still required with configured credentials:** real devnet mint from MWA,
-  browser extension and Privy; inspect Core collection/owner/URI and treasury
+  browser extension, native MWA and native/web Privy; inspect Core collection/owner/URI and treasury
   balance, restart during approval, reject approval, expire blockhash, disconnect,
-  insufficient funds, verify funding path and Safari return-to-app behavior.
+  insufficient funds, and verify the embedded-wallet funding path.
 - Review dependency audit and mobile store policies before enabling paid mainnet
   sales. This change does not upload a mobile release or enable sales in production.
 
 ### Verification record (2026-09-19)
 
 - Clean `npm ci` succeeded and reapplied both existing Rive/Nitro native patches.
-- Backend: 46 tests; mobile: 124 tests; web: 5 tests. All passed.
+- Backend: 46 tests; mobile: 126 tests; web: 5 tests. All passed.
 - Backend, mobile and web TypeScript checks passed; Next production build passed.
+- Android Kotlin compilation and an iOS 17 simulator build passed with Privy
+  Android 0.14.0 and Privy iOS 2.16.2. Live OTP/login/signing remains unverified
+  until production Privy app/client IDs are supplied.
 - Browser preview checked real catalog/PNG rendering, no-wallet fallback and
   390px checkout layout without horizontal overflow, with payment endpoints
   deliberately disabled. Live Privy login and wallet signatures remain unverified.

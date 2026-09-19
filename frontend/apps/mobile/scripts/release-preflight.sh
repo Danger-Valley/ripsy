@@ -47,6 +47,14 @@ check_metadata() {
   fi
 }
 
+check_privy_config() {
+  if [[ -n "${PRIVY_APP_ID:-}" && -n "${PRIVY_CLIENT_ID:-}" ]]; then
+    pass "Privy native app/client IDs"
+  else
+    fail "Privy native app/client IDs: set PRIVY_APP_ID and PRIVY_CLIENT_ID"
+  fi
+}
+
 check_backend() {
   local response
   if ! response="$(curl --fail --silent --show-error --max-time 15 https://api.ripsy.fun/health)"; then
@@ -137,6 +145,7 @@ check_android() {
 }
 
 check_backend
+check_privy_config
 if [[ "${platform}" == "ios" || "${platform}" == "all" ]]; then check_ios; fi
 if [[ "${platform}" == "android" || "${platform}" == "all" ]]; then check_android; fi
 

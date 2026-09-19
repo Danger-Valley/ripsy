@@ -7,12 +7,16 @@ mobile:
   targets:
     - ios
     - android
-  wallet_method: mobile-wallet-adapter
-  blockchain: solana-mainnet-wallet-identity-only
+  wallet_method: embedded-privy-and-solana-mobile-wallet-adapter
+  blockchain: solana-mainnet-wallet-identity-and-optional-core-shop
   transport: websocket
   state_store: redis
-  scaffold_repo: react-native-community-template
+  scaffold_repo: existing-bare-react-native-community-cli-app
   physical_device_tested: false
 ```
 
-RIPSY is a conventional server-authoritative multiplayer game. Expo, MagicBlock, and smart-contract gameplay are explicitly out of scope. Android supports an optional Solana Mobile Wallet Adapter connection for wallet identity only; it does not affect game rules or transport. The public address and reusable authorization context are stored in Android Keystore through `react-native-keychain`, and disconnect deauthorizes the wallet before clearing that local record. MWA is not imported or shown on iOS because the native protocol SDK is Android-only. The existing Node.js WebSocket backend and Redis multi-instance architecture are retained.
+RIPSY intentionally does not use Expo. Native Privy uses the official Swift SDK
+on iOS and Kotlin SDK on Android. Solana Mobile Wallet Adapter remains available
+on Android as the external-wallet option. Multiplayer gameplay remains
+server-authoritative over the existing WebSocket backend and Redis architecture;
+the optional Metaplex Core shop does not move game rules on-chain.

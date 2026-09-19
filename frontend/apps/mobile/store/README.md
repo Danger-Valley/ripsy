@@ -10,7 +10,7 @@ Before submission:
 4. Complete each store's age/content-rating questionnaire from the actual shipped feature set.
 5. Review the privacy answers against the production backend and Firebase configuration.
 
-The app collects anonymous player IDs, gameplay content, and a Firebase installation/device identifier for app functionality. It does not use advertising or cross-app tracking.
+The app collects anonymous player IDs, gameplay content, and a Firebase installation/device identifier for app functionality. The optional figure shop additionally processes a public Solana wallet address, order/mint records, and an email address when the user chooses Privy embedded-wallet sign-in. Review the App Store and Google Play data-safety answers before releasing this feature. The app does not use advertising or cross-app tracking.
 
 ## TestFlight delivery
 

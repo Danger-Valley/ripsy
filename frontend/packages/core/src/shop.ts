@@ -2,8 +2,8 @@
 export type ShopCluster = 'devnet' | 'mainnet-beta';
 export type FigureId = 'fig1' | 'fig2';
 export const FIGURES = [
-  { id: 'fig1' as const, name: 'Figure 01', variant: 1 as const, description: 'The original RIPSY fighter. A familiar face, now yours to collect.' },
-  { id: 'fig2' as const, name: 'Figure 02', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.' },
+  { id: 'fig1' as const, name: 'Figure 01', variant: 1 as const, description: 'The original RIPSY fighter. A familiar face, now yours to collect.', seekerExclusive: false },
+  { id: 'fig2' as const, name: 'Figure 02', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.', seekerExclusive: true },
 ];
 export interface ShopFigure {
   id: FigureId;
@@ -13,6 +13,7 @@ export interface ShopFigure {
   imageUrl: string;
   priceLamports: string | null;
   available: boolean;
+  seekerExclusive: boolean;
 }
 export interface ShopCatalog {
   cluster: ShopCluster;
@@ -38,6 +39,24 @@ export interface MintOrder {
   error: string | null;
   /** Network fee + rent + protocol fees, estimated by simulation, excludes price. */
   networkFeeLamports: string;
+}
+
+export interface SeekerChallenge {
+  chainId: 'solana:mainnet';
+  domain: string;
+  expirationTime: string;
+  issuedAt: string;
+  nonce: string;
+  statement: string;
+  uri: string;
+  version: '1';
+}
+
+export interface SeekerProof {
+  address: string;
+  nonce: string;
+  signature: number[];
+  signedMessage: number[];
 }
 
 export function isFigureId(value: unknown): value is FigureId {
@@ -76,10 +95,19 @@ export function parseShopCatalog(value: unknown): ShopCatalog {
   for (const entry of data.figures) {
     const figure = record(entry);
     if (!isFigureId(figure.id) || (figure.variant !== 1 && figure.variant !== 2) || typeof figure.name !== 'string'
-      || typeof figure.description !== 'string' || typeof figure.imageUrl !== 'string'
+      || typeof figure.description !== 'string' || typeof figure.imageUrl !== 'string' || typeof figure.seekerExclusive !== 'boolean'
       || !(figure.priceLamports === null || isAmount(figure.priceLamports)) || typeof figure.available !== 'boolean') throw new Error('Invalid shop figure');
   }
   return data as unknown as ShopCatalog;
+}
+
+export function parseSeekerChallenge(value: unknown): SeekerChallenge {
+  const data = record(value);
+  if (data.chainId !== 'solana:mainnet' || typeof data.domain !== 'string' || typeof data.uri !== 'string'
+    || typeof data.issuedAt !== 'string' || typeof data.expirationTime !== 'string'
+    || typeof data.statement !== 'string' || data.version !== '1'
+    || typeof data.nonce !== 'string' || !/^[a-f0-9]{32}$/.test(data.nonce)) throw new Error('Invalid Seeker verification challenge');
+  return data as unknown as SeekerChallenge;
 }
 
 export function parseMintOrder(value: unknown): MintOrder {

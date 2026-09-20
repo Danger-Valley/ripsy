@@ -1,10 +1,12 @@
-import { parseMintOrder, parseShopCatalog, type FigureId } from '@rps/core/shop';
+import { parseMintOrder, parseSeekerChallenge, parseShopCatalog, type FigureId, type SeekerProof } from '@rps/core/shop';
 
 export class ShopClient {
   // Browser fetch needs its Window/global receiver, not this ShopClient instance.
   constructor(private baseUrl: string, private token: string, private fetcher: typeof fetch = (...args) => globalThis.fetch(...args)) {}
 
   async catalog() { return parseShopCatalog(await this.request('/shop/catalog')); }
+  async seekerChallenge() { return parseSeekerChallenge(await this.request('/shop/seeker/challenge', {})); }
+  async verifySeeker(proof: SeekerProof) { await this.request('/shop/seeker/verify', proof); }
   async create(figureId: FigureId, buyer: string, idempotencyKey: string) {
     return parseMintOrder(await this.request('/shop/orders', { figureId, buyer, idempotencyKey }));
   }

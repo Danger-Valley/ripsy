@@ -4,6 +4,7 @@ import { isFigureId, isTerminalMint, type MintOrder } from '@rps/core/shop';
 import { shopCatalog, type ShopConfig } from './shop-config.js';
 import type { ShopChain } from './shop-chain.js';
 import { ShopError } from './shop-error.js';
+import type { SeekerGate } from './seeker-verification.js';
 export { ShopError } from './shop-error.js';
 
 export interface ShopRedis {
@@ -15,7 +16,7 @@ interface StoredOrder { playerId: string; order: MintOrder; signed?: string }
 const retention = 60 * 60 * 24 * 90;
 
 export class ShopService {
-  constructor(private redis: ShopRedis, private config: ShopConfig, private chain: ShopChain, private prefix = 'ripsy') {}
+  constructor(private redis: ShopRedis, private config: ShopConfig, private chain: ShopChain, private prefix = 'ripsy', private seeker?: SeekerGate) {}
 
   catalog() { return shopCatalog(this.config); }
 
@@ -36,6 +37,10 @@ export class ShopService {
       if (existing) {
         if (existing.order.buyer !== buyer || existing.order.figureId !== figureId) throw new ShopError('Purchase request already used', 409);
         return this.refresh(existing);
+      }
+      if (figureId === 'fig2') {
+        if (!this.seeker) throw new ShopError('Seeker verification is temporarily unavailable. Try again shortly.', 503);
+        await this.seeker.assertVerified(playerId, buyer);
       }
       const bucket = `${this.prefix}:shop:rate:${playerId}:${Math.floor(Date.now() / 60_000)}`;
       const count = Number(await this.redis.eval("local n = redis.call('INCR', KEYS[1]); if n == 1 then redis.call('EXPIRE', KEYS[1], 120) end; return n", { keys: [bucket], arguments: [] }));

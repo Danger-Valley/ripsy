@@ -12,6 +12,7 @@ import { attachGameWebSocketServer } from './game-websocket-server.js';
 import { loadShopConfig } from './shop-config.js';
 import { createShopChain } from './shop-chain.js';
 import { ShopError, ShopService, type ShopRedis } from './shop-service.js';
+import { createSeekerTokenChecker, SeekerVerificationService } from './seeker-verification.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -50,7 +51,8 @@ try {
 }
 const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
 const shopConfig = loadShopConfig(process.env);
-const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix);
+const seekerVerification = new SeekerVerificationService(commandClient as unknown as ShopRedis, createSeekerTokenChecker(shopConfig.seekerRpcUrl), shopConfig.publicOrigin, keyPrefix);
+const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification);
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
@@ -65,6 +67,16 @@ const server = createServer(async (request, response) => {
         return;
       }
       const playerId = verifyBearerSession(request.headers.authorization);
+      if (request.method === 'POST' && requestUrl.pathname === '/shop/seeker/challenge') {
+        const result = await seekerVerification.issue(playerId);
+        response.writeHead(201).end(JSON.stringify(result));
+        return;
+      }
+      if (request.method === 'POST' && requestUrl.pathname === '/shop/seeker/verify') {
+        const result = await seekerVerification.verify(playerId, await readJsonBody(request));
+        response.writeHead(200).end(JSON.stringify(result));
+        return;
+      }
       if (request.method === 'POST' && requestUrl.pathname === '/shop/orders') {
         const result = await shop.create(playerId, await readJsonBody(request));
         response.writeHead(201).end(JSON.stringify(result));

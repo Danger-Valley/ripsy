@@ -6,7 +6,7 @@ import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
 import { usePrivyWallet } from '../hooks/use-privy-wallet';
-import { signShopTransaction } from '../solana-wallet-adapter';
+import { proveSeekerWallet, signShopTransaction } from '../solana-wallet-adapter';
 import { shopPurchaseStorage } from '../storage/shop-purchase';
 import { PrimaryButton } from '../components/primary-button';
 import { colors, spacing } from '../theme';
@@ -134,9 +134,10 @@ export function ShopScreen() {
           <Text style={styles.eyebrow}>RIPSY ORIGINALS · {String(figure.variant).padStart(2, '0')}</Text>
           <Text accessibilityRole="header" style={styles.cardTitle}>{figure.name}</Text>
           <Text style={styles.copy}>{figure.description}</Text>
+          {figure.seekerExclusive && <Text style={styles.exclusive}>SOLANA SEEKER EXCLUSIVE</Text>}
           <Text style={styles.price}>{figure.priceLamports ? formatSol(figure.priceLamports) : 'Coming soon'}</Text>
-          <PrimaryButton disabled={!figure.available || !address || !shop.ready || shop.hasPurchase || shop.busy} onPress={() => { if (address) void shop.prepare(figure.id, address); }}>
-            {!figure.available ? 'Minting opens soon' : address ? 'Review mint' : 'Connect wallet to mint'}
+          <PrimaryButton disabled={!figure.available || !address || !shop.ready || shop.hasPurchase || shop.busy || (figure.seekerExclusive && walletKind !== 'external')} onPress={() => { if (address) void shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined); }}>
+            {!figure.available ? 'Minting opens soon' : figure.seekerExclusive && walletKind !== 'external' ? 'Connect Seeker wallet to mint' : address ? 'Verify & review mint' : 'Connect wallet to mint'}
           </PrimaryButton>
         </View>
       </View>)}
@@ -166,6 +167,7 @@ const styles = StyleSheet.create({
   cardCopy: { padding: spacing.xl, gap: spacing.md },
   cardTitle: { color: colors.text, fontSize: 23, fontWeight: '800' },
   price: { color: colors.primary, fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  exclusive: { color: colors.warning, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
   review: { padding: spacing.lg, gap: spacing.md, borderRadius: 18, borderColor: colors.primary, borderWidth: 1, backgroundColor: colors.surface },
   error: { borderColor: colors.danger, borderWidth: 1, borderRadius: 12, padding: spacing.lg, gap: spacing.md },
   note: { color: colors.textMuted, fontSize: 12, lineHeight: 19, textAlign: 'center' },

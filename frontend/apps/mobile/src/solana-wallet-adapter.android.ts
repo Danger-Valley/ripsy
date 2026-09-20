@@ -3,7 +3,7 @@ import { base58FromUint8Array, base64ToBase58, base64ToUint8Array } from '@solan
 import type { SolanaWalletSession } from './storage/solana-wallet-session';
 import { loadSolanaWalletSession, saveSolanaWalletSession } from './storage/solana-wallet-session';
 import { getBase64Encoder, getBase64Decoder, getTransactionDecoder, getTransactionEncoder } from '@solana/kit';
-import type { MintOrder } from '@rps/core/shop';
+import type { MintOrder, SeekerChallenge, SeekerProof } from '@rps/core/shop';
 
 const identity = {
   name: 'RIPSY',
@@ -12,6 +12,31 @@ const identity = {
 } as const;
 
 export const isSolanaWalletSupported = true;
+
+export async function proveSeekerWallet(challenge: SeekerChallenge): Promise<SeekerProof> {
+  const session = await loadSolanaWalletSession();
+  if (!session) throw new Error('Connect your Solana Seeker wallet first.');
+  return transact(async wallet => {
+    const authorization = await wallet.authorize({
+      identity,
+      chain: 'solana:mainnet',
+      auth_token: session.authToken,
+      sign_in_payload: { ...challenge, address: session.address },
+    });
+    const account = authorization.accounts.find(candidate => toBase58Address(candidate) === session.address);
+    const result = authorization.sign_in_result;
+    if (!account || !result) throw new Error('This wallet does not support secure Seeker verification.');
+    const signedAddress = toBase58Address({ address: result.address });
+    if (signedAddress !== session.address) throw new Error('The wallet verified a different account.');
+    await saveSolanaWalletSession({ ...session, authToken: authorization.auth_token, accountAddress: account.address, walletUriBase: authorization.wallet_uri_base });
+    return {
+      address: session.address,
+      nonce: challenge.nonce,
+      signature: Array.from(base64ToUint8Array(result.signature)),
+      signedMessage: Array.from(base64ToUint8Array(result.signed_message)),
+    };
+  }, session.walletUriBase ? { baseUri: session.walletUriBase } : undefined);
+}
 
 export async function signShopTransaction(order: MintOrder): Promise<string> {
   const session = await loadSolanaWalletSession();

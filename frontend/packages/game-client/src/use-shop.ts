@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { isFigureId, isTerminalMint, parseMintOrder, type FigureId, type MintOrder, type ShopCatalog } from '@rps/core/shop';
+import { isFigureId, isTerminalMint, parseMintOrder, type FigureId, type MintOrder, type SeekerChallenge, type SeekerProof, type ShopCatalog } from '@rps/core/shop';
 import { ShopClient } from './shop-client';
 
 export interface PurchaseIntent {
@@ -78,8 +78,13 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     return () => clearInterval(timer);
   }, [checkStatus, intent, restored, sessionToken]);
 
-  const prepare = useCallback((figureId: FigureId, buyer: string) => run(async () => {
+  const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>) => run(async () => {
     if (intentRef.current) throw new Error('Finish or close your current purchase first.');
+    if (figureId === 'fig2') {
+      if (!proveSeeker) throw new Error('Figure 02 can only be minted to a verified Solana Seeker wallet.');
+      const challenge = await client.seekerChallenge();
+      await client.verifySeeker(await proveSeeker(challenge));
+    }
     // This is an idempotency identifier, not an authentication credential.
     const pending: PurchaseIntent = { key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`, figureId, buyer };
     await persist(pending);

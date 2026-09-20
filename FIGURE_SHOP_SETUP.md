@@ -58,6 +58,7 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 | `SHOP_ENABLED` | Literal `true` to enable new orders; default `false` |
 | `SHOP_SOLANA_CLUSTER` | `devnet` (default) or `mainnet-beta` |
 | `SHOP_SOLANA_RPC_URL` | Private, reliable RPC for that network; required on mainnet |
+| `SHOP_SEEKER_RPC_URL` | Private mainnet RPC for Seeker Genesis Token verification. Use a production provider; SGT does not exist on devnet. |
 | `SHOP_TREASURY_ADDRESS` | Exact payment recipient |
 | `SHOP_COLLECTION_ADDRESS` | Existing Core collection controlled by mint authority |
 | `SHOP_MINT_AUTHORITY_SECRET` | Server-only 64-byte JSON Solana keypair |
@@ -68,6 +69,13 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 Keep `ALLOWED_ORIGINS` configured for `https://www.ripsy.fun` and any deliberately
 supported preview origins. Orders use the existing bearer player session from
 `POST /session`; wallet login does not replace gameplay identity.
+
+Figure 02 is Seeker-exclusive. Before the backend creates its mint transaction,
+the receiving wallet must sign a backend-issued, single-use Sign-In With Solana
+challenge. The backend verifies that signature and then checks the same address
+for a genuine, non-zero-balance Seeker Genesis Token on mainnet. Client device
+flags and wallet labels are deliberately not trusted. This flow requires a
+physical Seeker with its Seed Vault wallet for release verification.
 
 ## Vercel variables
 

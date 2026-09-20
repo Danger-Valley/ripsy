@@ -16,6 +16,10 @@
     "@metaplex-foundation/umi-bundle-defaults": "^1.6.0",
     "@rps/core": "*",
     "@rps/game-engine": "*",
+    "@solana/kit": "^7.1.1",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/wallet-standard-util": "^1.1.4",
+    "@solana/web3.js": "^1.99.0",
     "firebase-admin": "^14.4.0",
     "redis": "^5.11.0",
     "ws": "^8.18.3"

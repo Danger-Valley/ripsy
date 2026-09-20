@@ -75,8 +75,8 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
       {!shop.catalog && !error && [1, 2].map(id => <div className={styles.skeleton} key={id} aria-label="Loading figure" />)}
       {shop.catalog?.figures.map(figure => <article className={styles.card} key={figure.id}>
         <div className={styles.art}><span className={styles.edition}>RIPSY ORIGINALS · {String(figure.variant).padStart(2, '0')}</span><Image src={`/figures/${figure.id}.png`} alt={figure.name} width={512} height={512} priority /></div>
-        <div className={styles.cardCopy}><h2>{figure.name}</h2><p>{figure.description}</p><div className={styles.price}><strong>{figure.priceLamports ? formatSol(figure.priceLamports) : 'Coming soon'}</strong><span>Metaplex Core</span></div>
-          <button className={styles.primary} disabled={!figure.available || !address || !shop.ready || shop.hasPurchase || shop.busy} onClick={() => { if (address) void shop.prepare(figure.id, address); }}>{!figure.available ? 'Minting opens soon' : address ? 'Review mint →' : 'Connect a wallet to mint'}</button>
+        <div className={styles.cardCopy}><h2>{figure.name}</h2><p>{figure.description}</p>{figure.seekerExclusive && <strong className={styles.exclusive}>SOLANA SEEKER EXCLUSIVE</strong>}<div className={styles.price}><strong>{figure.priceLamports ? formatSol(figure.priceLamports) : 'Coming soon'}</strong><span>Metaplex Core</span></div>
+          <button className={styles.primary} disabled={figure.seekerExclusive || !figure.available || !address || !shop.ready || shop.hasPurchase || shop.busy} onClick={() => { if (address) void shop.prepare(figure.id, address); }}>{!figure.available ? 'Minting opens soon' : figure.seekerExclusive ? 'Mint in the RIPSY Seeker app' : address ? 'Review mint →' : 'Connect a wallet to mint'}</button>
         </div>
       </article>)}
     </section>

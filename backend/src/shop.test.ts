@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadShopConfig, shopCatalog, type ShopConfig } from './shop-config.js';
-import { ShopService, type ShopRedis } from './shop-service.js';
+import { ShopError, ShopService, type ShopRedis } from './shop-service.js';
 import type { ShopChain } from './shop-chain.js';
 import { formatSol } from '@rps/core/shop';
 
@@ -33,7 +33,8 @@ function fixture() {
     async send() { sends++; },
     async status() { return state; },
   };
-  return { redis, chain, service: new ShopService(redis, config, chain), replica: new ShopService(redis, config, chain), prepares: () => prepares, sends: () => sends, setState: (value: typeof state) => { state = value; } };
+  const seeker = { assertVerified: async () => undefined };
+  return { redis, chain, service: new ShopService(redis, config, chain, 'ripsy', seeker), replica: new ShopService(redis, config, chain, 'ripsy', seeker), prepares: () => prepares, sends: () => sends, setState: (value: typeof state) => { state = value; } };
 }
 
 test('shop is disabled by default; no invented prices and no signing secrets in catalog', () => {
@@ -75,6 +76,17 @@ test('order scope, input validation and rate limiting cannot be bypassed by a pr
   await assert.rejects(() => f.service.create('player', { ...input, buyer: config.treasury }), /customer wallet/);
   for (let i = 1; i < 8; i++) await f.service.create('player', { ...input, idempotencyKey: `purchase-request-${i}` });
   await assert.rejects(() => f.service.create('player', { ...input, idempotencyKey: 'purchase-request-overflow' }), /Too many/);
+});
+
+test('Figure 02 requires a backend-verified Seeker wallet before preparing a transaction', async () => {
+  const f = fixture();
+  const checked: string[] = [];
+  const service = new ShopService(f.redis, config, f.chain, 'ripsy', {
+    async assertVerified(_playerId, address) { checked.push(address); throw new ShopError('Seeker required', 403); },
+  });
+  await assert.rejects(() => service.create('player', { ...input, figureId: 'fig2' }), /Seeker required/);
+  assert.deepEqual(checked, [buyer]);
+  assert.equal(f.prepares(), 0);
 });
 
 test('signed bytes are saved before broadcast; transport ambiguity is recovered by another replica', async () => {

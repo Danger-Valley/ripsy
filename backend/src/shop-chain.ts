@@ -39,7 +39,9 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
         umi.rpc.getBalance(buyer.publicKey),
         umi.rpc.getLatestBlockhash(),
       ]);
-      const expectedGenesis = config.cluster === 'devnet' ? 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1' : '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+      const expectedGenesis = config.cluster === 'devnet'
+        ? 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG'
+        : '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
       if (genesis !== expectedGenesis) throw new Error('Shop RPC network does not match configuration');
       if (collection.updateAuthority !== umi.identity.publicKey) throw new Error('Invalid shop collection authority');
       const figure = FIGURES.find(candidate => candidate.id === figureId)!;

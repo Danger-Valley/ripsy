@@ -21,7 +21,7 @@ function fixture() {
   umi.rpc.getBalance = async () => lamports(1000000000n);
   umi.rpc.getLatestBlockhash = async () => ({ blockhash: publicKey('11111111111111111111111111111111'), lastValidBlockHeight: 100 });
   umi.rpc.call = (async method => {
-    if (method === 'getGenesisHash') return 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
+    if (method === 'getGenesisHash') return 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
     if (method === 'getBlockHeight') return 101;
     if (method === 'getSignaturesForAddress') return [];
     throw new Error(`Unexpected RPC call: ${method}`);

@@ -27,7 +27,7 @@ export function loadShopConfig(env: NodeJS.ProcessEnv): ShopConfig {
   return {
     enabled, cluster, treasury, collection, prices, publicOrigin,
     rpcUrl: env.SHOP_SOLANA_RPC_URL ?? 'https://api.devnet.solana.com',
-    seekerRpcUrl: env.SHOP_SEEKER_RPC_URL ?? (cluster === 'mainnet-beta' && env.SHOP_SOLANA_RPC_URL ? env.SHOP_SOLANA_RPC_URL : 'https://api.mainnet-beta.solana.com'),
+    seekerRpcUrl: env.SOLANA_RPC_URL ?? (cluster === 'mainnet-beta' && env.SHOP_SOLANA_RPC_URL ? env.SHOP_SOLANA_RPC_URL : 'https://api.mainnet-beta.solana.com'),
     authoritySecret: env.SHOP_MINT_AUTHORITY_SECRET,
   };
 }

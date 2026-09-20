@@ -47,6 +47,7 @@ test('shop is disabled by default; no invented prices and no signing secrets in 
   for (const price of ['0', '-1', '0.1', '1e9', '9007199254740992']) assert.throws(() => loadShopConfig({ SHOP_FIG1_PRICE_LAMPORTS: price }), /lamports/);
   assert.equal(formatSol('1'), '0.000000001 SOL');
   assert.equal(formatSol('1200000000'), '1.2 SOL');
+  assert.equal(loadShopConfig({ SOLANA_RPC_URL: 'https://mainnet.example.test' }).seekerRpcUrl, 'https://mainnet.example.test');
 });
 
 test('prices are server owned and idempotency survives switching replicas', async () => {

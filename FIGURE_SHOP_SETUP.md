@@ -58,7 +58,7 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 | `SHOP_ENABLED` | Literal `true` to enable new orders; default `false` |
 | `SHOP_SOLANA_CLUSTER` | `devnet` (default) or `mainnet-beta` |
 | `SHOP_SOLANA_RPC_URL` | Private, reliable RPC for that network; required on mainnet |
-| `SHOP_SEEKER_RPC_URL` | Private mainnet RPC for Seeker Genesis Token verification. Use a production provider; SGT does not exist on devnet. |
+| `SOLANA_RPC_URL` | Private mainnet RPC for Seeker Genesis Token verification. Use a production provider; SGT does not exist on devnet. |
 | `SHOP_TREASURY_ADDRESS` | Exact payment recipient |
 | `SHOP_COLLECTION_ADDRESS` | Existing Core collection controlled by mint authority |
 | `SHOP_MINT_AUTHORITY_SECRET` | Server-only 64-byte JSON Solana keypair |

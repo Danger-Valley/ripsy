@@ -108,6 +108,27 @@ update the JSON if choosing another host. Metadata is HTTPS-hosted and therefore
 mutable; pin it to permanent storage before launch if immutable media is desired.
 Do not silently replace the artwork of already sold figures.
 
+### Creating the Core collection
+
+`/figures/collection.json` is the public metadata for **RIPSY Originals**. Deploy
+it before creating the on-chain collection. With `SHOP_SOLANA_CLUSTER`,
+`SHOP_SOLANA_RPC_URL`, `SHOP_MINT_AUTHORITY_SECRET`, and `SHOP_PUBLIC_ORIGIN` in
+the local ignored `.env`, run:
+
+```bash
+npm run shop:check-collection
+npm run shop:create-collection
+```
+
+The first command validates the RPC genesis, public metadata, authority balance,
+fee payer and transaction simulation without submitting anything. The second
+submits one transaction, verifies the resulting Core account and prints the
+`SHOP_COLLECTION_ADDRESS` to copy into Railway. It never prints the secret. If a
+collection address is already configured, both commands validate it instead of
+creating a duplicate. Keep `SHOP_ENABLED=false` in production until the printed
+collection address has been added to Railway and a real end-to-end mint has been
+tested.
+
 ## Payment and recovery contract
 
 1. `GET /shop/catalog` is public and returns only public configuration.

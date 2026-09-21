@@ -21,6 +21,8 @@
     "mobile:release:preflight": "npm run release:preflight -w @rps/mobile --",
     "rive:timings": "node scripts/inspect-rive-timings.mjs",
     "shop:previews": "node scripts/export-figure-previews.mjs",
+    "shop:check-collection": "node --env-file=.env --import tsx backend/scripts/create-shop-collection.ts",
+    "shop:create-collection": "node --env-file=.env --import tsx backend/scripts/create-shop-collection.ts --create",
     "dev:redis": "docker compose up redis",
     "build": "npm run typecheck -w @rps/backend && npm run build -w @rps/web && npm run typecheck -w @rps/mobile",
     "test": "npm run test:backend && npm run test:mobile",

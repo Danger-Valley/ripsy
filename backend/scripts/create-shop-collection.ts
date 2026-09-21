@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createCollection, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import { generateSigner, keypairIdentity, publicKey } from '@metaplex-foundation/umi';
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
@@ -21,7 +22,7 @@ type Cluster = keyof typeof CLUSTERS;
 const create = process.argv.includes('--create');
 const cluster = readCluster(process.env.SHOP_SOLANA_CLUSTER);
 const rpcUrl = required('SHOP_SOLANA_RPC_URL');
-const authoritySecret = readSecret(required('SHOP_MINT_AUTHORITY_SECRET'));
+const authoritySecret = readSecret(readAuthoritySecret());
 const publicOrigin = (process.env.SHOP_PUBLIC_ORIGIN ?? 'https://www.ripsy.fun').replace(/\/$/, '');
 const metadataUri = `${publicOrigin}/figures/collection.json`;
 const collectionName = 'RIPSY Originals';
@@ -71,24 +72,29 @@ const builder = createCollection(umi, {
   name: collectionName,
   uri: metadataUri,
 }).setBlockhash(blockhash);
-const rent = await builder.getRentCreatedOnChain(umi);
-const feeBuffer = 100_000n;
-const requiredBalance = rent.basisPoints + feeBuffer;
-if (balance.basisPoints < requiredBalance) {
-  throw new Error(`Mint authority needs at least ${formatSol(requiredBalance)} SOL; current balance is ${formatSol(balance.basisPoints)} SOL`);
-}
 
 const transaction = await builder.buildAndSign(umi);
-const simulation = await umi.rpc.simulateTransaction(transaction, { verifySignatures: true });
+const simulation = await umi.rpc.simulateTransaction(transaction, {
+  accounts: [authority.publicKey],
+  verifySignatures: true,
+});
 if (simulation.err) {
   throw new Error(`Collection transaction simulation failed: ${JSON.stringify(simulation.err)}\n${simulation.logs?.join('\n') ?? ''}`);
+}
+const simulatedAuthorityBalance = simulation.accounts?.[0]?.lamports;
+if (simulatedAuthorityBalance === undefined || !Number.isSafeInteger(simulatedAuthorityBalance)) {
+  throw new Error('Unable to calculate collection creation cost from simulation');
+}
+const simulatedCost = balance.basisPoints - BigInt(simulatedAuthorityBalance);
+if (simulatedCost <= 0n) {
+  throw new Error('Simulation returned an invalid collection creation cost');
 }
 
 console.log(`Cluster: ${cluster}`);
 console.log(`Authority: ${authority.publicKey}`);
 console.log(`Authority balance: ${formatSol(balance.basisPoints)} SOL`);
 console.log(`Metadata: ${metadataUri}`);
-console.log(`Estimated rent: ${formatSol(rent.basisPoints)} SOL`);
+console.log(`Simulated transaction cost: ${formatSol(simulatedCost)} SOL`);
 console.log(`Prepared collection address: ${collection.publicKey}`);
 
 if (!create) {
@@ -126,6 +132,20 @@ function required(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Missing ${name}`);
   return value;
+}
+
+function readAuthoritySecret() {
+  const inlineSecret = process.env.SHOP_MINT_AUTHORITY_SECRET?.trim();
+  if (inlineSecret) return inlineSecret;
+  const keypairPath = process.env.SHOP_MINT_AUTHORITY_KEYPAIR_PATH?.trim();
+  if (!keypairPath) {
+    throw new Error('Set SHOP_MINT_AUTHORITY_SECRET or SHOP_MINT_AUTHORITY_KEYPAIR_PATH');
+  }
+  try {
+    return readFileSync(keypairPath, 'utf8');
+  } catch {
+    throw new Error(`Unable to read SHOP_MINT_AUTHORITY_KEYPAIR_PATH: ${keypairPath}`);
+  }
 }
 
 function readCluster(value: string | undefined): Cluster {

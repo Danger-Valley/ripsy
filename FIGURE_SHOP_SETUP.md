@@ -36,9 +36,9 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 1. Confirm **SOL** prices for fig1 and fig2, and devnet vs mainnet-beta. Until then
    no price is invented; cards show “Coming soon” and paid minting is disabled.
 2. Supply a treasury **public address** on the chosen network.
-3. Create a RIPSY **Core collection** on that same network with a dedicated server
-   mint authority as its update authority. This change does not create a
-   collection or send any on-chain transaction automatically. See the official
+3. The production **RIPSY Originals** Core collection was created on mainnet-beta
+   on 2026-09-21. Configure its address from the production record below and keep
+   its dedicated update authority available only to the backend. See the official
    [Core collection guide](https://developers.metaplex.com/core/collections).
 4. Put that authority's 64-byte JSON secret key in Railway's protected variables,
    never in git, chat, logs, client env, or Vercel public variables. The buyer pays
@@ -112,12 +112,13 @@ Do not silently replace the artwork of already sold figures.
 
 `/figures/collection.json` is the public metadata for **RIPSY Originals**. Deploy
 it before creating the on-chain collection. With `SHOP_SOLANA_CLUSTER`,
-`SHOP_SOLANA_RPC_URL`, `SHOP_MINT_AUTHORITY_SECRET`, and `SHOP_PUBLIC_ORIGIN` in
-the local ignored `.env`, run:
+`SHOP_SOLANA_RPC_URL` and `SHOP_PUBLIC_ORIGIN` in the local ignored `.env`, run
+the commands with the dedicated keypair file path (or set the same
+`SHOP_MINT_AUTHORITY_SECRET` used by Railway):
 
 ```bash
-npm run shop:check-collection
-npm run shop:create-collection
+SHOP_MINT_AUTHORITY_KEYPAIR_PATH=/secure/path/ripsy-shop-mint-authority.json npm run shop:check-collection
+SHOP_MINT_AUTHORITY_KEYPAIR_PATH=/secure/path/ripsy-shop-mint-authority.json npm run shop:create-collection
 ```
 
 The first command validates the RPC genesis, public metadata, authority balance,
@@ -128,6 +129,14 @@ collection address is already configured, both commands validate it instead of
 creating a duplicate. Keep `SHOP_ENABLED=false` in production until the printed
 collection address has been added to Railway and a real end-to-end mint has been
 tested.
+
+#### Production collection record
+
+- Cluster: `mainnet-beta`
+- Collection: `Be5v35XMGKi4SvBa5hzLsNxArfv9i76p637qjKpDt9bk`
+- Update authority: `rps7sR8RN9gSJEzM7jiddtWdisA96rd3hVgsSmuoopE`
+- Metadata: `https://www.ripsy.fun/figures/collection.json`
+- Creation transaction: `5Pmu5oHPSZmh18bk86vsL7kPWKuRpvnwFEDEk4eAPmnLVxYgU69btdSdB11vp4skm3Ac8u3EFAYojThfrNg6ZbNM`
 
 ## Payment and recovery contract
 

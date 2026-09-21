@@ -48,10 +48,48 @@ check_metadata() {
 }
 
 check_privy_config() {
-  if [[ -n "${PRIVY_APP_ID:-}" && -n "${PRIVY_CLIENT_ID:-}" ]]; then
-    pass "Privy native app/client IDs"
-  else
+  if [[ -z "${PRIVY_APP_ID:-}" || -z "${PRIVY_CLIENT_ID:-}" ]]; then
     fail "Privy native app/client IDs: set PRIVY_APP_ID and PRIVY_CLIENT_ID"
+    return
+  fi
+
+  pass "Privy native app/client IDs"
+
+  local response
+  if ! response="$(curl --fail --silent --show-error --max-time 15 \
+    "https://auth.privy.io/api/v1/apps/${PRIVY_APP_ID}" \
+    -H "privy-app-id: ${PRIVY_APP_ID}" \
+    -H "privy-client-id: ${PRIVY_CLIENT_ID}" \
+    -H "x-native-app-identifier: com.dangervalley.ripsy")"; then
+    fail "Privy native app client is unavailable or rejects the configured IDs"
+    return
+  fi
+
+  if PRIVY_CONFIG_RESPONSE="${response}" node -e '
+    const config = JSON.parse(process.env.PRIVY_CONFIG_RESPONSE || "{}");
+    process.exit(config.email_auth === true ? 0 : 1);
+  '; then
+    pass "Privy email login"
+  else
+    fail "Privy email login: enable Email in User Management > Authentication"
+  fi
+
+  if PRIVY_CONFIG_RESPONSE="${response}" node -e '
+    const config = JSON.parse(process.env.PRIVY_CONFIG_RESPONSE || "{}");
+    process.exit(config.allowed_native_app_ids?.includes("com.dangervalley.ripsy") ? 0 : 1);
+  '; then
+    pass "Privy native app identifier"
+  else
+    fail "Privy native app identifier: add com.dangervalley.ripsy to the mobile client"
+  fi
+
+  if PRIVY_CONFIG_RESPONSE="${response}" node -e '
+    const config = JSON.parse(process.env.PRIVY_CONFIG_RESPONSE || "{}");
+    process.exit(config.allowed_native_app_url_schemes?.includes("ripsy") ? 0 : 1);
+  '; then
+    pass "Privy native URL scheme"
+  else
+    fail "Privy native URL scheme: add ripsy to the mobile client"
   fi
 }
 

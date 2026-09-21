@@ -66,6 +66,11 @@ The native SDK keeps credentials and key material out of JavaScript. The backend
 constructs the payment + Core mint transaction; mobile signs it and returns it to
 the backend for exact-message verification, persistence and RPC submission.
 
+The Privy mobile app client must allow application identifier
+`com.dangervalley.ripsy` and URL scheme `ripsy`. Email must also be enabled under
+User Management > Authentication. The release preflight reads Privy's public app
+configuration and rejects a release build when any of these settings is missing.
+
 Privy's current native SDK requirements make the minimum versions iOS 17 and
 Android API 28.
 

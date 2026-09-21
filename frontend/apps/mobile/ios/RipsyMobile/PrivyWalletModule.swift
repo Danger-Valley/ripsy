@@ -149,6 +149,8 @@ final class PrivyWalletModule: NSObject {
     Task { @MainActor in
       do { resolve(try await operation()) }
       catch let error as WalletError { reject("PRIVY_WALLET_ERROR", error.localizedDescription, error) }
+      catch let error as ApiError { reject("PRIVY_WALLET_ERROR", error.localizedDescription, error) }
+      catch let error as PrivyError { reject("PRIVY_WALLET_ERROR", error.localizedDescription, error) }
       catch { reject("PRIVY_WALLET_ERROR", "Wallet request failed. Please try again.", error) }
     }
   }

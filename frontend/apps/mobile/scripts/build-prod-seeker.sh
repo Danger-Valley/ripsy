@@ -9,8 +9,11 @@ version_file="${mobile_directory}/android/version.properties"
 output_directory="${mobile_directory}/builds"
 shared_output_directory="${RIPSY_SEEKER_BUILD_OUTPUT_DIR:-${project_directory}/files/builds}"
 
+if [[ "${RIPSY_SKIP_RELEASE_PREFLIGHT:-0}" != "1" ]]; then
+  "${script_directory}/release-preflight.sh" android
+fi
+
 "${script_directory}/bump-build.sh"
-"${script_directory}/release-preflight.sh" android
 
 version_code="$(sed -n 's/^VERSION_CODE=//p' "${version_file}")"
 version_name="$(sed -n 's/^VERSION_NAME=//p' "${version_file}")"

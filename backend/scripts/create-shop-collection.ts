@@ -41,7 +41,9 @@ if (existingCollection) {
   if (collection.updateAuthority !== authority.publicKey) {
     throw new Error('SHOP_COLLECTION_ADDRESS is not controlled by SHOP_MINT_AUTHORITY_SECRET');
   }
+  await assertDasInventorySupport(rpcUrl, String(authority.publicKey));
   console.log('The configured Core Collection is valid.');
+  console.log('The configured shop RPC supports DAS inventory queries.');
   console.log(`SHOP_COLLECTION_ADDRESS=${collection.publicKey}`);
   process.exit(0);
 }
@@ -121,6 +123,7 @@ const created = await fetchCollection(umi, collection.publicKey);
 if (created.updateAuthority !== authority.publicKey || created.name !== collectionName || created.uri !== metadataUri) {
   throw new Error('Created collection did not pass post-transaction verification');
 }
+await assertDasInventorySupport(rpcUrl, String(authority.publicKey));
 
 const signature = base58.deserialize(signatureBytes)[0];
 console.log('Core Collection created and verified.');
@@ -170,4 +173,22 @@ function formatSol(lamports: bigint) {
   const whole = lamports / 1_000_000_000n;
   const fraction = (lamports % 1_000_000_000n).toString().padStart(9, '0').replace(/0+$/, '');
   return fraction ? `${whole}.${fraction}` : whole.toString();
+}
+
+async function assertDasInventorySupport(url: string, ownerAddress: string) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'ripsy-das-preflight',
+      method: 'getAssetsByOwner',
+      params: { ownerAddress, page: 1, limit: 1 },
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json() as { error?: unknown; result?: { items?: unknown[] } };
+  if (!response.ok || body.error || !Array.isArray(body.result?.items)) {
+    throw new Error('SHOP_SOLANA_RPC_URL must support DAS getAssetsByOwner for Core inventory');
+  }
 }

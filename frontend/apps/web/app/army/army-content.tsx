@@ -14,6 +14,7 @@ export interface EmbeddedArmyWallet {
   authenticated: boolean;
   address: string | null;
   login(): void;
+  logout(): Promise<void>;
   createWallet(): Promise<void>;
   proveWallet(challenge: WalletChallenge): Promise<WalletProof>;
 }
@@ -68,6 +69,18 @@ export function ArmyContent({ embedded }: { embedded?: EmbeddedArmyWallet }) {
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save your army.'); }
     finally { setBusy(false); }
   };
+  const disconnectCollectionWallet = async () => {
+    setBusy(true); setError(null); setSaved(false);
+    try {
+      const connectedAddress = inventory?.wallet;
+      await client.clearWallet();
+      localStorage.removeItem('ripsy.figure-loadout.v1');
+      setSlots(Array<string | null>(FIGURE_SLOTS).fill(null)); setInventory(null);
+      if (connectedAddress && connectedAddress === external.address) await external.disconnect();
+      if (connectedAddress && connectedAddress === embedded?.address) await embedded.logout();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not disconnect your collection wallet.'); }
+    finally { setBusy(false); }
+  };
 
   return <main className={styles.page}>
     <nav className={styles.nav}><Link href="/">← RIPSY</Link><span>YOUR ARMY</span><Link href="/shop">Figure shop →</Link></nav>
@@ -97,7 +110,8 @@ export function ArmyContent({ embedded }: { embedded?: EmbeddedArmyWallet }) {
       <section className={styles.panel}>
         <p className={styles.eyebrow}>YOUR COLLECTIBLES</p>
         {inventory.assets.length === 0 ? <div className={styles.empty}><h2>No collectible figures yet</h2><p>Your army still has 14 free Figure 01 fighters. Mint Figure 02 in the shop to add it here.</p><Link href="/shop">Open figure shop →</Link></div> : <div className={styles.assets}>{inventory.assets.map(asset => <button className={equipped.has(asset.assetId) ? styles.assetSelected : styles.asset} key={asset.assetId} onClick={() => toggle(asset)} aria-pressed={equipped.has(asset.assetId)}><Image src="/figures/fig2.png" alt={asset.name} width={72} height={72} /><span><strong>{asset.name}</strong><code>{short(asset.assetId)}</code></span><b>{equipped.has(asset.assetId) ? 'IN ARMY' : 'ADD'}</b></button>)}</div>}
-        <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save army'}</button><button disabled={busy} onClick={() => void load(false)}>Refresh wallet</button></div>
+        <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save army'}</button><button disabled={busy} onClick={() => void load(false)}>Refresh wallet</button><button disabled={busy} onClick={() => void disconnectCollectionWallet()}>Disconnect collection wallet</button></div>
+        <p>A newly minted figure can take a few seconds to appear in the Solana index. Refresh after confirmation.</p>
       </section>
     </div>}
   </main>;

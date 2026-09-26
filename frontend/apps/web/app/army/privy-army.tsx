@@ -15,7 +15,7 @@ export default function PrivyArmy({ appId }: { appId: string }) {
 }
 
 function AuthenticatedArmy() {
-  const { ready, authenticated, login } = usePrivy();
+  const { ready, authenticated, login, logout } = usePrivy();
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const { signMessage } = useSignMessage();
@@ -25,6 +25,7 @@ function AuthenticatedArmy() {
     authenticated,
     address: wallet?.address ?? null,
     login: () => login(),
+    logout,
     createWallet: async () => { await createWallet(); },
     proveWallet: async (challenge: WalletChallenge): Promise<WalletProof> => {
       if (!wallet) throw new Error('Sign in to your embedded wallet first.');

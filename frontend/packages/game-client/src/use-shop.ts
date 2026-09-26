@@ -113,7 +113,11 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     await persist(null);
   }), [persist, run]);
 
-  return { catalog, order: intent?.order ?? null, hasPurchase: Boolean(intent), signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, prepare, confirm, dismiss, checkStatus, loadCatalog };
+  const clearWallet = useCallback(() => run(async () => {
+    await client.clearWallet();
+  }), [client, run]);
+
+  return { catalog, order: intent?.order ?? null, hasPurchase: Boolean(intent), signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, prepare, confirm, dismiss, checkStatus, loadCatalog, clearWallet };
 }
 
 function message(cause: unknown) { return cause instanceof Error ? cause.message : 'Could not complete this request. Try again.'; }

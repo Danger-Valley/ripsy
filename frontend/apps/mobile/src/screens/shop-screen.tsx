@@ -1,13 +1,14 @@
 import { Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useShop } from '@rps/game-client/use-shop';
-import { formatSol, isTerminalMint, solanaExplorer } from '@rps/core/shop';
+import { FIGURE_SLOTS, formatSol, isTerminalMint, solanaExplorer } from '@rps/core/shop';
 import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
 import { usePrivyWallet } from '../hooks/use-privy-wallet';
 import { proveSeekerWallet, signShopTransaction } from '../solana-wallet-adapter';
 import { shopPurchaseStorage } from '../storage/shop-purchase';
+import { saveFigureSlots } from '../storage/figure-loadout';
 import { PrimaryButton } from '../components/primary-button';
 import { colors, spacing } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -45,6 +46,12 @@ export function ShopScreen({ navigation }: Props) {
     setActionError(null);
     void task().catch(cause => setActionError(cause instanceof Error ? cause.message : 'Please try again.'));
   };
+  const disconnectWallet = async (kind: 'external' | 'privy') => {
+    await shop.clearWallet();
+    await saveFigureSlots(Array<string | null>(FIGURE_SLOTS).fill(null));
+    if (kind === 'external') await wallet.disconnect();
+    else await privy.disconnect();
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -61,7 +68,7 @@ export function ShopScreen({ navigation }: Props) {
           <Text style={styles.optionTitle}>{wallet.label ?? 'Connected Solana wallet'}</Text>
           <Text selectable style={styles.address}>{wallet.address}</Text>
           {walletKind !== 'external' && <PrimaryButton variant="secondary" disabled={shop.hasPurchase || shop.busy} onPress={() => setWalletKind('external')}>Use this wallet</PrimaryButton>}
-          {walletKind === 'external' && <PrimaryButton variant="secondary" disabled={shop.busy || shop.hasPurchase} onPress={() => run(wallet.disconnect)}>Disconnect wallet</PrimaryButton>}
+          {walletKind === 'external' && <PrimaryButton variant="secondary" disabled={!shop.ready || shop.busy || shop.hasPurchase} onPress={() => run(() => disconnectWallet('external'))}>Disconnect wallet</PrimaryButton>}
         </View>}
         {!wallet.address && wallet.isSupported && <PrimaryButton busy={wallet.status === 'connecting'} disabled={shop.hasPurchase || shop.busy} onPress={() => {
           setWalletKind('external');
@@ -72,7 +79,7 @@ export function ShopScreen({ navigation }: Props) {
           <Text style={styles.optionTitle}>Privy embedded wallet</Text>
           <Text selectable style={styles.address}>{privy.address}</Text>
           {walletKind !== 'privy' && <PrimaryButton variant="secondary" disabled={shop.hasPurchase || shop.busy} onPress={() => setWalletKind('privy')}>Use embedded wallet</PrimaryButton>}
-          {walletKind === 'privy' && <PrimaryButton variant="secondary" busy={privy.activity === 'disconnecting'} disabled={shop.hasPurchase || shop.busy} onPress={() => run(privy.disconnect)}>Disconnect embedded wallet</PrimaryButton>}
+          {walletKind === 'privy' && <PrimaryButton variant="secondary" busy={privy.activity === 'disconnecting'} disabled={!shop.ready || shop.hasPurchase || shop.busy} onPress={() => run(() => disconnectWallet('privy'))}>Disconnect embedded wallet</PrimaryButton>}
         </View> : privy.status === 'authenticated' ? <PrimaryButton busy={privy.activity === 'creating-wallet'} disabled={shop.hasPurchase || shop.busy} onPress={() => run(privy.createWallet)}>Create embedded wallet</PrimaryButton> : privy.configured ? <View style={styles.embeddedLogin}>
           <Text style={styles.optionTitle}>No wallet? Sign in with email</Text>
           <Text style={styles.copy}>Privy creates a self-custodial Solana wallet inside RIPSY. You approve the mint here—no browser checkout.</Text>
@@ -146,7 +153,7 @@ export function ShopScreen({ navigation }: Props) {
           </PrimaryButton>
         </View>
       </View>)}
-      <Text style={styles.note}>The figure price and mint are one transaction. Network fees are extra. Collecting a figure does not change your current game lineup.</Text>
+      <Text style={styles.note}>The figure price and mint are one transaction. Network fees are extra. After confirmation, open Your Army to choose the one slot this NFT will occupy.</Text>
     </ScrollView>
   );
 }

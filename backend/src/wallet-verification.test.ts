@@ -39,10 +39,19 @@ test('a one-time SIWS proof binds an anonymous player session to its wallet', as
   });
   assert.equal(result.address, signer.publicKey);
   assert.equal(await service.address('player'), signer.publicKey);
+  await service.clear('player');
+  assert.equal(await service.address('player'), null);
+  await service.bindVerified('player', signer.publicKey);
+  assert.equal(await service.address('player'), signer.publicKey);
   await assert.rejects(() => service.verify('player', {
     address: signer.publicKey,
     nonce: challenge.nonce,
     signature: Array.from(signature),
     signedMessage: Array.from(signedMessage),
   }), /expired or was already used/);
+});
+
+test('trusted bindings still reject malformed addresses', async () => {
+  const service = new WalletVerificationService(new MemoryRedis(), 'https://www.ripsy.fun');
+  await assert.rejects(() => service.bindVerified('player', 'not-a-solana-address'), /Invalid wallet address/);
 });

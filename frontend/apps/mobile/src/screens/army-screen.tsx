@@ -79,6 +79,21 @@ export function ArmyScreen({ navigation }: Props) {
     } finally { setBusy(false); }
   };
 
+  const disconnectCollectionWallet = async () => {
+    setBusy(true); setError(null); setSaved(false);
+    try {
+      const connectedAddress = inventory?.wallet;
+      await client.clearWallet();
+      const emptySlots = Array<string | null>(FIGURE_SLOTS).fill(null);
+      await saveFigureSlots(emptySlots);
+      setSlots(emptySlots); setInventory(null);
+      if (connectedAddress && connectedAddress === external.address) await external.disconnect();
+      if (connectedAddress && connectedAddress === privy.address) await privy.disconnect();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not disconnect your collection wallet.');
+    } finally { setBusy(false); }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.heading}>
@@ -154,6 +169,8 @@ export function ArmyScreen({ navigation }: Props) {
           })}
           <PrimaryButton busy={busy} onPress={() => { save().catch(() => undefined); }}>Save army</PrimaryButton>
           <PrimaryButton variant="secondary" busy={busy} onPress={() => { refresh(false).catch(() => undefined); }}>Refresh wallet</PrimaryButton>
+          <PrimaryButton variant="secondary" disabled={busy} onPress={() => { disconnectCollectionWallet().catch(() => undefined); }}>Disconnect collection wallet</PrimaryButton>
+          <Text style={styles.note}>A newly minted figure can take a few seconds to appear in the Solana index. Use Refresh wallet after confirmation.</Text>
         </View>
       </>}
     </ScrollView>
@@ -188,4 +205,5 @@ const styles = StyleSheet.create({
   badge: { color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   badgeSelected: { color: colors.primary },
   pressed: { opacity: 0.72 },
+  note: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
 });

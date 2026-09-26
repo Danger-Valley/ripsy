@@ -41,7 +41,10 @@ const walletVerification = new WalletVerificationService(commandClient as unknow
 const figureInventory = new FigureInventoryService(
   commandClient as unknown as ShopRedis,
   walletVerification,
-  createFigureAssetSource(shopConfig.seekerRpcUrl, shopConfig.collection, shopConfig.publicOrigin),
+  // Core ownership must be read from the same cluster that minted the assets.
+  // The separate Seeker RPC always targets mainnet because SGT lives there,
+  // even while the figure shop itself is exercised on devnet.
+  createFigureAssetSource(shopConfig.rpcUrl, shopConfig.collection, shopConfig.publicOrigin),
   keyPrefix,
 );
 const store = new RedisGameStore(commandClient as unknown as RedisCommands, {
@@ -92,6 +95,11 @@ const server = createServer(async (request, response) => {
         response.writeHead(200).end(JSON.stringify(result));
         return;
       }
+      if (request.method === 'DELETE' && requestUrl.pathname === '/shop/wallet') {
+        await walletVerification.clear(playerId);
+        response.writeHead(204).end();
+        return;
+      }
       if (request.method === 'GET' && requestUrl.pathname === '/shop/inventory') {
         const result = await figureInventory.get(playerId);
         response.writeHead(200).end(JSON.stringify(result));
@@ -104,6 +112,10 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'POST' && requestUrl.pathname === '/shop/seeker/verify') {
         const result = await seekerVerification.verify(playerId, await readJsonBody(request));
+        // The same one-time SIWS proof already authenticated this address. Bind
+        // it for inventory too, so a confirmed mint opens in Army without a
+        // second, redundant signature prompt.
+        await walletVerification.bindVerified(playerId, result.address);
         response.writeHead(200).end(JSON.stringify(result));
         return;
       }

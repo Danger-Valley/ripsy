@@ -55,13 +55,7 @@ export class WalletVerificationService {
       throw new ShopError('This wallet verification request expired or was already used.', 409);
     }
 
-    let publicKey: Uint8Array;
-    try {
-      publicKey = Uint8Array.from(getBase58Encoder().encode(proof.address));
-      if (publicKey.length !== 32) throw new Error('Invalid length');
-    } catch {
-      throw new ShopError('Invalid wallet address.', 400);
-    }
+    const publicKey = decodeAddress(proof.address);
     const valid = verifySignIn(
       { ...stored.payload, address: proof.address },
       {
@@ -71,8 +65,21 @@ export class WalletVerificationService {
       },
     );
     if (!valid) throw new ShopError('The wallet signature is invalid.', 403);
-    await this.redis.set(this.walletKey(playerId), proof.address);
+    await this.bindVerified(playerId, proof.address);
     return { address: proof.address };
+  }
+
+  /** Bind an address that was authenticated by another trusted shop proof. */
+  async bindVerified(playerId: string, address: string): Promise<void> {
+    decodeAddress(address);
+    await this.redis.set(this.walletKey(playerId), address);
+  }
+
+  async clear(playerId: string): Promise<void> {
+    await this.redis.eval("return redis.call('DEL', KEYS[1])", {
+      keys: [this.walletKey(playerId)],
+      arguments: [],
+    });
   }
 
   async address(playerId: string): Promise<string | null> {
@@ -81,6 +88,16 @@ export class WalletVerificationService {
 
   private challengeKey(nonce: string) { return `${this.prefix}:shop:wallet:challenge:${nonce}`; }
   private walletKey(playerId: string) { return `${this.prefix}:shop:wallet:${playerId}`; }
+}
+
+function decodeAddress(address: string): Uint8Array {
+  try {
+    const publicKey = Uint8Array.from(getBase58Encoder().encode(address));
+    if (publicKey.length !== 32) throw new Error('Invalid length');
+    return publicKey;
+  } catch {
+    throw new ShopError('Invalid wallet address.', 400);
+  }
 }
 
 function parseProof(input: Record<string, unknown>): WalletProof {

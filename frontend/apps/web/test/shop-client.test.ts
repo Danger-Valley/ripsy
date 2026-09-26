@@ -31,3 +31,15 @@ test('malformed success payload cannot become a purchase', async () => {
   const client = new ShopClient('https://api.example.test', '', async () => new Response('{}'));
   await assert.rejects(() => client.get('a'.repeat(64)), /Invalid mint order/);
 });
+
+test('wallet disconnect clears the authenticated server binding', async () => {
+  const requests: Array<{ url: string; init: RequestInit }> = [];
+  const client = new ShopClient('https://api.example.test', 'session-token', async (url, init) => {
+    requests.push({ url: String(url), init: init! });
+    return new Response(null, { status: 204 });
+  });
+  await client.clearWallet();
+  assert.equal(requests[0]!.url, 'https://api.example.test/shop/wallet');
+  assert.equal(requests[0]!.init.method, 'DELETE');
+  assert.equal(new Headers(requests[0]!.init.headers).get('authorization'), 'Bearer session-token');
+});

@@ -66,8 +66,8 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 | --- | --- |
 | `SHOP_ENABLED` | Literal `true` to enable new orders; default `false` |
 | `SHOP_SOLANA_CLUSTER` | `devnet` (default) or `mainnet-beta` |
-| `SHOP_SOLANA_RPC_URL` | Private, reliable RPC for that network; required on mainnet |
-| `SOLANA_RPC_URL` | Private mainnet RPC for Seeker Genesis Token verification **and DAS `getAssetsByOwner` inventory queries**. Use a production DAS-capable provider; SGT does not exist on devnet. |
+| `SHOP_SOLANA_RPC_URL` | Private, reliable **DAS-capable** RPC for the configured shop network. It is used for Core minting, confirmation and `getAssetsByOwner` inventory queries; required on mainnet. |
+| `SOLANA_RPC_URL` | Private mainnet RPC for Seeker Genesis Token verification. SGT does not exist on devnet, so this stays mainnet even when the shop is tested on devnet. |
 | `SHOP_TREASURY_ADDRESS` | Exact payment recipient |
 | `SHOP_COLLECTION_ADDRESS` | Existing Core collection controlled by mint authority |
 | `SHOP_MINT_AUTHORITY_SECRET` | Server-only 64-byte JSON Solana keypair |
@@ -85,11 +85,16 @@ for a genuine, non-zero-balance Seeker Genesis Token on mainnet. Client device
 flags and wallet labels are deliberately not trusted. This flow requires a
 physical Seeker with its Seed Vault wallet for release verification.
 
-The same player session uses another single-use SIWS challenge when opening Army.
-After verification, Railway stores the player-to-wallet binding and its 14-slot
-loadout in Redis without a TTL. Inventory responses come from the official Core
-collection through DAS, not from client claims. Redis therefore needs persistence
-and backups; `SOLANA_RPC_URL` must support both standard Solana methods and DAS.
+Opening Army directly uses another single-use SIWS challenge. A successful Seeker
+verification during Figure 02 purchase is also a valid wallet proof, so it creates
+the same player-to-wallet binding and the confirmed mint can open in Army without
+asking for a redundant second signature. Railway stores that binding and its
+14-slot loadout in Redis without a TTL. Inventory responses come from the official
+Core collection through DAS, not from client claims. Redis therefore needs
+persistence and backups, and `SHOP_SOLANA_RPC_URL` must support DAS on the shop
+cluster. Disconnect deletes the player-session wallet binding and clears the
+device/browser cache; the wallet-keyed Redis loadout remains available if that
+same wallet is verified again later.
 
 ## Vercel variables
 
@@ -140,7 +145,8 @@ The first command validates the RPC genesis, public metadata, authority balance,
 fee payer and transaction simulation without submitting anything. The second
 submits one transaction, verifies the resulting Core account and prints the
 `SHOP_COLLECTION_ADDRESS` to copy into Railway. It never prints the secret. If a
-collection address is already configured, both commands validate it instead of
+collection address is already configured, both commands validate its update
+authority and the exact DAS `getAssetsByOwner` method used by Army instead of
 creating a duplicate. Keep `SHOP_ENABLED=false` in production until the printed
 collection address has been added to Railway and a real end-to-end mint has been
 tested.
@@ -173,6 +179,23 @@ tested.
    exact serialized message in the unique asset address's history. Ambiguous,
    missing, or too-large history remains unresolved, requiring support, not a
    replacement payment.
+
+## Ownership and Army contract
+
+1. `POST /shop/seeker/verify` validates SIWS plus current SGT ownership and also
+   binds that receiving address to the authenticated player session. Direct Army
+   entry uses `POST /shop/wallet/challenge` + `POST /shop/wallet/verify` instead.
+2. `GET /shop/inventory` resolves the bound address, calls DAS
+   `getAssetsByOwner` on `SHOP_SOLANA_RPC_URL`, and accepts only assets in the
+   configured official Core collection whose metadata identifies fig2.
+3. `PUT /shop/loadout` accepts exactly 14 entries. `null` is free fig1; every
+   non-null entry must be a currently-owned asset ID and can occur only once.
+4. The wallet address is the durable Redis loadout key. Transfer cleanup and
+   ownership checks happen again on refresh/save and online lineup submission.
+5. `DELETE /shop/wallet` removes only the player-session binding. Native/web
+   clients also clear their cached slots and disconnect the selected wallet;
+   verifying the same wallet later restores its durable loadout after ownership
+   is rechecked.
 
 Idempotency IDs are scoped to player sessions. Redis token-checked locks protect
 orders across replicas; signed bytes are only rebroadcast identically. Orders
@@ -233,4 +256,12 @@ owned on-chain independently of those records.
 - Web tests, TypeScript, and the Next production build passed, including `/army`.
 - Live production DAS inventory, wallet signatures, and a post-mint refresh still
   require an end-to-end device check using Railway's DAS-capable
-  `SOLANA_RPC_URL`. No mobile release was uploaded by this change.
+  `SHOP_SOLANA_RPC_URL`. No mobile release was uploaded by this change.
+- The configured mainnet Core collection was checked read-only and is valid.
+- The configured shop RPC passed the exact DAS `getAssetsByOwner` preflight.
+- Core/DAS inventory now uses the configured shop-cluster RPC; SGT verification
+  remains isolated on the mainnet-only `SOLANA_RPC_URL`.
+- A verified Seeker purchase automatically binds its receiving wallet for Army,
+  while explicit disconnect clears that binding and the cached local slots.
+- Backend: 55 tests; mobile: 129 tests; web: 6 tests. All passed. Backend/mobile
+  TypeScript and the Next production build also passed.

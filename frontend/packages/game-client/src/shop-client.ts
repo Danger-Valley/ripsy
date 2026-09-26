@@ -9,6 +9,7 @@ export class ShopClient {
   async verifySeeker(proof: SeekerProof) { await this.request('/shop/seeker/verify', proof); }
   async walletChallenge() { return parseWalletChallenge(await this.request('/shop/wallet/challenge', {})); }
   async verifyWallet(proof: WalletProof) { await this.request('/shop/wallet/verify', proof); }
+  async clearWallet() { await this.request('/shop/wallet', undefined, 'DELETE'); }
   async inventory() { return parseFigureInventory(await this.request('/shop/inventory')); }
   async saveLoadout(slots: Array<string | null>) {
     return parseFigureInventory(await this.request('/shop/loadout', { slots }, 'PUT'));
@@ -21,16 +22,16 @@ export class ShopClient {
     return parseMintOrder(await this.request(`/shop/orders/${encodeURIComponent(id)}/submit`, { transaction }));
   }
 
-  private async request(path: string, body?: unknown, method?: 'POST' | 'PUT') {
+  private async request(path: string, body?: unknown, method?: 'POST' | 'PUT' | 'DELETE') {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 55_000);
     try {
       const response = await this.fetcher(`${this.baseUrl.replace(/\/$/, '')}${path}`, {
-        method: body === undefined ? 'GET' : method ?? 'POST', signal: controller.signal,
+        method: method ?? (body === undefined ? 'GET' : 'POST'), signal: controller.signal,
         headers: { 'content-type': 'application/json', ...(this.token ? { authorization: `Bearer ${this.token}` } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-      const result: unknown = await response.json();
+      const result: unknown = response.status === 204 ? null : await response.json();
       if (!response.ok) {
         const message = result && typeof result === 'object' && 'error' in result && typeof result.error === 'string' ? result.error : 'Could not reach the shop. Try again.';
         throw new Error(message);

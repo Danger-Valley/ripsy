@@ -33,7 +33,13 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
   const canClose = !shop.signingStarted || (order && isTerminalMint(order));
   const handle = (task: () => Promise<unknown>) => { setActionError(null); void task().catch(cause => setActionError(cause instanceof Error ? cause.message : 'Please try again.')); };
   const canConnect = !walletBusy;
-  const canDisconnect = !shop.hasPurchase && !walletBusy;
+  const canDisconnect = shop.ready && !shop.hasPurchase && !walletBusy;
+  const disconnectWallet = async () => {
+    await shop.clearWallet();
+    localStorage.removeItem('ripsy.figure-loadout.v1');
+    if (walletKind === 'privy') await embedded!.logout();
+    else await external.disconnect();
+  };
 
   return <main className={styles.page}>
     <nav className={styles.nav}><Link href="/">← RIPSY</Link><span>FIGURE SHOP</span><span className={styles.network}>{shop.catalog?.cluster === 'mainnet-beta' ? 'Solana Mainnet' : 'Devnet · Test SOL'}</span></nav>
@@ -45,7 +51,7 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
       </div>
       <div className={styles.actions}>
         {address && <button onClick={() => handle(() => navigator.clipboard.writeText(address))}>Copy address</button>}
-        {address && <button disabled={!canDisconnect} onClick={() => handle(() => walletKind === 'privy' ? embedded!.logout() : external.disconnect())}>Disconnect</button>}
+        {address && <button disabled={!canDisconnect} onClick={() => handle(disconnectWallet)}>Disconnect</button>}
         <button disabled={!canConnect} onClick={() => { setWalletKind('external'); setWalletMenu(value => !value); }}>Connect wallet</button>
         {!embedded?.authenticated && <button disabled={!canConnect || !embedded?.ready} onClick={() => { setWalletKind('privy'); setWalletMenu(false); embedded?.login(); }}>{embedded ? 'Sign in with Privy' : 'Privy coming soon'}</button>}
         {embedded?.authenticated && !embedded.address && walletKind === 'privy' && <button onClick={() => handle(embedded.createWallet)}>Create embedded wallet</button>}

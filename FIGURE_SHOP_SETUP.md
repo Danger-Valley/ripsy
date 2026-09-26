@@ -123,6 +123,13 @@ soon.” Privy is dynamically loaded only on the shop route.
 - `PRIVY_APP_ID`: public Privy application ID.
 - `PRIVY_CLIENT_ID`: public native app-client ID from Privy Dashboard.
 
+All native npm entry points (`ios`, `android`, `ios:beta`,
+`build:prod-seeker`, and `mobile:release:preflight`) load only these two public
+values from the ignored root `.env` when they are not already exported. They do
+not source the full file, so `SHOP_MINT_AUTHORITY_SECRET` and private RPC URLs
+cannot leak into Xcode, Gradle, Metro, or build hooks. An explicitly exported
+value still takes precedence over `.env`.
+
 Pass both variables to `npm run ios:beta`, `npm run build:prod-seeker`, or the
 underlying Xcode/Gradle build. Release preflight treats missing values as a failed
 configuration. These are public identifiers bundled into the app, not secrets.
@@ -282,3 +289,7 @@ owned on-chain independently of those records.
 - Online lineup authorization now binds every shuffled fig2 appearance to its
   exact equipped Core asset ID. Focused tests cover pair preservation in native,
   exact-set acceptance, duplicate rejection, foreign assets and misalignment.
+- Native release preflight now also requires the live backend catalog to expose
+  a configured mainnet Core collection/treasury and only the purchasable,
+  Seeker-exclusive fig2. Native build scripts load public Privy IDs automatically
+  without inheriting any Railway secrets.

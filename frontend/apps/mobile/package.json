@@ -3,11 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
+    "android": "./scripts/run-android.sh",
     "android:bundle": "./scripts/android-bundle.sh",
     "build:prod-seeker": "./scripts/build-prod-seeker.sh",
     "bump:build": "./scripts/bump-build.sh",
-    "ios": "react-native run-ios",
+    "ios": "./scripts/run-ios.sh",
     "ios:beta": "./scripts/ios-beta.sh",
     "lint": "eslint .",
     "release:preflight": "./scripts/release-preflight.sh",

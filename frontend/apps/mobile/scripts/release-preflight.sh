@@ -10,6 +10,7 @@ fi
 
 script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mobile_directory="$(cd "${script_directory}/.." && pwd)"
+source "${script_directory}/load-native-env.sh"
 failures=0
 
 pass() {
@@ -117,6 +118,33 @@ check_backend() {
   fi
 }
 
+check_shop() {
+  local response
+  if ! response="$(curl --fail --silent --show-error --max-time 15 https://api.ripsy.fun/shop/catalog)"; then
+    fail "Production figure shop catalog is unavailable"
+    return
+  fi
+  if SHOP_CATALOG_RESPONSE="${response}" node -e '
+    const catalog = JSON.parse(process.env.SHOP_CATALOG_RESPONSE || "{}");
+    const figures = Array.isArray(catalog.figures) ? catalog.figures : [];
+    const fig2 = figures.find(figure => figure?.id === "fig2");
+    const fig1 = figures.find(figure => figure?.id === "fig1");
+    const ready = catalog.cluster === "mainnet-beta"
+      && typeof catalog.collection === "string"
+      && typeof catalog.treasury === "string"
+      && fig1 === undefined
+      && fig2?.available === true
+      && fig2?.seekerExclusive === true
+      && /^[1-9][0-9]*$/.test(fig2?.priceLamports || "")
+      && typeof fig2?.imageUrl === "string";
+    process.exit(ready ? 0 : 1);
+  '; then
+    pass "Mainnet Core figure shop catalog"
+  else
+    fail "Mainnet shop must expose only purchasable fig2 with price, collection and treasury"
+  fi
+}
+
 check_ios() {
   local firebase_plist="${mobile_directory}/ios/RipsyMobile/GoogleService-Info.plist"
   check_file "${firebase_plist}" "iOS Firebase configuration"
@@ -183,6 +211,7 @@ check_android() {
 }
 
 check_backend
+check_shop
 check_privy_config
 if [[ "${platform}" == "ios" || "${platform}" == "all" ]]; then check_ios; fi
 if [[ "${platform}" == "android" || "${platform}" == "all" ]]; then check_android; fi

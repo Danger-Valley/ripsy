@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${script_directory}/load-native-env.sh"
+
 required_variables=(
   APPLE_TEAM_ID
   APP_STORE_CONNECT_API_KEY_ID
@@ -23,7 +26,6 @@ if [[ ! -f "${APP_STORE_CONNECT_API_KEY_PATH}" ]]; then
   exit 1
 fi
 
-script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mobile_directory="$(cd "${script_directory}/.." && pwd)"
 
 if [[ "${RIPSY_SKIP_RELEASE_PREFLIGHT:-0}" != "1" ]]; then

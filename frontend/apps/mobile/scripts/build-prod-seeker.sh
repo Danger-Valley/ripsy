@@ -5,6 +5,7 @@ set -euo pipefail
 script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mobile_directory="$(cd "${script_directory}/.." && pwd)"
 project_directory="$(cd "${mobile_directory}/../../../.." && pwd)"
+source "${script_directory}/load-native-env.sh"
 version_file="${mobile_directory}/android/version.properties"
 output_directory="${mobile_directory}/builds"
 shared_output_directory="${RIPSY_SEEKER_BUILD_OUTPUT_DIR:-${project_directory}/files/builds}"

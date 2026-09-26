@@ -66,6 +66,13 @@ class PrivyWalletModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun signMessage(message: String, buyer: String, promise: Promise) = launch(promise) {
+    val wallet = authenticatedUser().embeddedSolanaWallets.firstOrNull { it.address == buyer }
+      ?: throw IllegalStateException("Reconnect the embedded wallet selected for your army.")
+    wallet.provider.signMessage(message.toByteArray(Charsets.UTF_8)).getOrThrow()
+  }
+
+  @ReactMethod
   fun signTransaction(transactionBase64: String, buyer: String, promise: Promise) = launch(promise) {
     val wallet = authenticatedUser().embeddedSolanaWallets.firstOrNull { it.address == buyer }
       ?: throw IllegalStateException("Reconnect the embedded wallet selected for this purchase.")

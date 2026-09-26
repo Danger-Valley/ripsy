@@ -66,13 +66,14 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
           {order.status === 'prepared' && <button className={styles.primary} disabled={shop.busy || address !== order.buyer} onClick={() => { void shop.confirm(walletKind === 'privy' ? embedded!.sign : external.signShopTransaction); }}>{shop.busy ? 'Waiting for wallet…' : shop.signingStarted ? 'Retry wallet approval' : 'Approve mint in wallet'}</button>}
           {order.signature && <a href={solanaExplorer('tx', order.signature, order.cluster)} target="_blank" rel="noreferrer">View transaction ↗</a>}
           {order.status === 'confirmed' && <a href={solanaExplorer('address', order.asset, order.cluster)} target="_blank" rel="noreferrer">View collectible ↗</a>}
+          {order.status === 'confirmed' && <a href="/army">Add to your army →</a>}
         </div>
       </> : <p>Preparing your purchase. If the connection was interrupted, retry to recover this request.</p>}
       <div className={styles.actions}><button disabled={shop.busy} onClick={() => { void shop.checkStatus(); }}>Check status</button>{canClose && <button disabled={shop.busy} onClick={() => { void shop.dismiss(); }}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</button>}</div>
     </section>}
 
     <section className={styles.grid} aria-label="Available figures">
-      {!shop.catalog && !error && [1, 2].map(id => <div className={styles.skeleton} key={id} aria-label="Loading figure" />)}
+      {!shop.catalog && !error && [1].map(id => <div className={styles.skeleton} key={id} aria-label="Loading figure" />)}
       {shop.catalog?.figures.map(figure => <article className={styles.card} key={figure.id}>
         <div className={styles.art}><span className={styles.edition}>RIPSY ORIGINALS · {String(figure.variant).padStart(2, '0')}</span><Image src={`/figures/${figure.id}.png`} alt={figure.name} width={512} height={512} priority /></div>
         <div className={styles.cardCopy}><h2>{figure.name}</h2><p>{figure.description}</p>{figure.seekerExclusive && <strong className={styles.exclusive}>SOLANA SEEKER EXCLUSIVE</strong>}<div className={styles.price}><strong>{figure.priceLamports ? formatSol(figure.priceLamports) : 'Coming soon'}</strong><span>Metaplex Core</span></div>
@@ -81,6 +82,6 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
       </article>)}
     </section>
     {shop.catalog?.figures.length === 0 && <p>New figures are on the way. Check back soon.</p>}
-    <footer className={styles.footer}>One transaction for payment and mint. Network fees are extra.<br />Collecting a figure does not change your current game lineup.</footer>
+    <footer className={styles.footer}>One transaction for payment and mint. Network fees are extra.<br />After minting, choose which collectibles enter your army.</footer>
   </main>;
 }

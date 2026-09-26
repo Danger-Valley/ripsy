@@ -22,6 +22,7 @@
     "@solana-program/token": "0.15.0",
     "@solana/kit": "^7.1.1",
     "@solana/wallet-standard-features": "^1.5.0",
+    "@solana/wallet-standard-util": "^1.1.4",
     "@wallet-standard/app": "^1.1.0",
     "@wallet-standard/base": "^1.1.0",
     "@wallet-standard/features": "^1.1.0",

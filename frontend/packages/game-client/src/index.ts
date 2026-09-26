@@ -5,3 +5,4 @@ export { parseStoredSession, requestPlayerSession, sessionEndpointFromWebSocket 
 export type { PlayerSession } from './player-session';
 export { getPlayerId, usePlayerIdentity } from './player-identity';
 export { useRipsyGame } from './use-ripsy-game';
+export { ShopClient } from './shop-client';

@@ -19,6 +19,7 @@ interface PrivyWalletNativeModule {
   loginWithEmailCode(email: string, code: string): Promise<PrivyWalletState>;
   createWallet(): Promise<PrivyWalletState>;
   logout(): Promise<PrivyWalletState>;
+  signMessage(message: string, buyer: string): Promise<string>;
   signTransaction(transactionBase64: string, buyer: string): Promise<string>;
 }
 
@@ -36,6 +37,7 @@ export const nativePrivyWallet = {
   loginWithEmailCode: (email: string, code: string) => module().loginWithEmailCode(email, code),
   createWallet: () => module().createWallet(),
   logout: () => module().logout(),
+  signMessage: (message: string, buyer: string) => module().signMessage(message, buyer),
   signTransaction: (transactionBase64: string, buyer: string) =>
     module().signTransaction(transactionBase64, buyer),
 };

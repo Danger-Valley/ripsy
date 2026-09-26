@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getWallets } from '@wallet-standard/app';
 import { StandardConnect, StandardDisconnect, StandardEvents, type StandardConnectFeature, type StandardDisconnectFeature, type StandardEventsFeature } from '@wallet-standard/features';
 import type { Wallet, WalletAccount } from '@wallet-standard/base';
-import { SolanaSignTransaction, type SolanaSignTransactionFeature } from '@solana/wallet-standard-features';
+import { SolanaSignMessage, SolanaSignTransaction, type SolanaSignMessageFeature, type SolanaSignTransactionFeature } from '@solana/wallet-standard-features';
+import { createSignInMessage } from '@solana/wallet-standard-util';
 import { getBase64Decoder, getBase64Encoder } from '@solana/kit';
-import type { MintOrder } from '@rps/core/shop';
+import type { MintOrder, WalletChallenge, WalletProof } from '@rps/core/shop';
 
 const STORAGE_KEY = 'ripsy.wallet.v1';
 
@@ -119,6 +120,16 @@ export function useBrowserWallet() {
     return getBase64Decoder().decode(signed.signedTransaction);
   }, [account, wallet]);
 
+  const proveWallet = useCallback(async (challenge: WalletChallenge): Promise<WalletProof> => {
+    if (!wallet || !account) throw new Error('Connect the wallet you want to verify.');
+    if (!(SolanaSignMessage in wallet.features)) throw new Error('This wallet does not support message signing.');
+    const message = createSignInMessage({ ...challenge, address: account.address });
+    const features = wallet.features as Wallet['features'] & SolanaSignMessageFeature;
+    const [proof] = await features[SolanaSignMessage].signMessage({ account, message });
+    if (!proof) throw new Error('The wallet did not sign the verification message.');
+    return { address: account.address, nonce: challenge.nonce, signature: Array.from(proof.signature), signedMessage: Array.from(proof.signedMessage) };
+  }, [account, wallet]);
+
   return useMemo(() => ({
     wallets,
     wallet,
@@ -129,7 +140,8 @@ export function useBrowserWallet() {
     connect,
     disconnect,
     signShopTransaction,
-  }), [account, busy, connect, disconnect, error, remembered, wallet, wallets, signShopTransaction]);
+    proveWallet,
+  }), [account, busy, connect, disconnect, error, proveWallet, remembered, wallet, wallets, signShopTransaction]);
 }
 
 function supportsSolanaConnect(wallet: Wallet): wallet is Wallet & StandardConnectFeature {

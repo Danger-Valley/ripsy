@@ -121,13 +121,12 @@ export function submitLineup(
   if (xs.length !== 14 || ys.length !== 14 || rawPieces.length !== 14) {
     throw new Error('A lineup must contain exactly 14 pieces');
   }
-  const figureVariants = rawFigureVariants ?? randomFigureVariants();
+  const figureVariants = rawFigureVariants ?? starterFigureVariants();
   if (
     figureVariants.length !== 14
-    || figureVariants.filter(value => value === FigureVariant.Fig1).length !== 7
-    || figureVariants.filter(value => value === FigureVariant.Fig2).length !== 7
+    || figureVariants.some(value => value !== FigureVariant.Fig1 && value !== FigureVariant.Fig2)
   ) {
-    throw new Error('A lineup must contain seven of each figure variant');
+    throw new Error('A lineup contains an invalid figure variant');
   }
   const isP0 = game.p0 === playerId;
 
@@ -480,16 +479,8 @@ function validFigureVariants(value: unknown, owners: Owner[] | undefined): Figur
   return variants;
 }
 
-function randomFigureVariants(): FigureVariant[] {
-  const variants: FigureVariant[] = [
-    ...Array<FigureVariant>(7).fill(FigureVariant.Fig1),
-    ...Array<FigureVariant>(7).fill(FigureVariant.Fig2),
-  ];
-  for (let index = variants.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [variants[index], variants[swapIndex]] = [variants[swapIndex]!, variants[index]!];
-  }
-  return variants;
+function starterFigureVariants(): FigureVariant[] {
+  return Array<FigureVariant>(14).fill(FigureVariant.Fig1);
 }
 
 function legacyLineupDeadline(

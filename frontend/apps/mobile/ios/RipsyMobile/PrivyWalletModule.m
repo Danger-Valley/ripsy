@@ -25,4 +25,9 @@ RCT_EXTERN_METHOD(signTransaction:(NSString *)transactionBase64
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(signMessage:(NSString *)message
+                  buyer:(NSString *)buyer
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

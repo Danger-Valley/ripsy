@@ -116,8 +116,8 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   expect(pieces.filter(piece => piece === Piece.Scissors)).toHaveLength(4);
   expect(pieces.filter(piece => piece === Piece.Flag)).toHaveLength(1);
   expect(pieces.filter(piece => piece === Piece.Trap)).toHaveLength(1);
-  expect(figureVariants?.filter(variant => variant === FigureVariant.Fig1)).toHaveLength(7);
-  expect(figureVariants?.filter(variant => variant === FigureVariant.Fig2)).toHaveLength(7);
+  expect(figureVariants?.filter(variant => variant === FigureVariant.Fig1)).toHaveLength(14);
+  expect(figureVariants?.filter(variant => variant === FigureVariant.Fig2)).toHaveLength(0);
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Lineup saved')).toBeDefined();
   expect(renderer.root.findAll(node => node.props.testID === 'lineup-attention-glow')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.children === 'Saved. The battle starts automatically when your opponent is ready.').length).toBeGreaterThan(0);

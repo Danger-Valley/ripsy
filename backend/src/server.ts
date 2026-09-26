@@ -13,6 +13,8 @@ import { loadShopConfig } from './shop-config.js';
 import { createShopChain } from './shop-chain.js';
 import { ShopError, ShopService, type ShopRedis } from './shop-service.js';
 import { createSeekerTokenChecker, SeekerVerificationService } from './seeker-verification.js';
+import { createFigureAssetSource, FigureInventoryService } from './figure-inventory.js';
+import { WalletVerificationService } from './wallet-verification.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -34,9 +36,18 @@ subscriber.on('error', () => diagnose({ level: 'error', event: 'redis.error', cl
 
 await Promise.all([commandClient.connect(), subscriber.connect()]);
 
+const shopConfig = loadShopConfig(process.env);
+const walletVerification = new WalletVerificationService(commandClient as unknown as ShopRedis, shopConfig.publicOrigin, keyPrefix);
+const figureInventory = new FigureInventoryService(
+  commandClient as unknown as ShopRedis,
+  walletVerification,
+  createFigureAssetSource(shopConfig.seekerRpcUrl, shopConfig.collection, shopConfig.publicOrigin),
+  keyPrefix,
+);
 const store = new RedisGameStore(commandClient as unknown as RedisCommands, {
   gameTtlSeconds,
   keyPrefix,
+  validateFigureLineup: (playerId, variants) => figureInventory.validateLineup(playerId, variants),
 });
 const pushStore = new RedisPushInstallationStore(
   commandClient as unknown as RedisCommands,
@@ -50,7 +61,6 @@ try {
   diagnose({ level: 'error', event: 'push.configuration_invalid' });
 }
 const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
-const shopConfig = loadShopConfig(process.env);
 const seekerVerification = new SeekerVerificationService(commandClient as unknown as ShopRedis, createSeekerTokenChecker(shopConfig.seekerRpcUrl), shopConfig.publicOrigin, keyPrefix);
 const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification);
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
@@ -70,6 +80,26 @@ const server = createServer(async (request, response) => {
       if (request.method === 'POST' && requestUrl.pathname === '/shop/seeker/challenge') {
         const result = await seekerVerification.issue(playerId);
         response.writeHead(201).end(JSON.stringify(result));
+        return;
+      }
+      if (request.method === 'POST' && requestUrl.pathname === '/shop/wallet/challenge') {
+        const result = await walletVerification.issue(playerId);
+        response.writeHead(201).end(JSON.stringify(result));
+        return;
+      }
+      if (request.method === 'POST' && requestUrl.pathname === '/shop/wallet/verify') {
+        const result = await walletVerification.verify(playerId, await readJsonBody(request));
+        response.writeHead(200).end(JSON.stringify(result));
+        return;
+      }
+      if (request.method === 'GET' && requestUrl.pathname === '/shop/inventory') {
+        const result = await figureInventory.get(playerId);
+        response.writeHead(200).end(JSON.stringify(result));
+        return;
+      }
+      if (request.method === 'PUT' && requestUrl.pathname === '/shop/loadout') {
+        const result = await figureInventory.save(playerId, await readJsonBody(request));
+        response.writeHead(200).end(JSON.stringify(result));
         return;
       }
       if (request.method === 'POST' && requestUrl.pathname === '/shop/seeker/verify') {
@@ -182,7 +212,7 @@ function applyCors(origin: string | undefined, response: import('node:http').Ser
   }
   if (origin) response.setHeader('access-control-allow-origin', origin);
   response.setHeader('access-control-allow-headers', 'authorization, content-type');
-  response.setHeader('access-control-allow-methods', 'GET, POST, DELETE, OPTIONS');
+  response.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS');
   response.setHeader('vary', 'Origin');
   return true;
 }

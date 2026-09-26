@@ -1,7 +1,7 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-09-19
-Baseline: `master` plus the lineup-deadline implementation documented below
+Last updated: 2026-09-26
+Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
 
@@ -13,7 +13,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 ## Non-negotiable architecture
 
-- There is no MagicBlock, Solana, wallet, or smart-contract gameplay path. Optional wallet connection and the separate Metaplex Core figure shop are isolated from game rules, WebSockets, and player sessions. NFT ownership does not gate gameplay or equip figures yet.
+- There is no MagicBlock, Solana, wallet, or smart-contract gameplay path. Optional wallet connection and the Metaplex Core figure shop remain outside move/combat rules and WebSockets. Ownership gates only paid visual variants during lineup submission; free fig1 gameplay always remains available.
 - `frontend/packages/game-engine` is the single rules implementation. Online games invoke it through the Node.js backend; offline computer games invoke it directly on-device.
 - Clients send commands; they do not decide whether moves are legal or calculate authoritative outcomes.
 - Redis contains persistent game state, player game indexes, clock deadlines, and push installations.
@@ -53,12 +53,15 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 | Local web computer mode | `frontend/apps/web/app/computer/local-computer-game.ts`, `frontend/apps/web/app/computer/use-local-computer-game.ts` |
 | Web Home and active-game carousel | `frontend/apps/web/app/page.tsx`, `frontend/apps/web/app/page.module.css` |
 | Optional browser wallet identity | `frontend/apps/web/app/hooks/use-browser-wallet.ts`, `frontend/apps/web/app/components/WalletCard.tsx` |
+| Figure catalog, inventory and loadout wire contract | `frontend/packages/core/src/shop.ts` |
+| Wallet proof and authoritative owned-asset/loadout validation | `backend/src/wallet-verification.ts`, `backend/src/figure-inventory.ts` |
+| Native/web Army UI and local offline cache | `frontend/apps/mobile/src/screens/army-screen.tsx`, `frontend/apps/mobile/src/storage/figure-loadout.ts`, `frontend/apps/web/app/army` |
 
 ## Authoritative game contract
 
 ### Figure shop (separate from game state, added 2026-09-19)
 
-- Native and web Home link to a figure shop. Both show static first-frame `Idle` + `NoWeapon` previews exported from the real fig1/fig2 Rive assets, separate server-owned SOL prices, receiving wallet, explicit purchase review, transaction status and explorer receipts.
+- Native and web Home link to a figure shop. Both show static first-frame `Idle` + `NoWeapon` previews exported from the real Rive assets, server-owned SOL prices, receiving wallet, explicit purchase review, transaction status and explorer receipts. Fig1 is the mandatory free starter and is deliberately absent from the purchasable catalog; currently only fig2 can be minted.
 - Shared contract: `@rps/core/shop`; HTTP client and durable purchase state machine: `@rps/game-client/shop` and `@rps/game-client/use-shop`. Shop uses the existing player bearer session, not game WebSocket actions. No gameplay protocol/schema change is required.
 - Backend `shop-config.ts`, `shop-chain.ts`, `shop-service.ts` provide catalog, atomic payment + Core mint, exact signed-message verification, Redis-backed cross-replica idempotency and confirmation/recovery. Keep wallet/payment keys out of game state and public env.
 - Figure 02 is marked `seekerExclusive` in the shared catalog. Native Android performs a backend-issued SIWS challenge through MWA; the backend derives the verification key from the signed address and checks that exact wallet for a genuine Seeker Genesis Token on mainnet before preparing the mint. Web must implement the same challenge endpoints and signature flow before enabling Figure 02; never replace it with user-agent/device detection.
@@ -67,7 +70,10 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 - The iOS React Native bridge must create the Privy module on the main queue and run every Privy operation on `MainActor`. Privy touches UIKit/keychain-backed auth state; calling it from React Native's module worker queue triggers a `libdispatch` main-queue assertion when Figure Shop opens.
 - For every wallet path, the backend constructs the atomic SOL payment + Core mint transaction and partially signs it. The client signs the unchanged serialized transaction but never broadcasts it directly. The backend verifies the exact message and all required signatures, persists the signed bytes, and submits/reconciles them through its private RPC.
 - Configuration defaults to disabled/devnet with no invented prices. Unconfigured Privy shows an explicit unavailable button. Do not claim paid mainnet or real-wallet flows are verified until running the setup/release checks in `FIGURE_SHOP_SETUP.md`.
-- No equip controls, ownership-based board appearance, supply limit, or inventory synchronization in this step; these are follow-up features, not completed parity items.
+- Native and web Army screens expose 14 slots. `null` means free fig1; a paid slot stores one exact Core asset ID. The backend rejects an NFT repeated across slots, rejects assets outside the verified wallet/official collection, and clears transferred or duplicated stored assets during inventory refresh.
+- Army access signs a single-use SIWS challenge and durably binds the gameplay player session to the verified wallet in Redis. `SOLANA_RPC_URL` must be DAS-capable because inventory uses `getAssetsByOwner`. Saved wallet loadouts have no TTL and require persistent Redis/backups.
+- Online lineup submission is validated server-side: the number of fig2 variants must match the unique paid slots in the saved army. A player can always submit an all-fig1 starter lineup. Native and web cache the last verified slots for local computer games, where no network ownership check is available.
+- Supply limits and cross-device wallet-authenticated recovery are still out of scope.
 
 ### Board and lineup
 
@@ -399,7 +405,8 @@ This ledger summarizes the recent work that established the native reference. Co
 ### Multiple figure variants
 
 - Each saved lineup now carries a `figureVariants` array alongside `owners` and `pieces`. Variant `1` selects `fig1.riv`, variant `2` selects `fig2.riv`, and empty cells use `0`.
-- A Shuffle creates exactly seven figures of each variant, randomized independently from weapons and cells. The optional `submitLineup.figureVariants` protocol field preserves rollout compatibility with older clients; the server generates a balanced random split when it is absent.
+- New/default lineups contain 14 free fig1 variants. Army configuration replaces one starter slot with fig2 for each unique equipped, currently-owned Core asset. Shuffle randomizes weapons and cells without changing the configured figure counts. The optional `submitLineup.figureVariants` field preserves wire compatibility; omission safely falls back to all fig1.
+- One NFT can occupy exactly one slot. Native/web clients enforce this in their Army picker and the backend independently rejects duplicate asset IDs or paid-variant counts that do not match the verified saved loadout.
 - Figure variants are authoritative game state. They move with a surviving piece and are cleared when a piece is removed, so reconnects, Redis persistence, combat overlays, trap animation, web, and mobile always render the same character.
 - Stored games migrate to schema version 5. Legacy records receive a stable alternating split per player, and legacy server payloads are parsed with the same safe fallback.
 - `fig1.riv` and `fig2.riv` intentionally share the same runtime contract, so all existing state-machine triggers and timing synchronization apply to both.

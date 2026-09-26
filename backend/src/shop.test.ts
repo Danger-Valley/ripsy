@@ -7,7 +7,7 @@ import { formatSol } from '@rps/core/shop';
 
 const buyer = '11111111111111111111111111111111';
 const config: ShopConfig = { ...loadShopConfig({}), enabled: true, treasury: 'So11111111111111111111111111111111111111112', collection: 'SysvarRent111111111111111111111111111111111', prices: { fig1: '100000000', fig2: '200000000' } };
-const input = { figureId: 'fig1', buyer, idempotencyKey: 'purchase-test-123456' };
+const input = { figureId: 'fig2', buyer, idempotencyKey: 'purchase-test-123456' };
 class MemoryRedis implements ShopRedis {
   data = new Map<string, string>();
   async get(key: string) { return this.data.get(key) ?? null; }
@@ -42,9 +42,10 @@ test('shop is disabled by default; no invented prices and no signing secrets in 
   const catalog = shopCatalog(defaults);
   assert.equal(catalog.cluster, 'devnet');
   assert.ok(catalog.figures.every(figure => !figure.available && figure.priceLamports === null));
+  assert.deepEqual(catalog.figures.map(figure => figure.id), ['fig2']);
   assert.ok(!JSON.stringify(catalog).includes('not-public'));
   assert.throws(() => loadShopConfig({ SHOP_ENABLED: 'true' }), /incomplete/);
-  for (const price of ['0', '-1', '0.1', '1e9', '9007199254740992']) assert.throws(() => loadShopConfig({ SHOP_FIG1_PRICE_LAMPORTS: price }), /lamports/);
+  for (const price of ['0', '-1', '0.1', '1e9', '9007199254740992']) assert.throws(() => loadShopConfig({ SHOP_FIG2_PRICE_LAMPORTS: price }), /lamports/);
   assert.equal(formatSol('1'), '0.000000001 SOL');
   assert.equal(formatSol('1200000000'), '1.2 SOL');
   assert.equal(loadShopConfig({ SOLANA_RPC_URL: 'https://mainnet.example.test' }).seekerRpcUrl, 'https://mainnet.example.test');
@@ -55,9 +56,9 @@ test('prices are server owned and idempotency survives switching replicas', asyn
   const first = await f.service.create('player', { ...input, priceLamports: '1' });
   const repeated = await f.replica.create('player', input);
   assert.deepEqual(first, repeated);
-  assert.equal(first.priceLamports, '100000000');
+  assert.equal(first.priceLamports, '200000000');
   assert.equal(f.prepares(), 1);
-  await assert.rejects(() => f.replica.create('player', { ...input, figureId: 'fig2' }), /already used/);
+  await assert.rejects(() => f.replica.create('player', { ...input, buyer: 'SysvarC1ock11111111111111111111111111111111' }), /already used/);
 });
 
 test('two replicas cannot simultaneously construct the same purchase', async () => {
@@ -73,6 +74,7 @@ test('order scope, input validation and rate limiting cannot be bypassed by a pr
   const order = await f.service.create('player', input);
   await assert.rejects(() => f.replica.get('someone-else', order.id), /not found/);
   await assert.rejects(() => f.service.create('player', { ...input, figureId: 'injected' }), /Unknown figure/);
+  await assert.rejects(() => f.service.create('player', { ...input, figureId: 'fig1' }), /free for every player/);
   await assert.rejects(() => f.service.create('player', { ...input, buyer: 'bad wallet' }), /Invalid wallet/);
   await assert.rejects(() => f.service.create('player', { ...input, buyer: config.treasury }), /customer wallet/);
   for (let i = 1; i < 8; i++) await f.service.create('player', { ...input, idempotencyKey: `purchase-request-${i}` });

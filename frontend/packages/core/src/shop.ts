@@ -2,9 +2,11 @@
 export type ShopCluster = 'devnet' | 'mainnet-beta';
 export type FigureId = 'fig1' | 'fig2';
 export const FIGURES = [
-  { id: 'fig1' as const, name: 'Figure 01', variant: 1 as const, description: 'The original RIPSY fighter. A familiar face, now yours to collect.', seekerExclusive: false },
-  { id: 'fig2' as const, name: 'Figure 02', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.', seekerExclusive: true },
+  { id: 'fig1' as const, name: 'Figure 01', variant: 1 as const, description: 'The original RIPSY fighter. Free in every army.', seekerExclusive: false, purchasable: false },
+  { id: 'fig2' as const, name: 'Figure 02', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.', seekerExclusive: true, purchasable: true },
 ];
+export const STARTER_FIGURE_ID = 'fig1' as const;
+export const FIGURE_SLOTS = 14;
 export interface ShopFigure {
   id: FigureId;
   name: string;
@@ -59,6 +61,23 @@ export interface SeekerProof {
   signedMessage: number[];
 }
 
+export type WalletChallenge = SeekerChallenge;
+export type WalletProof = SeekerProof;
+
+export interface OwnedFigureAsset {
+  assetId: string;
+  figureId: Exclude<FigureId, typeof STARTER_FIGURE_ID>;
+  name: string;
+  imageUrl: string;
+}
+
+/** `null` means the free starter fig1. Every non-null asset may occur once. */
+export interface FigureInventory {
+  wallet: string;
+  assets: OwnedFigureAsset[];
+  slots: Array<string | null>;
+}
+
 export function isFigureId(value: unknown): value is FigureId {
   return value === 'fig1' || value === 'fig2';
 }
@@ -84,8 +103,8 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 const addressPattern = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const isAddress = (value: unknown) => typeof value === 'string' && addressPattern.test(value);
-const isAmount = (value: unknown) => typeof value === 'string' && /^\d{1,16}$/.test(value);
+const isAddress = (value: unknown): value is string => typeof value === 'string' && addressPattern.test(value);
+const isAmount = (value: unknown): value is string => typeof value === 'string' && /^\d{1,16}$/.test(value);
 const isCluster = (value: unknown) => value === 'devnet' || value === 'mainnet-beta';
 
 export function parseShopCatalog(value: unknown): ShopCatalog {
@@ -108,6 +127,31 @@ export function parseSeekerChallenge(value: unknown): SeekerChallenge {
     || typeof data.statement !== 'string' || data.version !== '1'
     || typeof data.nonce !== 'string' || !/^[a-f0-9]{32}$/.test(data.nonce)) throw new Error('Invalid Seeker verification challenge');
   return data as unknown as SeekerChallenge;
+}
+
+export const parseWalletChallenge = parseSeekerChallenge;
+
+export function parseFigureInventory(value: unknown): FigureInventory {
+  const data = record(value);
+  if (!isAddress(data.wallet) || !Array.isArray(data.assets) || !Array.isArray(data.slots) || data.slots.length !== FIGURE_SLOTS) {
+    throw new Error('Invalid figure inventory');
+  }
+  const assetIds = new Set<string>();
+  for (const entry of data.assets) {
+    const asset = record(entry);
+    if (!isAddress(asset.assetId) || asset.figureId !== 'fig2' || typeof asset.name !== 'string' || typeof asset.imageUrl !== 'string') {
+      throw new Error('Invalid figure inventory');
+    }
+    if (assetIds.has(asset.assetId)) throw new Error('Invalid figure inventory');
+    assetIds.add(asset.assetId);
+  }
+  const equipped = new Set<string>();
+  for (const assetId of data.slots) {
+    if (assetId === null) continue;
+    if (!isAddress(assetId) || !assetIds.has(assetId) || equipped.has(assetId)) throw new Error('Invalid figure loadout');
+    equipped.add(assetId);
+  }
+  return data as unknown as FigureInventory;
 }
 
 export function parseMintOrder(value: unknown): MintOrder {

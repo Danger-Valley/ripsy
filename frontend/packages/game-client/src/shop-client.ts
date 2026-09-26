@@ -1,4 +1,4 @@
-import { parseMintOrder, parseSeekerChallenge, parseShopCatalog, type FigureId, type SeekerProof } from '@rps/core/shop';
+import { parseFigureInventory, parseMintOrder, parseSeekerChallenge, parseShopCatalog, parseWalletChallenge, type FigureId, type SeekerProof, type WalletProof } from '@rps/core/shop';
 
 export class ShopClient {
   // Browser fetch needs its Window/global receiver, not this ShopClient instance.
@@ -7,6 +7,12 @@ export class ShopClient {
   async catalog() { return parseShopCatalog(await this.request('/shop/catalog')); }
   async seekerChallenge() { return parseSeekerChallenge(await this.request('/shop/seeker/challenge', {})); }
   async verifySeeker(proof: SeekerProof) { await this.request('/shop/seeker/verify', proof); }
+  async walletChallenge() { return parseWalletChallenge(await this.request('/shop/wallet/challenge', {})); }
+  async verifyWallet(proof: WalletProof) { await this.request('/shop/wallet/verify', proof); }
+  async inventory() { return parseFigureInventory(await this.request('/shop/inventory')); }
+  async saveLoadout(slots: Array<string | null>) {
+    return parseFigureInventory(await this.request('/shop/loadout', { slots }, 'PUT'));
+  }
   async create(figureId: FigureId, buyer: string, idempotencyKey: string) {
     return parseMintOrder(await this.request('/shop/orders', { figureId, buyer, idempotencyKey }));
   }
@@ -15,12 +21,12 @@ export class ShopClient {
     return parseMintOrder(await this.request(`/shop/orders/${encodeURIComponent(id)}/submit`, { transaction }));
   }
 
-  private async request(path: string, body?: unknown) {
+  private async request(path: string, body?: unknown, method?: 'POST' | 'PUT') {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 55_000);
     try {
       const response = await this.fetcher(`${this.baseUrl.replace(/\/$/, '')}${path}`, {
-        method: body === undefined ? 'GET' : 'POST', signal: controller.signal,
+        method: body === undefined ? 'GET' : method ?? 'POST', signal: controller.signal,
         headers: { 'content-type': 'application/json', ...(this.token ? { authorization: `Bearer ${this.token}` } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });

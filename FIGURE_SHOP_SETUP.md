@@ -3,10 +3,19 @@
 ## Implemented scope
 
 Home → Figure shop exists on native and at `/shop` on web. The catalog contains
-fig1 and fig2 with separate server-owned SOL prices. Every successful purchase
+only purchasable collectibles; currently that is Seeker-exclusive fig2. Every successful purchase
 creates one new **Metaplex Core asset** in the configured RIPSY Core collection.
-There is no custom gameplay contract, supply cap, secondary marketplace, or
-equipping/ownership gate in this change. A buyer can collect multiple copies.
+Fig1 is the mandatory free starter, fills every unconfigured army slot, and is
+never listed, priced, or minted by the shop. There is no custom gameplay contract,
+supply cap, or secondary marketplace. A buyer can collect multiple fig2 copies.
+
+Native `/army` and web `/army` expose 14 appearance slots. A slot containing
+`null` renders free fig1. A paid slot stores the exact Metaplex Core asset ID;
+the same NFT cannot occupy more than one slot. The backend verifies current
+ownership in the official collection before saving and removes transferred assets
+from the saved army on the next inventory refresh. Online lineup submission is
+server-validated against that saved army. Offline computer mode uses the last
+verified loadout cached locally and falls back safely to all fig1.
 
 Preview PNGs are real first-frame Rive renders, `Idle` + `NoWeapon`, using the
 current artboards. `npm run shop:previews`, then visit `http://127.0.0.1:3198` and
@@ -33,7 +42,7 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 
 ## Decisions/credentials still required
 
-1. Confirm **SOL** prices for fig1 and fig2, and devnet vs mainnet-beta. Until then
+1. Confirm the **SOL** price for fig2, and devnet vs mainnet-beta. Until then
    no price is invented; cards show “Coming soon” and paid minting is disabled.
 2. Supply a treasury **public address** on the chosen network.
 3. The production **RIPSY Originals** Core collection was created on mainnet-beta
@@ -58,12 +67,11 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 | `SHOP_ENABLED` | Literal `true` to enable new orders; default `false` |
 | `SHOP_SOLANA_CLUSTER` | `devnet` (default) or `mainnet-beta` |
 | `SHOP_SOLANA_RPC_URL` | Private, reliable RPC for that network; required on mainnet |
-| `SOLANA_RPC_URL` | Private mainnet RPC for Seeker Genesis Token verification. Use a production provider; SGT does not exist on devnet. |
+| `SOLANA_RPC_URL` | Private mainnet RPC for Seeker Genesis Token verification **and DAS `getAssetsByOwner` inventory queries**. Use a production DAS-capable provider; SGT does not exist on devnet. |
 | `SHOP_TREASURY_ADDRESS` | Exact payment recipient |
 | `SHOP_COLLECTION_ADDRESS` | Existing Core collection controlled by mint authority |
 | `SHOP_MINT_AUTHORITY_SECRET` | Server-only 64-byte JSON Solana keypair |
-| `SHOP_FIG1_PRICE_LAMPORTS` | Positive integer string; blank disables this figure |
-| `SHOP_FIG2_PRICE_LAMPORTS` | Independent positive integer string |
+| `SHOP_FIG2_PRICE_LAMPORTS` | Positive integer string; blank disables fig2 |
 | `SHOP_PUBLIC_ORIGIN` | HTTPS host of `/figures/fig1.json` etc.; default `https://www.ripsy.fun` |
 
 Keep `ALLOWED_ORIGINS` configured for `https://www.ripsy.fun` and any deliberately
@@ -76,6 +84,12 @@ challenge. The backend verifies that signature and then checks the same address
 for a genuine, non-zero-balance Seeker Genesis Token on mainnet. Client device
 flags and wallet labels are deliberately not trusted. This flow requires a
 physical Seeker with its Seed Vault wallet for release verification.
+
+The same player session uses another single-use SIWS challenge when opening Army.
+After verification, Railway stores the player-to-wallet binding and its 14-slot
+loadout in Redis without a TTL. Inventory responses come from the official Core
+collection through DAS, not from client claims. Redis therefore needs persistence
+and backups; `SOLANA_RPC_URL` must support both standard Solana methods and DAS.
 
 ## Vercel variables
 
@@ -102,8 +116,9 @@ Pass both variables to `npm run ios:beta`, `npm run build:prod-seeker`, or the
 underlying Xcode/Gradle build. Release preflight treats missing values as a failed
 configuration. These are public identifiers bundled into the app, not secrets.
 
-Publish `/figures/fig1.png`, `/figures/fig2.png`, and matching JSON files before
-enabling minting. Metadata currently uses absolute `www.ripsy.fun` image URLs;
+Publish `/figures/fig1.png` for the free starter preview and `/figures/fig2.png`
+plus `/figures/fig2.json` before enabling minting. Metadata currently uses
+absolute `www.ripsy.fun` image URLs;
 update the JSON if choosing another host. Metadata is HTTPS-hosted and therefore
 mutable; pin it to permanent storage before launch if immutable media is desired.
 Do not silently replace the artwork of already sold figures.
@@ -208,3 +223,14 @@ owned on-chain independently of those records.
   tooling and transitive `ws` 8.18.x in Privy → WalletConnect/viem. The backend's
   direct `ws` is 8.21.3. A broad forced upgrade/downgrade was deliberately not
   applied. Resolve/reassess this dependency gate before enabling mainnet sales.
+
+### Collectible-army verification record (2026-09-26)
+
+- Backend: 54 tests passed, including unique-NFT slot enforcement, transferred
+  asset cleanup, SIWS player-wallet binding, and online paid-variant validation.
+- Mobile: 128 tests and TypeScript passed. Android Kotlin compilation and an iOS
+  17 simulator build passed with the native Privy message-signing bridge.
+- Web tests, TypeScript, and the Next production build passed, including `/army`.
+- Live production DAS inventory, wallet signatures, and a post-mint refresh still
+  require an end-to-end device check using Railway's DAS-capable
+  `SOLANA_RPC_URL`. No mobile release was uploaded by this change.

@@ -10,13 +10,17 @@ import { proveSeekerWallet, signShopTransaction } from '../solana-wallet-adapter
 import { shopPurchaseStorage } from '../storage/shop-purchase';
 import { PrimaryButton } from '../components/primary-button';
 import { colors, spacing } from '../theme';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation';
 
 const images = {
   fig1: require('../assets/shop/fig1.png'),
   fig2: require('../assets/shop/fig2.png'),
 };
 
-export function ShopScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
+
+export function ShopScreen({ navigation }: Props) {
   const { sessionToken, error: sessionError } = usePlayerIdentity();
   const wallet = useSolanaWallet();
   const privy = usePrivyWallet();
@@ -119,6 +123,7 @@ export function ShopScreen() {
           <Text style={styles.label}>PAYMENT TO</Text><Text selectable style={styles.address}>{order.treasury}</Text>
           {order.status === 'prepared' && !orderSigner && <Text style={styles.copy}>Reconnect the receiving wallet shown below to approve this saved purchase.</Text>}
           {order.status === 'prepared' && <PrimaryButton busy={shop.busy} disabled={!orderSigner} onPress={() => { if (orderSigner) void shop.confirm(orderSigner); }}>{shop.signingStarted ? 'Retry wallet approval' : 'Approve mint in app'}</PrimaryButton>}
+          {order.status === 'confirmed' && <PrimaryButton onPress={() => navigation.navigate('Army')}>Add to your army</PrimaryButton>}
           {order.signature && <PrimaryButton variant="secondary" onPress={() => { void Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)); }}>View transaction</PrimaryButton>}
           {order.status === 'confirmed' && <PrimaryButton variant="secondary" onPress={() => { void Linking.openURL(solanaExplorer('address', order.asset, order.cluster)); }}>View collectible</PrimaryButton>}
         </> : <Text style={styles.copy}>Preparing your purchase. Retry to recover this request if the connection was interrupted.</Text>}

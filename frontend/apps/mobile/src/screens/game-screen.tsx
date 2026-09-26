@@ -17,6 +17,9 @@ import { createGameInviteUrl, normalizeRoomCode } from '../invitations';
 import { LOCAL_PLAYER_ID } from '../local-computer-game';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing } from '../theme';
+import { loadFigureSlots, saveFigureSlots } from '../storage/figure-loadout';
+import { ShopClient } from '@rps/game-client/shop';
+import { getGameWebSocketUrl } from '../config';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
 type ComputerProps = NativeStackScreenProps<RootStackParamList, 'ComputerGame'>;
@@ -35,7 +38,7 @@ export function GameScreen({ navigation, route }: Props) {
   const { playerId, sessionToken } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, gameId);
 
-  return <BattleScreen game={game} gameId={gameId} isComputer={false} navigation={navigation} playerId={playerId} />;
+  return <BattleScreen game={game} gameId={gameId} isComputer={false} navigation={navigation} playerId={playerId} sessionToken={sessionToken} />;
 }
 
 export function ComputerGameScreen({ navigation }: ComputerProps) {
@@ -53,13 +56,14 @@ export function ComputerGameScreen({ navigation }: ComputerProps) {
   );
 }
 
-function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateChange, playerId }: {
+function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateChange, playerId, sessionToken }: {
   game: ReturnType<typeof useNativeRipsyGame> | ReturnType<typeof useLocalComputerGame>;
   gameId: string;
   isComputer: boolean;
   navigation: Props['navigation'] | ComputerProps['navigation'];
   onAnimationStateChange?: (isAnimating: boolean) => void;
   playerId: string;
+  sessionToken?: string;
 }) {
   const { joinGame } = game;
   const animation = useGameAnimationQueue(game.gameState);
@@ -75,6 +79,30 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
   const previousMoveState = useRef<GameState | null>(null);
   const lineupAttention = useRef(new Animated.Value(0)).current;
   const [reduceMotionEnabled, setReduceMotionEnabled] = useState<boolean | null>(null);
+  const [armyFigureVariants, setArmyFigureVariants] = useState<FigureVariant[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      let slots = await loadFigureSlots();
+      if (active) setArmyFigureVariants(slots.map(assetId => assetId ? FigureVariant.Fig2 : FigureVariant.Fig1));
+      if (sessionToken) {
+        try {
+          const client = new ShopClient(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken);
+          const inventory = await client.inventory();
+          slots = inventory.slots;
+          await saveFigureSlots(slots);
+          if (active) setArmyFigureVariants(slots.map(assetId => assetId ? FigureVariant.Fig2 : FigureVariant.Fig1));
+        } catch {
+          // A wallet is optional. The cached army remains available offline.
+        }
+      }
+    };
+    load().catch(() => {
+      if (active) setArmyFigureVariants(Array(14).fill(FigureVariant.Fig1));
+    });
+    return () => { active = false; };
+  }, [sessionToken]);
 
   useEffect(() => {
     onAnimationStateChange?.(animation.isAnimating);
@@ -164,16 +192,16 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
   }, [hasOpenPlayerSlot, joinGame, joinStatus]);
 
   useEffect(() => {
-    if (!canEditLineup || lineup.length > 0 || !game.gameState) return;
+    if (!canEditLineup || lineup.length > 0 || !game.gameState || !armyFigureVariants) return;
     const savedLineup = lineupFromState(game.gameState, game.ownOwner);
     if (savedLineup.length > 0) {
       setLineup(savedLineup);
       setIsLineupDirty(false);
     } else {
-      setLineup(createRandomLineup(game.isPlayer0));
+      setLineup(createRandomLineup(game.isPlayer0, armyFigureVariants));
       setIsLineupDirty(true);
     }
-  }, [canEditLineup, game.gameState, game.isPlayer0, game.ownOwner, lineup.length]);
+  }, [armyFigureVariants, canEditLineup, game.gameState, game.isPlayer0, game.ownOwner, lineup.length]);
 
   useEffect(() => {
     if (!game.gameState?.tiePending) setSelected(null);
@@ -378,7 +406,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
               <View style={styles.lineupAction}>
                 <PrimaryButton accessibilityHint="Creates a different random hidden lineup" variant="secondary" onPress={() => {
                   setSelected(null);
-                  setLineup(createRandomLineup(game.isPlayer0));
+                  setLineup(createRandomLineup(game.isPlayer0, armyFigureVariants ?? Array(14).fill(FigureVariant.Fig1)));
                   setIsLineupDirty(true);
                 }}>Shuffle</PrimaryButton>
               </View>
@@ -525,7 +553,7 @@ function lineupFromState(state: GameState, owner: Owner): LineupPiece[] {
   return lineup;
 }
 
-function createRandomLineup(isPlayer0: boolean): LineupPiece[] {
+function createRandomLineup(isPlayer0: boolean, configuredVariants: FigureVariant[]): LineupPiece[] {
   const pieces: Piece[] = [
     Piece.Rock, Piece.Rock, Piece.Rock, Piece.Rock,
     Piece.Paper, Piece.Paper, Piece.Paper, Piece.Paper,
@@ -536,10 +564,9 @@ function createRandomLineup(isPlayer0: boolean): LineupPiece[] {
     x: index % WIDTH,
     y: isPlayer0 ? HEIGHT - 2 + Math.floor(index / WIDTH) : Math.floor(index / WIDTH),
   }));
-  const figureVariants = [
-    ...Array(7).fill(FigureVariant.Fig1),
-    ...Array(7).fill(FigureVariant.Fig2),
-  ] as FigureVariant[];
+  const figureVariants = configuredVariants.length === 14
+    ? [...configuredVariants]
+    : Array<FigureVariant>(14).fill(FigureVariant.Fig1);
   shuffle(pieces);
   shuffle(cells);
   shuffle(figureVariants);

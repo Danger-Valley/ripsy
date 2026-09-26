@@ -51,6 +51,7 @@ export interface RedisGameStoreOptions {
   gameTtlSeconds?: number;
   maxMutationRetries?: number;
   now?: () => Date;
+  validateFigureLineup?: (playerId: string, figureVariants: number[] | undefined) => Promise<void>;
 }
 
 export class RedisGameStore {
@@ -59,6 +60,7 @@ export class RedisGameStore {
   private readonly gameTtlSeconds: number;
   private readonly maxMutationRetries: number;
   private readonly now: () => Date;
+  private readonly validateFigureLineup?: RedisGameStoreOptions['validateFigureLineup'];
 
   constructor(
     private readonly redis: RedisCommands,
@@ -68,6 +70,7 @@ export class RedisGameStore {
     this.gameTtlSeconds = options.gameTtlSeconds ?? 60 * 60 * 24 * 7;
     this.maxMutationRetries = options.maxMutationRetries ?? 12;
     this.now = options.now ?? (() => new Date());
+    this.validateFigureLineup = options.validateFigureLineup;
     this.eventPattern = `${this.prefix}:*:events`;
     if (!Number.isInteger(this.gameTtlSeconds) || this.gameTtlSeconds < 60) {
       throw new Error('Game TTL must be at least 60 seconds');
@@ -139,6 +142,7 @@ export class RedisGameStore {
     pieces: number[],
     figureVariants?: number[],
   ): Promise<GameState> {
+    await this.validateFigureLineup?.(playerId, figureVariants);
     return this.mutate(gameId, playerId, (game) => submitLineup(game, playerId, xs, ys, pieces, this.now(), figureVariants));
   }
 

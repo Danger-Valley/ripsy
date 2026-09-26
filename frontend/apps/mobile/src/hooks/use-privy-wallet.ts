@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { MintOrder } from '@rps/core/shop';
+import type { MintOrder, WalletChallenge, WalletProof } from '@rps/core/shop';
+import { createSignInMessageText } from '@solana/wallet-standard-util';
 import { nativePrivyWallet, type PrivyWalletState } from '../native-privy-wallet';
 
 const initialState: PrivyWalletState = {
@@ -35,7 +36,7 @@ export function usePrivyWallet() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { refresh().catch(() => undefined); }, [refresh]);
 
   const sendCode = useCallback(async (email: string) => {
     setActivity('sending-code');
@@ -104,6 +105,18 @@ export function usePrivyWallet() {
     return nativePrivyWallet.signTransaction(order.transaction, order.buyer);
   }, [state.address]);
 
+  const proveWallet = useCallback(async (challenge: WalletChallenge): Promise<WalletProof> => {
+    if (!state.address) throw new Error('Sign in to your embedded wallet first.');
+    const messageText = createSignInMessageText({ ...challenge, address: state.address });
+    const signature = decodeBase64(await nativePrivyWallet.signMessage(messageText, state.address));
+    return {
+      address: state.address,
+      nonce: challenge.nonce,
+      signature: Array.from(signature),
+      signedMessage: Array.from(new TextEncoder().encode(messageText)),
+    };
+  }, [state.address]);
+
   return {
     ...state,
     activity,
@@ -116,9 +129,16 @@ export function usePrivyWallet() {
     createWallet,
     disconnect,
     signShopTransaction,
+    proveWallet,
   };
 }
 
 function message(cause: unknown, fallback: string) {
   return cause instanceof Error && cause.message ? cause.message : fallback;
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = globalThis.atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='));
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
 }

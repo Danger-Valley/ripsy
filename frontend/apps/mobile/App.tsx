@@ -7,6 +7,7 @@ import { linking, type RootStackParamList } from './src/navigation';
 import { ComputerGameScreen, GameScreen } from './src/screens/game-screen';
 import { HomeScreen } from './src/screens/home-screen';
 import { ShopScreen } from './src/screens/shop-screen';
+import { ArmyScreen } from './src/screens/army-screen';
 import { normalizeRoomCode } from './src/invitations';
 import { loadActiveGameId, saveActiveGameId } from './src/storage/active-game';
 import { colors } from './src/theme';
@@ -63,6 +64,7 @@ function App() {
         <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', headerShadowVisible: false }}>
           <Stack.Screen component={HomeScreen} name="Home" options={{ headerShown: false }} />
           <Stack.Screen component={ShopScreen} name="Shop" options={{ title: 'Figure shop' }} />
+          <Stack.Screen component={ArmyScreen} name="Army" options={{ title: 'Your army' }} />
           <Stack.Screen component={ComputerGameScreen} name="ComputerGame" options={{ title: 'Battle vs Computer' }} />
           <Stack.Screen
             component={GameScreen}

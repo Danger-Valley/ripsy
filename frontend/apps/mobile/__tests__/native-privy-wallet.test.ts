@@ -15,6 +15,15 @@ describe('nativePrivyWallet', () => {
     expect(signTransaction).toHaveBeenCalledWith('server-transaction-base64', 'buyer-address');
   });
 
+  it('forwards wallet proof messages to native code unchanged', async () => {
+    const signMessage = jest.fn().mockResolvedValue('signature-base64');
+    NativeModules.PrivyWallet = { signMessage };
+
+    await expect(nativePrivyWallet.signMessage('verify this exact message', 'buyer-address'))
+      .resolves.toBe('signature-base64');
+    expect(signMessage).toHaveBeenCalledWith('verify this exact message', 'buyer-address');
+  });
+
   it('fails closed when the native SDK is not linked', () => {
     expect(() => nativePrivyWallet.getState()).toThrow(
       'Privy embedded wallet is not available in this build.',

@@ -109,6 +109,22 @@ final class PrivyWalletModule: NSObject {
     }
   }
 
+  @objc(signMessage:buyer:resolver:rejecter:)
+  func signMessage(
+    _ message: String,
+    buyer: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    run(resolve, reject) { [self] in
+      let user = try await authenticatedUser(requireConfigured())
+      guard let wallet = user.embeddedSolanaWallets.first(where: { $0.address == buyer }) else {
+        throw WalletError.message("Reconnect the embedded wallet selected for your army.")
+      }
+      return try await wallet.provider.signMessage(message: message)
+    }
+  }
+
   private func requireConfigured() throws -> any Privy {
     guard let privy else { throw WalletError.message("Privy is not configured for this app build.") }
     return privy

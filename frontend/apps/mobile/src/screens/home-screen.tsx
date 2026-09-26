@@ -114,6 +114,7 @@ export function HomeScreen({ navigation, route }: Props) {
           <View style={styles.card}>
             <Text style={styles.eyebrow}>THE FIGURE COLLECTION</Text>
             <Text style={styles.sectionTitle}>Your next favourite fighter.</Text>
+            <PrimaryButton onPress={() => navigation.navigate('Army')}>Set up your army</PrimaryButton>
             <PrimaryButton variant="secondary" onPress={() => navigation.navigate('Shop')}>Explore figure shop →</PrimaryButton>
           </View>
 

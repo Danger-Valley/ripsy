@@ -35,15 +35,15 @@ test('creates, joins, and starts a game after both lineups', () => {
   assert.equal(game.live1, 14);
 });
 
-test('assigns seven of each figure and keeps the figure variant through moves', () => {
+test('uses the free starter figure by default and keeps the figure variant through moves', () => {
   const game = createGameRecord('game-figures', 'alice');
   joinGame(game, 'bob');
   submitLineup(game, 'alice', xs, aliceYs, lineup);
   submitLineup(game, 'bob', xs, bobYs, lineup);
 
   const aliceVariants = game.figureVariants.filter((variant, index) => game.owners[index] === Owner.P0 && variant !== FigureVariant.Empty);
-  assert.equal(aliceVariants.filter(variant => variant === FigureVariant.Fig1).length, 7);
-  assert.equal(aliceVariants.filter(variant => variant === FigureVariant.Fig2).length, 7);
+  assert.equal(aliceVariants.filter(variant => variant === FigureVariant.Fig1).length, 14);
+  assert.equal(aliceVariants.filter(variant => variant === FigureVariant.Fig2).length, 0);
 
   const from = toIdx(0, 5);
   const to = toIdx(0, 4);

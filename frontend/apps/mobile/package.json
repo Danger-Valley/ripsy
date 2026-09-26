@@ -28,6 +28,7 @@
     "@solana-mobile/mobile-wallet-adapter-protocol": "^2.3.0",
     "@solana-mobile/mobile-wallet-adapter-protocol-kit": "^0.4.0",
     "@solana/kit": "^7.1.1",
+    "@solana/wallet-standard-util": "^1.1.4",
     "react": "19.2.8",
     "react-native": "0.87.1",
     "react-native-haptic-feedback": "^3.0.0",

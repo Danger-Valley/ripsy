@@ -452,6 +452,8 @@ This ledger summarizes the recent work that established the native reference. Co
 
 ### Release tooling that web should preserve
 
+- `1056262` — completed the Core ownership lifecycle: Seeker SIWS now binds the receiving wallet for Army, explicit disconnect clears the session binding and cached slots, Core inventory uses the shop-cluster DAS RPC, and the collection preflight verifies `getAssetsByOwner` support.
+- `6b26d89` — confirmed purchases carry their exact Core asset ID into Army; native and web poll authoritative DAS inventory during indexing instead of optimistically claiming or equipping the NFT.
 - `6442e6c` — keep Privy's iOS module initialization and wallet operations on the main actor so opening Figure Shop cannot crash the native app.
 - `e00794e` — browserless native Privy email login, embedded Solana wallet creation, disconnect, and in-app transaction approval; the backend remains responsible for constructing, validating, and broadcasting shop transactions.
 - `4a3b32b` / `4ed3a94` — `npm run build:prod-seeker`, build-number bump, and local APK copies.

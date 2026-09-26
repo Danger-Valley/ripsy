@@ -188,6 +188,9 @@ tested.
 2. `GET /shop/inventory` resolves the bound address, calls DAS
    `getAssetsByOwner` on `SHOP_SOLANA_RPC_URL`, and accepts only assets in the
    configured official Core collection whose metadata identifies fig2.
+   After a confirmed mint, native/web Army carries the expected asset ID and
+   polls this authoritative inventory for up to 30 seconds while DAS indexes it;
+   it never invents client-side ownership during that delay.
 3. `PUT /shop/loadout` accepts exactly 14 entries. `null` is free fig1; every
    non-null entry must be a currently-owned asset ID and can occur only once.
 4. The wallet address is the durable Redis loadout key. Transfer cleanup and

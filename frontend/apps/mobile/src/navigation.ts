@@ -7,7 +7,7 @@ export type RootStackParamList = {
   Game: { gameId: string };
   ComputerGame: undefined;
   Shop: undefined;
-  Army: undefined;
+  Army: { expectedAssetId?: string } | undefined;
 };
 
 export const linking: LinkingOptions<RootStackParamList> = {

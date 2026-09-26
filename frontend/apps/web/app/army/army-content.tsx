@@ -30,7 +30,10 @@ export function ArmyContent({ embedded }: { embedded?: EmbeddedArmyWallet }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [expectedAssetId, setExpectedAssetId] = useState<string | null>(null);
+  const [indexingChecks, setIndexingChecks] = useState(0);
   const address = walletKind === 'privy' ? embedded?.address ?? null : external.isConnected ? external.address : null;
+  const isWaitingForMint = Boolean(expectedAssetId && inventory && !inventory.assets.some(asset => asset.assetId === expectedAssetId));
 
   const load = async (verify = false) => {
     setBusy(true); setError(null); setSaved(false);
@@ -48,7 +51,17 @@ export function ArmyContent({ embedded }: { embedded?: EmbeddedArmyWallet }) {
     finally { setBusy(false); }
   };
 
+  useEffect(() => {
+    setExpectedAssetId(new URLSearchParams(window.location.search).get('minted'));
+  }, []);
   useEffect(() => { if (sessionToken) void load(false); }, [sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isWaitingForMint || busy || indexingChecks >= 10) return;
+    const timer = window.setTimeout(() => {
+      load(false).finally(() => setIndexingChecks(current => current + 1));
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [busy, indexingChecks, isWaitingForMint]); // eslint-disable-line react-hooks/exhaustive-deps
   const equipped = new Set(slots.filter((value): value is string => Boolean(value)));
   const toggle = (asset: OwnedFigureAsset) => {
     setSaved(false);
@@ -101,6 +114,7 @@ export function ArmyContent({ embedded }: { embedded?: EmbeddedArmyWallet }) {
 
     {error && <div className={styles.error} role="alert"><p>{error}</p><button onClick={() => void load(Boolean(address))}>Try again</button></div>}
     {saved && <div className={styles.success} role="status">Army saved. New lineups will use these figures.</div>}
+    {isWaitingForMint && <div className={styles.success} role="status">{indexingChecks < 10 ? 'Mint confirmed. Waiting for Solana to index your new figure…' : 'Your mint is confirmed, but the Solana index is still catching up. Refresh in a moment.'}</div>}
 
     {inventory && <div className={styles.columns}>
       <section className={styles.panel}>

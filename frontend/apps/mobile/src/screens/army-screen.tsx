@@ -21,7 +21,7 @@ const figureImages = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Army'>;
 
-export function ArmyScreen({ navigation }: Props) {
+export function ArmyScreen({ navigation, route }: Props) {
   const { sessionToken, isReady } = usePlayerIdentity();
   const external = useSolanaWallet();
   const privy = usePrivyWallet();
@@ -32,7 +32,10 @@ export function ArmyScreen({ navigation }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [indexingChecks, setIndexingChecks] = useState(0);
   const address = walletKind === 'external' ? external.address : privy.address;
+  const expectedAssetId = route.params?.expectedAssetId;
+  const isWaitingForMint = Boolean(expectedAssetId && inventory && !inventory.assets.some(asset => asset.assetId === expectedAssetId));
 
   const refresh = async (verify = false) => {
     if (!sessionToken) return;
@@ -54,6 +57,15 @@ export function ArmyScreen({ navigation }: Props) {
   };
 
   useEffect(() => { if (isReady) refresh(false).catch(() => undefined); }, [isReady, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isWaitingForMint || busy || indexingChecks >= 10) return;
+    const timer = setTimeout(() => {
+      refresh(false)
+        .catch(() => undefined)
+        .finally(() => setIndexingChecks(current => current + 1));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [busy, indexingChecks, isWaitingForMint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const equipped = new Set(slots.filter((value): value is string => Boolean(value)));
   const toggleAsset = (asset: OwnedFigureAsset) => {
@@ -116,6 +128,8 @@ export function ArmyScreen({ navigation }: Props) {
 
       {error && <StatusBanner message={error} tone="error" />}
       {saved && <StatusBanner message="Army saved. New lineups will use these figures." tone="success" />}
+      {isWaitingForMint && indexingChecks < 10 && <StatusBanner message="Mint confirmed. Waiting for Solana to index your new figure…" />}
+      {isWaitingForMint && indexingChecks >= 10 && <StatusBanner message="Your mint is confirmed, but the Solana index is still catching up. Use Refresh wallet in a moment." />}
 
       {inventory && <>
         <View style={styles.card}>

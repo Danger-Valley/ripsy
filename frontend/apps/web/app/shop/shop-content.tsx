@@ -72,7 +72,7 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
           {order.status === 'prepared' && <button className={styles.primary} disabled={shop.busy || address !== order.buyer} onClick={() => { void shop.confirm(walletKind === 'privy' ? embedded!.sign : external.signShopTransaction); }}>{shop.busy ? 'Waiting for wallet…' : shop.signingStarted ? 'Retry wallet approval' : 'Approve mint in wallet'}</button>}
           {order.signature && <a href={solanaExplorer('tx', order.signature, order.cluster)} target="_blank" rel="noreferrer">View transaction ↗</a>}
           {order.status === 'confirmed' && <a href={solanaExplorer('address', order.asset, order.cluster)} target="_blank" rel="noreferrer">View collectible ↗</a>}
-          {order.status === 'confirmed' && <a href="/army">Add to your army →</a>}
+          {order.status === 'confirmed' && <a href={`/army?minted=${encodeURIComponent(order.asset)}`}>Add to your army →</a>}
         </div>
       </> : <p>Preparing your purchase. If the connection was interrupted, retry to recover this request.</p>}
       <div className={styles.actions}><button disabled={shop.busy} onClick={() => { void shop.checkStatus(); }}>Check status</button>{canClose && <button disabled={shop.busy} onClick={() => { void shop.dismiss(); }}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</button>}</div>

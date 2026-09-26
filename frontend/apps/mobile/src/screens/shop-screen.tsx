@@ -130,7 +130,7 @@ export function ShopScreen({ navigation }: Props) {
           <Text style={styles.label}>PAYMENT TO</Text><Text selectable style={styles.address}>{order.treasury}</Text>
           {order.status === 'prepared' && !orderSigner && <Text style={styles.copy}>Reconnect the receiving wallet shown below to approve this saved purchase.</Text>}
           {order.status === 'prepared' && <PrimaryButton busy={shop.busy} disabled={!orderSigner} onPress={() => { if (orderSigner) void shop.confirm(orderSigner); }}>{shop.signingStarted ? 'Retry wallet approval' : 'Approve mint in app'}</PrimaryButton>}
-          {order.status === 'confirmed' && <PrimaryButton onPress={() => navigation.navigate('Army')}>Add to your army</PrimaryButton>}
+          {order.status === 'confirmed' && <PrimaryButton onPress={() => navigation.navigate('Army', { expectedAssetId: order.asset })}>Add to your army</PrimaryButton>}
           {order.signature && <PrimaryButton variant="secondary" onPress={() => { void Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)); }}>View transaction</PrimaryButton>}
           {order.status === 'confirmed' && <PrimaryButton variant="secondary" onPress={() => { void Linking.openURL(solanaExplorer('address', order.asset, order.cluster)); }}>View collectible</PrimaryButton>}
         </> : <Text style={styles.copy}>Preparing your purchase. Retry to recover this request if the connection was interrupted.</Text>}

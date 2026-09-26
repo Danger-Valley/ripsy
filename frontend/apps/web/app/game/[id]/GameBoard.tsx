@@ -6,7 +6,7 @@ import RpsFigure, { Weapon, type TriggerName } from './RpsFigure';
 import { RIVE_JUMP_TRAVEL_DELAY_MS, pieceMoveDurationMs, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation, type TrapAnimation } from './game-animation';
 import styles from './game.module.css';
 
-export interface LineupPiece { x: number; y: number; piece: Piece; figureVariant?: FigureVariant }
+export interface LineupPiece { x: number; y: number; piece: Piece; figureVariant?: FigureVariant; figureAssetId?: string | null }
 type Coordinate = { x: number; y: number };
 
 interface Props {

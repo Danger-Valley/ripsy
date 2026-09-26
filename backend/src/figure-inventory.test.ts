@@ -67,3 +67,32 @@ test('online lineups cannot use more paid figures than the saved NFT loadout', a
     /allows 1 Figure 02 slot/,
   );
 });
+
+test('online lineups bind each paid slot to the exact equipped Core collectible', async () => {
+  const { service } = fixture();
+  const slots = Array<string | null>(14).fill(null);
+  slots[2] = firstAsset;
+  slots[9] = secondAsset;
+  await service.save('player', { slots });
+
+  const variants = Array(14).fill(FigureVariant.Fig1);
+  variants[1] = FigureVariant.Fig2;
+  variants[11] = FigureVariant.Fig2;
+  const shuffledAssets = Array<string | null>(14).fill(null);
+  shuffledAssets[1] = secondAsset;
+  shuffledAssets[11] = firstAsset;
+  await service.validateLineup('player', variants, shuffledAssets);
+
+  const duplicate = [...shuffledAssets];
+  duplicate[11] = secondAsset;
+  await assert.rejects(() => service.validateLineup('player', variants, duplicate), /only be used in one lineup slot/);
+
+  const foreign = [...shuffledAssets];
+  foreign[11] = 'Stake11111111111111111111111111111111111111';
+  await assert.rejects(() => service.validateLineup('player', variants, foreign), /does not match/);
+
+  const misaligned = [...shuffledAssets];
+  misaligned[0] = firstAsset;
+  misaligned[11] = null;
+  await assert.rejects(() => service.validateLineup('player', variants, misaligned), /only be assigned to a Figure 02 slot/);
+});

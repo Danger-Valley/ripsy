@@ -23,6 +23,7 @@ export interface LineupPiece {
   y: number;
   piece: Piece;
   figureVariant?: FigureVariant;
+  figureAssetId?: string | null;
 }
 
 interface Coordinate {

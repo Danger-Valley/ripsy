@@ -86,9 +86,9 @@ export function useRipsyGame(gameId?: string) {
     if (!id) throw new Error('Missing game ID');
     await run(client => client.request({ type: 'joinGame', gameId: id }));
   }, [gameId, run]);
-  const submitCustomLineup = useCallback(async (xs: number[], ys: number[], pieces: number[], figureVariants?: number[]) => {
+  const submitCustomLineup = useCallback(async (xs: number[], ys: number[], pieces: number[], figureVariants?: number[], figureAssetIds?: Array<string | null>) => {
     if (!gameId) throw new Error('Missing game ID');
-    await run(client => client.request({ type: 'submitLineup', gameId, xs, ys, pieces, figureVariants }));
+    await run(client => client.request({ type: 'submitLineup', gameId, xs, ys, pieces, figureVariants, figureAssetIds }));
   }, [gameId, run]);
   const movePiece = useCallback(async (fromX: number, fromY: number, toX: number, toY: number) => {
     if (!gameId) throw new Error('Missing game ID');

@@ -39,6 +39,7 @@ test('validates client actions instead of trusting parsed JSON', () => {
     ProtocolMessageError,
   );
   const variants = [...Array(7).fill(1), ...Array(7).fill(2)];
+  const assetIds = [...Array(7).fill(null), ...Array(7).fill('Vote111111111111111111111111111111111111111')];
   const lineup = parseClientMessage({
     type: 'submitLineup',
     requestId: 'request-lineup',
@@ -47,8 +48,18 @@ test('validates client actions instead of trusting parsed JSON', () => {
     ys: Array(14).fill(0),
     pieces: Array(14).fill(1),
     figureVariants: variants,
+    figureAssetIds: assetIds,
   });
   assert.deepEqual(lineup.type === 'submitLineup' ? lineup.figureVariants : undefined, variants);
+  assert.deepEqual(lineup.type === 'submitLineup' ? lineup.figureAssetIds : undefined, assetIds);
+  assert.throws(
+    () => parseClientMessage({
+      type: 'submitLineup', requestId: 'invalid-assets', gameId: 'game-1',
+      xs: Array(14).fill(0), ys: Array(14).fill(0), pieces: Array(14).fill(1),
+      figureAssetIds: [...Array(13).fill(null), 'not-a-solana-address'],
+    }),
+    ProtocolMessageError,
+  );
 });
 
 test('rejects unsupported client protocol versions with a typed error', () => {

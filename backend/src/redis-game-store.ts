@@ -51,7 +51,7 @@ export interface RedisGameStoreOptions {
   gameTtlSeconds?: number;
   maxMutationRetries?: number;
   now?: () => Date;
-  validateFigureLineup?: (playerId: string, figureVariants: number[] | undefined) => Promise<void>;
+  validateFigureLineup?: (playerId: string, figureVariants: number[] | undefined, figureAssetIds?: Array<string | null>) => Promise<void>;
 }
 
 export class RedisGameStore {
@@ -141,8 +141,9 @@ export class RedisGameStore {
     ys: number[],
     pieces: number[],
     figureVariants?: number[],
+    figureAssetIds?: Array<string | null>,
   ): Promise<GameState> {
-    await this.validateFigureLineup?.(playerId, figureVariants);
+    await this.validateFigureLineup?.(playerId, figureVariants, figureAssetIds);
     return this.mutate(gameId, playerId, (game) => submitLineup(game, playerId, xs, ys, pieces, this.now(), figureVariants));
   }
 

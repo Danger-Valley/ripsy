@@ -14,8 +14,14 @@ Native `/army` and web `/army` expose 14 appearance slots. A slot containing
 the same NFT cannot occupy more than one slot. The backend verifies current
 ownership in the official collection before saving and removes transferred assets
 from the saved army on the next inventory refresh. Online lineup submission is
-server-validated against that saved army. Offline computer mode uses the last
+server-validated against that saved army: each paid visual carries its exact Core
+asset ID in the authenticated `submitLineup` command, IDs must be unique and the
+selected set must exactly match the saved Army. Asset IDs are verification input
+only and are never published in `GameState`. Offline computer mode uses the last
 verified loadout cached locally and falls back safely to all fig1.
+Online battle setup waits for the authoritative inventory refresh before creating
+its initial shuffled lineup, preventing a transferred NFT from flashing out of a
+stale local cache; cache remains the fallback when inventory is unavailable.
 
 Preview PNGs are real first-frame Rive renders, `Idle` + `NoWeapon`, using the
 current artboards. `npm run shop:previews`, then visit `http://127.0.0.1:3198` and
@@ -195,6 +201,11 @@ tested.
    non-null entry must be a currently-owned asset ID and can occur only once.
 4. The wallet address is the durable Redis loadout key. Transfer cleanup and
    ownership checks happen again on refresh/save and online lineup submission.
+   New clients align a nullable `figureAssetIds` entry with each shuffled
+   `figureVariants` entry. The server checks fig2-to-ID alignment, uniqueness,
+   current ownership and exact equality with the saved equipped set. Older
+   clients that omit this additive field temporarily retain count-only validation
+   during the rollout; remove that fallback only after their supported lifetime.
 5. `DELETE /shop/wallet` removes only the player-session binding. Native/web
    clients also clear their cached slots and disconnect the selected wallet;
    verifying the same wallet later restores its durable loadout after ownership
@@ -266,5 +277,8 @@ owned on-chain independently of those records.
   remains isolated on the mainnet-only `SOLANA_RPC_URL`.
 - A verified Seeker purchase automatically binds its receiving wallet for Army,
   while explicit disconnect clears that binding and the cached local slots.
-- Backend: 55 tests; mobile: 129 tests; web: 6 tests. All passed. Backend/mobile
+- Backend: 56 tests; mobile: 130 tests; web: 6 tests. All passed. Backend/mobile
   TypeScript and the Next production build also passed.
+- Online lineup authorization now binds every shuffled fig2 appearance to its
+  exact equipped Core asset ID. Focused tests cover pair preservation in native,
+  exact-set acceptance, duplicate rejection, foreign assets and misalignment.

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Animated, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
+import * as Keychain from 'react-native-keychain';
 import { FigureVariant, HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
 import { ComputerGameScreen, GameScreen } from '../src/screens/game-screen';
@@ -14,7 +15,7 @@ jest.mock('../src/hooks/use-player-identity');
 
 let gameState: GameState;
 let nativeGame: ReturnType<typeof useNativeRipsyGame>;
-const submitLineup = jest.fn<Promise<{ type: 'result'; requestId: string }>, [number[], number[], number[], number[]?]>(async (xs, ys, pieces, figureVariants) => {
+const submitLineup = jest.fn<Promise<{ type: 'result'; requestId: string }>, [number[], number[], number[], number[]?, Array<string | null>?]>(async (xs, ys, pieces, figureVariants) => {
   xs.forEach((x, index) => {
     const boardIndex = ys[index]! * WIDTH + x;
     gameState.owners[boardIndex] = Owner.P0;
@@ -107,7 +108,7 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   });
 
   expect(submitLineup).toHaveBeenCalledTimes(1);
-  const [xs, ys, pieces, figureVariants] = submitLineup.mock.calls[0]!;
+  const [xs, ys, pieces, figureVariants, figureAssetIds] = submitLineup.mock.calls[0]!;
   expect(xs).toHaveLength(14);
   expect(ys).toHaveLength(14);
   expect(new Set(ys)).toEqual(new Set([HEIGHT - 2, HEIGHT - 1]));
@@ -118,6 +119,7 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   expect(pieces.filter(piece => piece === Piece.Trap)).toHaveLength(1);
   expect(figureVariants?.filter(variant => variant === FigureVariant.Fig1)).toHaveLength(14);
   expect(figureVariants?.filter(variant => variant === FigureVariant.Fig2)).toHaveLength(0);
+  expect(figureAssetIds).toEqual(Array(14).fill(null));
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Lineup saved')).toBeDefined();
   expect(renderer.root.findAll(node => node.props.testID === 'lineup-attention-glow')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.children === 'Saved. The battle starts automatically when your opponent is ready.').length).toBeGreaterThan(0);
@@ -137,6 +139,41 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   await ReactTestRenderer.act(() => {
     renderer.unmount();
   });
+});
+
+test('shuffling keeps each paid figure paired with its exact Core asset ID', async () => {
+  const firstAsset = 'Vote111111111111111111111111111111111111111';
+  const secondAsset = 'SysvarC1ock11111111111111111111111111111111';
+  const slots = Array<string | null>(14).fill(null);
+  slots[2] = firstAsset;
+  slots[9] = secondAsset;
+  jest.mocked(Keychain.getGenericPassword).mockResolvedValueOnce({
+    username: 'ripsy-figure-loadout',
+    password: JSON.stringify(slots),
+    service: 'com.dangervalley.ripsy.figure-loadout',
+    storage: Keychain.STORAGE_TYPE.AES_GCM_NO_AUTH,
+  });
+
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />,
+    );
+    await Promise.resolve();
+  });
+  const save = renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup');
+  await ReactTestRenderer.act(async () => {
+    save.props.onPress();
+    await Promise.resolve();
+  });
+
+  const [, , , variants, assetIds] = submitLineup.mock.calls[0]!;
+  expect(assetIds?.filter(Boolean).sort()).toEqual([firstAsset, secondAsset].sort());
+  assetIds?.forEach((assetId, index) => {
+    expect(variants?.[index]).toBe(assetId ? FigureVariant.Fig2 : FigureVariant.Fig1);
+  });
+
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('offline computer battle skips waiting and starts after the local lineup is saved', async () => {

@@ -89,9 +89,9 @@ export function useNativeRipsyGame(playerId: string, sessionToken: string, gameI
       if (!gameId) return Promise.reject(new Error('Missing game ID'));
       return run(client => client.request({ type: 'joinGame', gameId }));
     },
-    submitLineup: (xs: number[], ys: number[], pieces: number[], figureVariants?: number[]) => {
+    submitLineup: (xs: number[], ys: number[], pieces: number[], figureVariants?: number[], figureAssetIds?: Array<string | null>) => {
       if (!gameId) return Promise.reject(new Error('Missing game ID'));
-      return run(client => client.request({ type: 'submitLineup', gameId, xs, ys, pieces, figureVariants }));
+      return run(client => client.request({ type: 'submitLineup', gameId, xs, ys, pieces, figureVariants, figureAssetIds }));
     },
     movePiece: (fromX: number, fromY: number, toX: number, toY: number) => {
       if (!gameId) return Promise.reject(new Error('Missing game ID'));

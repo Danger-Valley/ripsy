@@ -50,7 +50,7 @@ const figureInventory = new FigureInventoryService(
 const store = new RedisGameStore(commandClient as unknown as RedisCommands, {
   gameTtlSeconds,
   keyPrefix,
-  validateFigureLineup: (playerId, variants) => figureInventory.validateLineup(playerId, variants),
+  validateFigureLineup: (playerId, variants, assetIds) => figureInventory.validateLineup(playerId, variants, assetIds),
 });
 const pushStore = new RedisPushInstallationStore(
   commandClient as unknown as RedisCommands,

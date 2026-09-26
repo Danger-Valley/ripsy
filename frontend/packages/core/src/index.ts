@@ -91,7 +91,7 @@ export type ClientAction =
   | { type: 'listGames'; requestId: string }
   | { type: 'getGame'; requestId: string; gameId: string }
   | { type: 'joinGame'; requestId: string; gameId: string }
-  | { type: 'submitLineup'; requestId: string; gameId: string; xs: number[]; ys: number[]; pieces: number[]; figureVariants?: number[] }
+  | { type: 'submitLineup'; requestId: string; gameId: string; xs: number[]; ys: number[]; pieces: number[]; figureVariants?: number[]; figureAssetIds?: Array<string | null> }
   | { type: 'movePiece'; requestId: string; gameId: string; fromX: number; fromY: number; toX: number; toY: number }
   | { type: 'chooseWeapon'; requestId: string; gameId: string; choice: Choice };
 
@@ -167,6 +167,9 @@ export function parseClientMessage(value: unknown): ClientMessage {
       pieces: requireIntegerArray(message.pieces, 'Lineup pieces'),
       ...(message.figureVariants === undefined ? {} : {
         figureVariants: requireIntegerArray(message.figureVariants, 'Lineup figure variants'),
+      }),
+      ...(message.figureAssetIds === undefined ? {} : {
+        figureAssetIds: requireNullableAssetIdArray(message.figureAssetIds, 'Lineup figure asset IDs'),
       }),
     };
   }
@@ -346,6 +349,15 @@ function requireBoolean(value: unknown, label: string): boolean {
 
 function requireIntegerArray(value: unknown, label: string): number[] {
   if (!Array.isArray(value) || !value.every(item => typeof item === 'number' && Number.isInteger(item))) {
+    throw new ProtocolMessageError(`${label} are invalid`);
+  }
+  return value;
+}
+
+function requireNullableAssetIdArray(value: unknown, label: string): Array<string | null> {
+  if (!Array.isArray(value) || !value.every(item => item === null || (
+    typeof item === 'string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(item)
+  ))) {
     throw new ProtocolMessageError(`${label} are invalid`);
   }
   return value;

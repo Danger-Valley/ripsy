@@ -10,6 +10,7 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		50A338B7CB483C13A8D2F9A9 /* Privy in Frameworks */ = {isa = PBXBuildFile; productRef = 027C005E5F7104B5D477A66B /* Privy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		A6F27D3E5B7C49D08E123456 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6F27D3E5B7C49D08E123457 /* SceneDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		91549C8316848F758D3C8CAA /* PrivyWalletModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 658173CA129F595147B6456D /* PrivyWalletModule.swift */; };
 		91F3597B1E615CB506D07FB9 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 39DF8062369C5B3A0C7EF989 /* GoogleService-Info.plist */; };
@@ -29,6 +30,7 @@
 		39DF8062369C5B3A0C7EF989 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; lastKnownFileType = text.plist; name = "GoogleService-Info.plist"; path = "RipsyMobile/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		658173CA129F595147B6456D /* PrivyWalletModule.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; lastKnownFileType = sourcecode.swift; name = PrivyWalletModule.swift; path = RipsyMobile/PrivyWalletModule.swift; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = RipsyMobile/AppDelegate.swift; sourceTree = "<group>"; };
+		A6F27D3E5B7C49D08E123457 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = RipsyMobile/SceneDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = RipsyMobile/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		9B3522B76F102BB58E769166 /* libPods-RipsyMobile.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-RipsyMobile.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A184AD793BA844B396052541 /* RipsyMobile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = RipsyMobile.entitlements; path = RipsyMobile/RipsyMobile.entitlements; sourceTree = "<group>"; };
@@ -54,6 +56,7 @@
 				A184AD793BA844B396052541 /* RipsyMobile.entitlements */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				A6F27D3E5B7C49D08E123457 /* SceneDelegate.swift */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -281,6 +284,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				A6F27D3E5B7C49D08E123456 /* SceneDelegate.swift in Sources */,
 				91549C8316848F758D3C8CAA /* PrivyWalletModule.swift in Sources */,
 				C523E441FD8C813C7A330ABB /* PrivyWalletModule.m in Sources */,
 			);
@@ -298,7 +302,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = RipsyMobile/RipsyMobile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
+				CURRENT_PROJECT_VERSION = 36;
 				DEVELOPMENT_TEAM = L28H25M8LS;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = RipsyMobile/Info.plist;
@@ -334,7 +338,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = RipsyMobile/RipsyMobile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
+				CURRENT_PROJECT_VERSION = 36;
 				DEVELOPMENT_TEAM = L28H25M8LS;
 				INFOPLIST_FILE = RipsyMobile/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

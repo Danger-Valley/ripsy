@@ -10,7 +10,7 @@ import { usePrivyWallet } from '../hooks/use-privy-wallet';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
 import { proveWallet as proveExternalWallet } from '../solana-wallet-adapter';
 import { saveFigureSlots } from '../storage/figure-loadout';
-import { colors, spacing } from '../theme';
+import { colors, radii, spacing } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
@@ -108,21 +108,52 @@ export function ArmyScreen({ navigation, route }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.heading}>
-        <Text style={styles.eyebrow}>YOUR ARMY</Text>
-        <Text accessibilityRole="header" style={styles.title}>Choose your fighters.</Text>
-        <Text style={styles.copy}>Figure 01 is free and fills every empty slot. Each collectible NFT can fill one slot only.</Text>
+      <View style={styles.hero}>
+        <View pointerEvents="none" style={styles.heroBubble} />
+        <Text style={styles.heroEyebrow}>YOUR ARMY</Text>
+        <Text accessibilityRole="header" style={styles.title}>Pick your dream team!</Text>
+        <Text style={styles.heroCopy}>Mix your collectible fighters into the lineup. Every empty slot gets a free Figure 01.</Text>
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.heroFighters}>
+          <View style={[styles.figureBubble, styles.figureBubblePink]}>
+            <Image source={figureImages.fig1} style={styles.heroFigure} />
+          </View>
+          <View style={[styles.figureBubble, styles.figureBubbleYellow]}>
+            <Image source={figureImages.fig2} style={styles.heroFigure} />
+          </View>
+          <View style={[styles.figureBubble, styles.figureBubbleBlue]}>
+            <Image source={figureImages.fig1} style={styles.heroFigure} />
+          </View>
+        </View>
       </View>
 
       {!inventory && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Verify your collection wallet</Text>
-          <Text style={styles.copy}>Sign one message so RIPSY can read the official figures held by this wallet. This does not send a transaction.</Text>
+          <View style={styles.stepHeader}>
+            <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>1</Text></View>
+            <View style={styles.stepCopy}>
+              <Text style={styles.label}>UNLOCK YOUR COLLECTION</Text>
+              <Text style={styles.sectionTitle}>Connect your fighter wallet</Text>
+            </View>
+          </View>
+          <Text style={styles.copy}>Connect once so RIPSY can find your official figures. We only ask you to sign a message—no transaction is sent.</Text>
+          <View style={styles.safetyPill}>
+            <Text style={styles.safetyPillText}>✓ SAFE SIGN-IN · NO SOL SPENT</Text>
+          </View>
           {external.address && <PrimaryButton variant={walletKind === 'external' ? 'primary' : 'secondary'} onPress={() => setWalletKind('external')}>Use {short(external.address)}</PrimaryButton>}
           {privy.address && <PrimaryButton variant={walletKind === 'privy' ? 'primary' : 'secondary'} onPress={() => setWalletKind('privy')}>Use embedded wallet {short(privy.address)}</PrimaryButton>}
           {!external.address && external.isSupported && <PrimaryButton variant="secondary" busy={external.status === 'connecting'} onPress={() => external.connect()}>Connect wallet app</PrimaryButton>}
-          {!privy.address && <PrimaryButton variant="secondary" onPress={() => navigation.navigate('Shop')}>Open Figure shop to sign in with Privy</PrimaryButton>}
+          {!privy.address && <PrimaryButton variant="reward" onPress={() => navigation.navigate('Shop')}>Sign in with Privy in the shop</PrimaryButton>}
           <PrimaryButton busy={busy} disabled={!address || !sessionToken} onPress={() => { refresh(true).catch(() => undefined); }}>Verify & load figures</PrimaryButton>
+        </View>
+      )}
+
+      {!inventory && (
+        <View style={styles.starterCard}>
+          <View style={styles.starterBadge}><Text style={styles.starterBadgeText}>14</Text></View>
+          <View style={styles.starterCopy}>
+            <Text style={styles.starterTitle}>Free fighters are always ready</Text>
+            <Text style={styles.starterText}>Figure 01 automatically fills every unused army slot.</Text>
+          </View>
         </View>
       )}
 
@@ -195,29 +226,49 @@ function short(value: string) { return `${value.slice(0, 4)}…${value.slice(-4)
 
 const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: spacing.xl, gap: spacing.lg, paddingBottom: 48 },
-  heading: { gap: spacing.sm },
-  eyebrow: { color: colors.primary, fontSize: 12, fontWeight: '900', letterSpacing: 2 },
-  title: { color: colors.text, fontSize: 34, fontWeight: '900' },
+  hero: { position: 'relative', overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surfaceHighlight, borderTopColor: colors.primaryMuted, borderTopWidth: 3, borderBottomColor: colors.shadow, borderBottomWidth: 8, borderRadius: radii.panel, padding: spacing.lg, gap: spacing.sm, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 7 },
+  heroBubble: { position: 'absolute', top: -42, right: -30, width: 132, height: 132, borderRadius: 66, backgroundColor: colors.primary, opacity: 0.34 },
+  heroEyebrow: { color: colors.rewardHighlight, fontSize: 11, fontWeight: '900', letterSpacing: 2.2 },
+  title: { color: colors.text, fontSize: 32, lineHeight: 38, fontWeight: '900', textAlign: 'center', textShadowColor: colors.primaryShadow, textShadowOffset: { width: 0, height: 3 }, textShadowRadius: 0 },
+  heroCopy: { color: colors.text, fontSize: 14, lineHeight: 20, fontWeight: '700', textAlign: 'center', maxWidth: 430 },
+  heroFighters: { height: 96, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', marginTop: spacing.xs },
+  figureBubble: { width: 82, height: 82, borderRadius: 41, alignItems: 'center', justifyContent: 'flex-end', borderTopWidth: 3, borderBottomWidth: 6, marginHorizontal: -5, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.28, shadowRadius: 7, elevation: 5 },
+  figureBubblePink: { backgroundColor: colors.primary, borderTopColor: colors.primaryHighlight, borderBottomColor: colors.primaryShadow, transform: [{ rotate: '-7deg' }] },
+  figureBubbleYellow: { zIndex: 2, width: 96, height: 96, borderRadius: 48, backgroundColor: colors.reward, borderTopColor: colors.rewardHighlight, borderBottomColor: colors.rewardShadow },
+  figureBubbleBlue: { backgroundColor: colors.accent, borderTopColor: colors.accentHighlight, borderBottomColor: colors.accentShadow, transform: [{ rotate: '7deg' }] },
+  heroFigure: { width: '94%', height: '100%', resizeMode: 'contain' },
   copy: { color: colors.textMuted, fontSize: 15, lineHeight: 22 },
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: spacing.lg, gap: spacing.md },
+  card: { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 3, borderBottomColor: colors.shadow, borderBottomWidth: 7, borderRadius: radii.card, padding: spacing.lg, gap: spacing.md, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.22, shadowRadius: 12, elevation: 5 },
   sectionTitle: { color: colors.text, fontSize: 20, fontWeight: '900' },
-  label: { color: colors.primaryMuted, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
+  label: { color: colors.rewardHighlight, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  stepHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  stepBadge: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderTopColor: colors.primaryHighlight, borderTopWidth: 3, borderBottomColor: colors.primaryShadow, borderBottomWidth: 5 },
+  stepBadgeText: { color: colors.text, fontSize: 21, fontWeight: '900' },
+  stepCopy: { flex: 1, gap: 2 },
+  safetyPill: { alignSelf: 'flex-start', backgroundColor: colors.backgroundRaised, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  safetyPillText: { color: colors.success, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
+  starterCard: { minHeight: 96, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.reward, borderTopColor: colors.rewardHighlight, borderTopWidth: 3, borderBottomColor: colors.rewardShadow, borderBottomWidth: 7, borderRadius: radii.card, padding: spacing.lg, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 9, elevation: 4 },
+  starterBadge: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderTopColor: colors.primaryHighlight, borderTopWidth: 3, borderBottomColor: colors.primaryShadow, borderBottomWidth: 5, transform: [{ rotate: '-6deg' }] },
+  starterBadgeText: { color: colors.text, fontSize: 21, fontWeight: '900' },
+  starterCopy: { flex: 1, gap: 3 },
+  starterTitle: { color: colors.ink, fontSize: 16, fontWeight: '900' },
+  starterText: { color: colors.ink, fontSize: 13, lineHeight: 18, fontWeight: '700', opacity: 0.8 },
   address: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  slot: { position: 'relative', width: '12%', minWidth: 40, aspectRatio: 0.78, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, overflow: 'hidden' },
-  slotCollectible: { borderColor: colors.primary, backgroundColor: colors.surfaceStrong },
+  slot: { position: 'relative', width: '12%', minWidth: 40, aspectRatio: 0.78, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderTopWidth: 2, borderTopColor: colors.border, borderBottomWidth: 4, borderBottomColor: colors.shadow, backgroundColor: colors.backgroundRaised, overflow: 'hidden' },
+  slotCollectible: { borderTopColor: colors.accentHighlight, borderBottomColor: colors.accentShadow, backgroundColor: colors.accent },
   slotImage: { width: '92%', height: '92%', resizeMode: 'contain' },
   slotNumber: { position: 'absolute', left: 4, top: 3, color: colors.textMuted, fontSize: 9, fontWeight: '800' },
-  empty: { borderRadius: 14, borderColor: colors.border, borderWidth: 1, borderStyle: 'dashed', padding: spacing.lg, gap: spacing.sm },
-  asset: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: spacing.sm, backgroundColor: colors.background },
-  assetSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceStrong },
+  empty: { borderRadius: radii.control, backgroundColor: colors.backgroundRaised, padding: spacing.lg, gap: spacing.sm },
+  asset: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radii.control, borderTopWidth: 2, borderTopColor: colors.border, borderBottomWidth: 5, borderBottomColor: colors.shadow, padding: spacing.sm, backgroundColor: colors.backgroundRaised },
+  assetSelected: { borderTopColor: colors.primaryHighlight, borderBottomColor: colors.primaryShadow, backgroundColor: colors.primary },
   assetImage: { width: 56, height: 56, resizeMode: 'contain' },
   assetCopy: { flex: 1, gap: 3 },
   assetName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   assetId: { color: colors.textMuted, fontSize: 11 },
-  badge: { color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  badgeSelected: { color: colors.primary },
+  badge: { color: colors.rewardHighlight, backgroundColor: colors.surface, borderRadius: radii.pill, overflow: 'hidden', paddingHorizontal: spacing.sm, paddingVertical: 6, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  badgeSelected: { color: colors.ink, backgroundColor: colors.reward },
   pressed: { opacity: 0.72 },
   note: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
 });

@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { haptics } from '../haptics';
 import { colors, radii, spacing } from '../theme';
 
@@ -7,7 +7,7 @@ type Props = PropsWithChildren<{
   onPress: () => void;
   disabled?: boolean;
   busy?: boolean;
-  variant?: 'primary' | 'secondary' | 'danger';
+  variant?: 'primary' | 'secondary' | 'danger' | 'reward';
   accessibilityLabel?: string;
   accessibilityHint?: string;
 }>;
@@ -29,16 +29,22 @@ export function PrimaryButton({ children, onPress, disabled, busy, variant = 'pr
         styles.button,
         variant === 'secondary' && styles.secondary,
         variant === 'danger' && styles.danger,
+        variant === 'reward' && styles.reward,
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
       ]}>
+      <PressableHighlight />
       {busy ? (
-        <ActivityIndicator accessibilityLabel="Loading" color={variant === 'primary' ? colors.background : colors.text} />
+        <ActivityIndicator accessibilityLabel="Loading" color={variant === 'secondary' ? colors.text : colors.ink} />
       ) : (
-        <Text maxFontSizeMultiplier={2} style={[styles.label, variant !== 'primary' && styles.lightLabel]}>{children}</Text>
+        <Text maxFontSizeMultiplier={2} style={[styles.label, variant === 'secondary' && styles.lightLabel]}>{children}</Text>
       )}
     </Pressable>
   );
+}
+
+function PressableHighlight() {
+  return <View pointerEvents="none" style={styles.highlight} />;
 }
 
 const styles = StyleSheet.create({
@@ -50,6 +56,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 2,
     borderBottomColor: colors.primaryShadow,
     borderBottomWidth: 6,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
@@ -72,6 +79,11 @@ const styles = StyleSheet.create({
     borderColor: colors.dangerHighlight,
     borderBottomColor: colors.dangerShadow,
   },
+  reward: {
+    backgroundColor: colors.reward,
+    borderColor: colors.rewardHighlight,
+    borderBottomColor: colors.rewardShadow,
+  },
   pressed: {
     transform: [{ translateY: 4 }],
     borderBottomWidth: 2,
@@ -79,6 +91,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   disabled: { opacity: 0.48 },
-  label: { color: colors.background, fontSize: 16, fontWeight: '900', letterSpacing: 0.2, flexShrink: 1, textAlign: 'center' },
+  highlight: { position: 'absolute', top: 3, left: 18, right: 18, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.28)', overflow: 'hidden' },
+  label: { color: colors.ink, fontSize: 16, fontWeight: '900', letterSpacing: 0.2, flexShrink: 1, textAlign: 'center' },
   lightLabel: { color: colors.text },
 });

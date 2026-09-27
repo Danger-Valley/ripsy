@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
   modalScrollContent: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl },
   modalCard: { width: '100%', maxWidth: 460, alignSelf: 'center', backgroundColor: colors.surface, borderColor: colors.primary, borderTopColor: colors.primaryHighlight, borderWidth: 3, borderBottomColor: colors.primaryShadow, borderBottomWidth: 8, borderRadius: 30, padding: spacing.xl, paddingTop: 44, gap: spacing.md, shadowColor: colors.primaryShadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.4, shadowRadius: 22, elevation: 12 },
   modalBurst: { position: 'absolute', top: -32, alignSelf: 'center', width: 68, height: 68, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.reward, borderColor: colors.rewardHighlight, borderTopWidth: 3, borderBottomColor: colors.rewardShadow, borderBottomWidth: 7, transform: [{ rotate: '-5deg' }] },
-  modalBurstText: { color: colors.background, fontSize: 22, fontWeight: '900' },
+  modalBurstText: { color: colors.ink, fontSize: 22, fontWeight: '900' },
   modalEyebrow: { color: colors.primaryMuted, fontSize: 11, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },
   modalTitle: { color: colors.text, fontSize: 28, fontWeight: '900', textAlign: 'center' },
   modalCopy: { color: colors.textMuted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: spacing.sm },

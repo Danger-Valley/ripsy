@@ -61,7 +61,13 @@ function App() {
           saveActiveGameId(gameId).catch(() => undefined);
         }}
         theme={navigationTheme}>
-        <Stack.Navigator screenOptions={{ headerBackButtonDisplayMode: 'minimal', headerShadowVisible: false }}>
+        <Stack.Navigator screenOptions={{
+          headerBackButtonDisplayMode: 'minimal',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+          headerTitleStyle: { fontWeight: '900' },
+        }}>
           <Stack.Screen component={HomeScreen} name="Home" options={{ headerShown: false }} />
           <Stack.Screen component={ShopScreen} name="Shop" options={{ title: 'Figure shop' }} />
           <Stack.Screen component={ArmyScreen} name="Army" options={{ title: 'Your army' }} />

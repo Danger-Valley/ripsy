@@ -82,16 +82,16 @@ function pieceSymbol(piece: Piece) {
 }
 
 const styles = StyleSheet.create({
-  card: { minHeight: 118, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderColor: colors.border, borderTopColor: colors.surfaceHighlight, borderWidth: 2, borderBottomWidth: 5, borderBottomColor: colors.background, borderRadius: radii.card, padding: spacing.md, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.22, shadowRadius: 10, elevation: 4 },
+  card: { minHeight: 118, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surfaceHighlight, borderTopColor: colors.border, borderTopWidth: 3, borderBottomWidth: 7, borderBottomColor: colors.shadow, borderRadius: radii.card, padding: spacing.md, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 5 },
   pressed: { opacity: 0.9, transform: [{ translateY: 3 }], borderBottomWidth: 2 },
-  board: { width: 86, height: 86, borderRadius: 14, borderWidth: 2, borderColor: colors.primary, overflow: 'hidden' },
+  board: { width: 86, height: 86, borderRadius: 18, borderWidth: 3, borderColor: colors.accent, overflow: 'hidden' },
   boardRow: { flex: 1, flexDirection: 'row' },
   cell: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.boardDark },
   alternateCell: { backgroundColor: colors.boardLight },
   miniPiece: { width: 8, height: 8, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   myPiece: { backgroundColor: colors.primary },
   opponentPiece: { backgroundColor: colors.reward },
-  pieceLabel: { color: colors.background, fontSize: 5, fontWeight: '900', lineHeight: 7 },
+  pieceLabel: { color: colors.ink, fontSize: 5, fontWeight: '900', lineHeight: 7 },
   details: { flex: 1, gap: spacing.xs },
   room: { color: colors.primaryMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
   status: { color: colors.text, fontSize: 17, fontWeight: '900' },

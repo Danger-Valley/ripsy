@@ -1,5 +1,5 @@
 import React from 'react';
-import { TextInput } from 'react-native';
+import { StyleSheet, TextInput } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { CELLS, Choice, Owner, Phase, Piece, type GameState } from '@rps/core';
 import { HomeScreen } from '../src/screens/home-screen';
@@ -15,6 +15,9 @@ jest.mock('../src/storage/active-game', () => ({ saveActiveGameId: jest.fn(() =>
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useIsFocused: () => true,
+}));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
 }));
 
 const createGame = jest.fn(() => Promise.resolve('abcdef12'));
@@ -92,6 +95,10 @@ test('renders the Punch Pop arcade home hierarchy', async () => {
   expect(renderer.root.find(node => node.props.testID === 'arcade-home-hero')).toBeDefined();
   expect(renderer.root.findAll(node => node.props.children === 'RIPSY ARCADE').length).toBeGreaterThan(0);
   expect(renderer.root.findAll(node => node.props.children === 'Create online battle').length).toBeGreaterThan(0);
+  expect(StyleSheet.flatten(renderer.root.find(node => node.props.testID === 'home-scroll').props.contentContainerStyle)).toMatchObject({
+    paddingTop: 63,
+    paddingBottom: 58,
+  });
 });
 
 test('normalizes a pasted invitation and opens the room', async () => {

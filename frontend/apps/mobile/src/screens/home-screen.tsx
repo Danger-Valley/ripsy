@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Phase } from '@rps/core';
 import { ActiveGameCard } from '../components/active-game-card';
 import { PrimaryButton } from '../components/primary-button';
@@ -18,6 +19,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export function HomeScreen({ navigation, route }: Props) {
   const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
   const { playerId, sessionToken, isReady } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, undefined, isFocused);
   const listActiveGames = game.listGames;
@@ -100,10 +102,17 @@ export function HomeScreen({ navigation, route }: Props) {
       <View pointerEvents="none" style={styles.backgroundOrbTop} />
       <View pointerEvents="none" style={styles.backgroundOrbBottom} />
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(spacing.xxl, insets.top + spacing.lg),
+            paddingBottom: Math.max(spacing.xxl, insets.bottom + spacing.xl),
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefreshing} tintColor={colors.primary} onRefresh={() => { refreshGames(true).catch(() => undefined); }} />}
-        automaticallyAdjustKeyboardInsets>
+        automaticallyAdjustKeyboardInsets
+        testID="home-scroll">
         <View style={styles.container}>
           <View testID="arcade-home-hero" style={styles.hero}>
             <View style={styles.heroTopline}>

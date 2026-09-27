@@ -4,6 +4,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
 import { RiveGamePiece } from '../src/components/rive-game-piece';
+import { colors } from '../src/theme';
 
 function createState(): GameState {
   const owners: Owner[] = Array.from({ length: WIDTH * HEIGHT }, () => Owner.None);
@@ -58,7 +59,7 @@ test('exposes piece names and only actionable cells as buttons', async () => {
   const surfaceStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-surface' }).props.style);
   expect(boardStyle.overflow).toBe('visible');
   expect(surfaceStyle).toMatchObject({
-    borderColor: '#45A29E',
+    borderColor: colors.primaryMuted,
     borderRadius: 10,
     borderWidth: 2,
     overflow: 'hidden',

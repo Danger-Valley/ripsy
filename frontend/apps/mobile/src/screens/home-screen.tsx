@@ -12,7 +12,7 @@ import { usePushNotifications } from '../hooks/use-push-notifications';
 import { formatRoomCodeInput, normalizeRoomCode } from '../invitations';
 import type { RootStackParamList } from '../navigation';
 import { saveActiveGameId } from '../storage/active-game';
-import { colors, spacing } from '../theme';
+import { colors, radii, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -97,30 +97,38 @@ export function HomeScreen({ navigation, route }: Props) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
+      <View pointerEvents="none" style={styles.backgroundOrbTop} />
+      <View pointerEvents="none" style={styles.backgroundOrbBottom} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefreshing} tintColor={colors.primary} onRefresh={() => { refreshGames(true).catch(() => undefined); }} />}
         automaticallyAdjustKeyboardInsets>
         <View style={styles.container}>
-          <View style={styles.hero}>
-            <Text maxFontSizeMultiplier={1.6} style={styles.eyebrow}>NATIVE MULTIPLAYER</Text>
+          <View testID="arcade-home-hero" style={styles.hero}>
+            <View style={styles.heroTopline}>
+              <Text maxFontSizeMultiplier={1.6} style={styles.eyebrow}>RIPSY ARCADE</Text>
+              <View style={styles.seasonPill}>
+                <View style={styles.seasonDot} />
+                <Text style={styles.seasonText}>BATTLE READY</Text>
+              </View>
+            </View>
             <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={styles.title}>RIPSY</Text>
-            <Text maxFontSizeMultiplier={2} style={styles.subtitle}>Arrange your army. Outsmart your opponent. Capture the flag.</Text>
+            <Text maxFontSizeMultiplier={2} style={styles.subtitle}>Build a sneaky army. Win the clash. Steal the flag.</Text>
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.heroChips}>
+              <View style={styles.heroChip}><Text style={styles.heroChipText}>HIDDEN LINEUPS</Text></View>
+              <View style={styles.heroChip}><Text style={styles.heroChipText}>FAST BATTLES</Text></View>
+            </View>
           </View>
 
           {Platform.OS === 'android' && <SolanaWalletCard />}
 
-          <View style={styles.card}>
-            <Text style={styles.eyebrow}>THE FIGURE COLLECTION</Text>
-            <Text style={styles.sectionTitle}>Your next favourite fighter.</Text>
-            <PrimaryButton onPress={() => navigation.navigate('Army')}>Set up your army</PrimaryButton>
-            <PrimaryButton variant="secondary" onPress={() => navigation.navigate('Shop')}>Explore figure shop →</PrimaryButton>
-          </View>
-
           <View style={styles.gamesSection}>
             <View style={styles.sectionHeader}>
-              <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitle}>Your active games</Text>
+              <View>
+                <Text style={styles.eyebrow}>KEEP THE STREAK ALIVE</Text>
+                <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitle}>Your active games</Text>
+              </View>
               {game.activeGames.length > 0 && (
                 <Text accessibilityLabel={`Game ${activeGamePage + 1} of ${game.activeGames.length}`} maxFontSizeMultiplier={2} style={styles.gameCount}>
                   {activeGamePage + 1} / {game.activeGames.length}
@@ -152,25 +160,39 @@ export function HomeScreen({ navigation, route }: Props) {
               </ScrollView>
             ) : (
               <View style={styles.emptyGames}>
-                <Text maxFontSizeMultiplier={2} style={styles.emptyGamesText}>No unfinished games yet.</Text>
+                <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.emptyBadge}>
+                  <Text style={styles.emptyBadgeText}>0</Text>
+                </View>
+                <View style={styles.emptyCopy}>
+                  <Text maxFontSizeMultiplier={2} style={styles.emptyGamesTitle}>No battles in progress</Text>
+                  <Text maxFontSizeMultiplier={2} style={styles.emptyGamesText}>Your next rivalry starts below.</Text>
+                </View>
               </View>
             )}
           </View>
 
-          <View style={styles.card}>
-            <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitle}>Start a battle</Text>
+          <View style={styles.playCard}>
+            <View style={styles.playCardHeader}>
+              <View style={styles.playIcon}><Text style={styles.playIconText}>VS</Text></View>
+              <View style={styles.playCopy}>
+                <Text style={styles.eyebrow}>CHOOSE YOUR MATCH</Text>
+                <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitle}>Start a battle</Text>
+              </View>
+            </View>
             <PrimaryButton
               accessibilityHint="Creates a new room and opens it"
               onPress={() => { createGame().catch(() => undefined); }}
               disabled={!isReady || !game.isConnected}
-              busy={game.isBusy}>Create game</PrimaryButton>
+              busy={game.isBusy}>Create online battle</PrimaryButton>
             <PrimaryButton
               accessibilityHint="Starts a completely offline battle against the computer"
               variant="secondary"
               onPress={() => navigation.navigate('ComputerGame')}>Play vs computer</PrimaryButton>
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.dividerRow}>
-              <View style={styles.divider} /><Text style={styles.or}>OR JOIN</Text><View style={styles.divider} />
-            </View>
+          </View>
+
+          <View style={styles.joinCard}>
+            <Text style={styles.eyebrow}>GOT AN INVITE?</Text>
+            <Text style={styles.joinTitle}>Jump into a friend's room</Text>
             <TextInput
               accessibilityLabel="Room code"
               accessibilityHint="Enter the eight-character code from your invitation"
@@ -190,6 +212,21 @@ export function HomeScreen({ navigation, route }: Props) {
               variant="secondary"
               onPress={joinByCode}
               disabled={!normalizeRoomCode(roomCode)}>Join battle</PrimaryButton>
+          </View>
+
+          <View style={styles.collectionCard}>
+            <View style={styles.collectionHeader}>
+              <View style={styles.collectionIcon}>
+                <View style={styles.collectionHead} />
+                <View style={styles.collectionBody} />
+              </View>
+              <View style={styles.collectionCopy}>
+                <Text style={styles.eyebrow}>YOUR FIGHTERS</Text>
+                <Text style={styles.sectionTitle}>Build a lineup with attitude.</Text>
+              </View>
+            </View>
+            <PrimaryButton onPress={() => navigation.navigate('Army')}>Set up your army</PrimaryButton>
+            <PrimaryButton variant="secondary" onPress={() => navigation.navigate('Shop')}>Explore figure shop</PrimaryButton>
           </View>
 
           {(push.status === 'prompt' || push.status === 'denied' || push.status === 'error') && (
@@ -212,24 +249,46 @@ export function HomeScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  backgroundOrbTop: { position: 'absolute', top: -92, right: -72, width: 220, height: 220, borderRadius: 110, backgroundColor: colors.surfaceHighlight, opacity: 0.52 },
+  backgroundOrbBottom: { position: 'absolute', bottom: 90, left: -120, width: 260, height: 260, borderRadius: 130, backgroundColor: colors.primaryShadow, opacity: 0.18 },
   scrollContent: { flexGrow: 1, padding: spacing.xl, paddingVertical: spacing.xxl },
-  container: { width: '100%', maxWidth: 720, alignSelf: 'center', gap: spacing.lg },
-  hero: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg },
-  eyebrow: { color: colors.primaryMuted, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
-  title: { color: colors.primary, fontSize: 52, fontWeight: '900', letterSpacing: 4 },
-  subtitle: { color: colors.textMuted, fontSize: 16, lineHeight: 23, maxWidth: 360, textAlign: 'center' },
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: spacing.lg, gap: spacing.md },
-  sectionTitle: { color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: spacing.xs },
-  gamesSection: { gap: spacing.sm },
+  container: { width: '100%', maxWidth: 720, alignSelf: 'center', gap: spacing.xl },
+  hero: { backgroundColor: colors.surface, borderColor: colors.border, borderTopColor: colors.surfaceHighlight, borderWidth: 2, borderBottomColor: colors.background, borderBottomWidth: 7, borderRadius: radii.panel, padding: spacing.xl, gap: spacing.sm, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.28, shadowRadius: 18, elevation: 6 },
+  heroTopline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+  eyebrow: { color: colors.primaryMuted, fontSize: 11, fontWeight: '900', letterSpacing: 1.7 },
+  seasonPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.backgroundRaised, borderColor: colors.border, borderWidth: 1, borderRadius: radii.pill, paddingHorizontal: spacing.sm, paddingVertical: 6 },
+  seasonDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
+  seasonText: { color: colors.text, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  title: { color: colors.primary, fontSize: 56, lineHeight: 60, fontWeight: '900', letterSpacing: 3, textShadowColor: colors.primaryShadow, textShadowOffset: { width: 0, height: 4 }, textShadowRadius: 0 },
+  subtitle: { color: colors.text, fontSize: 17, fontWeight: '700', lineHeight: 24, maxWidth: 390 },
+  heroChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+  heroChip: { backgroundColor: colors.surfaceStrong, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  heroChipText: { color: colors.reward, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '900', marginTop: spacing.xs },
+  gamesSection: { gap: spacing.md },
   gamesCarouselContent: { gap: spacing.sm },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  gameCount: { minWidth: 26, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surfaceStrong, color: colors.primary, fontSize: 12, fontWeight: '900', textAlign: 'center' },
-  emptyGames: { borderColor: colors.border, borderWidth: 1, borderStyle: 'dashed', borderRadius: 14, padding: spacing.lg },
-  emptyGamesText: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.xs },
-  divider: { backgroundColor: colors.border, height: 1, flex: 1 },
-  or: { color: colors.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  input: { minHeight: 50, color: colors.text, backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 12, fontSize: 17, paddingHorizontal: spacing.lg, textAlign: 'center', letterSpacing: 2 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: spacing.sm },
+  gameCount: { minWidth: 54, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, borderRadius: radii.pill, overflow: 'hidden', backgroundColor: colors.reward, color: colors.background, fontSize: 12, fontWeight: '900', textAlign: 'center' },
+  emptyGames: { minHeight: 96, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 2, borderStyle: 'dashed', borderRadius: radii.card, padding: spacing.lg },
+  emptyBadge: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceStrong, borderColor: colors.border, borderWidth: 2 },
+  emptyBadgeText: { color: colors.reward, fontSize: 22, fontWeight: '900' },
+  emptyCopy: { flex: 1, gap: 3 },
+  emptyGamesTitle: { color: colors.text, fontSize: 15, fontWeight: '900' },
+  emptyGamesText: { color: colors.textMuted, fontSize: 13 },
+  playCard: { backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 2, borderTopColor: colors.primaryHighlight, borderBottomColor: colors.primaryShadow, borderBottomWidth: 7, borderRadius: radii.panel, padding: spacing.lg, gap: spacing.md, shadowColor: colors.primaryShadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.24, shadowRadius: 14, elevation: 6 },
+  playCardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.xs },
+  playIcon: { width: 54, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.reward, borderColor: colors.rewardHighlight, borderTopWidth: 2, borderBottomColor: colors.rewardShadow, borderBottomWidth: 5, transform: [{ rotate: '-4deg' }] },
+  playIconText: { color: colors.background, fontSize: 18, fontWeight: '900' },
+  playCopy: { flex: 1 },
+  joinCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 2, borderRadius: radii.card, padding: spacing.lg, gap: spacing.md },
+  joinTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  input: { minHeight: 56, color: colors.text, backgroundColor: colors.backgroundRaised, borderColor: colors.border, borderWidth: 2, borderRadius: radii.control, fontSize: 17, fontWeight: '800', paddingHorizontal: spacing.lg, textAlign: 'center', letterSpacing: 2 },
+  collectionCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 2, borderRadius: radii.card, padding: spacing.lg, gap: spacing.md },
+  collectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  collectionIcon: { width: 56, height: 62, alignItems: 'center', justifyContent: 'flex-end' },
+  collectionHead: { position: 'absolute', top: 0, width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, borderColor: colors.primaryHighlight, borderWidth: 2 },
+  collectionBody: { width: 48, height: 32, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, backgroundColor: colors.surfaceHighlight, borderColor: colors.primaryMuted, borderWidth: 2 },
+  collectionCopy: { flex: 1 },
   notificationCard: { gap: spacing.sm },
   notificationText: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
 });

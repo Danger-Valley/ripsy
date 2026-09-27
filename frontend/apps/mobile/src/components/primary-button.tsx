@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { haptics } from '../haptics';
-import { colors, spacing } from '../theme';
+import { colors, radii, spacing } from '../theme';
 
 type Props = PropsWithChildren<{
   onPress: () => void;
@@ -29,7 +29,8 @@ export function PrimaryButton({ children, onPress, disabled, busy, variant = 'pr
         styles.button,
         variant === 'secondary' && styles.secondary,
         variant === 'danger' && styles.danger,
-        (isDisabled || pressed) && styles.dimmed,
+        pressed && !isDisabled && styles.pressed,
+        isDisabled && styles.disabled,
       ]}>
       {busy ? (
         <ActivityIndicator accessibilityLabel="Loading" color={variant === 'primary' ? colors.background : colors.text} />
@@ -42,21 +43,42 @@ export function PrimaryButton({ children, onPress, disabled, busy, variant = 'pr
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 50,
-    borderRadius: 12,
+    minHeight: 58,
+    borderRadius: radii.control,
     backgroundColor: colors.primary,
+    borderColor: colors.primaryHighlight,
+    borderTopWidth: 2,
+    borderBottomColor: colors.primaryShadow,
+    borderBottomWidth: 6,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 5,
   },
   secondary: {
     backgroundColor: colors.surfaceStrong,
     borderColor: colors.border,
-    borderWidth: 1,
+    borderTopWidth: 2,
+    borderBottomColor: colors.background,
+    borderBottomWidth: 6,
   },
-  danger: { backgroundColor: colors.danger },
-  dimmed: { opacity: 0.55 },
-  label: { color: colors.background, fontSize: 16, fontWeight: '800', flexShrink: 1, textAlign: 'center' },
+  danger: {
+    backgroundColor: colors.danger,
+    borderColor: colors.dangerHighlight,
+    borderBottomColor: colors.dangerShadow,
+  },
+  pressed: {
+    transform: [{ translateY: 4 }],
+    borderBottomWidth: 2,
+    shadowOpacity: 0.12,
+    elevation: 2,
+  },
+  disabled: { opacity: 0.48 },
+  label: { color: colors.background, fontSize: 16, fontWeight: '900', letterSpacing: 0.2, flexShrink: 1, textAlign: 'center' },
   lightLabel: { color: colors.text },
 });

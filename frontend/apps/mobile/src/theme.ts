@@ -1,16 +1,29 @@
 export const colors = {
-  background: '#0E1419',
-  surface: '#172129',
-  surfaceStrong: '#1F2C35',
-  border: '#2B3A44',
-  primary: '#66FCF1',
-  primaryMuted: '#45A29E',
-  text: '#F4F7F8',
-  textMuted: '#A8B2B9',
-  danger: '#FF6B6B',
+  background: '#19090B',
+  backgroundRaised: '#221014',
+  surface: '#2B1118',
+  surfaceStrong: '#3A1822',
+  surfaceHighlight: '#51212D',
+  border: '#5B2A31',
+  primary: '#FF665D',
+  primaryMuted: '#FFAAA0',
+  primaryHighlight: '#FF978F',
+  primaryShadow: '#A82832',
+  text: '#FFF4F2',
+  textMuted: '#D3AAA7',
+  danger: '#FF3D55',
+  dangerHighlight: '#FF7A89',
+  dangerShadow: '#9F1830',
   success: '#4ADE80',
-  warning: '#FBBF24',
-  move: '#38BDF8',
+  warning: '#F7D33D',
+  reward: '#F7D33D',
+  rewardHighlight: '#FFF09A',
+  rewardShadow: '#A66F09',
+  move: '#67D9FF',
+  boardDark: '#251117',
+  boardLight: '#351923',
+  scrim: 'rgba(20, 4, 8, 0.84)',
+  shadow: '#000000',
 } as const;
 
 export const spacing = {
@@ -20,4 +33,11 @@ export const spacing = {
   lg: 16,
   xl: 24,
   xxl: 32,
+} as const;
+
+export const radii = {
+  control: 20,
+  card: 26,
+  panel: 32,
+  pill: 999,
 } as const;

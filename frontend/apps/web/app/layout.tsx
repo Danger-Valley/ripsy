@@ -2,10 +2,30 @@ import './globals.css';
 import { Toaster } from 'sonner';
 import { ReactNode } from 'react';
 import { Metadata } from 'next';
+import localFont from 'next/font/local';
+
+const sans = localFont({
+  src: [
+    { path: './fonts/space-grotesk-400.ttf', weight: '400', style: 'normal' },
+    { path: './fonts/space-grotesk-600.ttf', weight: '600', style: 'normal' },
+    { path: './fonts/space-grotesk-700.ttf', weight: '700', style: 'normal' },
+  ],
+  display: 'swap',
+  variable: '--font-sans',
+});
+
+const mono = localFont({
+  src: [
+    { path: './fonts/space-mono-400.ttf', weight: '400', style: 'normal' },
+    { path: './fonts/space-mono-700.ttf', weight: '700', style: 'normal' },
+  ],
+  display: 'swap',
+  variable: '--font-mono',
+});
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`dark ${sans.variable} ${mono.variable}`}>
       <body suppressHydrationWarning>
         {children}
         <Toaster richColors expand={true} position="top-right" />

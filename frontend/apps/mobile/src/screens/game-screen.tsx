@@ -489,9 +489,13 @@ function WeaponChoiceModal({ isOpen, busy, onChoose }: { isOpen: boolean; busy: 
     <Modal animationType="fade" onRequestClose={() => undefined} transparent visible={isOpen}>
       <View accessibilityViewIsModal style={styles.modalBackdrop}>
         <ScrollView bounces={false} contentContainerStyle={styles.modalScrollContent}>
-          <View style={styles.modalCard}>
-            <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.modalTitle}>Break the tie</Text>
-            <Text maxFontSizeMultiplier={2} style={styles.modalCopy}>Both pieces matched. Choose a new weapon.</Text>
+          <View testID="weapon-choice-modal" style={styles.modalCard}>
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.modalBurst}>
+              <Text style={styles.modalBurstText}>VS</Text>
+            </View>
+            <Text style={styles.modalEyebrow}>DRAW BREAKER</Text>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.modalTitle}>Pick your comeback</Text>
+            <Text maxFontSizeMultiplier={2} style={styles.modalCopy}>Same weapon, zero winner. Choose again and finish the clash.</Text>
             <WeaponButton choice={Choice.Rock} label="Rock" busy={busy} onChoose={onChoose} />
             <WeaponButton choice={Choice.Paper} label="Paper" busy={busy} onChoose={onChoose} />
             <WeaponButton choice={Choice.Scissors} label="Scissors" busy={busy} onChoose={onChoose} />
@@ -619,12 +623,15 @@ const styles = StyleSheet.create({
   savedBadge: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: 999, backgroundColor: colors.surfaceStrong, paddingHorizontal: spacing.sm },
   savedDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
   savedText: { color: colors.success, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)' },
+  modalBackdrop: { flex: 1, backgroundColor: colors.scrim },
   modalScrollContent: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl },
-  modalCard: { backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 2, borderRadius: 18, padding: spacing.xl, gap: spacing.md },
-  modalTitle: { color: colors.primary, fontSize: 26, fontWeight: '900', textAlign: 'center' },
+  modalCard: { width: '100%', maxWidth: 460, alignSelf: 'center', backgroundColor: colors.surface, borderColor: colors.primary, borderTopColor: colors.primaryHighlight, borderWidth: 3, borderBottomColor: colors.primaryShadow, borderBottomWidth: 8, borderRadius: 30, padding: spacing.xl, paddingTop: 44, gap: spacing.md, shadowColor: colors.primaryShadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.4, shadowRadius: 22, elevation: 12 },
+  modalBurst: { position: 'absolute', top: -32, alignSelf: 'center', width: 68, height: 68, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.reward, borderColor: colors.rewardHighlight, borderTopWidth: 3, borderBottomColor: colors.rewardShadow, borderBottomWidth: 7, transform: [{ rotate: '-5deg' }] },
+  modalBurstText: { color: colors.background, fontSize: 22, fontWeight: '900' },
+  modalEyebrow: { color: colors.primaryMuted, fontSize: 11, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },
+  modalTitle: { color: colors.text, fontSize: 28, fontWeight: '900', textAlign: 'center' },
   modalCopy: { color: colors.textMuted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: spacing.sm },
-  weaponChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  weaponImage: { width: 48, height: 48, resizeMode: 'contain' },
+  weaponChoice: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surfaceStrong, borderRadius: 22, padding: spacing.sm, paddingLeft: spacing.md },
+  weaponImage: { width: 52, height: 52, resizeMode: 'contain' },
   weaponButton: { flex: 1 },
 });

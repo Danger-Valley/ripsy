@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-09-26
+Last updated: 2026-09-27
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -208,6 +208,17 @@ The current web client now mirrors the recent native experience rather than the 
 - Online and local games share transition classification and the ordered web animation queue. Confirmed movement uses authored Rive jump durations; combat supports prepare/hold, repeated ties, weapon-specific attacks, death, and a smooth winner return.
 - Both cumulative clocks stay mounted through the result state. The web vibrates lightly on supported devices after a confirmed turn advance.
 - `/computer` is fully local and uses the shared game engine; the AI waits until presentation is idle before making its move.
+
+## Punch Pop visual system (added 2026-09-27)
+
+- `brand.md` is the canonical visual guide. The selected direction is **Punch Pop**: warm, playful and bold, with an arcade/casual-game feel inspired by the tactile clarity of Candy Crush Saga without copying its characters, candy assets, map, or trade dress.
+- Shared dark-first roles are warm near-black background, plum surfaces, coral primary actions, yellow rewards, off-white text, and pale coral muted accents. Mobile values live in `frontend/apps/mobile/src/theme.ts`; web OKLCH tokens live in `frontend/apps/web/app/globals.css`. New screens must consume semantic roles rather than add screen-local hex values.
+- Web typography is self-hosted Space Grotesk plus Space Mono through `next/font/local`, so Vercel and local production builds do not fetch Google Fonts. Native currently uses the system fallback with matching weights and tracking; bundle static Space Grotesk/Space Mono font files before assigning native `fontFamily` values.
+- Primary controls use a light top edge, darker 6–8 px bottom edge, rounded 18–24 px corners, shadow, and a short downward pressed transform. The native reference is `frontend/apps/mobile/src/components/primary-button.tsx`.
+- The redesigned native Home is the first implementation reference: a compact RIPSY Arcade hero, active-game carousel near the top, one dominant online battle action, separate invite entry, and collection/army actions below gameplay. Preserve all current accessibility labels, offline computer availability, active-game snapping, and stale-game recovery behavior when porting visuals.
+- The tie weapon chooser is the first in-game popup reference: strong yellow `VS` marker, coral-edged raised panel, concise draw-breaker copy, and three large weapon rows. Do not alter tie command semantics or dismiss the modal while a choice is pending.
+- Reward yellow is reserved for rewards, score-like counters, special badges, and victory emphasis. Coral remains the primary action color. The board itself stays quieter so pieces and legal-move feedback remain readable.
+- Mobile intentionally does not add a gradient dependency. Layered warm surfaces provide depth there; web may use at most one of the documented gradients per screen.
 
 Verified locally on 2026-09-14 with the production Next.js build and browser checks at desktop and 390 × 844 widths. The local computer flow was played through both player and AI moves. A live two-browser production multiplayer pass remains an acceptance check because local browser sessions could not complete the production handshake in the verification environment.
 

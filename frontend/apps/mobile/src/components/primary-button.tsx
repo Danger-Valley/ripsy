@@ -35,9 +35,9 @@ export function PrimaryButton({ children, onPress, disabled, busy, variant = 'pr
       ]}>
       <PressableHighlight />
       {busy ? (
-        <ActivityIndicator accessibilityLabel="Loading" color={variant === 'secondary' ? colors.text : colors.ink} />
+        <ActivityIndicator accessibilityLabel="Loading" color={variant === 'danger' ? colors.text : colors.kitPanelInk} />
       ) : (
-        <Text maxFontSizeMultiplier={2} style={[styles.label, variant === 'secondary' && styles.lightLabel]}>{children}</Text>
+        <Text maxFontSizeMultiplier={2} style={[styles.label, variant === 'danger' && styles.dangerLabel]}>{children}</Text>
       )}
     </Pressable>
   );
@@ -51,10 +51,10 @@ const styles = StyleSheet.create({
   button: {
     minHeight: 58,
     borderRadius: radii.control,
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryHighlight,
+    backgroundColor: colors.kitLime,
+    borderColor: colors.kitLimeHighlight,
     borderTopWidth: 2,
-    borderBottomColor: colors.primaryShadow,
+    borderBottomColor: colors.kitLimeShadow,
     borderBottomWidth: 6,
     overflow: 'hidden',
     alignItems: 'center',
@@ -68,10 +68,10 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   secondary: {
-    backgroundColor: colors.surfaceStrong,
-    borderColor: colors.border,
+    backgroundColor: colors.kitPanel,
+    borderColor: colors.kitPanelBorder,
     borderTopWidth: 2,
-    borderBottomColor: colors.background,
+    borderBottomColor: colors.kitPanelShadow,
     borderBottomWidth: 6,
   },
   danger: {
@@ -90,8 +90,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     elevation: 2,
   },
-  disabled: { opacity: 0.48 },
+  disabled: { opacity: 0.68 },
   highlight: { position: 'absolute', top: 3, left: 18, right: 18, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.28)', overflow: 'hidden' },
   label: { color: colors.ink, fontSize: 16, fontWeight: '900', letterSpacing: 0.2, flexShrink: 1, textAlign: 'center' },
-  lightLabel: { color: colors.text },
+  dangerLabel: { color: colors.text },
 });

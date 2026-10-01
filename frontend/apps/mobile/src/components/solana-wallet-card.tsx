@@ -66,16 +66,16 @@ export function shortenAddress(address: string): string {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: spacing.lg, gap: spacing.md },
+  card: { backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 2, borderBottomColor: colors.kitPanelShadow, borderBottomWidth: 6, borderRadius: 24, padding: spacing.lg, gap: spacing.md },
   headingRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md },
   headingCopy: { flex: 1, gap: spacing.xs },
-  title: { color: colors.text, fontSize: 20, fontWeight: '800' },
-  description: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  title: { color: colors.kitPanelInk, fontSize: 20, fontWeight: '900' },
+  description: { color: colors.kitPanelMuted, fontSize: 13, lineHeight: 19 },
   statusPill: { minHeight: 26, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.sm, borderRadius: 999, backgroundColor: 'rgba(74, 222, 128, 0.10)' },
   statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
   statusText: { color: colors.success, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  addressPanel: { minHeight: 58, justifyContent: 'center', backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
-  walletLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
-  address: { color: colors.primary, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }), fontSize: 16, fontWeight: '700', letterSpacing: 0.4 },
+  addressPanel: { minHeight: 58, justifyContent: 'center', backgroundColor: colors.kitPanelSoft, borderColor: colors.kitPanelBorder, borderWidth: 1, borderRadius: 14, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
+  walletLabel: { color: colors.kitPanelMuted, fontSize: 11, fontWeight: '700' },
+  address: { color: colors.primaryShadow, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }), fontSize: 16, fontWeight: '700', letterSpacing: 0.4 },
   error: { color: colors.danger, fontSize: 13, lineHeight: 18 },
 });

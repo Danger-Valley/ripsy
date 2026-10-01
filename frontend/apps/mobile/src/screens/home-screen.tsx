@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import { usePushNotifications } from '../hooks/use-push-notifications';
 import { formatRoomCodeInput, normalizeRoomCode } from '../invitations';
 import type { RootStackParamList } from '../navigation';
 import { saveActiveGameId } from '../storage/active-game';
+import { haptics } from '../haptics';
 import { colors, radii, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -141,8 +142,8 @@ export function HomeScreen({ navigation, route }: Props) {
           <View style={styles.gamesSection}>
             <View style={styles.sectionHeader}>
               <View>
-                <Text style={styles.eyebrow}>KEEP THE STREAK ALIVE</Text>
-                <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitle}>Your active games</Text>
+                <Text style={styles.eyebrowOnCanvas}>KEEP THE STREAK ALIVE</Text>
+                <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.sectionTitleOnCanvas}>Your active games</Text>
               </View>
               {game.activeGames.length > 0 && (
                 <Text accessibilityLabel={`Game ${activeGamePage + 1} of ${game.activeGames.length}`} maxFontSizeMultiplier={2} style={styles.gameCount}>
@@ -217,7 +218,7 @@ export function HomeScreen({ navigation, route }: Props) {
               onChangeText={value => setRoomCode(formatRoomCodeInput(value))}
               onSubmitEditing={joinByCode}
               placeholder="8-character room code"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={colors.kitPanelMuted}
               returnKeyType="go"
               style={styles.input}
               value={roomCode}
@@ -240,8 +241,10 @@ export function HomeScreen({ navigation, route }: Props) {
                 <Text style={styles.sectionTitle}>Build a lineup with attitude.</Text>
               </View>
             </View>
-            <PrimaryButton onPress={() => navigation.navigate('Army')}>Set up your army</PrimaryButton>
-            <PrimaryButton variant="reward" onPress={() => navigation.navigate('Shop')}>Explore figure shop</PrimaryButton>
+            <View style={styles.collectionActions}>
+              <MenuTile label="YOUR ARMY" symbol="♟" tone="pink" onPress={() => navigation.navigate('Army')} />
+              <MenuTile label="FIGURE SHOP" symbol="★" tone="cyan" onPress={() => navigation.navigate('Shop')} />
+            </View>
           </View>
 
           {(push.status === 'prompt' || push.status === 'denied' || push.status === 'error') && (
@@ -262,6 +265,22 @@ export function HomeScreen({ navigation, route }: Props) {
   );
 }
 
+function MenuTile({ label, symbol, tone, onPress }: { label: string; symbol: string; tone: 'pink' | 'cyan'; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label === 'YOUR ARMY' ? 'Set up your army' : 'Explore figure shop'}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
+      style={({ pressed }) => [styles.menuTile, tone === 'pink' ? styles.menuTilePink : styles.menuTileCyan, pressed && styles.menuTilePressed]}>
+      <View style={styles.menuTileIcon}><Text style={styles.menuTileSymbol}>{symbol}</Text></View>
+      <Text style={styles.menuTileLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   backgroundOrbTop: { position: 'absolute', top: -80, right: -70, width: 230, height: 230, borderRadius: 115, backgroundColor: colors.primary, opacity: 0.32 },
@@ -271,9 +290,10 @@ const styles = StyleSheet.create({
   hero: { position: 'relative', alignItems: 'center', overflow: 'hidden', backgroundColor: colors.surfaceHighlight, borderTopColor: colors.primaryMuted, borderTopWidth: 3, borderBottomColor: colors.shadow, borderBottomWidth: 8, borderRadius: radii.panel, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xl, gap: spacing.sm, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.32, shadowRadius: 18, elevation: 8 },
   heroBubbleOne: { position: 'absolute', top: -25, left: -20, width: 96, height: 96, borderRadius: 48, backgroundColor: colors.primary, opacity: 0.32 },
   heroBubbleTwo: { position: 'absolute', right: -18, bottom: -28, width: 112, height: 112, borderRadius: 56, backgroundColor: colors.accent, opacity: 0.25 },
-  eyebrow: { color: colors.rewardHighlight, fontSize: 11, fontWeight: '900', letterSpacing: 1.7 },
+  eyebrow: { color: colors.primaryShadow, fontSize: 11, fontWeight: '900', letterSpacing: 1.7 },
+  eyebrowOnCanvas: { color: colors.rewardHighlight, fontSize: 11, fontWeight: '900', letterSpacing: 1.7 },
   heroEyebrow: { color: colors.rewardHighlight, fontSize: 11, fontWeight: '900', letterSpacing: 2.2 },
-  title: { color: colors.text, fontSize: 52, lineHeight: 56, fontWeight: '900', letterSpacing: 3, textShadowColor: colors.primaryShadow, textShadowOffset: { width: 0, height: 5 }, textShadowRadius: 0 },
+  title: { color: colors.reward, fontSize: 52, lineHeight: 56, fontWeight: '900', letterSpacing: 3, textShadowColor: colors.shadow, textShadowOffset: { width: 0, height: 6 }, textShadowRadius: 0 },
   subtitle: { color: colors.text, fontSize: 16, fontWeight: '800', lineHeight: 22, maxWidth: 360, textAlign: 'center' },
   fighterStage: { height: 118, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: spacing.xs },
   fighterBubble: { width: 108, height: 108, borderRadius: 54, alignItems: 'center', justifyContent: 'flex-end', borderTopWidth: 4, borderBottomWidth: 7, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
@@ -282,31 +302,40 @@ const styles = StyleSheet.create({
   heroFighter: { width: 98, height: 106, resizeMode: 'contain' },
   vsBadge: { zIndex: 2, width: 58, height: 58, borderRadius: 20, marginHorizontal: -8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.reward, borderTopColor: colors.rewardHighlight, borderTopWidth: 3, borderBottomColor: colors.rewardShadow, borderBottomWidth: 6, transform: [{ rotate: '-8deg' }], shadowColor: colors.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
   vsText: { color: colors.ink, fontSize: 19, fontWeight: '900' },
-  sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '900', marginTop: spacing.xs },
+  sectionTitle: { color: colors.kitPanelInk, fontSize: 22, fontWeight: '900', marginTop: spacing.xs },
+  sectionTitleOnCanvas: { color: colors.text, fontSize: 22, fontWeight: '900', marginTop: spacing.xs },
   gamesSection: { gap: spacing.md },
   gamesCarouselContent: { gap: spacing.sm },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: spacing.sm },
   gameCount: { minWidth: 54, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, borderRadius: radii.pill, overflow: 'hidden', backgroundColor: colors.reward, color: colors.ink, fontSize: 12, fontWeight: '900', textAlign: 'center' },
-  emptyGames: { minHeight: 96, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surfaceHighlight, borderBottomColor: colors.shadow, borderBottomWidth: 6, borderRadius: radii.card, padding: spacing.lg, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
+  emptyGames: { minHeight: 96, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 2, borderBottomColor: colors.kitPanelShadow, borderBottomWidth: 6, borderRadius: radii.card, padding: spacing.lg, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
   emptyBadge: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderTopColor: colors.primaryHighlight, borderTopWidth: 3, borderBottomColor: colors.primaryShadow, borderBottomWidth: 5 },
   emptyBadgeText: { color: colors.text, fontSize: 22, fontWeight: '900' },
   emptyCopy: { flex: 1, gap: 3 },
-  emptyGamesTitle: { color: colors.text, fontSize: 15, fontWeight: '900' },
-  emptyGamesText: { color: colors.textMuted, fontSize: 13 },
-  playCard: { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 3, borderBottomColor: colors.shadow, borderBottomWidth: 8, borderRadius: radii.panel, padding: spacing.lg, gap: spacing.md, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 6 },
+  emptyGamesTitle: { color: colors.kitPanelInk, fontSize: 15, fontWeight: '900' },
+  emptyGamesText: { color: colors.kitPanelMuted, fontSize: 13 },
+  playCard: { backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 3, borderBottomColor: colors.kitPanelShadow, borderBottomWidth: 8, borderRadius: radii.panel, padding: spacing.lg, gap: spacing.md, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 6 },
   playCardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.xs },
   playIcon: { width: 54, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.reward, borderColor: colors.rewardHighlight, borderTopWidth: 2, borderBottomColor: colors.rewardShadow, borderBottomWidth: 5, transform: [{ rotate: '-4deg' }] },
   playIconText: { color: colors.ink, fontSize: 18, fontWeight: '900' },
   playCopy: { flex: 1 },
-  joinCard: { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 2, borderBottomColor: colors.shadow, borderBottomWidth: 6, borderRadius: radii.card, padding: spacing.lg, gap: spacing.md },
-  joinTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
-  input: { minHeight: 58, color: colors.text, backgroundColor: colors.backgroundRaised, borderColor: colors.border, borderWidth: 2, borderRadius: radii.control, fontSize: 17, fontWeight: '800', paddingHorizontal: spacing.lg, textAlign: 'center', letterSpacing: 2 },
-  collectionCard: { backgroundColor: colors.surfaceHighlight, borderTopColor: colors.border, borderTopWidth: 2, borderBottomColor: colors.shadow, borderBottomWidth: 7, borderRadius: radii.card, padding: spacing.lg, gap: spacing.md },
+  joinCard: { backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 2, borderBottomColor: colors.kitPanelShadow, borderBottomWidth: 6, borderRadius: radii.card, padding: spacing.lg, gap: spacing.md },
+  joinTitle: { color: colors.kitPanelInk, fontSize: 18, fontWeight: '900' },
+  input: { minHeight: 58, color: colors.kitPanelInk, backgroundColor: colors.kitPanelSoft, borderColor: colors.kitPanelBorder, borderWidth: 2, borderRadius: radii.control, fontSize: 17, fontWeight: '800', paddingHorizontal: spacing.lg, textAlign: 'center', letterSpacing: 2 },
+  collectionCard: { backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 2, borderBottomColor: colors.kitPanelShadow, borderBottomWidth: 7, borderRadius: radii.card, padding: spacing.lg, gap: spacing.md },
   collectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   collectionIcon: { width: 56, height: 62, alignItems: 'center', justifyContent: 'flex-end' },
   collectionHead: { position: 'absolute', top: 0, width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, borderColor: colors.primaryHighlight, borderWidth: 2 },
-  collectionBody: { width: 48, height: 32, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, backgroundColor: colors.surfaceHighlight, borderColor: colors.primaryMuted, borderWidth: 2 },
+  collectionBody: { width: 48, height: 32, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, backgroundColor: colors.kitPanelSoft, borderColor: colors.primaryMuted, borderWidth: 2 },
   collectionCopy: { flex: 1 },
+  collectionActions: { flexDirection: 'row', gap: spacing.md },
+  menuTile: { flex: 1, minHeight: 104, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: 22, borderTopWidth: 3, borderBottomWidth: 7, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 7, elevation: 4 },
+  menuTilePink: { backgroundColor: colors.kitPink, borderTopColor: colors.kitPinkHighlight, borderBottomColor: colors.kitPinkShadow },
+  menuTileCyan: { backgroundColor: colors.kitCyan, borderTopColor: colors.kitCyanHighlight, borderBottomColor: colors.kitCyanShadow },
+  menuTilePressed: { transform: [{ translateY: 4 }], borderBottomWidth: 3 },
+  menuTileIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.kitPanel },
+  menuTileSymbol: { color: colors.kitPanelInk, fontSize: 23, fontWeight: '900' },
+  menuTileLabel: { color: colors.kitPanelInk, fontSize: 12, fontWeight: '900', letterSpacing: 0.9, textAlign: 'center' },
   notificationCard: { gap: spacing.sm },
   notificationText: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
 });

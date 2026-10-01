@@ -58,7 +58,7 @@ export function ShopScreen({ navigation }: Props) {
       <View style={styles.heading}>
         <Text style={styles.eyebrow}>THE FIGURE COLLECTION</Text>
         <Text accessibilityRole="header" style={styles.title}>Make it yours.</Text>
-        <Text style={styles.copy}>Collect a RIPSY figure in your Solana wallet. Each mint is a Metaplex Core collectible.</Text>
+        <Text style={styles.headingCopy}>Collect a RIPSY figure in your Solana wallet. Each mint is a Metaplex Core collectible.</Text>
         {shop.catalog && <Text style={styles.network}>{shop.catalog.cluster === 'devnet' ? 'DEVNET · TEST SOL ONLY' : 'SOLANA MAINNET'}</Text>}
       </View>
 
@@ -91,7 +91,7 @@ export function ShopScreen({ navigation }: Props) {
             keyboardType="email-address"
             onChangeText={setEmail}
             placeholder="you@example.com"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={colors.kitPanelMuted}
             style={styles.input}
             value={email}
           />
@@ -102,15 +102,15 @@ export function ShopScreen({ navigation }: Props) {
             maxLength={8}
             onChangeText={setCode}
             placeholder="Verification code"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={colors.kitPanelMuted}
             style={styles.input}
             value={code}
           />}
           {!privy.codeSent
             ? <PrimaryButton busy={privy.activity === 'sending-code'} disabled={!email.trim() || shop.hasPurchase || shop.busy} onPress={() => { setWalletKind('privy'); run(() => privy.sendCode(email)); }}>Send sign-in code</PrimaryButton>
             : <PrimaryButton busy={privy.activity === 'verifying-code' || privy.activity === 'creating-wallet'} disabled={!code.trim() || shop.hasPurchase || shop.busy} onPress={() => { setWalletKind('privy'); run(() => privy.verifyCode(email, code)); }}>Verify and create wallet</PrimaryButton>}
-        </View> : <Text style={styles.note}>Embedded wallet sign-in is not configured in this build.</Text>}
-        {privy.status === 'authenticated-unverified' && <Text style={styles.note}>Your saved Privy session could not be verified. Check your connection and try again.</Text>}
+        </View> : <Text style={styles.panelNote}>Embedded wallet sign-in is not configured in this build.</Text>}
+        {privy.status === 'authenticated-unverified' && <Text style={styles.panelNote}>Your saved Privy session could not be verified. Check your connection and try again.</Text>}
       </View>
 
       {error && <View accessibilityRole="alert" style={styles.error}>
@@ -139,7 +139,7 @@ export function ShopScreen({ navigation }: Props) {
       </View>}
 
       {!shop.catalog && !error && <View accessibilityLabel="Loading figures" style={styles.skeleton} />}
-      {shop.catalog?.figures.length === 0 && <Text style={styles.copy}>New figures are on the way. Check back soon.</Text>}
+      {shop.catalog?.figures.length === 0 && <Text style={styles.headingCopy}>New figures are on the way. Check back soon.</Text>}
       {shop.catalog?.figures.map(figure => <View key={figure.id} style={styles.card}>
         <View style={styles.art}><Image accessibilityLabel={figure.name} resizeMode="contain" source={images[figure.id]} style={styles.figure} /></View>
         <View style={styles.cardCopy}>
@@ -153,7 +153,7 @@ export function ShopScreen({ navigation }: Props) {
           </PrimaryButton>
         </View>
       </View>)}
-      <Text style={styles.note}>The figure price and mint are one transaction. Network fees are extra. After confirmation, open Your Army to choose the one slot this NFT will occupy.</Text>
+      <Text style={styles.footerNote}>The figure price and mint are one transaction. Network fees are extra. After confirmation, open Your Army to choose the one slot this NFT will occupy.</Text>
     </ScrollView>
   );
 }
@@ -161,27 +161,29 @@ export function ShopScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.lg, maxWidth: 640, width: '100%', alignSelf: 'center', paddingBottom: spacing.xxl },
   heading: { gap: spacing.sm, marginBottom: spacing.sm },
-  eyebrow: { color: colors.primary, fontWeight: '800', fontSize: 11, letterSpacing: 1.8 },
+  eyebrow: { color: colors.primaryShadow, fontWeight: '900', fontSize: 11, letterSpacing: 1.8 },
   title: { color: colors.text, fontWeight: '900', fontSize: 36 },
-  copy: { color: colors.textMuted, fontSize: 15, lineHeight: 22 },
+  headingCopy: { color: colors.textMuted, fontSize: 15, lineHeight: 22 },
+  copy: { color: colors.kitPanelMuted, fontSize: 15, lineHeight: 22 },
   network: { color: colors.warning, fontSize: 12, fontWeight: '800', marginTop: spacing.sm },
-  wallet: { backgroundColor: colors.surface, borderRadius: 18, padding: spacing.lg, gap: spacing.md, borderWidth: 1, borderColor: colors.border },
-  label: { color: colors.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  address: { color: colors.text, fontSize: 13, lineHeight: 20 },
-  walletOption: { borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.sm },
-  walletOptionSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceStrong },
-  optionTitle: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  wallet: { backgroundColor: colors.kitPanel, borderRadius: 24, padding: spacing.lg, gap: spacing.md, borderTopWidth: 2, borderTopColor: colors.kitPanelBorder, borderBottomWidth: 6, borderBottomColor: colors.kitPanelShadow },
+  label: { color: colors.primaryShadow, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  address: { color: colors.kitPanelInk, fontSize: 13, lineHeight: 20 },
+  walletOption: { borderRadius: 16, borderWidth: 1, borderColor: colors.kitPanelBorder, padding: spacing.md, gap: spacing.sm, backgroundColor: colors.kitPanelSoft },
+  walletOptionSelected: { borderColor: colors.kitPinkShadow, backgroundColor: colors.primaryMuted },
+  optionTitle: { color: colors.kitPanelInk, fontSize: 16, fontWeight: '900' },
   embeddedLogin: { gap: spacing.md },
-  input: { color: colors.text, backgroundColor: colors.surfaceStrong, borderColor: colors.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: spacing.md, minHeight: 48, fontSize: 16 },
-  card: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
-  art: { height: 220, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceStrong },
+  input: { color: colors.kitPanelInk, backgroundColor: colors.kitPanelSoft, borderColor: colors.kitPanelBorder, borderWidth: 1, borderRadius: 16, paddingHorizontal: spacing.md, minHeight: 52, fontSize: 16 },
+  card: { borderRadius: 24, overflow: 'hidden', backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 2, borderBottomColor: colors.kitPanelShadow, borderBottomWidth: 7 },
+  art: { height: 220, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.kitPanelSoft },
   figure: { width: 300, height: 300, transform: [{ translateY: -48 }] },
   cardCopy: { padding: spacing.xl, gap: spacing.md },
-  cardTitle: { color: colors.text, fontSize: 23, fontWeight: '800' },
-  price: { color: colors.primary, fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  exclusive: { color: colors.warning, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
-  review: { padding: spacing.lg, gap: spacing.md, borderRadius: 18, borderColor: colors.primary, borderWidth: 1, backgroundColor: colors.surface },
-  error: { borderColor: colors.danger, borderWidth: 1, borderRadius: 12, padding: spacing.lg, gap: spacing.md },
-  note: { color: colors.textMuted, fontSize: 12, lineHeight: 19, textAlign: 'center' },
-  skeleton: { height: 380, backgroundColor: colors.surface, borderRadius: 20 },
+  cardTitle: { color: colors.kitPanelInk, fontSize: 23, fontWeight: '900' },
+  price: { color: colors.primaryShadow, fontSize: 24, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  exclusive: { color: colors.rewardShadow, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+  review: { padding: spacing.lg, gap: spacing.md, borderRadius: 24, borderTopColor: colors.kitPinkHighlight, borderTopWidth: 2, borderBottomColor: colors.kitPinkShadow, borderBottomWidth: 6, backgroundColor: colors.kitPanel },
+  error: { borderColor: colors.danger, borderWidth: 2, borderRadius: 18, padding: spacing.lg, gap: spacing.md, backgroundColor: colors.kitPanel },
+  panelNote: { color: colors.kitPanelMuted, fontSize: 12, lineHeight: 19, textAlign: 'center' },
+  footerNote: { color: colors.textMuted, fontSize: 12, lineHeight: 19, textAlign: 'center' },
+  skeleton: { height: 380, backgroundColor: colors.kitPanel, borderRadius: 24 },
 });

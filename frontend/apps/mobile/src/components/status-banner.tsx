@@ -13,8 +13,8 @@ export function StatusBanner({ message, tone = 'neutral' }: { message: string; t
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 10, padding: spacing.md },
-  error: { borderColor: colors.danger },
-  success: { borderColor: colors.success },
-  text: { color: colors.textMuted, textAlign: 'center', fontWeight: '600' },
+  container: { backgroundColor: colors.kitPanel, borderColor: colors.kitPanelBorder, borderTopWidth: 2, borderBottomWidth: 5, borderBottomColor: colors.kitPanelShadow, borderRadius: 18, padding: spacing.md },
+  error: { borderTopColor: colors.dangerHighlight, borderBottomColor: colors.dangerShadow },
+  success: { borderTopColor: colors.kitLimeHighlight, borderBottomColor: colors.kitLimeShadow },
+  text: { color: colors.kitPanelInk, textAlign: 'center', fontWeight: '800' },
 });

@@ -82,7 +82,7 @@ function pieceSymbol(piece: Piece) {
 }
 
 const styles = StyleSheet.create({
-  card: { minHeight: 118, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surfaceHighlight, borderTopColor: colors.border, borderTopWidth: 3, borderBottomWidth: 7, borderBottomColor: colors.shadow, borderRadius: radii.card, padding: spacing.md, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 5 },
+  card: { minHeight: 118, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 3, borderBottomWidth: 7, borderBottomColor: colors.kitPanelShadow, borderRadius: radii.card, padding: spacing.md, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 5 },
   pressed: { opacity: 0.9, transform: [{ translateY: 3 }], borderBottomWidth: 2 },
   board: { width: 86, height: 86, borderRadius: 18, borderWidth: 3, borderColor: colors.accent, overflow: 'hidden' },
   boardRow: { flex: 1, flexDirection: 'row' },
@@ -93,8 +93,8 @@ const styles = StyleSheet.create({
   opponentPiece: { backgroundColor: colors.reward },
   pieceLabel: { color: colors.ink, fontSize: 5, fontWeight: '900', lineHeight: 7 },
   details: { flex: 1, gap: spacing.xs },
-  room: { color: colors.primaryMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
-  status: { color: colors.text, fontSize: 17, fontWeight: '900' },
-  meta: { color: colors.textMuted, fontSize: 11, lineHeight: 15 },
-  chevron: { color: colors.reward, fontSize: 30, fontWeight: '900' },
+  room: { color: colors.primaryShadow, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  status: { color: colors.kitPanelInk, fontSize: 17, fontWeight: '900' },
+  meta: { color: colors.kitPanelMuted, fontSize: 11, lineHeight: 15 },
+  chevron: { color: colors.primary, fontSize: 30, fontWeight: '900' },
 });

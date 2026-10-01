@@ -89,12 +89,14 @@ test('opens a fully local computer battle without waiting for the server', async
   expect(navigate).toHaveBeenCalledWith('ComputerGame');
 });
 
-test('renders the Punch Pop arcade home hierarchy', async () => {
+test('renders the Figma Game UI Kit arcade hierarchy', async () => {
   const renderer = await renderHome();
 
   expect(renderer.root.find(node => node.props.testID === 'arcade-home-hero')).toBeDefined();
   expect(renderer.root.findAll(node => node.props.children === 'RIPSY ARCADE').length).toBeGreaterThan(0);
   expect(renderer.root.findAll(node => node.props.children === 'Create online battle').length).toBeGreaterThan(0);
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Set up your army')).toBeDefined();
+  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Explore figure shop')).toBeDefined();
   expect(StyleSheet.flatten(renderer.root.find(node => node.props.testID === 'home-scroll').props.contentContainerStyle)).toMatchObject({
     paddingTop: 63,
     paddingBottom: 58,

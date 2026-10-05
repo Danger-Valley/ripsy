@@ -7,7 +7,7 @@ import { Key, MPL_CORE_PROGRAM_ID } from '@metaplex-foundation/mpl-core';
 import { getCollectionV1AccountDataSerializer } from '@metaplex-foundation/mpl-core/dist/src/generated/types/collectionV1AccountData.js';
 import { createShopChain } from './shop-chain.js';
 import { loadShopConfig } from './shop-config.js';
-import type { MintOrder } from '@rps/core/shop';
+import { FIGURES, type MintOrder } from '@rps/core/shop';
 
 function fixture() {
   const umi = createUmi('http://localhost:8899');
@@ -62,6 +62,17 @@ test('Core mint and exact SOL payment share a v0 message with buyer as owner/pay
   assert.ok(Buffer.from(message.instructions[1]!.data).includes(Buffer.from('/figures/fig1.json')));
   assert.equal(f.chain.validateSigned(order, encoded).length >= 64, true);
   assert.throws(() => f.chain.validateSigned(order, order.transaction), /signature/);
+});
+
+test('new mint transactions use the exact canonical fighter name with no extra RIPSY prefix', async () => {
+  const f = fixture();
+  for (const figure of FIGURES) {
+    const prepared = await f.chain.prepare(figure.id, f.buyer.publicKey, '100000000');
+    const transaction = f.umi.transactions.deserialize(Buffer.from(prepared.transaction, 'base64'));
+    const data = Buffer.from(transaction.message.instructions[1]!.data);
+    const nameLength = data.readUInt32LE(2); // CreateV1 discriminator + DataState.
+    assert.equal(data.subarray(6, 6 + nameLength).toString('utf8'), figure.name);
+  }
 });
 
 test('modified transaction message and missing authority signature are rejected', async () => {

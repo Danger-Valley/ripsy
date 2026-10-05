@@ -1,22 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, Modal, Platform, ScrollView, Share, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Platform, ScrollView, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { canMoveTo, Choice, FigureVariant, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
 import { GameClocks } from '../components/game-clocks';
-import { LineupCountdown } from '../components/lineup-countdown';
-import { PrimaryButton } from '../components/primary-button';
+import { VictoryFireworks } from '../components/victory-fireworks';
+import { BattleResultPanel, JoinGate, LineupPanel, WaitingPanel, WeaponChoiceModal } from '../components/battle-panels';
+import { ToyHomeButton } from '../components/toy-home-controls';
 import { StatusBanner } from '../components/status-banner';
+import { BattleStatus, ToyBattleShell } from '../components/toy-battle-shell';
 import { useLocalComputerGame } from '../hooks/use-local-computer-game';
 import { useNativeRipsyGame } from '../hooks/use-native-ripsy-game';
 import { useGameAnimationQueue } from '../hooks/use-game-animation-queue';
+import { useBattleSounds, useBattleResultSound } from '../hooks/use-battle-sounds';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { isCompletedMoveTransition } from '../game-animation';
 import { haptics } from '../haptics';
 import { createGameInviteUrl, normalizeRoomCode } from '../invitations';
 import { LOCAL_PLAYER_ID } from '../local-computer-game';
 import type { RootStackParamList } from '../navigation';
-import { colors, spacing } from '../theme';
+import { spacing } from '../theme';
 import { loadFigureSlots, saveFigureSlots } from '../storage/figure-loadout';
 import { ShopClient } from '@rps/game-client/shop';
 import { FIGURE_SLOTS } from '@rps/core/shop';
@@ -25,35 +29,34 @@ import { getGameWebSocketUrl } from '../config';
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
 type ComputerProps = NativeStackScreenProps<RootStackParamList, 'ComputerGame'>;
 type Coordinate = { x: number; y: number };
-type WeaponChoice = typeof Choice.Rock | typeof Choice.Paper | typeof Choice.Scissors;
 type JoinStatus = 'idle' | 'joining' | 'joined' | 'failed';
-
-const weaponImages = {
-  [Choice.Rock]: require('../assets/weapons/rock.png'),
-  [Choice.Paper]: require('../assets/weapons/paper.png'),
-  [Choice.Scissors]: require('../assets/weapons/scissors.png'),
-} satisfies Record<WeaponChoice, ImageSourcePropType>;
 
 export function GameScreen({ navigation, route }: Props) {
   const gameId = normalizeRoomCode(route.params.gameId) ?? '';
   const { playerId, sessionToken } = usePlayerIdentity();
   const game = useNativeRipsyGame(playerId, sessionToken, gameId);
 
-  return <BattleScreen game={game} gameId={gameId} isComputer={false} navigation={navigation} playerId={playerId} sessionToken={sessionToken} />;
+  return (
+    <ToyBattleShell title={`Battle ${gameId}`} onBack={() => navigation.replace('Home')}>
+      <BattleScreen game={game} gameId={gameId} isComputer={false} navigation={navigation} playerId={playerId} sessionToken={sessionToken} />
+    </ToyBattleShell>
+  );
 }
 
 export function ComputerGameScreen({ navigation }: ComputerProps) {
   const [presentationBusy, setPresentationBusy] = useState(false);
   const game = useLocalComputerGame(presentationBusy);
   return (
-    <BattleScreen
-      game={game}
-      gameId="computer"
-      isComputer
-      navigation={navigation}
-      onAnimationStateChange={setPresentationBusy}
-      playerId={LOCAL_PLAYER_ID}
-    />
+    <ToyBattleShell title="Battle vs Computer" onBack={() => navigation.replace('Home')}>
+      <BattleScreen
+        game={game}
+        gameId="computer"
+        isComputer
+        navigation={navigation}
+        onAnimationStateChange={setPresentationBusy}
+        playerId={LOCAL_PLAYER_ID}
+      />
+    </ToyBattleShell>
   );
 }
 
@@ -66,9 +69,16 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
   playerId: string;
   sessionToken?: string;
 }) {
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // Fit the active board + clocks + status in a portrait viewport. On short
+  // screens keep playable cells usable and allow vertical scrolling instead.
+  const boardMaxSize = Math.max(340, height - insets.top - insets.bottom - 260);
   const { joinGame } = game;
-  const animation = useGameAnimationQueue(game.gameState);
+  const playSound = useBattleSounds();
+  const animation = useGameAnimationQueue(game.gameState, playSound);
   const visibleState = animation.displayedState ?? game.gameState;
+  useBattleResultSound(visibleState, animation.isAnimating, playerId);
   const [lineup, setLineup] = useState<LineupPiece[]>([]);
   const [isLineupDirty, setIsLineupDirty] = useState(false);
   const [selected, setSelected] = useState<Coordinate | null>(null);
@@ -252,6 +262,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
     if (!didSave) return;
     setIsLineupDirty(false);
     haptics.success();
+    playSound('ready');
   };
 
   const shareRoom = () => perform(async () => {
@@ -289,7 +300,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
     return (
       <View style={styles.invalidRoom}>
         <StatusBanner message="This invitation contains an invalid room code" tone="error" />
-        <PrimaryButton onPress={() => navigation.replace('Home')}>Back to home</PrimaryButton>
+        <ToyHomeButton tone="white" onPress={() => navigation.replace('Home')}>Back to home</ToyHomeButton>
       </View>
     );
   }
@@ -323,31 +334,14 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {isWaitingForOpponent ? (
-          <View style={styles.waitingCard}>
-            <View accessibilityLabel="Waiting for opponent. The board is a preview. Use the controls below it to set your lineup." accessible style={styles.waitingHeader}>
-              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.waitingIndicator}>
-                <View style={styles.waitingDot} />
-              </View>
-              <View style={styles.waitingCopy}>
-                <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.waitingTitle}>Waiting for opponent</Text>
-                <Text maxFontSizeMultiplier={2} style={styles.waitingDescription}>The board is a preview. Set your lineup with the controls below.</Text>
-              </View>
-            </View>
-            <PrimaryButton accessibilityHint="Opens the system share sheet" variant="secondary" onPress={() => { shareRoom().catch(() => undefined); }}>Invite opponent</PrimaryButton>
-          </View>
-        ) : (
-          <StatusBanner
-            message={stateMessage}
-            tone={visibleState?.phase === Phase.Finished ? (visibleState.winner === playerId ? 'success' : 'error') : 'neutral'}
-          />
-        )}
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
+        {isWaitingForOpponent && <WaitingPanel gameId={gameId} onInvite={() => { shareRoom().catch(() => undefined); }} />}
         {(actionError || game.error) && <StatusBanner message={actionError || game.error || ''} tone="error" />}
 
         <GameClocks state={game.gameState} ownOwner={game.ownOwner} />
 
         <GameBoard
+          maxSize={boardMaxSize}
           availableMoves={availableMoves}
           combatAnimation={animation.activeCombat}
           combatPhase={animation.combatPhase}
@@ -361,6 +355,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
           onMoveActionTriggered={animation.startActiveMove}
           onMoveDestinationReady={animation.completeActiveMoveLanding}
           onTrapActionTriggered={animation.startActiveTrap}
+          onCombatActionTriggered={animation.startActiveAttack}
           ownOwner={game.ownOwner}
           previewLineup={canEditLineup ? lineup : undefined}
           selected={selected}
@@ -368,56 +363,34 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
           state={visibleState}
         />
 
-        {canEditLineup && (
-          <View style={[styles.lineupPanel, !isLineupSaved && styles.lineupPanelAttention, isLineupSaved && styles.lineupPanelReady]} testID="lineup-controls">
-            {!isLineupSaved && (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.lineupGlow,
-                  {
-                    opacity: lineupAttention.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.8] }),
-                    transform: [{ scale: lineupAttention.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] }) }],
-                  },
-                ]}
-                testID="lineup-attention-glow"
-              />
-            )}
-            <View style={styles.lineupHeader}>
-              <View style={styles.lineupCopy}>
-                <Text maxFontSizeMultiplier={2} style={styles.lineupEyebrow}>{isLineupSaved ? 'YOUR LINEUP' : 'SET YOUR LINEUP HERE ↓'}</Text>
-                <Text maxFontSizeMultiplier={2} style={styles.lineupDescription}>
-                  {isLineupSaved
-                    ? 'Saved. The battle starts automatically when your opponent is ready.'
-                    : hasSubmitted ? 'Lineup changed. Save it again below.' : 'The board is a preview. Use Shuffle below, then save.'}
-                </Text>
-              </View>
-              {isLineupSaved && (
-                <View accessibilityLabel="Lineup saved" style={styles.savedBadge}>
-                  <View style={styles.savedDot} />
-                  <Text maxFontSizeMultiplier={1.6} style={styles.savedText}>READY</Text>
-                </View>
-              )}
-              {!isLineupSaved && game.gameState?.lineupDeadlineAt && (
-                <LineupCountdown deadlineAt={game.gameState.lineupDeadlineAt} />
-              )}
-            </View>
-            <View style={styles.lineupActions}>
-              <View style={styles.lineupAction}>
-                <PrimaryButton accessibilityHint="Creates a different random hidden lineup" variant="secondary" onPress={() => {
-                  setSelected(null);
-                  setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots ?? Array<string | null>(FIGURE_SLOTS).fill(null)));
-                  setIsLineupDirty(true);
-                }}>Shuffle</PrimaryButton>
-              </View>
-              <View style={styles.lineupAction}>
-                <PrimaryButton accessibilityHint="Saves your current hidden lineup" disabled={isLineupSaved} onPress={() => { submitLineup().catch(() => undefined); }} busy={game.isBusy}>
-                  {isLineupSaved ? 'Lineup saved' : hasSubmitted ? 'Save changes' : 'Save lineup'}
-                </PrimaryButton>
-              </View>
-            </View>
-          </View>
+        {!isWaitingForOpponent && <BattleStatus
+          message={stateMessage}
+          opponent={!game.isMyTurn && visibleState?.phase === Phase.Active}
+          tone={visibleState?.phase === Phase.Finished ? (visibleState.winner === playerId ? 'success' : 'error') : 'neutral'}
+        />}
+
+        {visibleState?.phase === Phase.Finished && (
+          <BattleResultPanel
+            outcome={visibleState.finishReason === 'lineup_timeout' ? 'cancelled' : visibleState.winner === playerId ? 'victory' : 'defeat'}
+            reason={visibleState.finishReason}
+            onBack={() => navigation.replace('Home')}
+          />
         )}
+
+        {canEditLineup && <LineupPanel
+          saved={isLineupSaved}
+          hasSubmitted={hasSubmitted}
+          busy={game.isBusy}
+          deadlineAt={game.gameState?.lineupDeadlineAt}
+          attention={lineupAttention}
+          onShuffle={() => {
+            playSound('shuffle');
+            setSelected(null);
+            setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots ?? Array<string | null>(FIGURE_SLOTS).fill(null)));
+            setIsLineupDirty(true);
+          }}
+          onSave={() => { submitLineup().catch(() => undefined); }}
+        />}
       </ScrollView>
 
       <WeaponChoiceModal
@@ -425,54 +398,11 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
         isOpen={Boolean(!animation.isAnimating && visibleState?.tiePending && visibleState.playerChoice === Choice.None && isParticipant)}
         onChoose={choice => { perform(() => game.chooseWeapon(choice)).catch(() => undefined); }}
       />
-    </View>
-  );
-}
-
-function JoinGate({ gameId, mode, serverError, onBack, onRetry }: {
-  gameId: string;
-  mode: 'loading' | 'joining' | 'failed' | 'unavailable';
-  serverError?: string | null;
-  onBack: () => void;
-  onRetry?: () => void;
-}) {
-  const isWorking = mode === 'loading' || mode === 'joining';
-  const title = mode === 'loading'
-    ? 'Opening battle'
-    : mode === 'joining'
-      ? 'Joining battle'
-      : mode === 'failed' ? 'Couldn’t join battle' : 'Battle unavailable';
-  const description = mode === 'loading'
-    ? 'Checking the room and its player slot…'
-    : mode === 'joining'
-      ? 'Your place is being secured. Your lineup is next.'
-      : mode === 'failed'
-        ? serverError || 'The room could not be joined. Check your connection and try again.'
-        : 'This room already has two players or the battle has started.';
-
-  return (
-    <View style={styles.joinGate}>
-      <View accessibilityLiveRegion="polite" style={styles.joinCard}>
-        <View style={[styles.joinIcon, !isWorking && styles.joinIconUnavailable]}>
-          {isWorking ? (
-            <ActivityIndicator accessibilityLabel={title} accessibilityRole="progressbar" color={colors.primary} size="large" />
-          ) : (
-            <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.joinIconText}>!</Text>
-          )}
-        </View>
-        <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.joinTitle}>{title}</Text>
-        <Text maxFontSizeMultiplier={2} style={styles.joinDescription}>{description}</Text>
-        <View accessibilityLabel={`Room ${gameId}`} style={styles.roomPill}>
-          <Text maxFontSizeMultiplier={1.6} style={styles.roomPillLabel}>ROOM</Text>
-          <Text maxFontSizeMultiplier={1.6} selectable style={styles.roomPillCode}>{gameId}</Text>
-        </View>
-        {!isWorking && (
-          <View style={styles.joinActions}>
-            {onRetry && <PrimaryButton onPress={onRetry}>Try again</PrimaryButton>}
-            <PrimaryButton variant="secondary" onPress={onBack}>Back to home</PrimaryButton>
-          </View>
-        )}
-      </View>
+      <VictoryFireworks
+        victoryId={visibleState?.phase === Phase.Finished && visibleState.winner === playerId
+          && visibleState.finishReason !== 'lineup_timeout' && !animation.isAnimating ? `${gameId}:${playerId}` : null}
+        reduceMotionEnabled={reduceMotionEnabled}
+      />
     </View>
   );
 }
@@ -482,40 +412,6 @@ function getAnimationMessage(kind: 'move' | 'battle' | 'trap' | 'phase') {
   if (kind === 'trap') return 'Trap triggered…';
   if (kind === 'move') return 'Moving piece…';
   return 'Updating game…';
-}
-
-function WeaponChoiceModal({ isOpen, busy, onChoose }: { isOpen: boolean; busy: boolean; onChoose: (choice: Choice) => void }) {
-  return (
-    <Modal animationType="fade" onRequestClose={() => undefined} transparent visible={isOpen}>
-      <View accessibilityViewIsModal style={styles.modalBackdrop}>
-        <ScrollView bounces={false} contentContainerStyle={styles.modalScrollContent}>
-          <View testID="weapon-choice-modal" style={styles.modalCard}>
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.modalBurst}>
-              <Text style={styles.modalBurstText}>VS</Text>
-            </View>
-            <Text style={styles.modalEyebrow}>DRAW BREAKER</Text>
-            <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.modalTitle}>Pick your comeback</Text>
-            <Text maxFontSizeMultiplier={2} style={styles.modalCopy}>Same weapon, zero winner. Choose again and finish the clash.</Text>
-            <WeaponButton choice={Choice.Rock} label="Rock" busy={busy} onChoose={onChoose} />
-            <WeaponButton choice={Choice.Paper} label="Paper" busy={busy} onChoose={onChoose} />
-            <WeaponButton choice={Choice.Scissors} label="Scissors" busy={busy} onChoose={onChoose} />
-          </View>
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-}
-
-function WeaponButton({ choice, label, busy, onChoose }: { choice: WeaponChoice; label: string; busy: boolean; onChoose: (choice: Choice) => void }) {
-  const source = weaponImages[choice];
-  return (
-    <View style={styles.weaponChoice}>
-      {source && <Image accessibilityIgnoresInvertColors source={source} style={styles.weaponImage} />}
-      <View style={styles.weaponButton}>
-        <PrimaryButton accessibilityLabel={`Choose ${label.toLowerCase()}`} onPress={() => onChoose(choice)} disabled={busy}>{label}</PrimaryButton>
-      </View>
-    </View>
-  );
 }
 
 function getStateMessage(state: GameState | null, isParticipant: boolean, canEditLineup: boolean, hasSubmitted: boolean, isMyTurn: boolean, playerId: string | null, isComputer = false) {
@@ -589,49 +485,7 @@ function shuffle<T>(items: T[]) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  invalidRoom: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
-  joinGate: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', padding: spacing.xl },
-  joinCard: { width: '100%', maxWidth: 460, alignSelf: 'center', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 24, padding: spacing.xxl, gap: spacing.md },
-  joinIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceStrong, borderColor: colors.primaryMuted, borderWidth: 1, marginBottom: spacing.sm },
-  joinIconUnavailable: { borderColor: colors.danger },
-  joinIconText: { color: colors.danger, fontSize: 34, fontWeight: '900' },
-  joinTitle: { color: colors.text, fontSize: 25, fontWeight: '900', textAlign: 'center' },
-  joinDescription: { color: colors.textMuted, fontSize: 15, lineHeight: 22, textAlign: 'center', maxWidth: 330 },
-  roomPill: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, marginTop: spacing.sm },
-  roomPillLabel: { color: colors.textMuted, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
-  roomPillCode: { color: colors.primary, fontSize: 14, fontWeight: '900', letterSpacing: 1.5 },
-  joinActions: { alignSelf: 'stretch', gap: spacing.sm, marginTop: spacing.md },
-  content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.lg, gap: spacing.lg, paddingBottom: 48 },
-  waitingCard: { backgroundColor: colors.surface, borderColor: colors.primaryMuted, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
-  waitingHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  waitingIndicator: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceStrong, borderColor: colors.primaryMuted, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  waitingDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.primary },
-  waitingCopy: { flex: 1, gap: spacing.xs },
-  waitingTitle: { color: colors.text, fontSize: 19, fontWeight: '900' },
-  waitingDescription: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
-  lineupPanel: { position: 'relative', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: spacing.lg, gap: spacing.lg },
-  lineupPanelAttention: { borderColor: colors.primaryMuted, borderWidth: 2 },
-  lineupPanelReady: { borderColor: colors.success },
-  lineupGlow: { position: 'absolute', top: -5, right: -5, bottom: -5, left: -5, borderColor: colors.primary, borderWidth: 2, borderRadius: 21, shadowColor: colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 10, elevation: 5 },
-  lineupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
-  lineupCopy: { flex: 1, gap: spacing.xs },
-  lineupEyebrow: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-  lineupDescription: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
-  lineupActions: { flexDirection: 'row', gap: spacing.sm },
-  lineupAction: { flex: 1 },
-  savedBadge: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: 999, backgroundColor: colors.surfaceStrong, paddingHorizontal: spacing.sm },
-  savedDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
-  savedText: { color: colors.success, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  modalBackdrop: { flex: 1, backgroundColor: colors.scrim },
-  modalScrollContent: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl },
-  modalCard: { width: '100%', maxWidth: 460, alignSelf: 'center', backgroundColor: colors.surface, borderColor: colors.primary, borderTopColor: colors.primaryHighlight, borderWidth: 3, borderBottomColor: colors.primaryShadow, borderBottomWidth: 8, borderRadius: 30, padding: spacing.xl, paddingTop: 44, gap: spacing.md, shadowColor: colors.primaryShadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.4, shadowRadius: 22, elevation: 12 },
-  modalBurst: { position: 'absolute', top: -32, alignSelf: 'center', width: 68, height: 68, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.reward, borderColor: colors.rewardHighlight, borderTopWidth: 3, borderBottomColor: colors.rewardShadow, borderBottomWidth: 7, transform: [{ rotate: '-5deg' }] },
-  modalBurstText: { color: colors.ink, fontSize: 22, fontWeight: '900' },
-  modalEyebrow: { color: colors.primaryMuted, fontSize: 11, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },
-  modalTitle: { color: colors.text, fontSize: 28, fontWeight: '900', textAlign: 'center' },
-  modalCopy: { color: colors.textMuted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: spacing.sm },
-  weaponChoice: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surfaceStrong, borderRadius: 22, padding: spacing.sm, paddingLeft: spacing.md },
-  weaponImage: { width: 52, height: 52, resizeMode: 'contain' },
-  weaponButton: { flex: 1 },
+  screen: { flex: 1, backgroundColor: 'transparent' },
+  invalidRoom: { flex: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
+  content: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.md, paddingTop: spacing.xs, gap: spacing.md },
 });

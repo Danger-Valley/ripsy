@@ -1,4 +1,5 @@
 import { NativeModules } from 'react-native';
+import { figureStoreMessage } from '@rps/core/shop';
 
 export type PrivyWalletStatus =
   | 'unavailable'
@@ -26,18 +27,26 @@ interface PrivyWalletNativeModule {
 function module(): PrivyWalletNativeModule {
   const nativeModule = NativeModules.PrivyWallet as PrivyWalletNativeModule | undefined;
   if (!nativeModule) {
-    throw new Error('Privy embedded wallet is not available in this build.');
+    throw new Error('Sign in with email is unavailable in this build.');
   }
   return nativeModule;
 }
 
+async function request<T>(operation: () => Promise<T>, fallback: string): Promise<T> {
+  try { return await operation(); }
+  catch (cause) {
+    const message = figureStoreMessage(cause instanceof Error ? cause.message : null, fallback);
+    throw new Error(message);
+  }
+}
+
 export const nativePrivyWallet = {
-  getState: () => module().getState(),
-  sendEmailCode: (email: string) => module().sendEmailCode(email),
-  loginWithEmailCode: (email: string, code: string) => module().loginWithEmailCode(email, code),
-  createWallet: () => module().createWallet(),
-  logout: () => module().logout(),
-  signMessage: (message: string, buyer: string) => module().signMessage(message, buyer),
+  getState: () => request(() => module().getState(), 'Sign in with email is unavailable. Please try again.'),
+  sendEmailCode: (email: string) => request(() => module().sendEmailCode(email), 'Could not send the sign-in code. Please try again.'),
+  loginWithEmailCode: (email: string, code: string) => request(() => module().loginWithEmailCode(email, code), 'Could not sign in with email. Check your code and try again.'),
+  createWallet: () => request(() => module().createWallet(), 'Could not finish registration. Please try again.'),
+  logout: () => request(() => module().logout(), 'Could not sign out. Please try again.'),
+  signMessage: (message: string, buyer: string) => request(() => module().signMessage(message, buyer), 'Could not verify your collection. Please try again.'),
   signTransaction: (transactionBase64: string, buyer: string) =>
-    module().signTransaction(transactionBase64, buyer),
+    request(() => module().signTransaction(transactionBase64, buyer), 'Could not approve this purchase. Please try again.'),
 };

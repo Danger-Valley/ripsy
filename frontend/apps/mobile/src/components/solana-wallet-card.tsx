@@ -1,63 +1,49 @@
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
+import { usePrivyWallet } from '../hooks/use-privy-wallet';
 import { colors, spacing } from '../theme';
-import { PrimaryButton } from './primary-button';
+import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from './toy-home-controls';
+import { ToyBadge, ToySectionHeading } from './toy-dialog';
+import { figureStoreMessage } from '@rps/core/shop';
 
-export function SolanaWalletCard() {
+export function SolanaWalletCard({ onRegister, focused = true }: { onRegister: () => void; focused?: boolean }) {
   const wallet = useSolanaWallet();
-  if (!wallet.isSupported) return null;
-
-  const isConnected = Boolean(wallet.address);
-  const isLoading = wallet.status === 'loading';
-  const isConnecting = wallet.status === 'connecting';
-  const isDisconnecting = wallet.status === 'disconnecting';
-
-  return (
-    <View accessibilityLabel="Solana wallet" style={styles.card}>
-      <View style={styles.headingRow}>
-        <View style={styles.headingCopy}>
-          <Text accessibilityRole="header" maxFontSizeMultiplier={2} style={styles.title}>Solana wallet</Text>
-          <Text maxFontSizeMultiplier={2} style={styles.description}>
-            {isConnected ? 'Connected for your RIPSY profile.' : 'Connect a wallet on your Solana Mobile device.'}
-          </Text>
-        </View>
-        {isConnected && (
-          <View accessibilityLabel="Wallet connected" style={styles.statusPill}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>CONNECTED</Text>
-          </View>
-        )}
+  const account = usePrivyWallet();
+  const refreshAccount = account.refresh;
+  useEffect(() => { if (focused) refreshAccount().catch(() => undefined); }, [focused, refreshAccount]);
+  const [showAddress, setShowAddress] = useState(false);
+  if (!wallet.isSupported) return (
+    <ToyHomePanel style={styles.card}>
+      <View style={styles.content}>
+        <ToySectionHeading icon={homeArt.shop} title={account.address ? 'Your account' : 'Keep your collection'} copy={account.address ? 'Signed in with email.' : 'Sign in with email. Your free army needs no account.'} />
+        <ToyHomeButton compact tone="yellow" onPress={onRegister}>{account.address ? 'Manage account' : 'Register'}</ToyHomeButton>
       </View>
-
-      {isConnected && wallet.address && (
-        <View style={styles.addressPanel}>
-          {wallet.label && <Text maxFontSizeMultiplier={2} style={styles.walletLabel}>{wallet.label}</Text>}
-          <Text accessibilityLabel={`Wallet address ${wallet.address}`} maxFontSizeMultiplier={1.4} numberOfLines={1} selectable style={styles.address}>
-            {shortenAddress(wallet.address)}
-          </Text>
-        </View>
-      )}
-
-      {wallet.error && <Text accessibilityRole="alert" maxFontSizeMultiplier={2} style={styles.error}>{wallet.error}</Text>}
-
-      {isConnected ? (
-        <PrimaryButton
-          accessibilityHint="Disconnects and forgets this wallet on this device"
-          busy={isDisconnecting}
-          onPress={() => { wallet.disconnect().catch(() => undefined); }}
-          variant="secondary">
-          Disconnect wallet
-        </PrimaryButton>
-      ) : (
-        <PrimaryButton
-          accessibilityHint="Opens an installed Solana wallet to connect it"
-          busy={isLoading || isConnecting}
-          disabled={isLoading}
-          onPress={() => { wallet.connect().catch(() => undefined); }}>
-          Connect wallet
-        </PrimaryButton>
-      )}
-    </View>
+    </ToyHomePanel>
+  );
+  const connected = Boolean(wallet.address);
+  const working = wallet.status === 'loading' || wallet.status === 'connecting' || wallet.status === 'disconnecting';
+  return (
+    <ToyHomePanel style={styles.card}>
+      <View accessibilityLabel="Seeker purchase account" style={styles.content}>
+        <ToySectionHeading icon={homeArt.shop} title={connected ? 'Ready to buy figures!' : 'Connect your Seeker wallet'} copy={connected ? 'Pick a fighter in the shop.' : 'Optional. Your free army is ready without it.'} />
+        <ToyBadge tone={connected ? 'green' : 'blue'}>{wallet.status === 'connecting' ? 'CONNECTING' : wallet.status === 'disconnecting' ? 'DISCONNECTING' : wallet.status === 'loading' ? 'RESTORING WALLET' : connected ? 'CONNECTED' : 'NOT CONNECTED'}</ToyBadge>
+        {wallet.address && <View style={styles.addressPanel}>
+          {wallet.label && <Text style={styles.walletLabel}>{wallet.label}</Text>}
+          <Text accessibilityLabel={`Wallet address ${wallet.address}`} selectable style={styles.address}>{showAddress ? wallet.address : shortenAddress(wallet.address)}</Text>
+          <ToyHomeButton compact tone="white" accessibilityLabel={showAddress ? 'Hide full wallet address' : 'Show full wallet address'} onPress={() => setShowAddress(value => !value)}>{showAddress ? 'Hide address' : 'Show full address'}</ToyHomeButton>
+          {showAddress && <Text style={styles.hint}>Touch and hold the address to copy.</Text>}
+        </View>}
+        {wallet.error && <Text accessibilityRole="alert" style={styles.error}>{figureStoreMessage(wallet.error, 'Could not connect your Seeker wallet. Please try again.')}</Text>}
+        <ToyHomeButton compact tone={connected ? 'white' : 'yellow'} busy={working}
+          accessibilityLabel={connected ? 'Disconnect wallet' : 'Connect your wallet'}
+          accessibilityHint={connected ? 'Disconnects and forgets this wallet on this device' : 'Opens your Seeker wallet to connect it'}
+          onPress={() => { (connected ? wallet.disconnect() : wallet.connect()).catch(() => undefined); }}>
+          {wallet.status === 'loading' ? 'Restoring wallet…' : wallet.status === 'connecting' ? 'Connecting…' : wallet.status === 'disconnecting' ? 'Disconnecting…' : connected ? 'Disconnect wallet' : wallet.error ? 'Retry connection' : 'Connect your wallet'}
+        </ToyHomeButton>
+        <Text style={styles.hint}>Connecting never changes your lineup or buys a figure.</Text>
+      </View>
+    </ToyHomePanel>
   );
 }
 
@@ -66,16 +52,11 @@ export function shortenAddress(address: string): string {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 2, borderBottomColor: colors.kitPanelShadow, borderBottomWidth: 6, borderRadius: 24, padding: spacing.lg, gap: spacing.md },
-  headingRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md },
-  headingCopy: { flex: 1, gap: spacing.xs },
-  title: { color: colors.kitPanelInk, fontSize: 20, fontWeight: '900' },
-  description: { color: colors.kitPanelMuted, fontSize: 13, lineHeight: 19 },
-  statusPill: { minHeight: 26, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.sm, borderRadius: 999, backgroundColor: 'rgba(74, 222, 128, 0.10)' },
-  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
-  statusText: { color: colors.success, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  addressPanel: { minHeight: 58, justifyContent: 'center', backgroundColor: colors.kitPanelSoft, borderColor: colors.kitPanelBorder, borderWidth: 1, borderRadius: 14, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
-  walletLabel: { color: colors.kitPanelMuted, fontSize: 11, fontWeight: '700' },
-  address: { color: colors.primaryShadow, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }), fontSize: 16, fontWeight: '700', letterSpacing: 0.4 },
-  error: { color: colors.danger, fontSize: 13, lineHeight: 18 },
+  card: { padding: spacing.lg },
+  content: { gap: spacing.md },
+  addressPanel: { padding: spacing.md, borderRadius: 16, backgroundColor: colors.surfaceHighlight, gap: spacing.sm },
+  walletLabel: { color: colors.ink, fontFamily: homeFont, fontSize: 15 },
+  address: { color: colors.ink, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }), fontSize: 14, lineHeight: 21 },
+  hint: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  error: { color: colors.dangerShadow, fontSize: 13, lineHeight: 19 },
 });

@@ -93,7 +93,7 @@ test('expired transaction is never sent to the wallet again', async () => {
   expect(shop.order?.status).toBe('expired');
 });
 
-test('Figure 02 verifies Seeker ownership before creating the mint order', async () => {
+test('Seeker fighter verifies Seeker ownership before creating the mint order', async () => {
   await mount();
   api.create.mockResolvedValueOnce({ ...prepared, figureId: 'fig2' as const });
   const prove = jest.fn(async challenge => ({ address: prepared.buyer, nonce: challenge.nonce, signature: Array(64).fill(1), signedMessage: [1] }));

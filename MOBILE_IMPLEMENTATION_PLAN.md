@@ -48,6 +48,8 @@ For offline computer games, the mobile app invokes the same shared game engine d
 ## Milestone 3: store-ready release
 
 - [x] Add Redis-backed FCM turn, opponent-joined, tie-choice, and game-finished push notifications with notification deep links.
+- [x] Suppress matching-game foreground pushes, show tappable banners elsewhere (including Settings), and retain cold-start notification links during restoration (2026-10-03; 293 mobile tests pass, native build 45 uploaded/published; physical delivery check pending).
+- [x] Fix missing native iOS Firebase startup before React; add release guard and permission regressions (2026-10-03: 295 mobile + six source-guard tests pass, iOS build 46 uploaded and processed VALID, production APNs verified in uploaded IPA; actual permission/push device test pending).
 - [x] Create the production Firebase project, register the native apps, add the upload-key fingerprint, and bundle their SDK configurations.
 - [ ] Provision production Firebase/APNs credentials and verify push delivery on physical iOS and Android devices.
   - [x] Provision the dedicated Railway FCM service account and verify `push: configured` in production health checks.
@@ -63,6 +65,8 @@ For offline computer games, the mobile app invokes the same shared game engine d
 - [x] Create the App Store Connect app record and upload iOS build `1.0.0 (1)` to TestFlight.
 - [x] Configure the `RIPSY Internal` TestFlight group with automatic distribution and invite the Account Holder.
 - [x] Restore release dSYM coverage for React, React Native dependencies, and Hermes crash symbolication.
+- [x] Enable Android release-only R8 + resource shrinking and archive versioned mapping files before APK publication / after AAB generation (2026-10-04; signed arm64 APK and AAB builds pass; APK 89,330,858 → 51,909,806 bytes, 41.9% reduction; 36 JS-loaded resources, exact fig1/fig2 bytes and bridge mappings verified; AAB includes its map and its ID matches the APK DEX R8 marker; 371 mobile + five optimization-guard tests and TypeScript pass). Logs: `/private/tmp/ripsy-r8-release.log`, `/private/tmp/ripsy-r8-bundle.log`. Transitive Google Play auth 21.5.0 emits nonfatal stack-map warnings during optimization; no blanket warning suppression, SDK upgrades or global keeps were added.
+- [ ] Smoke-test the optimized Android release on a physical Seeker/Android: launch, offline lineup/Shuffle/movement/combat/traps, audio/settings, email restore/sign-in and notification permission/tap. The local emulator currently lacks its initial system image; compilation/resource inspection is not runtime verification. Published in Android `1.0.0 (51)` on 2026-10-04; physical-device verification remains pending.
 - [ ] Upload Android to Play internal testing.
 
 ## Milestone 4: offline computer opponent

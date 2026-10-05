@@ -1,6 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ShopClient } from '@rps/game-client/shop';
+import { FIGURES } from '@rps/core/shop';
+import { readFileSync } from 'node:fs';
+
+test('fighter catalog and mint metadata use the approved display names without changing IDs', () => {
+  assert.deepEqual(FIGURES.map(figure => [figure.id, figure.name]), [['fig1', 'RIPSY 001'], ['fig2', 'Seeker fighter']]);
+  for (const figure of FIGURES) {
+    const metadata = JSON.parse(readFileSync(new URL(`../public/figures/${figure.id}.json`, import.meta.url), 'utf8'));
+    assert.equal(metadata.name, figure.name);
+    assert.ok(metadata.attributes.some((attribute: { trait_type: string; value: string }) => attribute.trait_type === 'Figure' && attribute.value === figure.id));
+  }
+  assert.equal(FIGURES[0]!.purchasable, false);
+  assert.equal(FIGURES[1]!.seekerExclusive, true);
+});
 
 const catalog = { cluster: 'devnet', treasury: null, collection: null, figures: [] };
 
@@ -30,6 +43,22 @@ test('shop requests use bearer session, exact order ID, and no client supplied p
 test('malformed success payload cannot become a purchase', async () => {
   const client = new ShopClient('https://api.example.test', '', async () => new Response('{}'));
   await assert.rejects(() => client.get('a'.repeat(64)), /Invalid mint order/);
+});
+
+test('catalog accepts referral URLs and remains compatible with older servers', async () => {
+  const referral = 'https://store.solanamobile.com/?ref=ripsy&utm_source=app';
+  const response = { ...catalog, solanaMobileStoreUrl: referral };
+  const client = new ShopClient('https://api.example.test', '', async () => new Response(JSON.stringify(response)));
+  assert.equal((await client.catalog()).solanaMobileStoreUrl, referral);
+  const oldServer = new ShopClient('https://api.example.test', '', async () => new Response(JSON.stringify(catalog)));
+  assert.deepEqual(await oldServer.catalog(), catalog);
+});
+
+test('catalog rejects unsafe browser destinations', async () => {
+  for (const value of ['javascript:alert(1)', 'http://store.solanamobile.com/', 'https://user:password@store.solanamobile.com/', 'not-a-url', null]) {
+    const client = new ShopClient('https://api.example.test', '', async () => new Response(JSON.stringify({ ...catalog, solanaMobileStoreUrl: value })));
+    await assert.rejects(() => client.catalog(), /Invalid shop catalog/);
+  }
 });
 
 test('wallet disconnect clears the authenticated server binding', async () => {

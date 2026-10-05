@@ -97,14 +97,14 @@ export class SeekerVerificationService implements SeekerGate {
     let seekerGenesisToken: string | null;
     try { seekerGenesisToken = await this.checker.findGenesisToken(proof.address); }
     catch { throw new ShopError('Seeker verification is temporarily unavailable. Try again shortly.', 503); }
-    if (!seekerGenesisToken) throw new ShopError('Figure 02 is exclusive to Solana Seeker wallets. Connect the Seed Vault wallet that holds your Seeker Genesis Token.', 403);
+    if (!seekerGenesisToken) throw new ShopError('Seeker fighter is exclusive to Solana Seeker wallets. Connect the Seed Vault wallet that holds your Seeker Genesis Token.', 403);
     await this.redis.set(this.verifiedKey(playerId, proof.address), seekerGenesisToken, { EX: verificationTtlSeconds });
     return { address: proof.address, seekerGenesisToken };
   }
 
   async assertVerified(playerId: string, address: string): Promise<void> {
     if (!await this.redis.get(this.verifiedKey(playerId, address))) {
-      throw new ShopError('Verify your Solana Seeker wallet before minting Figure 02.', 403);
+      throw new ShopError('Verify your Solana Seeker wallet before minting Seeker fighter.', 403);
     }
   }
 

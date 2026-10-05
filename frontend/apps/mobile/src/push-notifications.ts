@@ -4,6 +4,7 @@ import {
   getInitialNotification,
   getMessaging,
   getToken,
+  onMessage,
   onNotificationOpenedApp,
   registerDeviceForRemoteMessages,
   setBackgroundMessageHandler,
@@ -14,6 +15,38 @@ import { getPushRegistrationUrl } from './config';
 import { normalizeRoomCode } from './invitations';
 
 export type PushPermissionState = 'checking' | 'prompt' | 'enabled' | 'denied' | 'unavailable' | 'error';
+
+export interface GamePushNotification {
+  gameId: string;
+  title: string;
+  body: string;
+  deliveryId?: string;
+}
+
+export function gamePushFromMessage(message: RemoteMessage | null): GamePushNotification | null {
+  const rawGameId = message?.data?.gameId;
+  const gameId = normalizeRoomCode(typeof rawGameId === 'string' ? rawGameId : '');
+  const event = message?.data?.event;
+  if (!gameId || !['turn', 'tie', 'opponent_joined', 'game_finished'].includes(String(event))) return null;
+  return {
+    gameId,
+    title: message?.notification?.title?.slice(0, 120) || 'Battle update',
+    body: message?.notification?.body?.slice(0, 320) || 'Open your RIPSY battle to see the latest update.',
+    deliveryId: message?.messageId,
+  };
+}
+
+export function subscribeToForegroundGamePush(listener: (notification: GamePushNotification) => void) {
+  if (!hasFirebaseApp()) return () => undefined;
+  try {
+    return onMessage(getMessaging(getApp()), async message => {
+      const notification = gamePushFromMessage(message);
+      if (notification) listener(notification);
+    });
+  } catch {
+    return () => undefined;
+  }
+}
 
 export async function getPushPermissionState(): Promise<PushPermissionState> {
   if (!hasFirebaseApp()) return 'unavailable';

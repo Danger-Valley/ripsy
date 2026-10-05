@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePlayerIdentity } from '@rps/game-client';
 import { ShopClient } from '@rps/game-client/shop';
-import { FIGURE_SLOTS, type FigureInventory, type OwnedFigureAsset, type WalletChallenge, type WalletProof } from '@rps/core/shop';
+import { FIGURE_SLOTS, figureStoreMessage, type FigureInventory, type OwnedFigureAsset, type WalletChallenge, type WalletProof } from '@rps/core/shop';
 import { useBrowserWallet } from '../hooks/use-browser-wallet';
 import styles from './army.module.css';
 
@@ -97,38 +97,39 @@ export function ArmyContent({ embedded }: { embedded?: EmbeddedArmyWallet }) {
 
   return <main className={styles.page}>
     <nav className={styles.nav}><Link href="/">← RIPSY</Link><span>YOUR ARMY</span><Link href="/shop">Figure shop →</Link></nav>
-    <header className={styles.hero}><p className={styles.eyebrow}>14 SLOTS · YOUR COLLECTION</p><h1>Choose your fighters.</h1><p>Figure 01 is free and fills every empty slot. Each collectible NFT can be equipped once.</p></header>
+    <header className={styles.hero}>
+      <div><p className={styles.eyebrow}>14 SLOTS · YOUR COLLECTION</p><h1>Choose your fighters.</h1><p>RIPSY 001 is free and fills every empty slot. Each figure in your collection fills one slot.</p></div>
+      <div className={styles.heroFigures} aria-hidden><Image src="/figures/fig1.png" alt="" width={180} height={180} priority /><Image src="/figures/fig2.png" alt="" width={180} height={180} priority /></div>
+    </header>
 
     {!inventory && <section className={styles.panel}>
-      <h2>Verify your collection wallet</h2>
-      <p>Sign one message to read official RIPSY figures in this wallet. This is not a transaction.</p>
+      <h2>Load your collection</h2>
+      <p>Sign in to see your figures. Checking your collection is free.</p>
       <div className={styles.actions}>
         <button onClick={() => { setWalletKind('external'); setWalletMenu(value => !value); }}>Connect wallet</button>
-        {!embedded?.authenticated && <button disabled={!embedded?.ready} onClick={() => { setWalletKind('privy'); embedded?.login(); }}>Sign in with Privy</button>}
-        {embedded?.authenticated && !embedded.address && <button onClick={() => void embedded.createWallet()}>Create embedded wallet</button>}
-        {embedded?.address && <button onClick={() => setWalletKind('privy')}>Use {short(embedded.address)}</button>}
-        <button className={styles.primary} disabled={!address || busy || !sessionToken} onClick={() => void load(true)}>{busy ? 'Checking wallet…' : 'Verify & load figures'}</button>
+        {!embedded?.authenticated && <button disabled={!embedded?.ready} onClick={() => { setWalletKind('privy'); embedded?.login(); }}>Sign in with email</button>}
+        {embedded?.authenticated && !embedded.address && <button onClick={() => void embedded.createWallet()}>Finish registration</button>}
+        {embedded?.address && <button onClick={() => setWalletKind('privy')}>Use email account</button>}
+        <button className={styles.primary} disabled={!address || busy || !sessionToken} onClick={() => void load(true)}>{busy ? 'Loading your collection…' : 'Load my figures'}</button>
       </div>
-      {walletMenu && <div className={styles.walletMenu}>{external.wallets.length ? external.wallets.map(wallet => <button key={wallet.name} onClick={() => { void external.connect(wallet).then(() => setWalletMenu(false)); }}>{wallet.name}</button>) : <p>No Solana wallet detected.</p>}</div>}
+      {walletMenu && <div className={styles.walletMenu}>{external.wallets.length ? external.wallets.map(wallet => <button key={wallet.name} onClick={() => { void external.connect(wallet).then(() => setWalletMenu(false)); }}>{wallet.name}</button>) : <p>No supported purchase account detected. You can sign in with email.</p>}</div>}
     </section>}
 
-    {error && <div className={styles.error} role="alert"><p>{error}</p><button onClick={() => void load(Boolean(address))}>Try again</button></div>}
+    {error && <div className={styles.error} role="alert"><p>{figureStoreMessage(error, 'Could not load your collection. Please try again.')}</p><button onClick={() => void load(Boolean(address))}>Try again</button></div>}
     {saved && <div className={styles.success} role="status">Army saved. New lineups will use these figures.</div>}
-    {isWaitingForMint && <div className={styles.success} role="status">{indexingChecks < 10 ? 'Mint confirmed. Waiting for Solana to index your new figure…' : 'Your mint is confirmed, but the Solana index is still catching up. Refresh in a moment.'}</div>}
+    {isWaitingForMint && <div className={styles.success} role="status">{indexingChecks < 10 ? 'Purchase complete. Your new figure will appear shortly…' : 'Purchase complete. Your collection is updating. Refresh in a moment.'}</div>}
 
     {inventory && <div className={styles.columns}>
       <section className={styles.panel}>
-        <div className={styles.panelHeading}><div><p className={styles.eyebrow}>ACTIVE SLOTS</p><h2>{equipped.size} collectible{equipped.size === 1 ? '' : 's'} · {FIGURE_SLOTS - equipped.size} free</h2></div><code>{short(inventory.wallet)}</code></div>
-        <div className={styles.slots} aria-label="Fourteen army slots">{slots.map((assetId, index) => <button disabled={!assetId} className={assetId ? styles.collectibleSlot : styles.freeSlot} key={`${index}-${assetId ?? 'free'}`} onClick={() => { const asset = inventory.assets.find(candidate => candidate.assetId === assetId); if (asset) toggle(asset); }} aria-label={`Slot ${index + 1}: ${assetId ? 'Figure 02 collectible' : 'free Figure 01'}`}><span>{index + 1}</span><Image src={`/figures/${assetId ? 'fig2' : 'fig1'}.png`} alt="" width={96} height={96} /></button>)}</div>
+        <div className={styles.panelHeading}><div><p className={styles.eyebrow}>ACTIVE SLOTS</p><h2>{equipped.size} collectible{equipped.size === 1 ? '' : 's'} · {FIGURE_SLOTS - equipped.size} free</h2></div></div>
+        <div className={styles.slots} aria-label="Fourteen army slots">{slots.map((assetId, index) => <button disabled={!assetId} className={assetId ? styles.collectibleSlot : styles.freeSlot} key={`${index}-${assetId ?? 'free'}`} onClick={() => { const asset = inventory.assets.find(candidate => candidate.assetId === assetId); if (asset) toggle(asset); }} aria-label={`Slot ${index + 1}: ${assetId ? 'Seeker fighter collectible' : 'free RIPSY 001'}`}><span>{index + 1}</span><Image src={`/figures/${assetId ? 'fig2' : 'fig1'}.png`} alt="" width={96} height={96} /></button>)}</div>
       </section>
       <section className={styles.panel}>
         <p className={styles.eyebrow}>YOUR COLLECTIBLES</p>
-        {inventory.assets.length === 0 ? <div className={styles.empty}><h2>No collectible figures yet</h2><p>Your army still has 14 free Figure 01 fighters. Mint Figure 02 in the shop to add it here.</p><Link href="/shop">Open figure shop →</Link></div> : <div className={styles.assets}>{inventory.assets.map(asset => <button className={equipped.has(asset.assetId) ? styles.assetSelected : styles.asset} key={asset.assetId} onClick={() => toggle(asset)} aria-pressed={equipped.has(asset.assetId)}><Image src="/figures/fig2.png" alt={asset.name} width={72} height={72} /><span><strong>{asset.name}</strong><code>{short(asset.assetId)}</code></span><b>{equipped.has(asset.assetId) ? 'IN ARMY' : 'ADD'}</b></button>)}</div>}
-        <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save army'}</button><button disabled={busy} onClick={() => void load(false)}>Refresh wallet</button><button disabled={busy} onClick={() => void disconnectCollectionWallet()}>Disconnect collection wallet</button></div>
-        <p>A newly minted figure can take a few seconds to appear in the Solana index. Refresh after confirmation.</p>
+        {inventory.assets.length === 0 ? <div className={styles.empty}><h2>No collectible figures yet</h2><p>Your army still has 14 free RIPSY 001 fighters. Buy Seeker fighter in the shop to add it here.</p><Link href="/shop">Open figure shop →</Link></div> : <div className={styles.assets}>{inventory.assets.map(asset => <button className={equipped.has(asset.assetId) ? styles.assetSelected : styles.asset} key={asset.assetId} onClick={() => toggle(asset)} aria-pressed={equipped.has(asset.assetId)}><Image src="/figures/fig2.png" alt={asset.name} width={72} height={72} /><span><strong>{asset.name}</strong><span>In your collection</span></span><b>{equipped.has(asset.assetId) ? 'IN ARMY' : 'ADD'}</b></button>)}</div>}
+        <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save army'}</button><button disabled={busy} onClick={() => void load(false)}>Refresh collection</button><button disabled={busy} onClick={() => void disconnectCollectionWallet()}>Sign out of collection</button></div>
+        <p>A new figure can take a few seconds to appear in your collection. Refresh after your purchase completes.</p>
       </section>
     </div>}
   </main>;
 }
-
-function short(value: string) { return `${value.slice(0, 4)}…${value.slice(-4)}`; }

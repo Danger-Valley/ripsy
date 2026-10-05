@@ -6,7 +6,7 @@ export type RootStackParamList = {
   Home: { restoreGameId?: string } | undefined;
   Game: { gameId: string };
   ComputerGame: undefined;
-  Shop: undefined;
+  Shop: { signIn?: boolean } | undefined;
   Army: { expectedAssetId?: string } | undefined;
 };
 
@@ -16,6 +16,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
     screens: {
       Home: '',
       Game: 'game/:gameId',
+      ComputerGame: 'computer',
       Shop: 'shop',
       Army: 'army',
     },

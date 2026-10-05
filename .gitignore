@@ -7,3 +7,9 @@ dist/
 .env
 .env.local
 .brand-preview/
+
+# Local release archives and their matching symbolication maps.
+/files/builds/
+
+# Accidental empty shell output file; not a project source.
+/-

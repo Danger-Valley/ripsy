@@ -24,9 +24,14 @@ describe('nativePrivyWallet', () => {
     expect(signMessage).toHaveBeenCalledWith('verify this exact message', 'buyer-address');
   });
 
-  it('fails closed when the native SDK is not linked', () => {
-    expect(() => nativePrivyWallet.getState()).toThrow(
-      'Privy embedded wallet is not available in this build.',
+  it('fails closed when the native SDK is not linked', async () => {
+    await expect(nativePrivyWallet.getState()).rejects.toThrow(
+      'Sign in with email is unavailable in this build.',
     );
+  });
+
+  it('does not expose provider branding in native authentication errors', async () => {
+    NativeModules.PrivyWallet = { sendEmailCode: jest.fn().mockRejectedValue(new Error('Privy SDK failed')) };
+    await expect(nativePrivyWallet.sendEmailCode('user@example.test')).rejects.toThrow('Could not send the sign-in code. Please try again.');
   });
 });

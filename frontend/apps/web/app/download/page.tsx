@@ -55,7 +55,7 @@ export default async function DownloadPage() {
             <span>Download APK</span>
             <span aria-hidden="true" className={styles.arrow}>↓</span>
           </a>
-          <p className={styles.requirement}>Requires Android 8 or newer · arm64</p>
+          <p className={styles.requirement}>Requires Android 9 or newer · arm64</p>
         </div>
       </section>
 

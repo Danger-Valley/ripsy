@@ -23,6 +23,7 @@ cd "${mobile_directory}/android"
 ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
 
 source_apk="${mobile_directory}/android/app/build/outputs/apk/release/app-release.apk"
+source_mapping="${mobile_directory}/android/app/build/outputs/mapping/release/mapping.txt"
 destination_apk="${output_directory}/Ripsy-v${version_name}(${version_code})-seeker.apk"
 shared_destination_apk="${shared_output_directory}/Ripsy-v${version_name}(${version_code})-seeker.apk"
 
@@ -30,10 +31,16 @@ if [[ ! -f "${source_apk}" ]]; then
   echo "Release APK not found: ${source_apk}" >&2
   exit 1
 fi
+if [[ ! -s "${source_mapping}" ]]; then
+  echo "R8 mapping missing; refusing to publish an untraceable release." >&2
+  exit 1
+fi
 
 mkdir -p "${output_directory}" "${shared_output_directory}"
 cp "${source_apk}" "${destination_apk}"
 cp "${source_apk}" "${shared_destination_apk}"
+cp "${source_mapping}" "${destination_apk%.apk}.mapping.txt"
+cp "${source_mapping}" "${shared_destination_apk%.apk}.mapping.txt"
 
 if [[ "${RIPSY_SKIP_SEEKER_PUBLISH:-0}" != "1" ]]; then
   node "${script_directory}/publish-seeker-apk.mjs" "${source_apk}" "${version_name}" "${version_code}"

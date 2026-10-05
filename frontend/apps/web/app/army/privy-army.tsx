@@ -9,7 +9,7 @@ import { ArmyContent, type EmbeddedArmyWallet } from './army-content';
 export default function PrivyArmy({ appId }: { appId: string }) {
   return <PrivyProvider appId={appId} clientId={process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID} config={{
     appearance: { theme: 'dark', accentColor: '#66FCF1', walletChainType: 'solana-only' },
-    loginMethods: ['email', 'google', 'apple'],
+    loginMethods: ['email'],
     embeddedWallets: { solana: { createOnLogin: 'users-without-wallets' } },
   }}><AuthenticatedArmy /></PrivyProvider>;
 }

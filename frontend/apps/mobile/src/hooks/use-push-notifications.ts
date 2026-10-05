@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import {
   enableAndRegisterPush,
   getPushPermissionState,
@@ -11,13 +12,21 @@ export function usePushNotifications(sessionToken: string) {
 
   useEffect(() => {
     let active = true;
-    getPushPermissionState()
-      .then(async nextStatus => {
-        if (nextStatus === 'enabled' && sessionToken) await registerPushInstallation(sessionToken);
-        if (active) setStatus(nextStatus);
-      })
-      .catch(() => { if (active) setStatus('error'); });
-    return () => { active = false; };
+    let revision = 0;
+    const refresh = () => {
+      const currentRevision = ++revision;
+      getPushPermissionState()
+        .then(async nextStatus => {
+          if (!active || currentRevision !== revision) return;
+          if (nextStatus === 'enabled' && sessionToken) await registerPushInstallation(sessionToken);
+          if (active && currentRevision === revision) setStatus(nextStatus);
+        })
+        .catch(() => { if (active && currentRevision === revision) setStatus('error'); });
+    };
+    refresh();
+    // Re-read after the user returns from system notification settings. Never prompt here.
+    const subscription = AppState.addEventListener('change', next => { if (next === 'active') refresh(); });
+    return () => { active = false; subscription.remove(); };
   }, [sessionToken]);
 
   const enable = useCallback(async () => {

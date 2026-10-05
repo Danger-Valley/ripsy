@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { Fit, RiveView, useRive, type RiveFile } from '@rive-app/react-native';
 import { Piece } from '@rps/core';
 
@@ -25,12 +25,58 @@ export type RiveActionTrigger =
   | 'Fall In Trap'
   | 'Death';
 
-export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, onConfigured, piece, preserveStateOnPieceChange = false, size, staggerStart = false }: Props) {
-  const { riveViewRef, setHybridRef } = useRive();
-  const readyRef = useRef<Promise<void>>(Promise.resolve());
+const fileInstanceIds = new WeakMap<RiveFile, number>();
+let nextFileInstanceId = 0;
+
+// Both figure artboards are 1000 × 1000. Jump poses extend beyond their
+// resting square, so reserve native drawing space above AND below it.
+// Contain stays width-limited: the artwork's scale and center do not change.
+// Keep this viewport constant during idle/jump/landing; resizing only for
+// Jump can update the native view mid-trigger and reintroduce flicker.
+const viewportVerticalPaddingRatio = 0.25;
+
+export function RiveGamePiece(props: Props) {
+  let fileId = fileInstanceIds.get(props.file);
+  if (fileId === undefined) {
+    fileId = ++nextFileInstanceId;
+    fileInstanceIds.set(props.file, fileId);
+  }
+  // Shuffle can swap fig1/fig2 in an occupied cell without changing Weapon.
+  // A file prop update reloads the native model asynchronously, while useRive
+  // still exposes the previously ready view. Remount the whole controller,
+  // including its readiness/configuration refs, not just the native view.
+  // Weapon and action changes on the same asset/facing keep the instance.
+  return <ConfiguredRiveGamePiece key={`${fileId}:${props.isMine ? 'back' : 'front'}`} {...props} />;
+}
+
+const ConfiguredRiveGamePiece = memo(function RivePieceController({ actionTrigger, file, isMine, onActionTriggered, onConfigured, piece, preserveStateOnPieceChange = false, size, staggerStart = false }: Props) {
+  const { riveViewRef: reportedView, setHybridRef: reportedHybridRef } = useRive();
+  const stableViewRef = useRef(reportedView);
+  if (stableViewRef.current !== reportedView) {
+    // Nitro can expose a new JS wrapper for the SAME underlying native view.
+    // SDK useRive compares with !==, so using that wrapper directly as an
+    // effect dependency hides/resets every figure on a board update.
+    let sameNativeView = false;
+    try {
+      sameNativeView = Boolean(reportedView && stableViewRef.current && reportedView.equals?.(stableViewRef.current));
+    } catch {
+      // A detached/disposed view is not reusable; configure its replacement.
+    }
+    if (!sameNativeView) stableViewRef.current = reportedView;
+  }
+  const riveViewRef = stableViewRef.current;
+  const hybridRefCallback = reportedHybridRef.f;
+  const setHybridRef = useMemo(() => ({ f: hybridRefCallback }), [hybridRefCallback]);
+  const readyRef = useRef<Promise<boolean>>(Promise.resolve(false));
   const configuredStateMachineRef = useRef<string | null>(null);
+  const configuredFileRef = useRef<RiveFile | null>(null);
+  const configuredViewRef = useRef<typeof riveViewRef>(undefined);
+  const configuredPieceRef = useRef<Piece | null>(null);
   const actionRequestRef = useRef(0);
   const lastTriggeredActionRef = useRef<RiveActionTrigger | null>(null);
+  // Action changes must not rerun configuration and restart the state machine.
+  const actionTriggerRef = useRef(actionTrigger);
+  actionTriggerRef.current = actionTrigger;
   const onConfiguredRef = useRef(onConfigured);
   onConfiguredRef.current = onConfigured;
   const initialDelayMs = useRef(60 + Math.floor(Math.random() * 340)).current;
@@ -68,85 +114,84 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
     const isTrap = piece === Piece.Trap;
 
     const setPieceInputs = () => {
-      try {
-        // Trap is a separate Rive state, not a weapon value. Passing Piece.Trap
-        // into Weapon can leave a stale weapon layer visible inside the trap art.
-        riveViewRef.setNumberInputValue('Weapon', isTrap ? Piece.Empty : piece);
-        if (isMine) riveViewRef.setNumberInputValue('WeaponVisible', piece !== Piece.Empty && !isTrap ? 1 : 0);
-      } catch {
-        // Keep the board usable if this asset's state machine changes.
-      }
+      // These are required inputs: never reveal the asset's default Scissors
+      // pose and report it configured when a native write failed.
+      riveViewRef.setNumberInputValue('Weapon', isTrap ? Piece.Empty : piece);
+      if (isMine) riveViewRef.setNumberInputValue('WeaponVisible', piece !== Piece.Empty && !isTrap ? 1 : 0);
     };
 
     const configurePiece = async () => {
-      if (preserveStateOnPieceChange && configuredStateMachineRef.current === stateMachineName) {
-        // A tied combat changes Weapon while both figures are held in their
-        // sideways Attack Prepare pose. Resetting here turns the losing Back
-        // figure toward the board before Death, while the winner hides the
-        // same reset by immediately starting Attack.
+      if (cancelled) return false;
+      const sameController = configuredStateMachineRef.current === stateMachineName
+        && configuredFileRef.current === file
+        && configuredViewRef.current === riveViewRef;
+      const leavingTrap = configuredPieceRef.current === Piece.Trap && !isTrap;
+      if (sameController && (preserveStateOnPieceChange || !leavingTrap)) {
+        // Ordinary Shuffle/reveal changes only inputs, never visibility or
+        // playback. Held combat must likewise retain its sideways prepare pose.
         setPieceInputs();
+        if (isTrap && configuredPieceRef.current !== Piece.Trap && !preserveStateOnPieceChange) {
+          riveViewRef.triggerInput(isMine ? 'Trap Idle' : 'Trap Activate');
+        }
         if (!cancelled) {
+          configuredPieceRef.current = piece;
           setIsConfigured(true);
           onConfiguredRef.current?.();
         }
-        return;
+        return !cancelled;
       }
       setIsConfigured(false);
-      const needsAndroidBootstrap = Platform.OS === 'android';
-      if (needsAndroidBootstrap) {
-        try {
-          // Android does not reliably accept legacy state-machine inputs until
-          // playback has initialized the machine. Keep the view hidden while
-          // bootstrapping so its default Scissors state never reaches screen.
-          await riveViewRef.play();
-        } catch {
-          riveViewRef.playIfNeeded();
-        }
+      // The checked-in Android bridge patch creates the selected machine paused
+      // on configure/reset and resolves playback promises only after UI work.
+      // No speculative play() is needed to create its input instances.
+      if (cancelled) return false;
+      if (isMine || leavingTrap) {
+        await riveViewRef.pause();
+        if (cancelled) return false;
+        await riveViewRef.reset();
       }
-      if (cancelled) return;
-      if (isMine) {
-        try {
-          await riveViewRef.pause();
-          await riveViewRef.reset();
-        } catch {
-          // The view is already known to be ready; continue with its current state.
-        }
-      }
-      if (cancelled) return;
+      if (cancelled) return false;
       setPieceInputs();
-      try {
-        await riveViewRef.play();
-      } catch {
+      await riveViewRef.play();
+      if (cancelled) return false;
+      if (isTrap && (isMine || actionTriggerRef.current !== 'Trap Activate')) {
+        // Reassert the hidden state after playback starts, before entering the
+        // trap state, so a previously reused weapon layer cannot flash. A
+        // local trap uses its idle state; an opponent trap uses Trap Activate
+        // so the revealed destination remains visibly a trap after the
+        // temporary collision scene is removed.
+        setPieceInputs();
+        riveViewRef.triggerInput(isMine ? 'Trap Idle' : 'Trap Activate');
         riveViewRef.playIfNeeded();
-      }
-      if (cancelled) return;
-      if (isTrap && (isMine || actionTrigger !== 'Trap Activate')) {
-        try {
-          // Reassert the hidden state after playback starts, before entering the
-          // trap state, so a previously reused weapon layer cannot flash. A
-          // local trap uses its idle state; an opponent trap uses Trap Activate
-          // so the revealed destination remains visibly a trap after the
-          // temporary collision scene is removed.
-          setPieceInputs();
-          riveViewRef.triggerInput(isMine ? 'Trap Idle' : 'Trap Activate');
-          riveViewRef.playIfNeeded();
-        } catch {
-          // Leave the figure unarmed if the trap trigger is unavailable.
-        }
       }
       if (!cancelled) {
         configuredStateMachineRef.current = stateMachineName;
+        configuredFileRef.current = file;
+        configuredViewRef.current = riveViewRef;
+        configuredPieceRef.current = piece;
         setIsConfigured(true);
         onConfiguredRef.current?.();
       }
+      return !cancelled;
     };
 
-    readyRef.current = configurePiece().catch(() => undefined);
+    // A canceled async reset/play still runs natively. Wait for it to finish
+    // before configuring the newest shuffle, and skip superseded requests.
+    // Otherwise a late reset can erase inputs/pose already set by a newer one.
+    readyRef.current = readyRef.current.then(configurePiece).catch(() => {
+      // Deliberately omit native error details, weapon values and game data.
+      if (!cancelled) {
+        configuredViewRef.current = undefined;
+        setIsConfigured(false);
+        console.warn('Rive figure initialization failed');
+      }
+      return false;
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [isMine, piece, preserveStateOnPieceChange, riveViewRef, shouldMountRive, stateMachineName]);
+  }, [file, isMine, piece, preserveStateOnPieceChange, riveViewRef, shouldMountRive, stateMachineName]);
 
   useEffect(() => {
     const requestId = ++actionRequestRef.current;
@@ -156,9 +201,10 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
     }
     if (!shouldMountRive || !riveViewRef || lastTriggeredActionRef.current === actionTrigger) return;
     let cancelled = false;
-    readyRef.current.then(() => {
+    readyRef.current.then(configured => {
       if (
-        cancelled
+        !configured
+        || cancelled
         || requestId !== actionRequestRef.current
         || lastTriggeredActionRef.current === actionTrigger
       ) return;
@@ -188,16 +234,20 @@ export function RiveGamePiece({ actionTrigger, file, isMine, onActionTriggered, 
           hybridRef={setHybridRef}
           key={stateMachineName}
           stateMachineName={stateMachineName}
-          style={[styles.rive, !isConfigured && styles.riveHidden]}
+          style={[
+            styles.rive,
+            { top: -size * viewportVerticalPaddingRatio, bottom: -size * viewportVerticalPaddingRatio },
+            !isConfigured && styles.riveHidden,
+          ]}
         />
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
-  container: { alignItems: 'center', justifyContent: 'center' },
+  container: { alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   opponent: { transform: [{ scaleX: -1 }] },
-  rive: { position: 'absolute', inset: 0 },
+  rive: { position: 'absolute', left: 0, right: 0 },
   riveHidden: { opacity: 0 },
 });

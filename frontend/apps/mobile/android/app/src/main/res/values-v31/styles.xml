@@ -6,8 +6,8 @@
         <item name="android:colorAccent">@color/ripsy_primary</item>
         <item name="android:navigationBarColor">@color/ripsy_background</item>
         <item name="android:statusBarColor">@color/ripsy_background</item>
-        <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     </style>
 </resources>

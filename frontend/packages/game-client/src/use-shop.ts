@@ -81,7 +81,7 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
   const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>) => run(async () => {
     if (intentRef.current) throw new Error('Finish or close your current purchase first.');
     if (figureId === 'fig2') {
-      if (!proveSeeker) throw new Error('Figure 02 can only be minted to a verified Solana Seeker wallet.');
+      if (!proveSeeker) throw new Error('Seeker fighter can only be minted to a verified Solana Seeker wallet.');
       const challenge = await client.seekerChallenge();
       await client.verifySeeker(await proveSeeker(challenge));
     }

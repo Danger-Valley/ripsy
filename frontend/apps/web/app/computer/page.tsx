@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { BattleScreen } from '../game/[id]/page';
+import { BattleScreen } from '../game/[id]/game-content';
 import { LOCAL_PLAYER_ID } from './local-computer-game';
 import { useLocalComputerGame } from './use-local-computer-game';
 

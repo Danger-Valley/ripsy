@@ -12,6 +12,8 @@
     "lint": "eslint .",
     "release:preflight": "./scripts/release-preflight.sh",
     "start": "react-native start",
+    "sounds:generate": "node ../../../scripts/create-game-sounds.mjs",
+    "sounds:check": "node ../../../scripts/check-game-sounds.mjs",
     "test": "jest --no-watchman",
     "typecheck": "tsc --noEmit"
   },

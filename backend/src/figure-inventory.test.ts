@@ -1,12 +1,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { FigureVariant } from '@rps/core';
-import { FigureInventoryService, type FigureAssetSource } from './figure-inventory.js';
+import { createFigureAssetSource, FigureInventoryService, type FigureAssetSource } from './figure-inventory.js';
 import type { ShopRedis } from './shop-service.js';
 
 const wallet = '11111111111111111111111111111111';
 const firstAsset = 'Vote111111111111111111111111111111111111111';
 const secondAsset = 'SysvarC1ock11111111111111111111111111111111';
+
+test('existing Core collectibles use the renamed fighter label without changing their asset IDs', async t => {
+  const collection = 'ripsy-collection';
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
+    result: { items: [{
+      id: firstAsset,
+      grouping: [{ group_key: 'collection', group_value: collection }],
+      content: { json_uri: 'https://www.ripsy.fun/figures/fig2.json', metadata: { name: 'RIPSY Figure 02' } },
+    }] },
+  })));
+  const source = createFigureAssetSource('https://rpc.example.test', collection, 'https://www.ripsy.fun');
+  assert.deepEqual(await source.listOwned(wallet), [{
+    assetId: firstAsset, figureId: 'fig2', name: 'Seeker fighter', imageUrl: 'https://www.ripsy.fun/figures/fig2.png',
+  }]);
+});
 
 class MemoryRedis implements ShopRedis {
   data = new Map<string, string>();
@@ -24,7 +39,7 @@ function fixture(assetIds = [firstAsset, secondAsset]) {
   const wallets = { address: async () => wallet };
   const source: FigureAssetSource = {
     async listOwned() {
-      return current.map((assetId, index) => ({ assetId, figureId: 'fig2', name: `Figure 02 #${index + 1}`, imageUrl: 'https://www.ripsy.fun/figures/fig2.png' }));
+      return current.map((assetId, index) => ({ assetId, figureId: 'fig2', name: `Seeker fighter #${index + 1}`, imageUrl: 'https://www.ripsy.fun/figures/fig2.png' }));
     },
   };
   return { redis, service: new FigureInventoryService(redis, wallets, source), setAssets: (next: string[]) => { current = next; } };
@@ -64,7 +79,7 @@ test('online lineups cannot use more paid figures than the saved NFT loadout', a
   await service.validateLineup('player', [FigureVariant.Fig2, ...Array(13).fill(FigureVariant.Fig1)]);
   await assert.rejects(
     () => service.validateLineup('player', [FigureVariant.Fig2, FigureVariant.Fig2, ...Array(12).fill(FigureVariant.Fig1)]),
-    /allows 1 Figure 02 slot/,
+    /allows 1 Seeker fighter slot/,
   );
 });
 
@@ -94,5 +109,5 @@ test('online lineups bind each paid slot to the exact equipped Core collectible'
   const misaligned = [...shuffledAssets];
   misaligned[0] = firstAsset;
   misaligned[11] = null;
-  await assert.rejects(() => service.validateLineup('player', variants, misaligned), /only be assigned to a Figure 02 slot/);
+  await assert.rejects(() => service.validateLineup('player', variants, misaligned), /only be assigned to a Seeker fighter slot/);
 });

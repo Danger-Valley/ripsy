@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Phase, Piece, toIdx, WIDTH, HEIGHT, type GameState } from '@rps/core';
 import { usePlayerIdentity, useRipsyGame } from '@rps/game-client';
@@ -68,17 +69,29 @@ export default function HomePage() {
     <main className={styles.page}>
       <div className={styles.shell}>
         <header className={styles.hero}>
-          <span className={styles.heroEyebrow}>NATIVE MULTIPLAYER</span>
+          <span className={styles.heroEyebrow}>RIPSY PLAYGROUND</span>
           <h1>RIPSY</h1>
-          <p>Arrange your army. Outsmart your opponent. Capture the flag.</p>
+          <div className={styles.heroStage} aria-hidden>
+            <span className={`${styles.fighterBubble} ${styles.fighterBubbleBlue}`}>
+              <Image alt="" height={150} priority src="/figures/fig1.png" width={150} />
+            </span>
+            <span className={styles.vsBadge}>VS</span>
+            <span className={`${styles.fighterBubble} ${styles.fighterBubbleCoral}`}>
+              <Image alt="" height={150} priority src="/figures/fig2.png" width={150} />
+            </span>
+          </div>
+          <p>Build your army. Outsmart your rival. Grab the flag!</p>
         </header>
 
-        {activeGames.length > 0 && (
-          <section className={styles.section} aria-labelledby="active-games-title">
-            <div className={styles.sectionHeading}>
+        <section className={styles.section} aria-labelledby="active-games-title">
+          <div className={styles.sectionHeading}>
+            <span>
+              <span className={styles.eyebrow}>BACK TO THE PLAY TABLE</span>
               <h2 id="active-games-title">Your active games</h2>
-              <span className={styles.countBadge}>{activeGames.length}</span>
-            </div>
+            </span>
+            <span className={styles.countBadge}>{activeGames.length}</span>
+          </div>
+          {activeGames.length > 0 ? (
             <div className={styles.gameCarousel}>
               {activeGames.map(candidate => (
                 <button className={styles.gameCard} key={candidate.gameId} onClick={() => openGame(candidate.gameId)}>
@@ -92,11 +105,19 @@ export default function HomePage() {
                 </button>
               ))}
             </div>
-          </section>
-        )}
+          ) : (
+            <div className={styles.emptyGames}>
+              <span className={styles.emptyCount}>0</span>
+              <span><strong>No battles in progress</strong><small>Your next rivalry starts below.</small></span>
+            </div>
+          )}
+        </section>
 
         <section className={`${styles.section} ${styles.battleCard}`}>
-          <div className={styles.sectionHeading}><h2>Start a battle</h2></div>
+          <div className={styles.cardHeading}>
+            <span className={styles.cardIcon}>VS</span>
+            <span><span className={styles.eyebrow}>CHOOSE YOUR MATCH</span><h2>Start a battle</h2></span>
+          </div>
           <button className={styles.primaryButton} disabled={!game.isConnected || creating} onClick={handleCreate}>
             {creating ? 'Creating battle…' : game.isConnected ? 'Create game' : 'Connecting…'}
           </button>
@@ -112,8 +133,10 @@ export default function HomePage() {
         </section>
 
         <section className={`${styles.section} ${styles.battleCard}`}>
-          <span className={styles.eyebrow}>THE FIGURE COLLECTION</span>
-          <h2>Your next favourite fighter.</h2>
+          <div className={styles.cardHeading}>
+            <span className={`${styles.cardIcon} ${styles.cardIconCoral}`}>★</span>
+            <span><span className={styles.eyebrow}>THE FIGURE COLLECTION</span><h2>Your next favourite fighter.</h2></span>
+          </div>
           <a className={styles.primaryButton} href="/army">Set up your army</a>
           <a className={styles.computerButton} href="/shop">Explore figure shop →</a>
         </section>

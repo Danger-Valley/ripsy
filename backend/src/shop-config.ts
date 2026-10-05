@@ -1,5 +1,5 @@
 import { publicKey } from '@metaplex-foundation/umi';
-import { FIGURES, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURES, isSafeShopExternalUrl, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
 
 export interface ShopConfig {
   enabled: boolean;
@@ -10,6 +10,7 @@ export interface ShopConfig {
   collection: string | null;
   authoritySecret: string | undefined;
   publicOrigin: string;
+  solanaMobileStoreUrl: string;
   prices: Record<'fig1' | 'fig2', string | null>;
 }
 
@@ -21,13 +22,15 @@ export function loadShopConfig(env: NodeJS.ProcessEnv): ShopConfig {
   const collection = env.SHOP_COLLECTION_ADDRESS ? String(publicKey(env.SHOP_COLLECTION_ADDRESS)) : null;
   const publicOrigin = (env.SHOP_PUBLIC_ORIGIN ?? 'https://www.ripsy.fun').replace(/\/$/, '');
   if (new URL(publicOrigin).protocol !== 'https:' && !publicOrigin.startsWith('http://localhost:')) throw new Error('SHOP_PUBLIC_ORIGIN must use HTTPS');
-  // Figure 01 is the permanent free starter and must never become purchasable
+  const solanaMobileStoreUrl = env.SHOP_SOLANA_MOBILE_STORE_URL?.trim() || DEFAULT_SOLANA_MOBILE_STORE_URL;
+  if (!isSafeShopExternalUrl(solanaMobileStoreUrl)) throw new Error('SHOP_SOLANA_MOBILE_STORE_URL must be an HTTPS URL without credentials');
+  // RIPSY 001 is the permanent free starter and must never become purchasable
   // through a stale environment variable.
   const prices = { fig1: null, fig2: readPrice(env.SHOP_FIG2_PRICE_LAMPORTS) };
   if (enabled && (!treasury || !collection || !env.SHOP_MINT_AUTHORITY_SECRET)) throw new Error('Shop signing configuration is incomplete');
   if (enabled && cluster === 'mainnet-beta' && !env.SHOP_SOLANA_RPC_URL) throw new Error('Set a production SHOP_SOLANA_RPC_URL');
   return {
-    enabled, cluster, treasury, collection, prices, publicOrigin,
+    enabled, cluster, treasury, collection, prices, publicOrigin, solanaMobileStoreUrl,
     rpcUrl: env.SHOP_SOLANA_RPC_URL ?? 'https://api.devnet.solana.com',
     seekerRpcUrl: env.SOLANA_RPC_URL ?? (cluster === 'mainnet-beta' && env.SHOP_SOLANA_RPC_URL ? env.SHOP_SOLANA_RPC_URL : 'https://api.mainnet-beta.solana.com'),
     authoritySecret: env.SHOP_MINT_AUTHORITY_SECRET,
@@ -43,6 +46,7 @@ function readPrice(value: string | undefined): string | null {
 export function shopCatalog(config: ShopConfig): ShopCatalog {
   return {
     cluster: config.cluster, treasury: config.treasury, collection: config.collection,
+    solanaMobileStoreUrl: config.solanaMobileStoreUrl,
     figures: FIGURES.filter(figure => figure.purchasable).map(figure => ({
       ...figure,
       imageUrl: `${config.publicOrigin}/figures/${figure.id}.png`,

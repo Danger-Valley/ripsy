@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { formatClock } from './game-clocks';
 import { colors, spacing } from '../theme';
+import { homeFont } from './toy-home-controls';
 
 export function LineupCountdown({ deadlineAt }: { deadlineAt: number }) {
   const [now, setNow] = useState(Date.now());
@@ -25,9 +26,9 @@ export function LineupCountdown({ deadlineAt }: { deadlineAt: number }) {
 }
 
 const styles = StyleSheet.create({
-  badge: { alignItems: 'flex-end', gap: 2, borderRadius: 10, backgroundColor: colors.surfaceStrong, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  badgeLow: { borderColor: colors.danger, borderWidth: 1 },
-  label: { color: colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  time: { color: colors.primary, fontSize: 16, fontWeight: '900', fontVariant: ['tabular-nums'] },
-  low: { color: colors.danger },
+  badge: { alignItems: 'center', gap: 2, borderRadius: 12, backgroundColor: colors.rewardHighlight, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  badgeLow: { backgroundColor: colors.primaryMuted },
+  label: { color: colors.ink, fontSize: 10, fontWeight: '800' },
+  time: { color: colors.ink, fontFamily: homeFont, fontSize: 20, fontVariant: ['tabular-nums'] },
+  low: { color: colors.dangerShadow },
 });

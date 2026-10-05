@@ -1,56 +1,115 @@
-.page { min-height: 100dvh; padding: 48px 20px; background: radial-gradient(circle at 50% -10%, #163039 0, #0b1318 34%, #080e12 72%); }
-.shell { width: min(100%, 980px); margin: 0 auto; display: grid; gap: 24px; }
-.hero { text-align: center; padding: 24px 0 10px; }
-.hero h1 { margin: 8px 0 12px; font-size: clamp(48px, 9vw, 78px); letter-spacing: .13em; line-height: .9; color: #5df1e8; text-indent: .13em; }
-.hero p { margin: 0 auto; max-width: 580px; color: #96a3ac; font-size: clamp(15px, 2vw, 19px); line-height: 1.55; }
-.heroEyebrow, .eyebrow { display: block; color: #56c9c3; font-size: 11px; font-weight: 900; letter-spacing: .2em; }
+.page {
+  min-height: 100dvh;
+  padding: 42px 20px 56px;
+  background:
+    radial-gradient(circle at 18% 12%, rgb(255 255 255 / 52%) 0 5%, transparent 6%),
+    radial-gradient(circle at 82% 18%, rgb(255 255 255 / 42%) 0 7%, transparent 8%),
+    linear-gradient(180deg, #52ccee 0 32%, #8de2f5 32% 72%, #63d3ef 72%);
+  color: #123a55;
+}
+.shell { width: min(100%, 960px); margin: 0 auto; display: grid; gap: 26px; }
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 28px 30px;
+  text-align: center;
+  border: 4px solid #fff;
+  border-radius: 42px;
+  background: linear-gradient(145deg, #efffff 0%, #c9f6ff 58%, #eefef7 100%);
+  box-shadow: 0 13px 0 #159ec8, 0 22px 42px rgb(19 85 112 / 20%);
+}
+.hero::before, .hero::after { content: ''; position: absolute; border-radius: 50%; background: rgb(255 255 255 / 55%); }
+.hero::before { width: 220px; height: 220px; left: -96px; top: -100px; }
+.hero::after { width: 170px; height: 170px; right: -70px; bottom: -95px; }
+.hero h1 {
+  position: relative;
+  z-index: 1;
+  margin: 5px 0 12px;
+  font-size: clamp(58px, 9vw, 88px);
+  letter-spacing: .055em;
+  line-height: .95;
+  color: #ff9d18;
+  text-shadow: 0 6px 0 #d25b00, 0 9px 0 #fff3ae;
+}
+.hero p { position: relative; z-index: 1; margin: 12px auto 0; max-width: 620px; color: #123a55; font-size: clamp(17px, 2.3vw, 23px); font-weight: 900; line-height: 1.25; }
+.heroEyebrow, .eyebrow { display: block; color: #087aa8; font-size: 12px; font-weight: 950; letter-spacing: .2em; }
+.heroStage { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; margin: 8px auto 4px; }
+.fighterBubble { width: 145px; aspect-ratio: 1; display: grid; place-items: center; border: 4px solid #fff; border-radius: 50%; box-shadow: inset 0 -10px rgb(7 74 106 / 12%), 0 8px 0 rgb(7 74 106 / 22%); }
+.fighterBubble img { width: 82%; height: 82%; object-fit: contain; filter: drop-shadow(0 8px 3px rgb(4 48 70 / 25%)); }
+.fighterBubbleBlue { background: #12bde8; transform: rotate(-4deg); }
+.fighterBubbleCoral { background: #ff6258; transform: rotate(4deg); }
+.vsBadge { z-index: 2; width: 78px; aspect-ratio: 1; margin: 0 -9px; display: grid; place-items: center; border: 4px solid white; border-radius: 24px; background: #ffd629; color: #123a55; font-size: 27px; font-weight: 1000; transform: rotate(-6deg); box-shadow: 0 8px 0 #e8a500, 0 12px 20px rgb(38 78 95 / 25%); }
 .section { min-width: 0; }
-.sectionHeading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.sectionHeading h2 { margin: 0; color: #f3f6f7; font-size: 20px; }
-.countBadge { padding: 5px 11px; border-radius: 999px; background: #192932; color: #5df1e8; font-size: 12px; font-weight: 900; }
-.gameCarousel { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(310px, 52%); gap: 14px; overflow-x: auto; padding: 2px 2px 12px; scroll-snap-type: x mandatory; scrollbar-width: thin; }
-.gameCard { scroll-snap-align: start; min-height: 154px; padding: 16px; display: grid; grid-template-columns: 116px 1fr auto; gap: 16px; align-items: center; text-align: left; border: 1px solid #2b404b; border-radius: 18px; background: #121e25; color: inherit; transition: border-color .18s ease, transform .18s ease, background .18s ease; }
-.gameCard:hover { border-color: #4ebdb8; background: #15242c; transform: translateY(-2px); }
-.miniBoard { width: 116px; aspect-ratio: 1; display: grid; grid-template-columns: repeat(7, 1fr); overflow: hidden; border: 1px solid #4ebdb8; border-radius: 10px; background: #14232b; }
-.miniBoard i { display: grid; place-items: center; min-width: 0; font: 800 7px/1 system-ui; color: #0b2022; background: #18303a; }
-.miniBoard i:nth-child(even) { background: #12252d; }
-.miniBoard i:not(:empty) { margin: 2px; border-radius: 50%; background: #5df1e8; }
-.gameCardCopy { min-width: 0; display: grid; gap: 6px; }
-.gameCardCopy strong { color: #f5f7f8; font-size: 18px; }
-.gameCardCopy > span:last-child { color: #87959f; font-size: 13px; }
-.chevron { color: #5df1e8; font-size: 34px; font-weight: 300; }
-.battleCard, .walletCard { padding: 22px; border: 1px solid #293d47; border-radius: 20px; background: #111d24; }
-.primaryButton { width: 100%; min-height: 56px; border: 0; border-radius: 14px; background: #5df1e8; color: #092126; font-size: 16px; font-weight: 900; display:grid;place-items:center;text-decoration:none; }
-.primaryButton:hover { background: #78fff6; }
-.primaryButton:disabled { cursor: not-allowed; opacity: .45; }
-.computerButton { width: 100%; min-height: 52px; margin-top: 10px; display: grid; place-items: center; border: 1px solid #314852; border-radius: 14px; background: #18262e; color: #f1f5f6; font-size: 15px; font-weight: 850; text-decoration: none; }
-.joinForm { margin-top: 18px; display: grid; gap: 8px; }
-.joinForm label { color: #91a0aa; font-size: 13px; font-weight: 700; }
+.sectionHeading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 12px; padding-inline: 8px; }
+.sectionHeading h2 { margin: 4px 0 0; color: #123a55; font-size: clamp(24px, 4vw, 35px); letter-spacing: -.035em; }
+.countBadge { min-width: 42px; height: 42px; display: grid; place-items: center; padding: 0 12px; border: 3px solid #fff; border-radius: 50%; background: #ff6258; color: white; font-size: 16px; font-weight: 950; box-shadow: 0 5px 0 #cf332f; }
+.gameCarousel { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(320px, 52%); gap: 18px; overflow-x: auto; padding: 4px 4px 13px; scroll-snap-type: x mandatory; scrollbar-width: thin; }
+.gameCard, .emptyGames {
+  min-height: 156px;
+  border: 4px solid white;
+  border-radius: 30px;
+  background: #fffdf4;
+  box-shadow: 0 9px 0 #d2a958, 0 16px 28px rgb(29 98 120 / 16%);
+}
+.gameCard { scroll-snap-align: start; padding: 16px; display: grid; grid-template-columns: 116px 1fr auto; gap: 16px; align-items: center; text-align: left; color: inherit; transition: transform .16s ease, box-shadow .16s ease; }
+.gameCard:hover { transform: translateY(-3px); box-shadow: 0 12px 0 #d2a958, 0 20px 32px rgb(29 98 120 / 20%); }
+.gameCard:active { transform: translateY(4px); box-shadow: 0 5px 0 #d2a958; }
+.miniBoard { width: 116px; aspect-ratio: 1; display: grid; grid-template-columns: repeat(7, 1fr); overflow: hidden; border: 4px solid #c98c3c; border-radius: 15px; background: #f7d798; box-shadow: inset 0 0 0 2px #ffeec9; }
+.miniBoard i { display: grid; place-items: center; min-width: 0; font: 950 7px/1 system-ui; color: #a24a18; background: #f4d193; }
+.miniBoard i:nth-child(even) { background: #ffe6b5; }
+.miniBoard i:not(:empty) { margin: 2px; border-radius: 50%; background: #1fc4e9; color: #fff; box-shadow: 0 2px 0 #1385ad; }
+.gameCardCopy { min-width: 0; display: grid; gap: 5px; }
+.gameCardCopy strong { color: #123a55; font-size: 20px; line-height: 1.1; }
+.gameCardCopy > span:last-child { color: #557487; font-size: 13px; font-weight: 700; }
+.chevron { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: #10bee7; color: white; font-size: 30px; font-weight: 900; box-shadow: 0 5px 0 #0783ac; }
+.emptyGames { padding: 22px 28px; display: flex; align-items: center; gap: 20px; }
+.emptyGames strong, .emptyGames small { display: block; }
+.emptyGames strong { font-size: 20px; }
+.emptyGames small { margin-top: 4px; color: #557487; font-size: 15px; }
+.emptyCount { flex: 0 0 auto; width: 68px; aspect-ratio: 1; display: grid; place-items: center; border: 4px solid #ff938b; border-radius: 50%; background: #ff6258; color: white; font-size: 28px; font-weight: 1000; box-shadow: 0 7px 0 #c83332; }
+.battleCard, .walletCard { padding: 25px; border: 4px solid white; border-radius: 34px; background: #fffdf4; box-shadow: 0 10px 0 #d2a958, 0 18px 34px rgb(29 98 120 / 17%); }
+.cardHeading { display: flex; align-items: center; gap: 15px; margin-bottom: 18px; }
+.cardHeading h2 { margin: 3px 0 0; color: #123a55; font-size: clamp(24px, 4vw, 33px); line-height: 1.05; }
+.cardIcon { flex: 0 0 auto; width: 66px; aspect-ratio: 1; display: grid; place-items: center; border: 4px solid #fff1a7; border-radius: 20px; background: #ffd52a; color: #123a55; font-size: 22px; font-weight: 1000; transform: rotate(-4deg); box-shadow: 0 7px 0 #e09a00; }
+.cardIconCoral { border-color: #ffb6b0; background: #ff6258; color: white; box-shadow-color: #c93432; }
+.primaryButton, .computerButton { width: 100%; min-height: 62px; display: grid; place-items: center; border: 4px solid transparent; border-radius: 22px; font-size: 17px; font-weight: 950; text-decoration: none; transition: transform .13s ease, box-shadow .13s ease; }
+.primaryButton { border-color: #fff0a1; background: #ffd62d; color: #123a55; box-shadow: 0 8px 0 #e7a000; }
+.primaryButton:hover, .computerButton:hover { transform: translateY(-2px); }
+.primaryButton:active, .computerButton:active { transform: translateY(5px); box-shadow: 0 3px 0 var(--button-shadow, #e7a000); }
+.primaryButton:disabled { cursor: not-allowed; opacity: .5; filter: grayscale(.2); }
+.computerButton { --button-shadow: #078ab0; margin-top: 14px; border-color: #a6edff; background: #16c1e8; color: #123a55; box-shadow: 0 8px 0 #078ab0; }
+.joinForm { margin-top: 22px; padding-top: 20px; display: grid; gap: 9px; border-top: 2px dashed #e2c98f; }
+.joinForm label { color: #a24a18; font-size: 13px; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; }
 .joinRow { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
-.joinRow input { min-width: 0; height: 48px; padding: 0 15px; border: 1px solid #324954; border-radius: 12px; outline: 0; background: #0b151a; color: white; font-size: 16px; }
-.joinRow input:focus { border-color: #5df1e8; box-shadow: 0 0 0 3px rgb(93 241 232 / 12%); }
-.joinRow button, .iconButton { padding: 0 18px; border: 1px solid #34505b; border-radius: 12px; background: #172730; color: #e7eeee; font-weight: 800; }
+.joinRow input { min-width: 0; height: 54px; padding: 0 17px; border: 3px solid #deb976; border-radius: 18px; outline: 0; background: white; color: #123a55; font-size: 16px; font-weight: 750; box-shadow: inset 0 3px 0 rgb(148 96 35 / 8%); }
+.joinRow input:focus { border-color: #16c1e8; box-shadow: 0 0 0 4px rgb(22 193 232 / 18%); }
+.joinRow button, .iconButton { padding: 0 22px; border: 3px solid #bcf6d2; border-radius: 17px; background: #39ce78; color: #0c4b36; font-weight: 950; box-shadow: 0 6px 0 #168c4a; }
 .walletCard { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.walletTitle { display: block; margin: 5px 0 2px; color: #f3f6f7; font-size: 18px; }
-.walletCopy { margin: 4px 0 0; color: #82929c; font-size: 13px; }
+.walletTitle { display: block; margin: 5px 0 2px; color: #123a55; font-size: 19px; }
+.walletCopy { margin: 4px 0 0; color: #557487; font-size: 13px; }
 .walletIdentity { display: flex; gap: 12px; align-items: center; }
-.walletIdentity strong { display: block; margin-top: 5px; color: white; font-size: 16px; letter-spacing: .04em; }
-.walletDot { width: 10px; height: 10px; border-radius: 50%; background: #39d98a; box-shadow: 0 0 12px #39d98a; }
+.walletIdentity strong { display: block; margin-top: 5px; color: #123a55; font-size: 16px; letter-spacing: .04em; }
+.walletDot { width: 13px; height: 13px; border: 3px solid #fff; border-radius: 50%; background: #39ce78; box-shadow: 0 0 0 3px #acebc7; }
 .walletActions { display: flex; gap: 8px; }
-.iconButton { min-height: 40px; }
-.walletMenu { position: absolute; z-index: 10; top: calc(100% + 8px); right: 0; width: min(320px, 90vw); padding: 8px; display: grid; gap: 6px; border: 1px solid #34505b; border-radius: 14px; background: #122029; box-shadow: 0 20px 60px rgb(0 0 0 / 45%); }
-.walletMenu button { min-height: 44px; text-align: left; padding: 0 14px; }
-.walletMenu p { margin: 8px; color: #91a0aa; }
-.inlineError { margin: 12px 0 0; color: #ff7b7b; font-size: 13px; }
-.footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; padding: 12px; }
-.footer a { color: #83949d; font-size: 13px; text-decoration: none; }
-.footer a:hover { color: #5df1e8; }
+.iconButton { min-height: 44px; }
+.walletMenu { position: absolute; z-index: 10; top: calc(100% + 12px); right: 0; width: min(320px, 90vw); padding: 10px; display: grid; gap: 8px; border: 4px solid white; border-radius: 20px; background: #fffdf4; box-shadow: 0 9px 0 #d2a958, 0 20px 50px rgb(20 72 92 / 25%); }
+.walletMenu button { min-height: 46px; text-align: left; padding: 0 14px; }
+.walletMenu p { margin: 8px; color: #557487; }
+.inlineError { margin: 14px 0 0; padding: 12px 14px; border: 3px solid #ff857e; border-radius: 16px; background: #fff0ec; color: #b42d31; font-size: 13px; font-weight: 800; }
+.footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; padding: 18px 12px 4px; }
+.footer a { color: #175979; font-size: 13px; font-weight: 800; text-decoration: none; }
+.footer a:hover { color: #bd3c2f; }
 @media (max-width: 680px) {
-  .page { padding: 20px 14px 36px; }
+  .page { padding: 18px 13px 42px; }
+  .hero { padding: 23px 12px 27px; border-radius: 32px; }
+  .fighterBubble { width: 104px; }
+  .vsBadge { width: 62px; border-radius: 19px; font-size: 21px; }
   .gameCarousel { grid-auto-columns: 88%; }
-  .gameCard { min-height: 130px; grid-template-columns: 92px 1fr auto; padding: 12px; gap: 12px; }
-  .miniBoard { width: 92px; }
+  .gameCard { min-height: 132px; grid-template-columns: 86px 1fr auto; padding: 12px; gap: 11px; }
+  .miniBoard { width: 86px; }
+  .battleCard, .walletCard { padding: 19px; border-radius: 28px; }
   .walletCard { align-items: flex-start; }
   .walletActions { flex-direction: column; }
+  .emptyGames { padding: 18px; }
 }
-@media (prefers-reduced-motion: reduce) { .gameCard { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .gameCard, .primaryButton, .computerButton { transition: none; } }

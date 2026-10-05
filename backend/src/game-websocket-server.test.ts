@@ -17,6 +17,7 @@ import {
 } from './game-engine.js';
 import { attachGameWebSocketServer, type GameStore } from './game-websocket-server.js';
 import { SessionManager } from './session.js';
+import type { PushTarget } from './push-notifications.js';
 
 const pieces = [
   ...Array(4).fill(Piece.Rock),
@@ -33,12 +34,14 @@ test('two authenticated clients play through the real WebSocket transport and re
   const server = createServer();
   const sessions = new SessionManager('integration-test-secret-at-least-32-characters');
   const store = new MemoryGameStore();
+  const pushes: PushTarget[][] = [];
   const transport = attachGameWebSocketServer({
     server,
     store,
     sessionManager: sessions,
     diagnose: createBackendDiagnostics(() => undefined),
     heartbeatIntervalMs: 60_000,
+    sendPush: async targets => { pushes.push(targets); },
   });
   store.onChange = gameId => { void transport.broadcast(gameId); };
   await new Promise<void>((resolve, reject) => {
@@ -92,6 +95,12 @@ test('two authenticated clients play through the real WebSocket transport and re
   const bobTurn = waitForState(bob, state => state.phase === Phase.Active && state.isP1Turn);
   await alice.request({ type: 'movePiece', gameId: created.gameId!, fromX: 0, fromY: 5, toX: 0, toY: 4 });
   await bobTurn;
+  assert.equal(pushes.at(-1)?.[0]?.playerId, bobSession.playerId);
+  assert.equal(pushes.at(-1)?.[0]?.notification.event, 'turn');
+  assert.equal(pushes.at(-1)?.[0]?.notification.gameId, created.gameId);
+  const delivered = pushes.length;
+  await assert.rejects(alice.request({ type: 'movePiece', gameId: created.gameId!, fromX: 0, fromY: 4, toX: 0, toY: 3 }));
+  assert.equal(pushes.length, delivered, 'rejected moves do not send turn notifications');
 
   alice.suspend();
   const reconnected = waitForStatus(alice, 'connected');

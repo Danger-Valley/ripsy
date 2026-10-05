@@ -74,7 +74,7 @@ export class PushNotifier {
         gameId: notification.gameId,
         url: `https://www.ripsy.fun/game/${notification.gameId}`,
       },
-      android: { priority: 'high' },
+      android: { priority: 'high', notification: { sound: 'default', tag: `ripsy-game-${notification.gameId}` } },
       apns: { payload: { aps: { sound: 'default' } } },
     });
     await Promise.all(result.responses.map(async (response, index) => {
@@ -129,7 +129,8 @@ export function pushTargetsForAction(action: string, state: GameState, actorId: 
   }
   if (state.phase === Phase.Active && (action === 'submitLineup' || action === 'movePiece' || action === 'chooseWeapon')) {
     const playerId = state.isP1Turn ? state.p1 : state.p0;
-    return playerId ? [{ playerId, notification: notification('turn', 'Your turn', 'Your RIPSY battle is waiting.') }] : [];
+    if (!playerId || (action === 'movePiece' && playerId === actorId)) return [];
+    return [{ playerId, notification: notification('turn', 'Your turn', action === 'movePiece' ? 'Your opponent moved. Time to make your move!' : 'Your RIPSY battle is waiting.') }];
   }
   return [];
 }

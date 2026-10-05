@@ -2,11 +2,12 @@
 export type ShopCluster = 'devnet' | 'mainnet-beta';
 export type FigureId = 'fig1' | 'fig2';
 export const FIGURES = [
-  { id: 'fig1' as const, name: 'Figure 01', variant: 1 as const, description: 'The original RIPSY fighter. Free in every army.', seekerExclusive: false, purchasable: false },
-  { id: 'fig2' as const, name: 'Figure 02', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.', seekerExclusive: true, purchasable: true },
+  { id: 'fig1' as const, name: 'RIPSY 001', variant: 1 as const, description: 'The original RIPSY fighter. Free in every army.', seekerExclusive: false, purchasable: false },
+  { id: 'fig2' as const, name: 'Seeker fighter', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.', seekerExclusive: true, purchasable: true },
 ];
 export const STARTER_FIGURE_ID = 'fig1' as const;
 export const FIGURE_SLOTS = 14;
+export const DEFAULT_SOLANA_MOBILE_STORE_URL = 'https://store.solanamobile.com/';
 export interface ShopFigure {
   id: FigureId;
   name: string;
@@ -21,6 +22,8 @@ export interface ShopCatalog {
   cluster: ShopCluster;
   treasury: string | null;
   collection: string | null;
+  /** Optional for rolling compatibility with older backend deployments. */
+  solanaMobileStoreUrl?: string;
   figures: ShopFigure[];
 }
 export type MintStatus = 'prepared' | 'submitted' | 'confirmed' | 'failed' | 'expired';
@@ -90,6 +93,26 @@ export function formatSol(lamports: string): string {
   return `${whole}${fraction ? `.${fraction}` : ''} SOL`;
 }
 
+/** Presentation only: preserve server errors internally, but do not expose payment internals in the store. */
+export function figureStoreMessage(message: string | null | undefined, fallback = 'Could not complete this request. Please try again.'): string {
+  if (!message) return fallback;
+  // Hardware-store branding is intentional, not payment jargon.
+  if (/Solana Mobile store/i.test(message)) return message;
+  if (/insufficient|not enough (?:funds|sol)|balance.{0,20}(?:low|small)/i.test(message)) return 'Not enough funds to complete this purchase.';
+  if (/(?:genesis token|seed vault|\bSGT\b)/i.test(message)) return 'This figure is only available to eligible Seeker owners. Connect your Seeker wallet and try again.';
+  if (/connection (?:was )?(?:cancelled|canceled)/i.test(message)) return 'Connection cancelled.';
+  if (/(?:cancelled|canceled|rejected)/i.test(message) && /wallet|signature|transaction/i.test(message)) return 'Approval cancelled. Check purchase status before trying again.';
+  if (/mint(?:ing)?.{0,25}(?:not available|unavailable)/i.test(message)) return 'Purchases are not available yet.';
+  if (/too many mint/i.test(message)) return 'Too many purchase requests. Wait a minute and try again.';
+  if (/signature|wallet proof|signed message/i.test(message)) return 'Could not verify your account. Sign in again and try again.';
+  if (/mint|\bNFTs?\b|metaplex|\bcore\b|self[- ]custodial|embedded wallet|blockchain|\bRPC\b|\bDAS\b|lamport|blockhash|transaction|\bsolana\b|\bSOL\b|\bprivy\b|wallet/i.test(message)) return fallback;
+  return message;
+}
+
+export function figurePrice(lamports: string, cluster: ShopCluster): string {
+  return cluster === 'devnet' ? formatSol(lamports).replace(/ SOL$/, ' test credits') : formatSol(lamports);
+}
+
 export function solanaExplorer(kind: 'tx' | 'address', value: string, cluster: ShopCluster) {
   return `https://explorer.solana.com/${kind}/${encodeURIComponent(value)}${cluster === 'devnet' ? '?cluster=devnet' : ''}`;
 }
@@ -107,10 +130,19 @@ const isAddress = (value: unknown): value is string => typeof value === 'string'
 const isAmount = (value: unknown): value is string => typeof value === 'string' && /^\d{1,16}$/.test(value);
 const isCluster = (value: unknown) => value === 'devnet' || value === 'mainnet-beta';
 
+export function isSafeShopExternalUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password;
+  } catch { return false; }
+}
+
 export function parseShopCatalog(value: unknown): ShopCatalog {
   const data = record(value);
   if (!isCluster(data.cluster) || !(data.treasury === null || isAddress(data.treasury))
-    || !(data.collection === null || isAddress(data.collection)) || !Array.isArray(data.figures)) throw new Error('Invalid shop catalog');
+    || !(data.collection === null || isAddress(data.collection)) || !Array.isArray(data.figures)
+    || !(data.solanaMobileStoreUrl === undefined || isSafeShopExternalUrl(data.solanaMobileStoreUrl))) throw new Error('Invalid shop catalog');
   for (const entry of data.figures) {
     const figure = record(entry);
     if (!isFigureId(figure.id) || (figure.variant !== 1 && figure.variant !== 2) || typeof figure.name !== 'string'

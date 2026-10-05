@@ -51,7 +51,7 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
         .add(transferSol(umi, { source: buyer, destination: publicKey(config.treasury), amount: lamports(BigInt(price)) }))
         .add(createV1(umi, {
           asset, payer: buyer, owner: buyer.publicKey, authority: umi.identity,
-          collection: collection.publicKey, name: `RIPSY ${figure.name}`,
+          collection: collection.publicKey, name: figure.name,
           uri: `${config.publicOrigin}/figures/${figureId}.json`,
         }))
         .buildAndSign(umi);

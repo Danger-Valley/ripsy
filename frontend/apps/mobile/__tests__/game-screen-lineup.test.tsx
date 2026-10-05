@@ -1,9 +1,11 @@
 import React from 'react';
+jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useIsFocused: () => true }));
 import { Animated, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import * as Keychain from 'react-native-keychain';
-import { FigureVariant, HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
+import { FigureVariant, FinishReason, HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
+import { VictoryFireworks } from '../src/components/victory-fireworks';
 import { ComputerGameScreen, GameScreen } from '../src/screens/game-screen';
 import { useGameAnimationQueue } from '../src/hooks/use-game-animation-queue';
 import { useNativeRipsyGame } from '../src/hooks/use-native-ripsy-game';
@@ -73,6 +75,7 @@ beforeEach(() => {
       progress,
       startActiveMove: jest.fn(),
       startActiveTrap: jest.fn(),
+      startActiveAttack: jest.fn(),
       completeActiveMoveLanding: jest.fn(),
       opacity: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.55, 1] }),
       scale: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 1.025, 1] }),
@@ -93,8 +96,8 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Waiting for opponent. The board is a preview. Use the controls below it to set your lineup.')).toBeDefined();
   expect(renderer.root.find(node => node.props.testID === 'lineup-controls')).toBeDefined();
   expect(renderer.root.find(node => node.props.testID === 'lineup-attention-glow')).toBeDefined();
-  expect(renderer.root.findAllByType(Text).filter(node => node.props.children === 'SET YOUR LINEUP HERE ↓')).toHaveLength(1);
-  expect(renderer.root.findAllByType(Text).filter(node => node.props.children === 'The board is a preview. Use Shuffle below, then save.')).toHaveLength(1);
+  expect(renderer.root.findAllByType(Text).filter(node => node.props.children === 'Set your lineup')).toHaveLength(1);
+  expect(renderer.root.findAllByType(Text).filter(node => node.props.children === 'The board is a preview, not an editor. Shuffle until it feels right, then save below.')).toHaveLength(1);
   expect(renderer.root.find(node => node.props.testID === 'lineup-countdown')).toBeDefined();
   expect(renderer.root.find(node => node.props.accessibilityHint === 'Creates a different random hidden lineup')).toBeDefined();
   expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(false);
@@ -120,9 +123,9 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
   expect(figureVariants?.filter(variant => variant === FigureVariant.Fig1)).toHaveLength(14);
   expect(figureVariants?.filter(variant => variant === FigureVariant.Fig2)).toHaveLength(0);
   expect(figureAssetIds).toEqual(Array(14).fill(null));
-  expect(renderer.root.find(node => node.props.accessibilityLabel === 'Lineup saved')).toBeDefined();
+  expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Lineup saved').length).toBeGreaterThan(0);
   expect(renderer.root.findAll(node => node.props.testID === 'lineup-attention-glow')).toHaveLength(0);
-  expect(renderer.root.findAll(node => node.props.children === 'Saved. The battle starts automatically when your opponent is ready.').length).toBeGreaterThan(0);
+  expect(renderer.root.findAll(node => node.props.children === 'Saved! Battle starts when your opponent is ready. You can still shuffle before it begins.').length).toBeGreaterThan(0);
 
   const savedButton = renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup' && node.props.accessibilityState?.disabled);
   expect(savedButton.props.accessibilityState).toMatchObject({ disabled: true });
@@ -134,7 +137,7 @@ test('creator can shuffle, save, and see the lineup ready state before an oppone
 
   expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Lineup saved')).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.testID === 'lineup-attention-glow').length).toBeGreaterThan(0);
-  expect(renderer.root.findAll(node => node.props.children === 'Lineup changed. Save it again below.').length).toBeGreaterThan(0);
+  expect(renderer.root.findAll(node => node.props.children === 'New arrangement? Save your changes to use it.').length).toBeGreaterThan(0);
 
   await ReactTestRenderer.act(() => {
     renderer.unmount();
@@ -198,6 +201,39 @@ test('offline computer battle skips waiting and starts after the local lineup is
   expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(true);
   expect(renderer.root.findAll(node => node.props.children === 'Your turn — select a piece').length).toBeGreaterThan(0);
 
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test.each([
+  [Phase.Active, null, undefined, false],
+  [Phase.Finished, 'alice', FinishReason.Flag, true],
+  [Phase.Finished, 'alice', FinishReason.Timeout, true],
+  [Phase.Finished, 'bob', FinishReason.Flag, false],
+  [Phase.Finished, null, FinishReason.LineupTimeout, false],
+] as const)('fireworks only celebrate the local winner after gameplay presentation (%i, %s, %s)', async (phase, winner, reason, celebrates) => {
+  gameState = { ...createdGame(), p1: 'bob', phase, winner, finishReason: reason };
+  jest.mocked(useNativeRipsyGame).mockReturnValue({ ...nativeGame, gameState });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />);
+  });
+  expect(renderer.root.findByType(VictoryFireworks).props.victoryId).toBe(celebrates ? 'abcdef12:alice' : null);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('victory fireworks wait for the animation queue and also recognize player one', async () => {
+  gameState = { ...createdGame(), p1: 'alice', p0: 'bob', phase: Phase.Finished, winner: 'alice', finishReason: FinishReason.Flag };
+  jest.mocked(useNativeRipsyGame).mockReturnValue({ ...nativeGame, gameState, ownOwner: Owner.P1, isPlayer0: false, isPlayer1: true });
+  const queued = jest.mocked(useGameAnimationQueue).getMockImplementation()!;
+  let presenting = true;
+  jest.mocked(useGameAnimationQueue).mockImplementation(state => ({ ...queued(state), isAnimating: presenting }));
+  const render = () => <GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(render()); });
+  expect(renderer.root.findByType(VictoryFireworks).props.victoryId).toBeNull();
+  presenting = false;
+  await ReactTestRenderer.act(async () => renderer.update(render()));
+  expect(renderer.root.findByType(VictoryFireworks).props.victoryId).toBe('abcdef12:alice');
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 

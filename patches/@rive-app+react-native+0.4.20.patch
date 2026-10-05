@@ -1,8 +1,81 @@
+diff --git a/node_modules/@rive-app/react-native/android/src/main/java/com/margelo/nitro/rive/HybridRiveView.kt b/node_modules/@rive-app/react-native/android/src/main/java/com/margelo/nitro/rive/HybridRiveView.kt
+index 318ad09..fba3a07 100644
+--- a/node_modules/@rive-app/react-native/android/src/main/java/com/margelo/nitro/rive/HybridRiveView.kt
++++ b/node_modules/@rive-app/react-native/android/src/main/java/com/margelo/nitro/rive/HybridRiveView.kt
+@@ -200,14 +200,12 @@ class HybridRiveView(val context: ThemedReactContext) : HybridRiveViewSpec() {
+ 
+   private fun asyncExecuteOnUiThread(action: () -> Unit): Promise<Unit> {
+     return Promise.async {
+-      context.currentActivity?.runOnUiThread {
+-        try {
+-          action()
+-        } catch (e: Exception) {
+-          throw Error(e.message) // TODO: Correctly handling errors (https://nitro.margelo.com/docs/errors)
+-        } catch (e: Error) {
+-          throw Error(e.message)
+-        }
++      // Posting to Activity.runOnUiThread resolves the coroutine before action
++      // runs. JS then writes inputs before play/reset created the instances.
++      // Await the main dispatcher instead; exceptions reject the Nitro promise
++      // and a temporarily absent Activity must not silently discard commands.
++      withContext(Dispatchers.Main) {
++        action()
+       }
+     }
+   }
+diff --git a/node_modules/@rive-app/react-native/android/src/main/java/com/rive/RiveReactNativeView.kt b/node_modules/@rive-app/react-native/android/src/main/java/com/rive/RiveReactNativeView.kt
+index c07af64..9d53392 100644
+--- a/node_modules/@rive-app/react-native/android/src/main/java/com/rive/RiveReactNativeView.kt
++++ b/node_modules/@rive-app/react-native/android/src/main/java/com/rive/RiveReactNativeView.kt
+@@ -151,8 +151,9 @@ class RiveReactNativeView(context: ThemedReactContext) : FrameLayout(context) {
+         // VM instance already bound via applyDataBinding() below.
+         riveAnimationView?.play(settleInitialState = false)
+       }
+-      _activeStateMachineName = getSafeStateMachineName()
+       configuredStateMachineName = config.stateMachineName
++      if (!config.autoPlay) initializePausedStateMachine()
++      _activeStateMachineName = getSafeStateMachineName()
+     } else {
+       riveAnimationView?.alignment = config.alignment
+       riveAnimationView?.fit = config.fit
+@@ -245,12 +246,29 @@ class RiveReactNativeView(context: ThemedReactContext) : FrameLayout(context) {
+ 
+   fun pause() = riveAnimationView?.pause()
+ 
+-  fun reset() = riveAnimationView?.reset()
++  private fun initializePausedStateMachine() {
++    val view = riveAnimationView ?: return
++    val name = configuredStateMachineName
++      ?: view.controller.activeArtboard?.stateMachineNames?.firstOrNull()
++      ?: return
++    // Create inputs without settling Entry at the default Weapon. Using the
++    // named machine also avoids no-arg play starting the first linear animation
++    // and first (Back) machine instead of the requested Front machine.
++    view.play(name, isStateMachine = true, settleInitialState = false)
++    view.pause()
++    _activeStateMachineName = name
++  }
++
++  fun reset() {
++    val view = riveAnimationView ?: return
++    view.reset() // The runtime removes ALL state-machine/input instances here.
++    initializePausedStateMachine()
++  }
+ 
+   fun playIfNeeded() {
+     if (riveAnimationView?.isPlaying == false) {
+       riveAnimationView?.post {
+-        riveAnimationView?.play()
++        play()
+       }
+     }
+   }
 diff --git a/node_modules/@rive-app/react-native/nitrogen/generated/ios/c++/views/HybridRiveViewComponent.mm b/node_modules/@rive-app/react-native/nitrogen/generated/ios/c++/views/HybridRiveViewComponent.mm
-index 2da18c1..70d6e34 100644
+index b8b5bba..8a59344 100644
 --- a/node_modules/@rive-app/react-native/nitrogen/generated/ios/c++/views/HybridRiveViewComponent.mm
 +++ b/node_modules/@rive-app/react-native/nitrogen/generated/ios/c++/views/HybridRiveViewComponent.mm
-@@ -44,5 +44,8 @@ using namespace margelo::nitro::rive::views;
+@@ -43,6 +43,9 @@ + (void) load {
+ 
  - (instancetype) init {
    if (self = [super init]) {
 +    // React Native 0.87+ requires every RCTViewComponentView subclass to

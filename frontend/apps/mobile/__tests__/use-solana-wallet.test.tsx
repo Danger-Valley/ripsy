@@ -21,6 +21,7 @@ jest.mock('../src/storage/solana-wallet-session', () => ({
   clearSolanaWalletSession: jest.fn(),
   subscribeSolanaWallet: jest.fn(() => jest.fn()),
 }));
+const mockAdapter = jest.requireMock('../src/solana-wallet-adapter') as { isSolanaWalletSupported: boolean };
 
 const session: SolanaWalletSession = {
   address: '11111111111111111111111111111111',
@@ -37,12 +38,25 @@ function WalletProbe() {
 }
 
 beforeEach(() => {
+  jest.restoreAllMocks();
   jest.clearAllMocks();
   jest.mocked(loadSolanaWalletSession).mockResolvedValue(null);
   jest.mocked(saveSolanaWalletSession).mockResolvedValue();
   jest.mocked(clearSolanaWalletSession).mockResolvedValue();
   jest.mocked(connectSolanaWallet).mockResolvedValue(session);
   jest.mocked(disconnectSolanaWallet).mockResolvedValue();
+});
+
+test('non-Seeker devices ignore an old external address and cannot initiate MWA connection', async () => {
+  jest.replaceProperty(mockAdapter, 'isSolanaWalletSupported', false);
+  jest.mocked(loadSolanaWalletSession).mockResolvedValueOnce(session);
+  await renderHook();
+  expect(wallet.isSupported).toBe(false);
+  expect(wallet.address).toBeNull();
+  expect(wallet.label).toBeNull();
+  await ReactTestRenderer.act(() => wallet.connect());
+  expect(connectSolanaWallet).not.toHaveBeenCalled();
+  expect(saveSolanaWalletSession).not.toHaveBeenCalled();
 });
 
 test('restores the remembered public wallet address without opening a wallet', async () => {

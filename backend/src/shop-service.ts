@@ -23,7 +23,7 @@ export class ShopService {
   async create(playerId: string, input: Record<string, unknown>): Promise<MintOrder> {
     if (!this.config.enabled) throw new ShopError('Minting is not available yet.', 503);
     if (!isFigureId(input.figureId)) throw new ShopError('Unknown figure');
-    if (input.figureId === 'fig1') throw new ShopError('Figure 01 is free for every player and is not sold in the shop.', 409);
+    if (input.figureId === 'fig1') throw new ShopError('RIPSY 001 is free for every player and is not sold in the shop.', 409);
     if (typeof input.buyer !== 'string') throw new ShopError('Connect a Solana wallet first');
     let buyer: string;
     try { buyer = String(publicKey(input.buyer)); } catch { throw new ShopError('Invalid wallet address'); }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TextInput } from 'react-native';
+import { Modal, StyleSheet, TextInput } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { CELLS, Choice, Owner, Phase, Piece, type GameState } from '@rps/core';
 import { HomeScreen } from '../src/screens/home-screen';
@@ -7,10 +7,14 @@ import { useNativeRipsyGame } from '../src/hooks/use-native-ripsy-game';
 import { usePlayerIdentity } from '../src/hooks/use-player-identity';
 import { usePushNotifications } from '../src/hooks/use-push-notifications';
 import { saveActiveGameId } from '../src/storage/active-game';
+import { useSolanaWallet } from '../src/hooks/use-solana-wallet';
+import { usePrivyWallet } from '../src/hooks/use-privy-wallet';
 
 jest.mock('../src/hooks/use-native-ripsy-game');
 jest.mock('../src/hooks/use-player-identity');
 jest.mock('../src/hooks/use-push-notifications');
+jest.mock('../src/hooks/use-solana-wallet');
+jest.mock('../src/hooks/use-privy-wallet');
 jest.mock('../src/storage/active-game', () => ({ saveActiveGameId: jest.fn(() => Promise.resolve()) }));
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
@@ -28,6 +32,9 @@ const addListener = jest.fn(() => jest.fn());
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(useSolanaWallet).mockReturnValue({ isSupported: false, address: null } as ReturnType<typeof useSolanaWallet>);
+  jest.mocked(usePrivyWallet).mockReturnValue({ address: null, refresh: jest.fn().mockResolvedValue(undefined) } as unknown as ReturnType<typeof usePrivyWallet>);
+  createGame.mockReset().mockResolvedValue('abcdef12');
   jest.mocked(usePlayerIdentity).mockReturnValue({
     playerId: 'alice-player-id',
     sessionToken: 'alice-session-token',
@@ -59,6 +66,14 @@ beforeEach(() => {
   });
 });
 
+test('Register opens the in-app email sign-in directly without creating a game', async () => {
+  const renderer = await renderHome();
+  const registerButton = renderer.root.find(node => node.props.accessibilityRole === 'button' && node.props.accessibilityLabel === 'Register');
+  await ReactTestRenderer.act(() => registerButton.props.onPress());
+  expect(navigate).toHaveBeenCalledWith('Shop', { signIn: true });
+  expect(createGame).not.toHaveBeenCalled();
+});
+
 test('creates a game and opens the returned room', async () => {
   const renderer = await renderHome();
   const createButton = renderer.root.find(node => node.props.accessibilityHint === 'Creates a new room and opens it');
@@ -70,6 +85,72 @@ test('creates a game and opens the returned room', async () => {
 
   expect(createGame).toHaveBeenCalledTimes(1);
   expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'abcdef12' });
+});
+
+test.each([true, false])('does not show a create spinner for background requests (connected: %s)', async isConnected => {
+  jest.mocked(useNativeRipsyGame).mockReturnValue({
+    ...jest.mocked(useNativeRipsyGame)('alice-player-id', 'alice-session-token'),
+    isBusy: true,
+    isConnected,
+  });
+  const renderer = await renderHome();
+  const button = findCreateButton(renderer);
+
+  expect(button.props.accessibilityState).toEqual({ disabled: !isConnected, busy: false });
+  expect(button.findAll(node => node.props.accessibilityLabel === 'Loading')).toHaveLength(0);
+  expect(createGame).not.toHaveBeenCalled();
+});
+
+test('shows loading only during creation and prevents duplicate taps before rendering', async () => {
+  let resolveCreation!: (gameId: string) => void;
+  createGame.mockImplementationOnce(() => new Promise(resolve => { resolveCreation = resolve; }));
+  const renderer = await renderHome();
+  const button = () => findCreateButton(renderer);
+
+  await ReactTestRenderer.act(() => {
+    const press = button().props.onPress;
+    press();
+    press();
+  });
+  expect(createGame).toHaveBeenCalledTimes(1);
+  expect(button().props.accessibilityState).toEqual({ disabled: true, busy: true });
+  expect(button().findAll(node => node.props.accessibilityLabel === 'Loading').length).toBeGreaterThan(0);
+  expect(navigate).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(async () => { resolveCreation('created1'); });
+  expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'created1' });
+  expect(button().props.accessibilityState).toEqual({ disabled: false, busy: false });
+});
+
+test('clears creation loading after failure and permits retry', async () => {
+  createGame.mockRejectedValueOnce(new Error('Request timed out'));
+  const renderer = await renderHome();
+  const button = () => findCreateButton(renderer);
+
+  await ReactTestRenderer.act(async () => { button().props.onPress(); });
+  expect(navigate).not.toHaveBeenCalled();
+  expect(button().props.accessibilityState).toEqual({ disabled: false, busy: false });
+
+  await ReactTestRenderer.act(async () => { button().props.onPress(); });
+  expect(createGame).toHaveBeenCalledTimes(2);
+  expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'abcdef12' });
+});
+
+test.each(['identity', 'connection'])('guards creation when %s is not ready', async unavailable => {
+  if (unavailable === 'identity') {
+    jest.mocked(usePlayerIdentity).mockReturnValue({ playerId: '', sessionToken: '', isReady: false, error: null });
+  } else {
+    jest.mocked(useNativeRipsyGame).mockReturnValue({
+      ...jest.mocked(useNativeRipsyGame)('alice-player-id', 'alice-session-token'),
+      isConnected: false,
+    });
+  }
+  const renderer = await renderHome();
+  const button = findCreateButton(renderer);
+
+  await ReactTestRenderer.act(async () => { button.props.onPress(); });
+  expect(createGame).not.toHaveBeenCalled();
+  expect(button.props.accessibilityState).toEqual({ disabled: true, busy: false });
 });
 
 test('opens a fully local computer battle without waiting for the server', async () => {
@@ -89,17 +170,17 @@ test('opens a fully local computer battle without waiting for the server', async
   expect(navigate).toHaveBeenCalledWith('ComputerGame');
 });
 
-test('renders the Figma Game UI Kit arcade hierarchy', async () => {
+test('renders the illustrated compact home with safe-area spacing', async () => {
   const renderer = await renderHome();
 
   expect(renderer.root.find(node => node.props.testID === 'arcade-home-hero')).toBeDefined();
-  expect(renderer.root.findAll(node => node.props.children === 'RIPSY ARCADE').length).toBeGreaterThan(0);
-  expect(renderer.root.findAll(node => node.props.children === 'Create online battle').length).toBeGreaterThan(0);
+  expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'RIPSY').length).toBeGreaterThan(0);
+  expect(renderer.root.findAll(node => node.props.children === 'Create battle').length).toBeGreaterThan(0);
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Set up your army')).toBeDefined();
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Explore figure shop')).toBeDefined();
   expect(StyleSheet.flatten(renderer.root.find(node => node.props.testID === 'home-scroll').props.contentContainerStyle)).toMatchObject({
-    paddingTop: 63,
-    paddingBottom: 58,
+    paddingTop: 55,
+    paddingBottom: 46,
   });
 });
 
@@ -132,7 +213,7 @@ test('keeps technical identity failures off the home screen and disables game cr
   expect(createButton.props.disabled).toBe(true);
 });
 
-test('shows unfinished games as board previews and opens a selected room', async () => {
+test('shows unfinished games as compact battle cards and opens a selected room', async () => {
   const activeGame = createActiveGame();
   jest.mocked(useNativeRipsyGame).mockReturnValue({
     ...jest.mocked(useNativeRipsyGame)('alice-player-id', 'alice-session-token'),
@@ -141,7 +222,7 @@ test('shows unfinished games as board previews and opens a selected room', async
   const renderer = await renderHome();
   const card = renderer.root.find(node => node.props.accessibilityLabel === 'Open room active12, Your turn');
 
-  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'header').some(node => node.props.children === 'Your active games')).toBe(true);
+  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'header').some(node => node.props.children === 'Active games')).toBe(true);
   await ReactTestRenderer.act(() => card.props.onPress());
   expect(navigate).toHaveBeenCalledWith('Game', { gameId: 'active12' });
 });
@@ -177,6 +258,15 @@ test('restores the last game only after the server confirms it is unfinished', a
   expect(saveActiveGameId).not.toHaveBeenCalledWith(null);
 });
 
+test('opens functional settings and returns to the army from there', async () => {
+  const renderer = await renderHome();
+  await ReactTestRenderer.act(() => renderer.root.find(node => node.props.accessibilityLabel === 'Open settings').props.onPress());
+  expect(renderer.root.findByType(Modal).props.visible).toBe(true);
+  await ReactTestRenderer.act(() => renderer.root.find(node => node.props.accessibilityLabel === 'Your army' && node.props.accessibilityRole === 'button').props.onPress());
+  expect(navigate).toHaveBeenCalledWith('Army');
+  expect(renderer.root.findByType(Modal).props.visible).toBe(false);
+});
+
 test('does not restore a finished game and clears its saved id', async () => {
   const finishedGame = { ...createActiveGame(), phase: Phase.Finished };
   listGames.mockResolvedValueOnce([finishedGame]);
@@ -194,6 +284,10 @@ async function renderHome(params?: { restoreGameId?: string }) {
     await Promise.resolve();
   });
   return renderer;
+}
+
+function findCreateButton(renderer: ReactTestRenderer.ReactTestRenderer) {
+  return renderer.root.find(node => node.props.accessibilityRole === 'button' && node.props.accessibilityHint === 'Creates a new room and opens it');
 }
 
 function createActiveGame(): GameState {

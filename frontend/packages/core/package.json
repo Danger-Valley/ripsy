@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "module": "src/index.ts",
   "types": "src/index.ts",
-  "exports": { ".": "./src/index.ts", "./shop": "./src/shop.ts" },
+  "exports": { ".": "./src/index.ts", "./shop": "./src/shop.ts", "./invitations": "./src/invitations.ts", "./invite-qr": "./src/invite-qr.ts" },
+  "dependencies": { "qrcode": "1.5.4" },
   "files": ["src"],
   "scripts": {
     "build": "tsc -p tsconfig.json",

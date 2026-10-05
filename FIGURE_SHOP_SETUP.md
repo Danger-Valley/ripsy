@@ -79,12 +79,13 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 | `SHOP_MINT_AUTHORITY_SECRET` | Server-only 64-byte JSON Solana keypair |
 | `SHOP_FIG2_PRICE_LAMPORTS` | Positive integer string; blank disables fig2 |
 | `SHOP_PUBLIC_ORIGIN` | HTTPS host of `/figures/fig1.json` etc.; default `https://www.ripsy.fun` |
+| `SHOP_SOLANA_MOBILE_STORE_URL` | Public HTTPS store/referral URL returned in `GET /shop/catalog` as `solanaMobileStoreUrl`; default `https://store.solanamobile.com/`. Set in Railway, not Vercel/mobile build env. Redeploy/restart backend after changing it; clients receive it on their next catalog fetch without an app update. |
 
 Keep `ALLOWED_ORIGINS` configured for `https://www.ripsy.fun` and any deliberately
 supported preview origins. Orders use the existing bearer player session from
 `POST /session`; wallet login does not replace gameplay identity.
 
-Figure 02 is Seeker-exclusive. Before the backend creates its mint transaction,
+Seeker fighter is Seeker-exclusive. Before the backend creates its mint transaction,
 the receiving wallet must sign a backend-issued, single-use Sign-In With Solana
 challenge. The backend verifies that signature and then checks the same address
 for a genuine, non-zero-balance Seeker Genesis Token on mainnet. Client device
@@ -92,7 +93,7 @@ flags and wallet labels are deliberately not trusted. This flow requires a
 physical Seeker with its Seed Vault wallet for release verification.
 
 Opening Army directly uses another single-use SIWS challenge. A successful Seeker
-verification during Figure 02 purchase is also a valid wallet proof, so it creates
+verification during Seeker fighter purchase is also a valid wallet proof, so it creates
 the same player-to-wallet binding and the confirmed mint can open in Army without
 asking for a redundant second signature. Railway stores that binding and its
 14-slot loadout in Redis without a TTL. Inventory responses come from the official

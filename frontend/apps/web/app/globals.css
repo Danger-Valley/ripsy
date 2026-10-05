@@ -1,55 +1,46 @@
 :root {
-  /* Punch Pop — light */
-  --background: oklch(0.98 0.01 30);
-  --foreground: oklch(0.17 0.03 20);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.17 0.03 20);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.17 0.03 20);
-  --primary: oklch(0.47 0.20 25);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.94 0.015 30);
-  --secondary-foreground: oklch(0.17 0.03 20);
-  --muted: oklch(0.95 0.01 30);
-  --muted-foreground: oklch(0.42 0.03 20);
-  --accent: oklch(0.92 0.04 25);
-  --accent-foreground: oklch(0.17 0.03 20);
-  --reward: oklch(0.68 0.18 95);
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.85 0.02 30);
-  --input: oklch(0.96 0.01 30);
-  --ring: oklch(0.47 0.20 25);
+  --background: #79d8f6;
+  --foreground: #123a55;
+  --card: #fffdf4;
+  --card-foreground: #123a55;
+  --popover: #fffdf4;
+  --popover-foreground: #123a55;
+  --primary: #ff654f;
+  --primary-foreground: #123a55;
+  --secondary: #fffdf4;
+  --secondary-foreground: #123a55;
+  --muted: #f7edd2;
+  --muted-foreground: #526f7f;
+  --accent: #25bdf1;
+  --accent-foreground: #123a55;
+  --reward: #ffc928;
+  --destructive: #e94b45;
+  --destructive-foreground: #123a55;
+  --border: #d8c99d;
+  --input: #fffdf4;
+  --ring: #1175aa;
   --radius: 1.25rem;
-  --gradient-bg: linear-gradient(135deg, oklch(0.98 0.01 30) 0%, oklch(0.95 0.015 45) 100%);
-  --gradient-accent: linear-gradient(to right, oklch(0.47 0.20 25) 0%, oklch(0.50 0.21 55) 100%);
+  --toy-sky: #79d8f6;
+  --toy-sky-deep: #50c4ea;
+  --toy-coral: #ff654f;
+  --toy-coral-dark: #c8392e;
+  --toy-cyan: #25bdf1;
+  --toy-cyan-dark: #1175aa;
+  --toy-yellow: #ffc928;
+  --toy-yellow-light: #fff19a;
+  --toy-yellow-dark: #d48b13;
+  --toy-cream: #fffdf4;
+  --toy-sand: #f3e4be;
+  --toy-sand-dark: #b69c65;
+  --toy-ink: #123a55;
+  --toy-muted: #526f7f;
+  --toy-shadow: #24617c;
+  --gradient-bg: linear-gradient(180deg, #79d8f6 0%, #50c4ea 100%);
+  --gradient-accent: linear-gradient(180deg, #fff19a 0%, #ffc928 100%);
 }
 
 .dark {
-  /* RIPSY ships dark-first. Punch Pop — dark */
-  --background: oklch(0.12 0.03 20);
-  --foreground: oklch(0.97 0.01 30);
-  --card: oklch(0.18 0.05 20);
-  --card-foreground: oklch(0.97 0.01 30);
-  --popover: oklch(0.20 0.05 20);
-  --popover-foreground: oklch(0.97 0.01 30);
-  --primary: oklch(0.72 0.22 25);
-  --primary-foreground: oklch(0.10 0.02 25);
-  --secondary: oklch(0.24 0.06 20);
-  --secondary-foreground: oklch(0.97 0.01 30);
-  --muted: oklch(0.21 0.05 20);
-  --muted-foreground: oklch(0.70 0.03 30);
-  --accent: oklch(0.26 0.08 25);
-  --accent-foreground: oklch(0.97 0.01 30);
-  --reward: oklch(0.86 0.19 95);
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.31 0.06 25);
-  --input: oklch(0.18 0.05 20);
-  --ring: oklch(0.74 0.21 25);
-  --radius: 1.25rem;
-  --gradient-bg: linear-gradient(135deg, oklch(0.12 0.03 20) 0%, oklch(0.15 0.035 35) 100%);
-  --gradient-accent: linear-gradient(to right, oklch(0.72 0.22 25) 0%, oklch(0.76 0.22 55) 100%);
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }

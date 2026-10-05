@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing } from 'react-native';
-import type { GameState } from '@rps/core';
+import { Piece, type GameState } from '@rps/core';
+import type { SoundName } from '../audio/sound-engine';
 import {
   classifyGameTransition,
   COMBAT_WINNER_SETTLE_MS,
@@ -29,7 +30,10 @@ interface QueuedTransition {
   state: GameState;
 }
 
-export function useGameAnimationQueue(authoritativeState: GameState | null) {
+export function useGameAnimationQueue(authoritativeState: GameState | null, onSound?: (sound: SoundName) => void) {
+  const soundRef = useRef(onSound);
+  soundRef.current = onSound;
+  const emit = (name: SoundName) => { try { soundRef.current?.(name); } catch { /* Audio never blocks presentation. */ } };
   const progress = useRef(new Animated.Value(0)).current;
   const displayedRef = useRef<GameState | null>(null);
   const latestStateRef = useRef<GameState | null>(null);
@@ -43,6 +47,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
   const pendingLandingReadyRef = useRef<(() => void) | null>(null);
   const pendingLandingFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingTrapStartRef = useRef<((trigger?: TrapTrigger) => void) | null>(null);
+  const pendingAttackSoundRef = useRef<(() => void) | null>(null);
   const pendingTrapFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const drainRef = useRef<() => void>(() => undefined);
@@ -143,6 +148,8 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     pendingTrapStartRef.current?.(trigger);
   }, []);
 
+  const startActiveAttack = useCallback(() => { pendingAttackSoundRef.current?.(); }, []);
+
   drainRef.current = () => {
     if (!mountedRef.current || runningRef.current) return;
     const transition = queueRef.current.shift();
@@ -165,6 +172,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     if (pendingTrapFallbackRef.current !== null) clearTimeout(pendingTrapFallbackRef.current);
     pendingTrapFallbackRef.current = null;
     pendingTrapStartRef.current = null;
+    pendingAttackSoundRef.current = null;
     const resumesPendingCombat = Boolean(
       transition.combat?.resolution === 'resolved'
       && activeCombatRef.current?.resolution === 'pending',
@@ -184,6 +192,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     progress.setValue(resumesPendingCombat || revealsRepeatedTie ? 1.35 : 0);
 
     const completeTransition = () => {
+      pendingAttackSoundRef.current = null;
       runningRef.current = false;
       setActiveKind(null);
       setActiveMove(null);
@@ -210,6 +219,9 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
         pendingTrapStartRef.current = null;
         if (pendingTrapFallbackRef.current !== null) clearTimeout(pendingTrapFallbackRef.current);
         pendingTrapFallbackRef.current = null;
+        // Only the actual synchronized Rive pair has sound, not a watchdog or
+        // initialization of a revealed stationary trap on reconnect.
+        if (trigger) emit('trap');
         startPresentationDelay(RIVE_TRAP_DURATION_MS, completeTransition);
       };
 
@@ -224,6 +236,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       if (combat.resolution === 'pending') {
         if (revealsRepeatedTie) {
           startPresentationDelay(REPEATED_TIE_REVEAL_MS, () => {
+            emit('tie');
             displayedRef.current = transition.state;
             setDisplayedState(transition.state);
             runningRef.current = false;
@@ -234,6 +247,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
           return;
         }
         startProgressTiming(620, 1.35, Easing.bezier(0.22, 0.72, 0.24, 1), () => {
+          emit('tie');
           displayedRef.current = transition.state;
           setDisplayedState(transition.state);
           runningRef.current = false;
@@ -245,9 +259,16 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       }
 
       const finishAttack = () => {
+        pendingAttackSoundRef.current = () => {
+          pendingAttackSoundRef.current = null;
+          if (combat.winnerPiece === Piece.Rock) emit('rock');
+          else if (combat.winnerPiece === Piece.Paper) emit('paper');
+          else if (combat.winnerPiece === Piece.Scissors) emit('scissors');
+        };
         setCombatPhase('attack');
         startProgressTiming(combatAttackDurationMs(combat.winnerPiece) + 100, 2, undefined, () => {
           setCombatPhase('death');
+          pendingAttackSoundRef.current = null;
           startProgressTiming(200, 3, undefined, () => {
             displayedRef.current = transition.state;
             setDisplayedState(transition.state);
@@ -277,7 +298,9 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       return;
     }
 
+    let soundedMove = false;
     const finishMove = () => {
+      if (soundedMove) emit('land');
       displayedRef.current = transition.state;
       setDisplayedState(transition.state);
       if (!transition.move) {
@@ -316,9 +339,10 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
 
     if (transition.move) {
       let started = false;
-      const beginMove = (requestedTravelDelayMs = 0) => {
+      const beginMove = (requestedTravelDelayMs = 0, fromRive = true) => {
         if (started || !mountedRef.current || pendingMoveStartRef.current !== beginMove) return;
         started = true;
+        if (fromRive) { soundedMove = true; emit('jump'); }
         pendingMoveStartRef.current = null;
         if (pendingMoveFallbackRef.current !== null) clearTimeout(pendingMoveFallbackRef.current);
         pendingMoveFallbackRef.current = null;
@@ -344,7 +368,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       pendingMoveStartRef.current = beginMove;
       // Do not deadlock gameplay if a platform never supplies a Rive ref.
       // Normal movement starts from RiveGamePiece's trigger callback instead.
-      pendingMoveFallbackRef.current = setTimeout(beginMove, 1_500);
+      pendingMoveFallbackRef.current = setTimeout(() => beginMove(0, false), 1_500);
       return;
     }
 
@@ -368,6 +392,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       if (pendingTrapFallbackRef.current !== null) clearTimeout(pendingTrapFallbackRef.current);
       pendingTrapFallbackRef.current = null;
       pendingTrapStartRef.current = null;
+      pendingAttackSoundRef.current = null;
       progress.stopAnimation();
       progress.setValue(0);
       queueRef.current = [];
@@ -414,6 +439,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
       if (pendingTrapFallbackRef.current !== null) clearTimeout(pendingTrapFallbackRef.current);
       pendingTrapFallbackRef.current = null;
       pendingTrapStartRef.current = null;
+      pendingAttackSoundRef.current = null;
       progress.stopAnimation();
     };
   }, [progress]);
@@ -430,6 +456,7 @@ export function useGameAnimationQueue(authoritativeState: GameState | null) {
     progress,
     startActiveMove,
     startActiveTrap,
+    startActiveAttack,
     completeActiveMoveLanding,
     opacity: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.55, 1] }),
     scale: progress.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 1.025, 1] }),

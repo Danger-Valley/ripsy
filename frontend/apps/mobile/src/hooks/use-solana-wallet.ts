@@ -76,8 +76,8 @@ export function useSolanaWallet() {
   }, [session, status]);
 
   return {
-    address: session?.address ?? null,
-    label: session?.label ?? null,
+    address: isSolanaWalletSupported ? session?.address ?? null : null,
+    label: isSolanaWalletSupported ? session?.label ?? null : null,
     status,
     error,
     isSupported: isSolanaWalletSupported,

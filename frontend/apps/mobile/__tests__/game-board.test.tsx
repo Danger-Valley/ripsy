@@ -1,10 +1,9 @@
 import React from 'react';
 import { AccessibilityInfo, Animated, StyleSheet } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
-import { HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
+import { FigureVariant, HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
 import { RiveGamePiece } from '../src/components/rive-game-piece';
-import { colors } from '../src/theme';
 
 function createState(): GameState {
   const owners: Owner[] = Array.from({ length: WIDTH * HEIGHT }, () => Owner.None);
@@ -59,17 +58,35 @@ test('exposes piece names and only actionable cells as buttons', async () => {
   const surfaceStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-surface' }).props.style);
   expect(boardStyle.overflow).toBe('visible');
   expect(surfaceStyle).toMatchObject({
-    borderColor: colors.primaryMuted,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
     borderRadius: 10,
-    borderWidth: 2,
-    overflow: 'hidden',
+    borderWidth: 0,
+    overflow: 'visible',
   });
   expect(pieceVisuals.every(visual => {
     const style = StyleSheet.flatten(visual.props.style);
     return style.backgroundColor === undefined && style.borderColor === undefined && style.borderWidth === undefined;
   })).toBe(true);
   const firstCellStyle = StyleSheet.flatten(cells[0]?.props.style);
-  expect(firstCellStyle.width * WIDTH + surfaceStyle.borderWidth * 2).toBeCloseTo(boardStyle.width);
+  expect(firstCellStyle.width * WIDTH).toBeCloseTo(boardStyle.width * 0.84);
+});
+
+test('caps the complete board to the available height and keeps the grid and hit targets aligned', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<GameBoard maxSize={300} state={createState()} ownOwner={Owner.P0} isPlayer1 />);
+  });
+  const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
+  expect(boardStyle.width).toBe(300);
+  expect(boardStyle.height).toBe(300);
+  const cell = renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 1, empty');
+  const cellStyle = StyleSheet.flatten(cell.props.style);
+  expect(cellStyle.width).toBe(cellStyle.height);
+  expect(cellStyle.width * WIDTH).toBeCloseTo(300 * 0.84);
+  const art = renderer.root.findAllByType(require('react-native').Image)[0]!;
+  expect(art.parent?.props.pointerEvents).toBe('none');
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('announces selected pieces and legal move targets', async () => {
@@ -530,9 +547,9 @@ test('keeps the local fighter left and the opponent right regardless of attacker
     );
   });
 
-  const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
-  const surfaceStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-surface' }).props.style);
-  const cellSize = (boardStyle.width - surfaceStyle.borderWidth * 2) / WIDTH;
+  const cellSize = StyleSheet.flatten(renderer.root.find(
+    node => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Row 1, column 1,'),
+  ).props.style).width;
   const fighters = renderer.root.findAll(node => node.props.testID === 'combat-winner' || node.props.testID === 'combat-loser');
   const localFighter = fighters.find(fighter => fighter.findByType(RiveGamePiece).props.isMine);
   const opponentFighter = fighters.find(fighter => !fighter.findByType(RiveGamePiece).props.isMine);
@@ -583,9 +600,9 @@ test('returns the combat winner into the destination cell before revealing the a
     renderer = ReactTestRenderer.create(renderBoard(true));
   });
 
-  const boardStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
-  const surfaceStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'board-surface' }).props.style);
-  const cellSize = (boardStyle.width - surfaceStyle.borderWidth * 2) / WIDTH;
+  const cellSize = StyleSheet.flatten(renderer.root.find(
+    node => node.props.accessibilityLabel === 'Row 1, column 1, empty',
+  ).props.style).width;
   const winnerStyle = StyleSheet.flatten(renderer.root.findByProps({ testID: 'combat-winner' }).props.style);
   const landedX = winnerStyle.left + winnerStyle.transform[0].translateX.__getValue();
   const landedY = winnerStyle.top + winnerStyle.transform[1].translateY.__getValue();
@@ -684,4 +701,74 @@ test('keeps a lineup figure mounted while its piece changes', async () => {
 
   expect(rockInstance).toBe(trapInstance);
   expect(renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your rock')).toBeDefined();
+});
+
+test.each([false, true])('remounts shuffled figure models with local Back facing for player1=%s', async isPlayer1 => {
+  const state = createState();
+  state.phase = Phase.Created;
+  state.owners.fill(Owner.None);
+  state.pieces.fill(Piece.Empty);
+  const ownOwner = isPlayer1 ? Owner.P1 : Owner.P0;
+  const renderBoard = (figureVariant: FigureVariant) => (
+    <GameBoard
+      isPlayer1={isPlayer1}
+      ownOwner={ownOwner}
+      previewLineup={[{ x: isPlayer1 ? WIDTH - 1 : 0, y: isPlayer1 ? 0 : HEIGHT - 1, piece: Piece.Paper, figureVariant }]}
+      showOpponentFormation
+      state={state}
+    />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => { renderer = ReactTestRenderer.create(renderBoard(FigureVariant.Fig1)); });
+  const localCell = () => renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your paper');
+  let previousView = localCell().findByProps({ testID: 'rive-view' });
+  for (const variant of [FigureVariant.Fig2, FigureVariant.Fig1, FigureVariant.Fig2]) {
+    await ReactTestRenderer.act(() => { renderer.update(renderBoard(variant)); });
+    const currentView = localCell().findByProps({ testID: 'rive-view' });
+    expect(currentView).not.toBe(previousView);
+    expect(currentView.props.stateMachineName).toBe('State Machine Back');
+    previousView = currentView;
+  }
+  await ReactTestRenderer.act(() => { renderer.unmount(); });
+});
+
+test('keeps unaffected figures rendered through takeoff, landing and the next turn', async () => {
+  const nativeRender = jest.spyOn(require('@rive-app/react-native'), 'RiveView');
+  const previous = createState();
+  previous.owners[toIdx(5, 6)] = Owner.P0;
+  previous.pieces[toIdx(5, 6)] = Piece.Scissors;
+  const next = { ...previous, owners: [...previous.owners], pieces: [...previous.pieces], isP1Turn: true };
+  next.owners[toIdx(0, 0)] = Owner.None;
+  next.pieces[toIdx(0, 0)] = Piece.Empty;
+  next.owners[toIdx(0, 1)] = Owner.P0;
+  next.pieces[toIdx(0, 1)] = Piece.Rock;
+  const progress = new Animated.Value(0);
+  const move = { from: { x: 0, y: 0 }, to: { x: 0, y: 1 }, owner: Owner.P0, piece: Piece.Rock };
+  const renderBoard = (state: GameState, moving = false) => (
+    <GameBoard isPlayer1={false} ownOwner={Owner.P0} state={state} moveAnimation={moving ? move : null} moveProgress={progress} />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(() => { renderer = ReactTestRenderer.create(renderBoard(previous)); });
+    const stationaryViews = () => [
+      renderer.root.find(node => node.props.accessibilityLabel === 'Row 1, column 2, opponent piece').findByProps({ testID: 'rive-view' }),
+      renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 6, your scissors').findByProps({ testID: 'rive-view' }),
+    ];
+    const originalViews = stationaryViews();
+    nativeRender.mockClear();
+    await ReactTestRenderer.act(() => { renderer.update(renderBoard(previous, true)); });
+    expect(nativeRender).toHaveBeenCalledTimes(1); // Only the moving source.
+    nativeRender.mockClear();
+    await ReactTestRenderer.act(() => { renderer.update(renderBoard(next, true)); });
+    expect(nativeRender).toHaveBeenCalledTimes(1); // Only the new destination.
+    nativeRender.mockClear();
+    await ReactTestRenderer.act(() => { renderer.update(renderBoard(next)); });
+    expect(nativeRender).not.toHaveBeenCalled();
+    const currentViews = stationaryViews();
+    expect(currentViews[0]).toBe(originalViews[0]);
+    expect(currentViews[1]).toBe(originalViews[1]);
+  } finally {
+    await ReactTestRenderer.act(() => { renderer?.unmount(); });
+    nativeRender.mockRestore();
+  }
 });

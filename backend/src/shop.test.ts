@@ -61,6 +61,15 @@ test('prices are server owned and idempotency survives switching replicas', asyn
   await assert.rejects(() => f.replica.create('player', { ...input, buyer: 'SysvarC1ock11111111111111111111111111111111' }), /already used/);
 });
 
+test('catalog exposes the default or configured store referral URL, with no unsafe schemes', () => {
+  assert.equal(shopCatalog(loadShopConfig({})).solanaMobileStoreUrl, 'https://store.solanamobile.com/');
+  const referral = 'https://store.solanamobile.com/?ref=ripsy&utm_source=app';
+  assert.equal(shopCatalog(loadShopConfig({ SHOP_SOLANA_MOBILE_STORE_URL: referral })).solanaMobileStoreUrl, referral);
+  for (const value of ['javascript:alert(1)', 'http://store.solanamobile.com/', 'https://user:password@store.solanamobile.com/', 'not-a-url']) {
+    assert.throws(() => loadShopConfig({ SHOP_SOLANA_MOBILE_STORE_URL: value }), /SHOP_SOLANA_MOBILE_STORE_URL/);
+  }
+});
+
 test('two replicas cannot simultaneously construct the same purchase', async () => {
   const f = fixture();
   const results = await Promise.allSettled([f.service.create('player', input), f.replica.create('player', input)]);
@@ -81,7 +90,7 @@ test('order scope, input validation and rate limiting cannot be bypassed by a pr
   await assert.rejects(() => f.service.create('player', { ...input, idempotencyKey: 'purchase-request-overflow' }), /Too many/);
 });
 
-test('Figure 02 requires a backend-verified Seeker wallet before preparing a transaction', async () => {
+test('Seeker fighter requires a backend-verified Seeker wallet before preparing a transaction', async () => {
   const f = fixture();
   const checked: string[] = [];
   const service = new ShopService(f.redis, config, f.chain, 'ripsy', {

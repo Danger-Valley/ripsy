@@ -1,5 +1,5 @@
 import { FigureVariant } from '@rps/core';
-import { FIGURE_SLOTS, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
+import { FIGURES, FIGURE_SLOTS, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
 import { ShopError } from './shop-error.js';
 import type { ShopRedis } from './shop-service.js';
 
@@ -68,10 +68,10 @@ export class FigureInventoryService {
       requested.forEach((variant, index) => {
         const assetId = assetIds[index];
         if (variant === FigureVariant.Fig2 && !assetId) {
-          throw new ShopError('Every Figure 02 slot must identify its Core collectible.', 403);
+          throw new ShopError('Every Seeker fighter slot must identify its Core collectible.', 403);
         }
         if (variant !== FigureVariant.Fig2 && assetId) {
-          throw new ShopError('A Core collectible can only be assigned to a Figure 02 slot.', 403);
+          throw new ShopError('A Core collectible can only be assigned to a Seeker fighter slot.', 403);
         }
       });
       const selected = assetIds.filter((assetId): assetId is string => Boolean(assetId));
@@ -84,7 +84,7 @@ export class FigureInventoryService {
     const equipped = inventory.slots.filter((assetId): assetId is string => Boolean(assetId));
     const equippedCount = equipped.length;
     if (fig2Count !== equippedCount) {
-      throw new ShopError(`Your saved army allows ${equippedCount} Figure 02 slot${equippedCount === 1 ? '' : 's'}.`, 403);
+      throw new ShopError(`Your saved army allows ${equippedCount} Seeker fighter slot${equippedCount === 1 ? '' : 's'}.`, 403);
     }
     // Legacy clients only sent visual variants. New clients prove the exact Core assets
     // used by the shuffled lineup, without publishing those wallet identifiers in GameState.
@@ -160,7 +160,8 @@ function parseAsset(value: unknown, collection: string, publicOrigin: string): O
   return {
     assetId: item.id,
     figureId: 'fig2',
-    name: typeof metadata.name === 'string' && metadata.name.trim() ? metadata.name : 'Figure 02',
+    // The app's fighter name is canonical even for NFTs minted before a rename.
+    name: FIGURES.find(figure => figure.id === 'fig2')!.name,
     imageUrl: typeof links.image === 'string' ? links.image : `${publicOrigin}/figures/fig2.png`,
   };
 }

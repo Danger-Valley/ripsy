@@ -1,7 +1,8 @@
-import { Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShop } from '@rps/game-client/use-shop';
-import { FIGURE_SLOTS, formatSol, isTerminalMint, solanaExplorer } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePrice, figureStoreMessage, isTerminalMint, solanaExplorer, type ShopFigure } from '@rps/core/shop';
 import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
@@ -9,181 +10,259 @@ import { usePrivyWallet } from '../hooks/use-privy-wallet';
 import { proveSeekerWallet, signShopTransaction } from '../solana-wallet-adapter';
 import { shopPurchaseStorage } from '../storage/shop-purchase';
 import { saveFigureSlots } from '../storage/figure-loadout';
-import { PrimaryButton } from '../components/primary-button';
+import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from '../components/toy-home-controls';
+import { ToyBadge, ToyDialog } from '../components/toy-dialog';
+import { StatusBanner } from '../components/status-banner';
 import { colors, spacing } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
-const images = {
-  fig1: require('../assets/shop/fig1.png'),
-  fig2: require('../assets/shop/fig2.png'),
-};
-
+const images = { fig1: require('../assets/shop/fig1.png'), fig2: require('../assets/shop/fig2.png') };
+const scenery = require('../assets/ui/battle-playground.png');
+const showcase = require('../assets/ui/toy-box-home-arena.png');
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
 
-export function ShopScreen({ navigation }: Props) {
+export function ShopScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const { sessionToken, error: sessionError } = usePlayerIdentity();
   const wallet = useSolanaWallet();
   const privy = usePrivyWallet();
   const shop = useShop(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken, shopPurchaseStorage);
   const order = shop.order;
-  const [walletKind, setWalletKind] = useState<'external' | 'privy'>('external');
+  const [walletKind, setWalletKind] = useState<'external' | 'privy'>(wallet.isSupported && !route.params?.signIn ? 'external' : 'privy');
+  const [walletOpen, setWalletOpen] = useState(Boolean(route.params?.signIn));
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
+  useEffect(() => { setPaymentDetailsOpen(false); }, [order?.id]);
   useEffect(() => {
-    if (!wallet.isSupported && privy.address) setWalletKind('privy');
-  }, [privy.address, wallet.isSupported]);
-  const address = walletKind === 'privy' ? privy.address : wallet.address;
-  const orderSigner = order?.buyer === privy.address
-    ? privy.signShopTransaction
-    : order?.buyer === wallet.address
-      ? signShopTransaction
-      : null;
-  const canClose = !shop.signingStarted || (order && isTerminalMint(order));
-  const error = actionError || shop.error || wallet.error || privy.error || sessionError;
+    if (route.params?.signIn) { setWalletKind('privy'); setWalletOpen(true); }
+  }, [route.params?.signIn]);
+  useEffect(() => { if (!wallet.isSupported) setWalletKind('privy'); }, [wallet.isSupported]);
+  const address = walletKind === 'privy' || !wallet.isSupported ? privy.address : wallet.address;
+  const orderSigner = order?.buyer === privy.address ? privy.signShopTransaction : wallet.isSupported && order?.buyer === wallet.address ? signShopTransaction : null;
+  const canClose = !shop.signingStarted || Boolean(order && isTerminalMint(order));
+  const error = actionError || shop.error || (wallet.isSupported ? wallet.error : null) || privy.error || sessionError;
+  const figures = shop.catalog?.figures.filter(figure => figure.id !== 'fig1') ?? [];
   const run = (task: () => Promise<unknown>) => {
     setActionError(null);
-    void task().catch(cause => setActionError(cause instanceof Error ? cause.message : 'Please try again.'));
+    task().catch(cause => setActionError(cause instanceof Error ? cause.message : 'Please try again.'));
   };
   const disconnectWallet = async (kind: 'external' | 'privy') => {
     await shop.clearWallet();
     await saveFigureSlots(Array<string | null>(FIGURE_SLOTS).fill(null));
-    if (kind === 'external') await wallet.disconnect();
-    else await privy.disconnect();
+    if (kind === 'external') await wallet.disconnect(); else await privy.disconnect();
   };
+  const sendCode = () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setEmailError('Enter a valid email address.'); return; }
+    setEmailError(null); setWalletKind('privy'); run(() => privy.sendCode(email.trim()));
+  };
+  const needsSolanaMobile = (figure: ShopFigure) => figure.seekerExclusive && (!wallet.isSupported || walletKind !== 'external');
+  const reviewFigure = (figure: ShopFigure) => {
+    if (needsSolanaMobile(figure)) {
+      run(async () => {
+        try { await Linking.openURL(shop.catalog?.solanaMobileStoreUrl ?? DEFAULT_SOLANA_MOBILE_STORE_URL); }
+        catch { throw new Error('Could not open the Solana Mobile store. Please try again.'); }
+      });
+      return;
+    }
+    if (!figure.available || !figure.priceLamports || !shop.ready || shop.busy || shop.hasPurchase) return;
+    // Standard-phone payments will use store billing later, not the email account's signing API.
+    if (!wallet.isSupported) return;
+    if (walletKind !== 'external') { setWalletOpen(true); return; }
+    if (!address) { setWalletOpen(true); return; }
+    run(() => shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined));
+  };
+  const openArmy = (expectedAssetId?: string) => { setWalletOpen(false); navigation.navigate('Army', expectedAssetId ? { expectedAssetId } : undefined); };
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.heading}>
-        <Text style={styles.eyebrow}>THE FIGURE COLLECTION</Text>
-        <Text accessibilityRole="header" style={styles.title}>Make it yours.</Text>
-        <Text style={styles.headingCopy}>Collect a RIPSY figure in your Solana wallet. Each mint is a Metaplex Core collectible.</Text>
-        {shop.catalog && <Text style={styles.network}>{shop.catalog.cluster === 'devnet' ? 'DEVNET · TEST SOL ONLY' : 'SOLANA MAINNET'}</Text>}
+    <View style={styles.screen}>
+      <Image pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={scenery} style={styles.scenery} />
+      <View testID="shop-header" style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <ToyHomeButton small tone="white" accessibilityLabel="Back from figure shop" onPress={() => navigation.goBack()}>‹</ToyHomeButton>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} style={styles.title}>Figure shop</Text>
+        <ToyHomeButton small icon={homeArt.army} accessibilityLabel="Open your army" onPress={() => openArmy()} />
       </View>
+      <ScrollView testID="shop-scroll" keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
+        <Text style={styles.subtitle}>Pick your next fighter!</Text>
+        {shop.catalog?.cluster === 'devnet' && <View style={[styles.networkBadge, styles.testNetwork]}><Text style={styles.network}>TEST MODE · NO REAL PURCHASES</Text></View>}
+        <Pressable accessibilityRole="button" accessibilityLabel={wallet.isSupported ? 'Choose purchase wallet' : address ? 'Manage account' : 'Register'} onPress={() => setWalletOpen(true)} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>
+          <View style={styles.walletIcon}><Text style={styles.walletSymbol}>◎</Text></View>
+          <View style={styles.grow}><Text style={styles.walletTitle}>{address ? walletKind === 'privy' ? 'Your account' : 'Seeker wallet connected' : wallet.isSupported ? 'Connect your wallet' : 'Register'}</Text><Text style={styles.walletCaption}>{address ? (walletKind === 'privy' ? 'Signed in with email · tap to manage' : 'Ready to buy figures · tap to manage') : wallet.isSupported ? 'Use your Seeker wallet to buy figures' : 'Sign in with email'}</Text></View>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+        {error && <ToyHomePanel style={styles.errorPanel}><StatusBanner message={figureStoreMessage(error)} tone="error" /><ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.hasPurchase ? shop.checkStatus() : shop.loadCatalog())}>Try again</ToyHomeButton></ToyHomePanel>}
 
-      <View style={styles.wallet}>
-        <Text style={styles.label}>{address ? 'RECEIVING WALLET' : 'CHOOSE YOUR WALLET'}</Text>
-        {wallet.address && <View style={[styles.walletOption, walletKind === 'external' && styles.walletOptionSelected]}>
-          <Text style={styles.optionTitle}>{wallet.label ?? 'Connected Solana wallet'}</Text>
-          <Text selectable style={styles.address}>{wallet.address}</Text>
-          {walletKind !== 'external' && <PrimaryButton variant="secondary" disabled={shop.hasPurchase || shop.busy} onPress={() => setWalletKind('external')}>Use this wallet</PrimaryButton>}
-          {walletKind === 'external' && <PrimaryButton variant="secondary" disabled={!shop.ready || shop.busy || shop.hasPurchase} onPress={() => run(() => disconnectWallet('external'))}>Disconnect wallet</PrimaryButton>}
-        </View>}
-        {!wallet.address && wallet.isSupported && <PrimaryButton busy={wallet.status === 'connecting'} disabled={shop.hasPurchase || shop.busy} onPress={() => {
-          setWalletKind('external');
-          run(wallet.connect);
-        }}>Connect wallet app</PrimaryButton>}
+        {shop.hasPurchase && <ToyHomePanel style={styles.review}>
+          <View accessibilityLiveRegion="polite" style={styles.sectionHeading}>
+            <Image pointerEvents="none" accessibilityElementsHidden source={homeArt.shop} style={styles.chestIcon} />
+            <View style={styles.grow}><Text style={styles.eyebrow}>YOUR FIGURE</Text><Text accessibilityRole="header" style={styles.sectionTitle}>{order?.status === 'confirmed' ? 'Welcome to your army!' : order?.status === 'failed' || order?.status === 'expired' ? 'Purchase not completed' : 'Review your purchase'}</Text></View>
+          </View>
+          {order ? <>
+            <ToyBadge tone={order.status === 'confirmed' ? 'green' : order.status === 'failed' || order.status === 'expired' ? 'coral' : 'yellow'}>{order.status === 'confirmed' ? 'PURCHASE COMPLETE' : order.status === 'submitted' ? 'PROCESSING PURCHASE' : order.status === 'failed' ? 'PURCHASE FAILED' : order.status === 'expired' ? 'PURCHASE EXPIRED' : 'AWAITING YOUR APPROVAL'}</ToyBadge>
+            <PurchaseProgress status={order.status} />
+            <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'confirmed' ? 'Purchase complete. Your figure is in your collection.' : order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Review the total below. Nothing is purchased until you approve.'}</Text>
+            <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={images[order.figureId]} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{order.figureId === 'fig1' ? 'RIPSY 001' : 'Seeker fighter'}</Text></View>
+            <View style={styles.breakdown}>
+              <ReceiptRow label="Figure price" value={figurePrice(order.priceLamports, order.cluster)} />
+              <ReceiptRow label="Estimated additional fees" value={figurePrice(order.networkFeeLamports, order.cluster)} />
+              <View style={styles.divider} />
+              <ReceiptRow label="Estimated total" value={figurePrice((BigInt(order.priceLamports) + BigInt(order.networkFeeLamports)).toString(), order.cluster)} total />
+            </View>
+            {order.cluster === 'devnet' && <Text style={styles.copy}>Test purchase only. No real payment.</Text>}
+            <Text style={styles.copy}>Sold by RIPSY · One figure for your collection</Text>
+            <ToyHomeButton compact tone="white" onPress={() => setPaymentDetailsOpen(value => !value)}>{paymentDetailsOpen ? 'Hide payment details' : 'Payment details'}</ToyHomeButton>
+            {paymentDetailsOpen && <><Text style={styles.label}>PURCHASE ACCOUNT</Text><Text selectable style={styles.address}>{order.buyer}</Text><Text style={styles.label}>SELLER ACCOUNT</Text><Text selectable style={styles.address}>{order.treasury}</Text></>}
+            {order.status === 'prepared' && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" onPress={() => setWalletOpen(true)}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
+            {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner} onPress={() => { if (orderSigner) run(() => shop.confirm(orderSigner)); }}>{shop.signingStarted ? 'Retry purchase approval' : 'Confirm purchase'}</ToyHomeButton>}
+            {order.status === 'confirmed' && <ToyHomeButton tone="yellow" onPress={() => openArmy(order.asset)}>Add to your army</ToyHomeButton>}
+            {paymentDetailsOpen && order.signature && <ToyHomeButton compact tone="white" onPress={() => run(() => Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)))}>View payment record ↗</ToyHomeButton>}
+          </> : <Text style={styles.copy}>Preparing your purchase… Retry to recover this same request if the connection was interrupted.</Text>}
+          {!canClose && <ToyHomeButton compact tone="white" busy={shop.busy} onPress={() => run(() => shop.checkStatus())}>Check purchase status</ToyHomeButton>}
+          {canClose && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.dismiss())}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</ToyHomeButton>}
+        </ToyHomePanel>}
 
-        {privy.address ? <View style={[styles.walletOption, walletKind === 'privy' && styles.walletOptionSelected]}>
-          <Text style={styles.optionTitle}>Privy embedded wallet</Text>
-          <Text selectable style={styles.address}>{privy.address}</Text>
-          {walletKind !== 'privy' && <PrimaryButton variant="secondary" disabled={shop.hasPurchase || shop.busy} onPress={() => setWalletKind('privy')}>Use embedded wallet</PrimaryButton>}
-          {walletKind === 'privy' && <PrimaryButton variant="secondary" busy={privy.activity === 'disconnecting'} disabled={!shop.ready || shop.hasPurchase || shop.busy} onPress={() => run(() => disconnectWallet('privy'))}>Disconnect embedded wallet</PrimaryButton>}
-        </View> : privy.status === 'authenticated' ? <PrimaryButton busy={privy.activity === 'creating-wallet'} disabled={shop.hasPurchase || shop.busy} onPress={() => run(privy.createWallet)}>Create embedded wallet</PrimaryButton> : privy.configured ? <View style={styles.embeddedLogin}>
-          <Text style={styles.optionTitle}>No wallet? Sign in with email</Text>
-          <Text style={styles.copy}>Privy creates a self-custodial Solana wallet inside RIPSY. You approve the mint here—no browser checkout.</Text>
-          <TextInput
-            accessibilityLabel="Email address"
-            autoCapitalize="none"
-            autoComplete="email"
-            editable={!privy.busy && !privy.codeSent}
-            keyboardType="email-address"
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={colors.kitPanelMuted}
-            style={styles.input}
-            value={email}
-          />
-          {privy.codeSent && <TextInput
-            accessibilityLabel="Email verification code"
-            autoComplete="one-time-code"
-            keyboardType="number-pad"
-            maxLength={8}
-            onChangeText={setCode}
-            placeholder="Verification code"
-            placeholderTextColor={colors.kitPanelMuted}
-            style={styles.input}
-            value={code}
-          />}
-          {!privy.codeSent
-            ? <PrimaryButton busy={privy.activity === 'sending-code'} disabled={!email.trim() || shop.hasPurchase || shop.busy} onPress={() => { setWalletKind('privy'); run(() => privy.sendCode(email)); }}>Send sign-in code</PrimaryButton>
-            : <PrimaryButton busy={privy.activity === 'verifying-code' || privy.activity === 'creating-wallet'} disabled={!code.trim() || shop.hasPurchase || shop.busy} onPress={() => { setWalletKind('privy'); run(() => privy.verifyCode(email, code)); }}>Verify and create wallet</PrimaryButton>}
-        </View> : <Text style={styles.panelNote}>Embedded wallet sign-in is not configured in this build.</Text>}
-        {privy.status === 'authenticated-unverified' && <Text style={styles.panelNote}>Your saved Privy session could not be verified. Check your connection and try again.</Text>}
-      </View>
-
-      {error && <View accessibilityRole="alert" style={styles.error}>
-        <Text style={styles.copy}>{error}</Text>
-        <PrimaryButton variant="secondary" onPress={() => { void (shop.hasPurchase ? shop.checkStatus() : shop.loadCatalog()); }}>Try again</PrimaryButton>
-      </View>}
-
-      {shop.hasPurchase && <View style={styles.review} accessibilityLiveRegion="polite">
-        <Text accessibilityRole="header" style={styles.cardTitle}>{order?.status === 'confirmed' ? 'Your figure is ready!' : 'Your purchase'}</Text>
-        {order ? <>
-          <Text style={styles.copy}>{order.status === 'confirmed' ? 'Mint confirmed. Your collectible is in your wallet.' : order.status === 'submitted' ? 'Confirming on Solana… You can leave this screen and check back.' : order.error ?? 'Review your purchase before approving it in your wallet.'}</Text>
-          <Text style={styles.cardTitle}>{order.figureId === 'fig1' ? 'Figure 01' : 'Figure 02'}</Text>
-          <Text style={styles.price}>{formatSol(order.priceLamports)}</Text>
-          <Text style={styles.copy}>Estimated network & mint fees: {formatSol(order.networkFeeLamports)}</Text>
-          <Text style={styles.copy}>Network: {order.cluster}</Text>
-          <Text style={styles.label}>RECEIVING WALLET</Text><Text selectable style={styles.address}>{order.buyer}</Text>
-          <Text style={styles.label}>PAYMENT TO</Text><Text selectable style={styles.address}>{order.treasury}</Text>
-          {order.status === 'prepared' && !orderSigner && <Text style={styles.copy}>Reconnect the receiving wallet shown below to approve this saved purchase.</Text>}
-          {order.status === 'prepared' && <PrimaryButton busy={shop.busy} disabled={!orderSigner} onPress={() => { if (orderSigner) void shop.confirm(orderSigner); }}>{shop.signingStarted ? 'Retry wallet approval' : 'Approve mint in app'}</PrimaryButton>}
-          {order.status === 'confirmed' && <PrimaryButton onPress={() => navigation.navigate('Army', { expectedAssetId: order.asset })}>Add to your army</PrimaryButton>}
-          {order.signature && <PrimaryButton variant="secondary" onPress={() => { void Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)); }}>View transaction</PrimaryButton>}
-          {order.status === 'confirmed' && <PrimaryButton variant="secondary" onPress={() => { void Linking.openURL(solanaExplorer('address', order.asset, order.cluster)); }}>View collectible</PrimaryButton>}
-        </> : <Text style={styles.copy}>Preparing your purchase. Retry to recover this request if the connection was interrupted.</Text>}
-        {!canClose && <PrimaryButton variant="secondary" busy={shop.busy} onPress={() => { void shop.checkStatus(); }}>Check purchase status</PrimaryButton>}
-        {canClose && <PrimaryButton variant="secondary" disabled={shop.busy} onPress={() => { void shop.dismiss(); }}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</PrimaryButton>}
-      </View>}
-
-      {!shop.catalog && !error && <View accessibilityLabel="Loading figures" style={styles.skeleton} />}
-      {shop.catalog?.figures.length === 0 && <Text style={styles.headingCopy}>New figures are on the way. Check back soon.</Text>}
-      {shop.catalog?.figures.map(figure => <View key={figure.id} style={styles.card}>
-        <View style={styles.art}><Image accessibilityLabel={figure.name} resizeMode="contain" source={images[figure.id]} style={styles.figure} /></View>
-        <View style={styles.cardCopy}>
-          <Text style={styles.eyebrow}>RIPSY ORIGINALS · {String(figure.variant).padStart(2, '0')}</Text>
-          <Text accessibilityRole="header" style={styles.cardTitle}>{figure.name}</Text>
-          <Text style={styles.copy}>{figure.description}</Text>
-          {figure.seekerExclusive && <Text style={styles.exclusive}>SOLANA SEEKER EXCLUSIVE</Text>}
-          <Text style={styles.price}>{figure.priceLamports ? formatSol(figure.priceLamports) : 'Coming soon'}</Text>
-          <PrimaryButton disabled={!figure.available || !address || !shop.ready || shop.hasPurchase || shop.busy || (figure.seekerExclusive && walletKind !== 'external')} onPress={() => { if (address) void shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined); }}>
-            {!figure.available ? 'Minting opens soon' : figure.seekerExclusive && walletKind !== 'external' ? 'Connect Seeker wallet to mint' : address ? 'Verify & review mint' : 'Connect wallet to mint'}
-          </PrimaryButton>
-        </View>
-      </View>)}
-      <Text style={styles.footerNote}>The figure price and mint are one transaction. Network fees are extra. After confirmation, open Your Army to choose the one slot this NFT will occupy.</Text>
-    </ScrollView>
+        {!shop.catalog && !error && <ToyHomePanel style={styles.skeleton}><View accessibilityLabel="Loading figures" accessibilityRole="progressbar" style={styles.skeletonArt} /><View style={styles.skeletonLine} /><View style={styles.skeletonPrice} /><View style={styles.skeletonButton} /><Text style={styles.note}>Unpacking the figure shop…</Text></ToyHomePanel>}
+        {shop.catalog && figures.length === 0 && <ToyHomePanel style={styles.empty}><Image source={homeArt.shop} style={styles.emptyChest} /><Text style={styles.sectionTitle}>New fighters on the way</Text><Text style={styles.copy}>The shelves are empty for now. Your free army is always ready.</Text><ToyHomeButton compact onPress={() => openArmy()}>Open your army</ToyHomeButton></ToyHomePanel>}
+        {figures.map(figure => <ToyHomePanel key={figure.id} style={styles.figureCard}>
+          <View style={styles.showcase}>
+            <Image pointerEvents="none" accessibilityElementsHidden source={showcase} style={styles.showcaseScenery} />
+            <View pointerEvents="none" style={styles.plinthBase} /><View pointerEvents="none" style={styles.plinthTop} />
+            <Image accessibilityLabel={figure.name + ' preview'} source={images[figure.id]} style={styles.figureImage} />
+            <View style={styles.edition}><Text style={styles.editionText}>FIG {String(figure.variant).padStart(2, '0')}</Text></View>
+            {figure.seekerExclusive && <View style={styles.exclusive}><Text style={styles.exclusiveText}>SEEKER EXCLUSIVE</Text></View>}
+          </View>
+          <View style={styles.cardCopy}>
+            <View style={styles.figureHeading}><Text accessibilityRole="header" style={styles.figureName}>{figure.name}</Text>{wallet.isSupported && <View style={styles.priceTag}><Text style={styles.price}>{figure.priceLamports ? figurePrice(figure.priceLamports, shop.catalog!.cluster) : 'Not available'}</Text></View>}</View>
+            <Text style={styles.copy}>{figure.description}</Text>
+            {figure.seekerExclusive && <Text style={styles.restriction}>Only available on Seeker.</Text>}
+            <ToyHomeButton tone="yellow" busy={!needsSolanaMobile(figure) && shop.busy && !shop.hasPurchase} disabled={!needsSolanaMobile(figure) && (!wallet.isSupported || !figure.available || !figure.priceLamports || !shop.ready || shop.hasPurchase || shop.busy)} accessibilityLabel={needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : wallet.isSupported ? 'Buy ' + figure.name : 'Purchases coming soon'} accessibilityHint={needsSolanaMobile(figure) ? 'Opens the Solana Mobile store in your browser' : undefined} onPress={() => reviewFigure(figure)}>
+              {needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : !wallet.isSupported ? 'Coming soon' : !figure.available || !figure.priceLamports ? 'Purchase unavailable' : address && walletKind === 'external' ? 'Buy figure' : 'Connect your wallet'}
+            </ToyHomeButton>
+            <Text style={styles.note}>{needsSolanaMobile(figure) ? 'Explore Solana Mobile in your browser' : !wallet.isSupported ? 'Purchases on this device are coming soon.' : 'Review the total before you buy'}</Text>
+          </View>
+        </ToyHomePanel>)}
+        <Text style={styles.footerNote}>Each figure can fill one army slot. Your fighters’ look changes, not their weapons.</Text>
+      </ScrollView>
+      <ToyDialog visible={walletOpen} title={wallet.isSupported ? 'Your purchase account' : privy.address ? 'Your account' : 'Sign in with email'} icon={homeArt.shop} keyboard onClose={() => setWalletOpen(false)} closeLabel="Close shop account" testID="shop-wallet-dialog">
+              <Text style={styles.copy}>{wallet.isSupported ? 'Choose your purchase account. You approve every purchase.' : 'Sign in with email to keep your collection in RIPSY.'}</Text>
+              {wallet.isSupported && figures.some(figure => figure.seekerExclusive) && <View style={styles.seekerNotice}><Text style={styles.restriction}>Seeker fighter is Seeker exclusive.</Text><Text style={styles.smallCopy}>Connect your Seeker wallet to check availability.</Text></View>}
+              {wallet.isSupported && wallet.address && <View style={[styles.walletOption, walletKind === 'external' && styles.walletSelected]}>
+                <Text style={styles.optionTitle}>Seeker wallet{walletKind === 'external' ? ' · selected' : ''}</Text><Text selectable style={styles.address}>{short(wallet.address)}</Text>
+                {walletKind !== 'external' && <ToyHomeButton compact disabled={shop.hasPurchase || shop.busy} onPress={() => setWalletKind('external')}>Use this wallet</ToyHomeButton>}
+                {walletKind === 'external' && <ToyHomeButton compact tone="white" disabled={!shop.ready || shop.busy || shop.hasPurchase} onPress={() => run(() => disconnectWallet('external'))}>Disconnect wallet</ToyHomeButton>}
+              </View>}
+              {/* Restoring a saved purchase must allow reconnecting its signer. */}
+              {!wallet.address && wallet.isSupported && <ToyHomeButton busy={wallet.status === 'connecting'} disabled={shop.busy || privy.busy} onPress={() => { setWalletKind('external'); run(wallet.connect); }}>Connect your wallet</ToyHomeButton>}
+              {privy.address ? <View style={[styles.walletOption, walletKind === 'privy' && styles.walletSelected]}>
+                <Text style={styles.optionTitle}>Signed in with email{walletKind === 'privy' ? ' · selected' : ''}</Text>
+                {walletKind !== 'privy' && <ToyHomeButton compact disabled={shop.hasPurchase || shop.busy} onPress={() => setWalletKind('privy')}>Use email account</ToyHomeButton>}
+                {walletKind === 'privy' && <ToyHomeButton compact tone="white" busy={privy.activity === 'disconnecting'} disabled={!shop.ready || shop.hasPurchase || shop.busy} onPress={() => run(() => disconnectWallet('privy'))}>Sign out</ToyHomeButton>}
+              </View> : privy.status === 'authenticated' ? <ToyHomeButton busy={privy.activity === 'creating-wallet'} disabled={shop.busy || wallet.status === 'connecting'} onPress={() => { setWalletKind('privy'); run(privy.createWallet); }}>Finish registration</ToyHomeButton> : privy.configured ? <View style={styles.loginForm}>
+                {wallet.isSupported && <Text style={styles.optionTitle}>Sign in with email</Text>}<Text style={styles.smallCopy}>Keep your figure collection in your RIPSY account.</Text>
+                <Text style={styles.label}>EMAIL ADDRESS</Text>
+                <TextInput accessibilityLabel="Email address" textContentType="emailAddress" autoCapitalize="none" autoCorrect={false} autoComplete="email" editable={!privy.busy && !privy.codeSent && !shop.busy} keyboardType="email-address" onChangeText={value => { setEmail(value); setEmailError(null); }} onSubmitEditing={() => { if (!privy.busy && !shop.busy && !privy.codeSent && email.trim()) sendCode(); }} returnKeyType="done" placeholder="you@example.com" placeholderTextColor={colors.kitPanelMuted} style={[styles.input, emailError && styles.invalidInput]} value={email} />
+                {emailError && <Text accessibilityRole="alert" style={styles.formError}>{emailError}</Text>}
+                {privy.codeSent && <><ToyBadge tone="green">CODE SENT</ToyBadge><Text style={styles.smallCopy}>Check your email for the sign-in code.</Text><Text style={styles.label}>SIGN-IN CODE</Text><TextInput accessibilityLabel="Email verification code" textContentType="oneTimeCode" autoComplete="one-time-code" keyboardType="number-pad" editable={!privy.busy && !shop.busy} maxLength={8} onChangeText={setCode} placeholder="Verification code" placeholderTextColor={colors.kitPanelMuted} style={styles.input} value={code} /></>}
+                {!privy.codeSent ? <ToyHomeButton busy={privy.activity === 'sending-code'} disabled={!email.trim() || shop.busy || privy.busy || wallet.status === 'connecting'} onPress={sendCode}>Send sign-in code</ToyHomeButton> : <ToyHomeButton busy={privy.activity === 'verifying-code' || privy.activity === 'creating-wallet'} disabled={!code.trim() || shop.busy || privy.busy || wallet.status === 'connecting'} onPress={() => { setWalletKind('privy'); run(() => privy.verifyCode(email.trim(), code.trim())); }}>Sign in</ToyHomeButton>}
+              </View> : <Text style={styles.note}>Sign in with email is unavailable in this build.</Text>}
+              {privy.status === 'authenticated-unverified' && <><Text style={styles.smallCopy}>Your saved email session could not be verified. Check your connection and retry.</Text><ToyHomeButton compact tone="white" disabled={privy.busy || shop.busy} onPress={() => run(privy.refresh)}>Retry email session</ToyHomeButton></>}
+              {error && <StatusBanner message={figureStoreMessage(error)} tone="error" />}
+              {address && <ToyHomeButton tone="yellow" onPress={() => setWalletOpen(false)}>Back to figures</ToyHomeButton>}
+      </ToyDialog>
+    </View>
   );
 }
 
+function short(value: string) { return value.slice(0, 4) + '…' + value.slice(-4); }
+function ReceiptRow({ label, value, total }: { label: string; value: string; total?: boolean }) {
+  return <View style={styles.receiptRow}><Text style={[styles.receiptLabel, total && styles.total]}>{label}</Text><Text style={[styles.receiptValue, total && styles.total]}>{value}</Text></View>;
+}
+function PurchaseProgress({ status }: { status: string }) {
+  const completed = status === 'confirmed' ? 3 : status === 'submitted' ? 2 : 0;
+  return <View accessibilityLabel={'Purchase status ' + status} style={styles.progressRow}>
+    {['REVIEW', 'APPROVE', 'COMPLETE'].map((label, index) => <View key={label} style={styles.progressItem}><View style={[styles.progressDot, index < completed && styles.progressComplete, status === 'prepared' && index === 0 && styles.progressCurrent]}><Text style={styles.progressNumber}>{index < completed ? '✓' : index + 1}</Text></View><Text style={styles.progressLabel}>{label}</Text></View>)}
+  </View>;
+}
+
 const styles = StyleSheet.create({
-  content: { padding: spacing.xl, gap: spacing.lg, maxWidth: 640, width: '100%', alignSelf: 'center', paddingBottom: spacing.xxl },
-  heading: { gap: spacing.sm, marginBottom: spacing.sm },
-  eyebrow: { color: colors.primaryShadow, fontWeight: '900', fontSize: 11, letterSpacing: 1.8 },
-  title: { color: colors.text, fontWeight: '900', fontSize: 36 },
-  headingCopy: { color: colors.textMuted, fontSize: 15, lineHeight: 22 },
-  copy: { color: colors.kitPanelMuted, fontSize: 15, lineHeight: 22 },
-  network: { color: colors.warning, fontSize: 12, fontWeight: '800', marginTop: spacing.sm },
-  wallet: { backgroundColor: colors.kitPanel, borderRadius: 24, padding: spacing.lg, gap: spacing.md, borderTopWidth: 2, borderTopColor: colors.kitPanelBorder, borderBottomWidth: 6, borderBottomColor: colors.kitPanelShadow },
-  label: { color: colors.primaryShadow, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
-  address: { color: colors.kitPanelInk, fontSize: 13, lineHeight: 20 },
-  walletOption: { borderRadius: 16, borderWidth: 1, borderColor: colors.kitPanelBorder, padding: spacing.md, gap: spacing.sm, backgroundColor: colors.kitPanelSoft },
-  walletOptionSelected: { borderColor: colors.kitPinkShadow, backgroundColor: colors.primaryMuted },
-  optionTitle: { color: colors.kitPanelInk, fontSize: 16, fontWeight: '900' },
-  embeddedLogin: { gap: spacing.md },
-  input: { color: colors.kitPanelInk, backgroundColor: colors.kitPanelSoft, borderColor: colors.kitPanelBorder, borderWidth: 1, borderRadius: 16, paddingHorizontal: spacing.md, minHeight: 52, fontSize: 16 },
-  card: { borderRadius: 24, overflow: 'hidden', backgroundColor: colors.kitPanel, borderTopColor: colors.kitPanelBorder, borderTopWidth: 2, borderBottomColor: colors.kitPanelShadow, borderBottomWidth: 7 },
-  art: { height: 220, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.kitPanelSoft },
-  figure: { width: 300, height: 300, transform: [{ translateY: -48 }] },
-  cardCopy: { padding: spacing.xl, gap: spacing.md },
-  cardTitle: { color: colors.kitPanelInk, fontSize: 23, fontWeight: '900' },
-  price: { color: colors.primaryShadow, fontSize: 24, fontWeight: '900', fontVariant: ['tabular-nums'] },
-  exclusive: { color: colors.rewardShadow, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
-  review: { padding: spacing.lg, gap: spacing.md, borderRadius: 24, borderTopColor: colors.kitPinkHighlight, borderTopWidth: 2, borderBottomColor: colors.kitPinkShadow, borderBottomWidth: 6, backgroundColor: colors.kitPanel },
-  error: { borderColor: colors.danger, borderWidth: 2, borderRadius: 18, padding: spacing.lg, gap: spacing.md, backgroundColor: colors.kitPanel },
-  panelNote: { color: colors.kitPanelMuted, fontSize: 12, lineHeight: 19, textAlign: 'center' },
-  footerNote: { color: colors.textMuted, fontSize: 12, lineHeight: 19, textAlign: 'center' },
-  skeleton: { height: 380, backgroundColor: colors.kitPanel, borderRadius: 24 },
+  screen: { flex: 1, backgroundColor: colors.background },
+  scenery: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
+  header: { width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 14, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  title: { flex: 1, color: colors.ink, fontFamily: homeFont, fontSize: 30, textAlign: 'center' },
+  content: { width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 14, gap: 14 },
+  subtitle: { color: colors.ink, fontFamily: homeFont, fontSize: 18, textAlign: 'center' },
+  networkBadge: { alignSelf: 'center', backgroundColor: colors.kitPanel, borderRadius: 12, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  testNetwork: { backgroundColor: colors.rewardHighlight },
+  network: { color: colors.ink, fontSize: 10, fontWeight: '800' },
+  grow: { flex: 1, gap: spacing.xs },
+  walletShortcut: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: 20, backgroundColor: colors.kitPanel },
+  walletIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceHighlight },
+  walletSymbol: { color: colors.ink, fontSize: 27 },
+  walletTitle: { color: colors.ink, fontFamily: homeFont, fontSize: 16 },
+  walletCaption: { color: colors.textMuted, fontSize: 11 },
+  chevron: { color: colors.accentShadow, fontSize: 30 },
+  pressed: { opacity: 0.75 },
+  errorPanel: { gap: spacing.md },
+  figureCard: { padding: 0 },
+  showcase: { height: 248, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surfaceHighlight },
+  showcaseScenery: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
+  figureImage: { position: 'absolute', width: 300, height: 300, bottom: 24, resizeMode: 'contain' },
+  // Native molded plinths reuse the shared Toy Box material/role colors.
+  plinthBase: { position: 'absolute', bottom: 13, width: 180, height: 32, borderRadius: 90, backgroundColor: colors.accentShadow },
+  plinthTop: { position: 'absolute', bottom: 23, width: 180, height: 25, borderRadius: 90, backgroundColor: colors.accent },
+  edition: { position: 'absolute', top: spacing.md, left: spacing.md, borderRadius: 10, backgroundColor: colors.kitPanel, padding: spacing.sm },
+  editionText: { color: colors.ink, fontSize: 11, fontWeight: '900' },
+  exclusive: { position: 'absolute', top: spacing.md, right: spacing.md, borderRadius: 10, backgroundColor: colors.reward, padding: spacing.sm },
+  exclusiveText: { color: colors.ink, fontSize: 10, fontWeight: '900' },
+  cardCopy: { padding: spacing.lg, gap: spacing.md },
+  figureHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' },
+  figureName: { color: colors.ink, fontFamily: homeFont, fontSize: 24 },
+  priceTag: { borderRadius: 12, backgroundColor: colors.rewardHighlight, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  price: { color: colors.ink, fontFamily: homeFont, fontSize: 21, fontVariant: ['tabular-nums'] },
+  copy: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  restriction: { color: colors.ink, fontSize: 12, lineHeight: 18, fontWeight: '800' },
+  note: { color: colors.textMuted, fontSize: 11, lineHeight: 17, textAlign: 'center' },
+  footerNote: { color: colors.ink, backgroundColor: colors.kitPanel, borderRadius: 16, padding: spacing.md, fontSize: 11, lineHeight: 17, textAlign: 'center' },
+  review: { padding: spacing.lg, gap: spacing.md },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  chestIcon: { width: 52, height: 52, resizeMode: 'contain' },
+  eyebrow: { color: colors.primaryShadow, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  sectionTitle: { color: colors.ink, fontFamily: homeFont, fontSize: 23 },
+  receiptFigure: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, overflow: 'hidden', height: 84 },
+  receiptPortrait: { width: 84, height: 84, alignItems: 'center' },
+  receiptImage: { position: 'absolute', bottom: 0, width: 140, height: 140, resizeMode: 'contain' },
+  breakdown: { padding: spacing.md, gap: spacing.sm, borderRadius: 15, backgroundColor: colors.kitPanelSoft },
+  receiptRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.sm },
+  receiptLabel: { color: colors.textMuted, fontSize: 12, flexShrink: 1 },
+  receiptValue: { color: colors.ink, fontWeight: '700', fontSize: 14, fontVariant: ['tabular-nums'] },
+  total: { color: colors.ink, fontFamily: homeFont, fontSize: 17 },
+  divider: { height: 1, backgroundColor: colors.kitPanelBorder },
+  label: { color: colors.textMuted, fontWeight: '800', fontSize: 11 },
+  address: { color: colors.ink, fontSize: 12, lineHeight: 19, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  progressRow: { flexDirection: 'row', backgroundColor: colors.kitPanelSoft, padding: spacing.md, borderRadius: 14, gap: spacing.sm },
+  progressItem: { flex: 1, alignItems: 'center', gap: spacing.xs },
+  progressDot: { width: 30, height: 30, borderRadius: 10, borderWidth: 1, borderColor: colors.kitPanelBorder, backgroundColor: colors.kitPanel, alignItems: 'center', justifyContent: 'center' },
+  progressComplete: { backgroundColor: colors.kitSuccessSoft, borderColor: colors.kitSuccessInk },
+  progressCurrent: { backgroundColor: colors.reward, borderColor: colors.rewardShadow },
+  progressNumber: { color: colors.ink, fontSize: 12, fontWeight: '800' },
+  progressLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '800' },
+  skeleton: { gap: spacing.md },
+  skeletonArt: { height: 220, borderRadius: 16, backgroundColor: colors.surfaceHighlight },
+  skeletonLine: { width: '60%', height: 24, borderRadius: 10, backgroundColor: colors.surfaceStrong },
+  skeletonPrice: { width: '40%', height: 18, borderRadius: 8, backgroundColor: colors.surfaceStrong },
+  skeletonButton: { height: 64, borderRadius: 20, backgroundColor: colors.rewardHighlight },
+  empty: { gap: spacing.md, alignItems: 'center' },
+  emptyChest: { width: 120, height: 120, resizeMode: 'contain' },
+  seekerNotice: { padding: spacing.md, gap: spacing.xs, borderRadius: 14, backgroundColor: colors.rewardHighlight },
+  smallCopy: { color: colors.textMuted, fontSize: 12, lineHeight: 19 },
+  walletOption: { padding: spacing.md, gap: spacing.sm, borderRadius: 16, backgroundColor: colors.kitPanelSoft, borderWidth: 1, borderColor: colors.kitPanelBorder },
+  walletSelected: { backgroundColor: colors.surfaceHighlight, borderColor: colors.accentShadow },
+  optionTitle: { color: colors.ink, fontFamily: homeFont, fontSize: 16 },
+  loginForm: { gap: spacing.sm },
+  input: { minHeight: 54, paddingHorizontal: spacing.md, borderRadius: 16, borderWidth: 1.5, borderColor: colors.kitPanelShadow, backgroundColor: colors.kitPanel, color: colors.ink, fontSize: 16 },
+  invalidInput: { borderColor: colors.dangerShadow },
+  formError: { color: colors.dangerShadow, fontSize: 12, lineHeight: 18 },
 });

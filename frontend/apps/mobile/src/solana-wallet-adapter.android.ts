@@ -4,6 +4,7 @@ import type { SolanaWalletSession } from './storage/solana-wallet-session';
 import { loadSolanaWalletSession, saveSolanaWalletSession } from './storage/solana-wallet-session';
 import { getBase64Encoder, getBase64Decoder, getTransactionDecoder, getTransactionEncoder } from '@solana/kit';
 import type { MintOrder, SeekerChallenge, SeekerProof, WalletChallenge, WalletProof } from '@rps/core/shop';
+import { isSeekerDevice } from './seeker-device';
 
 const identity = {
   name: 'RIPSY',
@@ -11,7 +12,7 @@ const identity = {
   icon: 'favicon.ico',
 } as const;
 
-export const isSolanaWalletSupported = true;
+export const isSolanaWalletSupported = isSeekerDevice();
 
 export async function proveSeekerWallet(challenge: SeekerChallenge): Promise<SeekerProof> {
   return proveWallet(challenge);
@@ -58,6 +59,7 @@ export async function signShopTransaction(order: MintOrder): Promise<string> {
 }
 
 export async function connectSolanaWallet(previousSession?: SolanaWalletSession | null): Promise<SolanaWalletSession> {
+  if (!isSolanaWalletSupported) throw new Error('Sign in with email on this device.');
   return transact(async wallet => {
     const authorization = await wallet.authorize({
       identity,

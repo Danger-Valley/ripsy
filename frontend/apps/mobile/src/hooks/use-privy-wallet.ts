@@ -30,7 +30,7 @@ export function usePrivyWallet() {
       setState(await nativePrivyWallet.getState());
     } catch (cause) {
       setState({ ...initialState, configured: false, status: 'unavailable' });
-      setError(message(cause, 'Privy embedded wallet is not available in this build.'));
+      setError(message(cause, 'Sign in with email is unavailable in this build.'));
     } finally {
       setActivity('idle');
     }

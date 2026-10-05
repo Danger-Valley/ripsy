@@ -34,6 +34,23 @@ Both `android:bundle` and `ios:beta` run a release preflight first. It validates
 
 The bundle is written to `frontend/apps/mobile/android/app/build/outputs/bundle/release/app-release.aab`. Back up both the upload keystore and its password outside the repository before the first Play Console upload.
 
+Android release builds enable R8 code optimization/obfuscation and resource
+shrinking with `proguard-android-optimize.txt`; Debug is unchanged. SDK consumer
+rules retain native/JNI bridge entry points. React Native's generated
+`build/generated/res/react/release/raw/keep.xml` retains images and Rive files
+loaded by name from JavaScript; do not discard that file or add blanket keeps
+for all resources/dependencies. AGP 9.2.1 already enables the optimized resource
+shrinker, so no experimental Gradle flag is needed.
+
+R8 outputs its reports in `android/app/build/outputs/mapping/release`.
+`build:prod-seeker` saves the matching `.mapping.txt` beside each versioned APK
+in both build directories **before** publishing; `android:bundle` saves a
+versioned `-play.mapping.txt` in mobile `builds`. Back these up with each exact
+APK/AAB (and upload the bundle's mapping to Play/crash tooling as appropriate).
+Never use a later build's mapping to retrace an earlier crash. Configuration
+regressions can be checked with
+`node --test frontend/apps/mobile/scripts/android-release-optimization.test.mjs`.
+
 The TestFlight script downloads the official React Native and Hermes release dSYMs that correspond to the installed versions, adds them to the generated archive, and verifies their UUIDs before export. This keeps native crashes in the prebuilt React Native frameworks symbolicated.
 
 The iOS simulator connects to `ws://localhost:8080`. The Android emulator connects to `ws://10.0.2.2:8080`. Release builds use the production endpoint configured in `src/config.ts`.
@@ -51,6 +68,31 @@ cd frontend/apps/mobile/android && ./gradlew assembleRelease
 ```
 
 The backend-issued anonymous session and current room are stored using iOS Keychain and Android Keystore. When the app returns from the background or regains its connection, it reauthenticates and reloads the latest authoritative game state. Remaining production hardening is tracked in `MOBILE_IMPLEMENTATION_PLAN.md`.
+
+## Turn notifications
+
+On iOS, `AppDelegate` configures Firebase from the bundled plist before creating
+React Native. A plist without `FirebaseApp.configure()` leaves RNFB's default
+app registry empty and falsely reports alerts as unavailable. Release preflight
+now guards this startup order; its isolated regression tests run with
+`node --test frontend/apps/mobile/scripts/check-ios-firebase-bootstrap.test.mjs`
+from the repository root. This source guard does not replace a physical push test.
+
+Enable notifications explicitly in Settings. The authenticated installation is
+registered with the backend; successful online moves notify the next player.
+While viewing that room in the foreground, the alert is suppressed. On another
+screen (including Settings or a different battle), a dismissible Toy Box banner
+opens that exact room. Background/closed apps use Firebase's OS notification;
+both warm and cold notification taps open the game and refresh server state.
+
+`firebase.json` pins iOS system foreground presentation to off: do not turn it
+on or add a duplicate local background notification. The in-app banner owns
+foreground presentation, with a separate host inside native dialogs. Initial
+notification URLs are captured once before navigation restoration because
+Android's initial message is consumable. Firebase remains optional for local
+builds. Phone notification settings/permissions, network conditions and Android
+force-stop can prevent or delay delivery. Device delivery verification is still
+required after shipping these changes; unit tests do not prove APNs/FCM delivery.
 
 ## Solana Mobile wallet
 
@@ -74,12 +116,23 @@ configuration and rejects a release build when any of these settings is missing.
 Privy's current native SDK requirements make the minimum versions iOS 17 and
 Android API 28.
 
-The app identity URI is `https://www.ripsy.fun`. Its Android association is served by `app/.well-known/assetlinks.json/route.ts` in the web app, using the production `ANDROID_APP_SHA256_CERT_FINGERPRINTS` Vercel environment variable.
+The app identity URI is `https://www.ripsy.fun`. Its Android association is served by `app/.well-known/assetlinks.json/route.ts` in the web app. The route includes the verified direct-APK release certificate and optionally adds `ANDROID_APP_SHA256_CERT_FINGERPRINTS` from Vercel for separately verified store-signing certificates.
 
 ## Game invitations
 
 The Share button sends the canonical `https://www.ripsy.fun/game/<room-code>` URL. The app accepts that Universal/App Link, the `ripsy://game/<room-code>` fallback scheme, a pasted invitation URL, or a plain eight-character room code.
 
-iOS Associated Domains and the website association response are configured for team `L28H25M8LS` and bundle ID `com.dangervalley.ripsy`. Android intent filters are configured, but verified App Links also require the production Play App Signing SHA-256 certificate fingerprint. Add it to the Vercel web project as `ANDROID_APP_SHA256_CERT_FINGERPRINTS`; use a comma-separated list during certificate rotation. Do not substitute the debug or upload-key fingerprint.
+iOS Associated Domains and the website association response are configured for team `L28H25M8LS` and bundle ID `com.dangervalley.ripsy`. Android intent filters are configured, and the association route includes the current direct-APK signing certificate. When distributing through Google Play, also add the separate production Play App Signing SHA-256 fingerprint to Vercel as `ANDROID_APP_SHA256_CERT_FINGERPRINTS`; use a comma-separated list during certificate rotation. Do not substitute the debug or upload-key fingerprint for Play App Signing.
+
+Waiting for opponent now includes a locally generated QR and readable room code.
+QR and sharing use `https://www.ripsy.fun/game/<code>?invite=1`; installed apps
+handle the existing game path. The web fallback shows installation instead of
+joining the game. Vercel-only `RIPSY_IOS_INSTALL_URL`, `RIPSY_ANDROID_INSTALL_URL`
+and `RIPSY_SEEKER_INSTALL_URL` change install destinations without changing the QR.
+Defaults are the current public TestFlight invitation and APK download page.
+Store installation is not deferred joining: return to the invite and open the
+game, or enter its code on Home. The room may expire during installation.
+Deploy the updated web route/association and ship the mobile QR before testing
+the complete phone-camera flow.
 
 The current Android upload certificate SHA-256 fingerprint is `E2:BE:8E:A4:9A:54:47:3B:57:E5:96:88:1B:29:8E:00:44:3B:16:D8:7B:E8:D0:7F:0D:ED:63:1B:66:9A:D5:E5`. This identifies the key used to upload bundles, not the Play App Signing key used to verify production App Links.

@@ -66,6 +66,15 @@ check_privy_config() {
     return
   fi
 
+  if PRIVY_CONFIG_RESPONSE="${response}" PRIVY_EXPECTED_APP_ID="${PRIVY_APP_ID}" node -e '
+    const config = JSON.parse(process.env.PRIVY_CONFIG_RESPONSE || "{}");
+    process.exit(config.id === process.env.PRIVY_EXPECTED_APP_ID ? 0 : 1);
+  '; then
+    pass "Privy native app client"
+  else
+    fail "Privy native app client does not match PRIVY_APP_ID"
+  fi
+
   if PRIVY_CONFIG_RESPONSE="${response}" node -e '
     const config = JSON.parse(process.env.PRIVY_CONFIG_RESPONSE || "{}");
     process.exit(config.email_auth === true ? 0 : 1);
@@ -146,6 +155,11 @@ check_shop() {
 }
 
 check_ios() {
+  if node "${script_directory}/check-ios-audio-bridge.mjs" "${mobile_directory}/ios/RipsyMobile/Audio/RipsyAudioModule.inc"; then
+    pass "iOS audio bridge argument conversion"
+  else
+    fail "iOS audio bridge argument conversion"
+  fi
   local firebase_plist="${mobile_directory}/ios/RipsyMobile/GoogleService-Info.plist"
   check_file "${firebase_plist}" "iOS Firebase configuration"
   if [[ -s "${firebase_plist}" ]]; then
@@ -162,6 +176,11 @@ check_ios() {
   else
     fail "iOS push entitlement"
   fi
+  if node "${script_directory}/check-ios-firebase-bootstrap.mjs" "${mobile_directory}/ios/RipsyMobile/AppDelegate.swift"; then
+    pass "iOS Firebase startup before React Native"
+  else
+    fail "iOS Firebase startup before React Native"
+  fi
   check_metadata "${mobile_directory}/store/app-store/en-US" "App Store" \
     name.txt subtitle.txt description.txt keywords.txt privacy_url.txt support_url.txt
   local screenshot_count
@@ -174,6 +193,11 @@ check_ios() {
 }
 
 check_android() {
+  if node --test "${script_directory}/android-release-optimization.test.mjs"; then
+    pass "Android release optimization and R8 mapping archival"
+  else
+    fail "Android release optimization or R8 mapping archival regressed"
+  fi
   local firebase_json="${mobile_directory}/android/app/google-services.json"
   local signing_properties="${mobile_directory}/android/keystore.properties"
   check_file "${firebase_json}" "Android Firebase configuration"
@@ -213,6 +237,11 @@ check_android() {
 check_backend
 check_shop
 check_privy_config
+if node "${mobile_directory}/../../../scripts/check-game-sounds.mjs"; then
+  pass "Original game sound pack"
+else
+  fail "Original game sound pack is missing, stale or invalid"
+fi
 if [[ "${platform}" == "ios" || "${platform}" == "all" ]]; then check_ios; fi
 if [[ "${platform}" == "android" || "${platform}" == "all" ]]; then check_android; fi
 

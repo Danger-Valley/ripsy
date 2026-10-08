@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive layers use a 108-unit canvas with a 72-unit visible viewport.
+     This full-square artwork already includes its background: inset 18/108
+     on each side to fill the viewport, not shrink inside a legacy white plate.
+     Do not use ic_launcher_round: its transparent corners would create a ring. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="16.666667%">
+    <bitmap
+        android:src="@mipmap/ic_launcher"
+        android:gravity="fill"
+        android:filter="true" />
+</inset>

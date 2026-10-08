@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pre-26 fallback only. Keep raster IDs separate from adaptive XML so
+         the legacy launch-screen bitmap never tries to decode an XML icon. -->
+    <item type="mipmap" name="ic_launcher_adaptive">@mipmap/ic_launcher</item>
+    <item type="mipmap" name="ic_launcher_round_adaptive">@mipmap/ic_launcher_round</item>
+</resources>

@@ -1,4 +1,5 @@
 <resources>
     <color name="ripsy_background">#79D8F6</color>
     <color name="ripsy_primary">#25BDF1</color>
+    <color name="ripsy_launcher_background">#1E8EC1</color>
 </resources>

@@ -35,7 +35,10 @@ beforeEach(() => {
   jest.mocked(getInitialNotification).mockResolvedValue(null);
 });
 afterEach(async () => { if (tree) await Renderer.act(() => tree.unmount()); jest.mocked(getApps).mockReturnValue([]); jest.restoreAllMocks(); });
-async function mount() { await Renderer.act(async () => { tree = Renderer.create(<App />); }); }
+async function mount({ artworkReady = true } = {}) {
+  await Renderer.act(async () => { tree = Renderer.create(<App />); });
+  if (artworkReady) await Renderer.act(() => tree.root.findByType(StartupSplash).props.onArtworkReady());
+}
 function navigation() { return tree.root.find(node => typeof node.type === 'string' && String(node.type) === 'NavigationHost'); }
 
 test('illustrated splash lasts only while real restoration is pending', async () => {
@@ -54,6 +57,15 @@ test('a failed saved-game lookup dismisses splash and opens Home', async () => {
   await mount();
   expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0);
   expect(navigation().props.initialState).toBeUndefined();
+});
+
+test('does not recycle loading splash images into Home after fast restoration', async () => {
+  await mount({ artworkReady: false });
+  expect(tree.root.findAllByType(StartupSplash)).toHaveLength(1);
+  expect(tree.root.findAll(node => typeof node.type === 'string' && String(node.type) === 'NavigationHost')).toHaveLength(0);
+  await Renderer.act(() => tree.root.findByType(StartupSplash).props.onArtworkReady());
+  expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0);
+  expect(navigation()).toBeDefined();
 });
 
 test('a cold-start notification is consumed once and survives the navigation restoration check', async () => {

@@ -130,7 +130,8 @@ const ConfiguredRiveGamePiece = memo(function RivePieceController({ actionTrigge
         // Ordinary Shuffle/reveal changes only inputs, never visibility or
         // playback. Held combat must likewise retain its sideways prepare pose.
         setPieceInputs();
-        if (isTrap && configuredPieceRef.current !== Piece.Trap && !preserveStateOnPieceChange) {
+        if (isTrap && configuredPieceRef.current !== Piece.Trap && !preserveStateOnPieceChange
+          && (isMine || actionTriggerRef.current !== 'Trap Activate')) {
           riveViewRef.triggerInput(isMine ? 'Trap Idle' : 'Trap Activate');
         }
         if (!cancelled) {
@@ -154,15 +155,16 @@ const ConfiguredRiveGamePiece = memo(function RivePieceController({ actionTrigge
       setPieceInputs();
       await riveViewRef.play();
       if (cancelled) return false;
-      if (isTrap && (isMine || actionTriggerRef.current !== 'Trap Activate')) {
+      if (isTrap) {
         // Reassert the hidden state after playback starts, before entering the
         // trap state, so a previously reused weapon layer cannot flash. A
         // local trap uses its idle state; an opponent trap uses Trap Activate
         // so the revealed destination remains visibly a trap after the
         // temporary collision scene is removed.
         setPieceInputs();
-        riveViewRef.triggerInput(isMine ? 'Trap Idle' : 'Trap Activate');
-        riveViewRef.playIfNeeded();
+        if (isMine || actionTriggerRef.current !== 'Trap Activate') {
+          riveViewRef.triggerInput(isMine ? 'Trap Idle' : 'Trap Activate');
+        }
       }
       if (!cancelled) {
         configuredStateMachineRef.current = stateMachineName;

@@ -12,6 +12,7 @@ export type BackendDiagnosticEvent =
   | { level: 'info'; event: 'broadcast.completed'; durationMs: number; recipients: number }
   | { level: 'error'; event: 'broadcast.failed'; durationMs: number }
   | { level: 'error'; event: 'clock.expiration_failed' }
+  | { level: 'error'; event: 'pack.recovery_delayed' | 'pack.recovery_failed' }
   | { level: 'info'; event: 'push.enabled' | 'push.disabled' | 'push.registered' | 'push.unregistered' }
   | { level: 'warn'; event: 'push.registration_rejected'; status: number }
   | { level: 'info' | 'error'; event: 'push.completed' | 'push.failed'; recipients: number }

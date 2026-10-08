@@ -38,3 +38,34 @@ test.each([
   expect(loading.props.accessibilityRole).toBe('progressbar');
   expect(tree.root.findByType(Text).props.children).toBe('Opening the toy box…');
 });
+
+test('waits for both local images to settle, including failures, exactly once', async () => {
+  const ready = jest.fn();
+  await Renderer.act(async () => { tree = Renderer.create(<StartupSplash onArtworkReady={ready} />); });
+  const images = tree.root.findAllByType(Image);
+  await Renderer.act(() => images[0].props.onLoadEnd());
+  expect(ready).not.toHaveBeenCalled();
+  await Renderer.act(() => images[0].props.onLoadEnd());
+  expect(ready).not.toHaveBeenCalled();
+  await Renderer.act(() => images[1].props.onLoadEnd());
+  expect(ready).toHaveBeenCalledTimes(1);
+  await Renderer.act(() => images[1].props.onLoadEnd());
+  expect(ready).toHaveBeenCalledTimes(1);
+});
+
+test('a missing native image callback cannot hold startup indefinitely', async () => {
+  jest.useFakeTimers();
+  try {
+    const ready = jest.fn();
+    await Renderer.act(async () => { tree = Renderer.create(<StartupSplash onArtworkReady={ready} />); });
+    await Renderer.act(() => jest.advanceTimersByTime(1499));
+    expect(ready).not.toHaveBeenCalled();
+    await Renderer.act(() => jest.advanceTimersByTime(1));
+    expect(ready).toHaveBeenCalledTimes(1);
+    await Renderer.act(() => tree.root.findAllByType(Image).forEach(image => image.props.onLoadEnd()));
+    expect(ready).toHaveBeenCalledTimes(1);
+  } finally {
+    await Renderer.act(() => tree.unmount());
+    jest.useRealTimers();
+  }
+});

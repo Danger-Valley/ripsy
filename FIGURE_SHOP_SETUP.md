@@ -3,11 +3,39 @@
 ## Implemented scope
 
 Home → Figure shop exists on native and at `/shop` on web. The catalog contains
-only purchasable collectibles; currently that is Seeker-exclusive fig2. Every successful purchase
+only purchasable collectibles: Seeker-exclusive fig2, BONK and Jup. Every successful purchase
 creates one new **Metaplex Core asset** in the configured RIPSY Core collection.
 Fig1 is the mandatory free starter, fills every unconfigured army slot, and is
 never listed, priced, or minted by the shop. There is no custom gameplay contract,
-supply cap, or secondary marketplace. A buyer can collect multiple fig2 copies.
+supply cap, or secondary marketplace. A buyer can collect multiple copies; each
+copy can occupy only one Army slot.
+
+### BONK and Jup rollout (2026-10-06)
+
+- BONK costs 6,900,000 BONK, mint `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`.
+- Jup costs 99 JUP, mint `JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN`.
+- Prices are fixed in the shared catalog. Both use mainnet only and the existing
+  RPC, treasury, authority and Core collection; no additional env variables or
+  new collection are required. These products do not require Seeker Genesis proof.
+- Token payment and Core creation are one buyer-approved transaction. The buyer
+  also needs SOL for fees/rent, displayed separately. Only the buyer's associated
+  token account is supported; no automatic swap or fee sponsorship is provided.
+- Deploy web `/figures/bonk.json`, `jup.json` and their PNG/Rive assets, then the
+  updated backend, before distributing updated native builds. New clients opt in
+  with `/shop/catalog?catalogVersion=2`; old clients retain their fig2-only catalog
+  but cannot render new models in games or owned inventory. Players must update.
+- Native general-figure purchases use the selected Seeker external wallet or the
+  email account's existing in-app signer on iPhone, ordinary Android and Seeker.
+  Only Seeker fighter retains its external-wallet/device proof restriction.
+  These are token-paid purchases with explicit approval, not App Store/Play
+  in-app billing, which is still not implemented. Email registration
+  and equipping verified owned figures work on all platforms. Direct Army access
+  after a BONK/Jup purchase may require the normal wallet-verification signature.
+- Native enablement follow-up (2026-10-06): 404 tests, TypeScript, focused Shop
+  lint and full release preflight pass. Both native builds 1.0.0 (55) are
+  uploaded (iOS VALID/internal beta). Live catalog confirms both general
+  figures are available. Physical-device rendering and a real approved token
+  purchase still need verification; no paid test was performed by the operator.
 
 Native `/army` and web `/army` expose 14 appearance slots. A slot containing
 `null` renders free fig1. A paid slot stores the exact Metaplex Core asset ID;
@@ -25,7 +53,7 @@ stale local cache; cache remains the fallback when inventory is unavailable.
 
 Preview PNGs are real first-frame Rive renders, `Idle` + `NoWeapon`, using the
 current artboards. `npm run shop:previews`, then visit `http://127.0.0.1:3198` and
-press **Export previews** to regenerate the two web/mobile PNG pairs. This utility
+press **Export previews** to regenerate all four web/mobile PNG pairs. This utility
 needs a browser WebGL renderer; it does not use a screenshot of the live board.
 
 ### Wallet paths
@@ -179,7 +207,9 @@ tested.
 2. `POST /shop/orders` accepts `figureId`, `buyer`, `idempotencyKey`. The server
    chooses price/treasury/collection/metadata; client-supplied price is ignored.
 3. Server verifies RPC genesis and collection authority, generates an asset
-   signer, constructs one v0 message: **SOL transfer + Core createV1**. The buyer
+   signer, constructs one v0 message: **SOL transfer + Core createV1** for fig2,
+   or **idempotent treasury token account + TransferChecked + Core createV1**
+   for BONK/Jup. The buyer
    is both owner and fee/rent payer. Authority and asset partially sign; no user
    funds move yet. Simulation estimates additional fees before review.
 4. Wallet signs the unchanged message after explicit user review. Server compares
@@ -201,7 +231,7 @@ tested.
    entry uses `POST /shop/wallet/challenge` + `POST /shop/wallet/verify` instead.
 2. `GET /shop/inventory` resolves the bound address, calls DAS
    `getAssetsByOwner` on `SHOP_SOLANA_RPC_URL`, and accepts only assets in the
-   configured official Core collection whose metadata identifies fig2.
+   configured official Core collection whose metadata identifies fig2, bonk or jup.
    After a confirmed mint, native/web Army carries the expected asset ID and
    polls this authoritative inventory for up to 30 seconds while DAS indexes it;
    it never invents client-side ownership during that delay.
@@ -210,9 +240,9 @@ tested.
 4. The wallet address is the durable Redis loadout key. Transfer cleanup and
    ownership checks happen again on refresh/save and online lineup submission.
    New clients align a nullable `figureAssetIds` entry with each shuffled
-   `figureVariants` entry. The server checks fig2-to-ID alignment, uniqueness,
+   `figureVariants` entry. The server checks exact model-to-ID alignment, uniqueness,
    current ownership and exact equality with the saved equipped set. Older
-   clients that omit this additive field temporarily retain count-only validation
+   clients that omit this additive field temporarily retain per-model count validation
    during the rollout; remove that fallback only after their supported lifetime.
 5. `DELETE /shop/wallet` removes only the player-session binding. Native/web
    clients also clear their cached slots and disconnect the selected wallet;

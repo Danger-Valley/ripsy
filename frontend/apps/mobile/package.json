@@ -5,6 +5,8 @@
   "scripts": {
     "android": "./scripts/run-android.sh",
     "android:bundle": "./scripts/android-bundle.sh",
+    "assets:sync": "node scripts/sync-ui-assets.mjs",
+    "assets:check": "node scripts/sync-ui-assets.mjs --check",
     "build:prod-seeker": "./scripts/build-prod-seeker.sh",
     "bump:build": "./scripts/bump-build.sh",
     "ios": "./scripts/run-ios.sh",

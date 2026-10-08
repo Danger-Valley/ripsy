@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RIPSY fighter packs - mainnet deployment</title>
+<style>
+  body{margin:0;background:#f2f6fa;color:#17334c;font:16px/1.6 system-ui,sans-serif}
+  main{max-width:850px;margin:40px auto;padding:32px;background:white;border-radius:18px}
+  h1{line-height:1.2}h2{margin-top:32px;font-size:20px}code{overflow-wrap:anywhere}
+  dt{font-weight:650;margin-top:16px}dd{margin:4px 0}a{color:#086d9d}
+  .status{padding:16px;border-radius:10px;background:#e0f5ee}.pending{background:#fff3d6;padding:16px;border-radius:10px}
+  @media(max-width:700px){main{margin:12px;padding:20px}}
+</style>
+<main>
+  <h1>RIPSY fighter packs</h1>
+  <p class="status">Mainnet program verified. Pack purchases enabled for the user's approved first Seeker test.</p>
+  <p>Verified 6 October 2026 at 12:48 Warsaw time (10:48 UTC).</p>
+  <dl>
+    <dt>Program</dt>
+    <dd><a href="https://explorer.solana.com/address/43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ"><code>43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ</code></a></dd>
+    <dt>Deployment transaction</dt>
+    <dd><a href="https://explorer.solana.com/tx/b83cVyvPhye2PSA7NnMUX8TfRMBypsptNTvK5S5K3nfCQpPFvU4KjfpBRTgZgjk3TLBoxymq4wB3bpD9kAh8xwH">View finalized transaction</a></dd>
+    <dt>Fee payer and upgrade authority</dt>
+    <dd><code>BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh</code></dd>
+    <dt>ProgramData</dt>
+    <dd><code>DZeMqKpHuE98CmdjbN4cgjXjGktUosgsCUGgScniEG3Y</code></dd>
+    <dt>Binary SHA-256 (449,184 bytes)</dt>
+    <dd><code>199b77db47f82812d115346f706dffa9913f3f207ca3ff13825f4746a5b8d256</code></dd>
+    <dt>Net balance reduction / permanent rent / fees</dt>
+    <dd>2.28592809 SOL / 2.28356668 SOL / 0.00236141 SOL</dd>
+    <dt>Remaining payer balance</dt>
+    <dd>0.238757194 SOL at verification time. Balance deltas assume no unrelated wallet activity.</dd>
+  </dl>
+  <h2>Verified</h2>
+  <ul>
+    <li>Mainnet genesis and deployment transaction finalized with no transaction error.</li>
+    <li>Loader ownership, executable flag, upgrade authority and exact onchain binary bytes.</li>
+    <li>Six Rust tests and fresh local SBF initialization/table/pause/forged-callback smoke checks.</li>
+    <li>Config initialized paused with the verified Core collection, treasury and delivery authority.</li>
+    <li>Edition 1 publication simulated, sent and read back finalized: 1,099 SKR, Jup/BONK 50/50, live metadata and exact preview hashes.</li>
+    <li>Production web/assets and current backend deployed; Railway PACK_ENABLED=true verified before onchain unpause.</li>
+    <li>Native 1.0.0 (54): signed Seeker APK published; iOS uploaded and VALID for internal TestFlight testing.</li>
+    <li>Saved buffer resumed after initial RPC retry exhaustion and closed after successful deployment.</li>
+  </ul>
+  <h2>Real purchase verification pending</h2>
+  <p class="pending">User-approved activation was simulated, sent and verified finalized. Program pause=false and API catalog available=true. No SKR purchase or Core claim was sent by the operator; the user will personally test on Seeker.</p>
+  <p>Still required: security review, real VRF-to-Core delivery/recovery and sustained funding capacity. Activation is not an audit or end-to-end signoff. Evidence is in mainnet-readiness.json; deployment-only balances above are historical.</p>
+  <p>The upgrade authority can change or close the program. Oracle/delivery unavailability can leave payments in escrow. Deployment verification is not proof of a completed security audit or real oracle fulfillment.</p>
+</main>
+</html>

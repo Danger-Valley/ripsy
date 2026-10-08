@@ -5,7 +5,7 @@ import { FIGURES } from '@rps/core/shop';
 import { readFileSync } from 'node:fs';
 
 test('fighter catalog and mint metadata use the approved display names without changing IDs', () => {
-  assert.deepEqual(FIGURES.map(figure => [figure.id, figure.name]), [['fig1', 'RIPSY 001'], ['fig2', 'Seeker fighter']]);
+  assert.deepEqual(FIGURES.map(figure => [figure.id, figure.name]), [['fig1', 'RIPSY 001'], ['fig2', 'Seeker fighter'], ['bonk', 'BONK'], ['jup', 'Jup']]);
   for (const figure of FIGURES) {
     const metadata = JSON.parse(readFileSync(new URL(`../public/figures/${figure.id}.json`, import.meta.url), 'utf8'));
     assert.equal(metadata.name, figure.name);
@@ -71,4 +71,14 @@ test('wallet disconnect clears the authenticated server binding', async () => {
   assert.equal(requests[0]!.url, 'https://api.example.test/shop/wallet');
   assert.equal(requests[0]!.init.method, 'DELETE');
   assert.equal(new Headers(requests[0]!.init.headers).get('authorization'), 'Bearer session-token');
+});
+
+test('updated clients explicitly request the expanded catalog without breaking old servers', async () => {
+  let requested = '';
+  const client = new ShopClient('https://api.example.test', '', async url => {
+    requested = String(url);
+    return new Response(JSON.stringify(catalog));
+  });
+  assert.deepEqual(await client.catalog(), catalog);
+  assert.equal(requested, 'https://api.example.test/shop/catalog?catalogVersion=2');
 });

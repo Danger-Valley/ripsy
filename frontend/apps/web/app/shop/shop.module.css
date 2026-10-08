@@ -8,3 +8,5 @@
 .page a.primary{display:flex;align-items:center;justify-content:center;padding:12px 20px;border:3px solid #fff0a2;border-radius:16px;text-align:center;font:900 16px Arial,sans-serif}
 .page a.primary:hover{filter:brightness(1.03)}
 .page a.primary:active{transform:translateY(3px);box-shadow:0 2px 0 #e49c00}
+.packDrops { display: flex; gap: 20px; flex-wrap: wrap; }
+.packDrops > div { display: grid; gap: 6px; justify-items: center; }

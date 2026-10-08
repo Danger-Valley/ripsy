@@ -6,10 +6,17 @@ dist/
 *.tsbuildinfo
 .env
 .env.local
+.vercel/
 .brand-preview/
 
 # Local release archives and their matching symbolication maps.
 /files/builds/
 
+# Pack program build output and local deployment keys, never client assets.
+/onchain/target/
+/onchain/keys/
+
 # Accidental empty shell output file; not a project source.
 /-
+.vercel
+.env*

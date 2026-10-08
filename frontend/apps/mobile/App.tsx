@@ -26,6 +26,10 @@ function App() {
   useSoundLifecycle();
   const [initialState, setInitialState] = useState<InitialState | undefined>();
   const [hasRestoredNavigation, setHasRestoredNavigation] = useState(false);
+  // iOS image callbacks can outlive unmount and paint a recycled Home view.
+  // Settle the local splash requests before making those views recyclable.
+  const [startupArtworkReady, setStartupArtworkReady] = useState(false);
+  const finishStartupArtwork = useCallback(() => setStartupArtworkReady(true), []);
   const [startupUrl, setStartupUrl] = useState<string | null>(null);
   const [visibleGameId, setVisibleGameId] = useState<string | null>(null);
   const [navigationReady, setNavigationReady] = useState(false);
@@ -60,11 +64,11 @@ function App() {
     return () => { active = false; };
   }, []);
 
-  if (!hasRestoredNavigation) {
+  if (!hasRestoredNavigation || !startupArtworkReady) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" />
-        <StartupSplash />
+        <StartupSplash onArtworkReady={finishStartupArtwork} />
       </SafeAreaProvider>
     );
   }

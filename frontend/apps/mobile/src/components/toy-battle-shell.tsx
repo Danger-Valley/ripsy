@@ -4,13 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '../theme';
 import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from './toy-home-controls';
 import { BattleGuideDialog } from './settings-dialogs';
+import { HomePortraitImage } from './home-portrait';
 
 const scenery = require('../assets/ui/battle-playground.png');
 
 export function BattlePortrait({ opponent = false }: { opponent?: boolean }) {
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.portrait, opponent && styles.portraitOpponent]}>
-      <Image source={homeArt.rivals} style={[styles.portraitImage, opponent && styles.portraitImageOpponent]} />
+      <HomePortraitImage opponent={opponent} />
     </View>
   );
 }
@@ -50,8 +51,6 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   portrait: { width: 48, height: 48, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surfaceHighlight },
   portraitOpponent: { backgroundColor: colors.primaryMuted },
-  portraitImage: { width: 180, height: 120, position: 'absolute', left: -17, top: -41 },
-  portraitImageOpponent: { left: -112, top: -41 },
   status: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 70, padding: spacing.sm },
   statusError: { borderColor: colors.dangerShadow },
   statusCopy: { flex: 1, color: colors.ink, fontFamily: homeFont, fontSize: 16, lineHeight: 21, fontWeight: '800' },

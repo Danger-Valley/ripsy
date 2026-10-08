@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { MintOrder, WalletChallenge, WalletProof } from '@rps/core/shop';
+import type { PurchaseTransaction, WalletChallenge, WalletProof } from '@rps/core/shop';
 import { createSignInMessageText } from '@solana/wallet-standard-util';
 import { nativePrivyWallet, type PrivyWalletState } from '../native-privy-wallet';
 
@@ -98,7 +98,7 @@ export function usePrivyWallet() {
     }
   }, []);
 
-  const signShopTransaction = useCallback(async (order: MintOrder) => {
+  const signShopTransaction = useCallback(async (order: PurchaseTransaction) => {
     if (!state.address || state.address !== order.buyer) {
       throw new Error('Reconnect the embedded wallet selected for this purchase.');
     }

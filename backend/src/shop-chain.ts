@@ -2,15 +2,16 @@ import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { createNoopSigner, generateSigner, keypairIdentity, lamports, publicKey, transactionBuilder, type Umi } from '@metaplex-foundation/umi';
 import { base58 } from '@metaplex-foundation/umi/serializers';
 import { createV1, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
-import { transferSol } from '@metaplex-foundation/mpl-toolbox';
-import { FIGURES, type FigureId, type MintOrder } from '@rps/core/shop';
+import { mplToolbox, transferSol } from '@metaplex-foundation/mpl-toolbox';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS, type FigureId, type MintOrder } from '@rps/core/shop';
 import type { ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
+import { shopTokenPayment } from './shop-token-payment.js';
 
 export type ChainMint = Pick<MintOrder, 'asset' | 'transaction' | 'lastValidBlockHeight' | 'networkFeeLamports'>;
 export interface ShopChain {
   prepare(figureId: FigureId, buyer: string, price: string): Promise<ChainMint>;
-  validateSigned(order: MintOrder, signed: string): string;
+  validateSigned(order: Pick<MintOrder, 'transaction' | 'buyer'>, signed: string): string;
   send(signed: string): Promise<void>;
   status(order: MintOrder): Promise<'pending' | 'confirmed' | 'failed' | 'expired'>;
 }
@@ -18,7 +19,7 @@ export interface ShopChain {
 // Umi stays entirely on the server: neither private mint keys nor SDK legacy
 // transaction types are shipped to the mobile or browser bundle.
 export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
-  const umi = (runtime ?? createUmi(config.rpcUrl, { commitment: 'confirmed', fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(15_000) }) })).use(mplCore());
+  const umi = (runtime ?? createUmi(config.rpcUrl, { commitment: 'confirmed', fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(15_000) }) })).use(mplCore()).use(mplToolbox());
   if (config.enabled) {
     const secret: unknown = JSON.parse(config.authoritySecret!);
     if (!Array.isArray(secret) || secret.length !== 64 || !secret.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)) throw new Error('SHOP_MINT_AUTHORITY_SECRET must be a 64-byte JSON keypair');
@@ -33,6 +34,8 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
     async prepare(figureId, buyerAddress, price) {
       if (!config.enabled || !config.collection || !config.treasury) throw new Error('Minting is not available yet');
       const buyer = createNoopSigner(publicKey(buyerAddress));
+      const tokenPayment = FIGURE_TOKEN_PAYMENTS[figureId];
+      if (tokenPayment && (config.cluster !== 'mainnet-beta' || price !== '0')) throw new ShopError('Invalid token purchase configuration');
       const [genesis, collection, balance, blockhash] = await Promise.all([
         umi.rpc.call<string>('getGenesisHash'),
         fetchCollection(umi, publicKey(config.collection)),
@@ -46,9 +49,12 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
       if (collection.updateAuthority !== umi.identity.publicKey) throw new Error('Invalid shop collection authority');
       const figure = FIGURES.find(candidate => candidate.id === figureId)!;
       const asset = generateSigner(umi);
+      const payment = tokenPayment
+        ? await shopTokenPayment(umi, buyer, config.treasury, tokenPayment)
+        : transferSol(umi, { source: buyer, destination: publicKey(config.treasury), amount: lamports(BigInt(price)) });
       const transaction = await transactionBuilder()
         .setVersion(0).setFeePayer(buyer).setBlockhash(blockhash)
-        .add(transferSol(umi, { source: buyer, destination: publicKey(config.treasury), amount: lamports(BigInt(price)) }))
+        .add(payment)
         .add(createV1(umi, {
           asset, payer: buyer, owner: buyer.publicKey, authority: umi.identity,
           collection: collection.publicKey, name: figure.name,
@@ -57,7 +63,7 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
         .buildAndSign(umi);
       const simulation = await umi.rpc.simulateTransaction(transaction, { verifySignatures: false, accounts: [buyer.publicKey] });
       if (simulation.err) {
-        if (balance.basisPoints < BigInt(price) + 10_000_000n) throw new ShopError('Add SOL to your wallet for the figure and network fees, then try again.');
+        if (balance.basisPoints < BigInt(price) + 10_000_000n) throw new ShopError(tokenPayment ? 'Add SOL for the additional fees, then try again.' : 'Add SOL to your wallet for the figure and network fees, then try again.');
         throw new ShopError('The mint could not be simulated. No payment was sent. Try again later.', 503);
       }
       const remaining = simulation.accounts?.[0]?.lamports;

@@ -27,6 +27,7 @@ if [[ ! -f "${APP_STORE_CONNECT_API_KEY_PATH}" ]]; then
 fi
 
 mobile_directory="$(cd "${script_directory}/.." && pwd)"
+node "${script_directory}/sync-ui-assets.mjs"
 
 if [[ "${RIPSY_SKIP_RELEASE_PREFLIGHT:-0}" != "1" ]]; then
   "${script_directory}/release-preflight.sh" ios

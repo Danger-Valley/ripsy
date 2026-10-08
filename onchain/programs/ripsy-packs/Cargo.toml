@@ -1,0 +1,23 @@
+[package]
+name = "ripsy-packs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "ripsy_packs"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+anchor-debug = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "anchor-spl/token_2022"]
+
+[dependencies]
+anchor-lang = "=0.31.1"
+anchor-spl = { version = "=0.31.1", default-features = false, features = ["associated_token", "token"] }
+ephemeral-vrf-sdk = { version = "=0.17.3", features = ["anchor-compat"] }
+mpl-core = { version = "=0.11.2", default-features = false }

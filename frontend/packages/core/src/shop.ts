@@ -1,20 +1,29 @@
 /** Shop is deliberately independent of gameplay and its anonymous identity. */
 export type ShopCluster = 'devnet' | 'mainnet-beta';
-export type FigureId = 'fig1' | 'fig2';
+export type FigureId = 'fig1' | 'fig2' | 'bonk' | 'jup';
 export const FIGURES = [
   { id: 'fig1' as const, name: 'RIPSY 001', variant: 1 as const, description: 'The original RIPSY fighter. Free in every army.', seekerExclusive: false, purchasable: false },
   { id: 'fig2' as const, name: 'Seeker fighter', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.', seekerExclusive: true, purchasable: true },
+  { id: 'bonk' as const, name: 'BONK', variant: 3 as const, description: 'Bring a little BONK to the battlefield.', seekerExclusive: false, purchasable: true },
+  { id: 'jup' as const, name: 'Jup', variant: 4 as const, description: 'A new fighter joins your orbit.', seekerExclusive: false, purchasable: true },
 ];
+export interface TokenPayment { mint: string; symbol: string; decimals: number; amount: string }
+/** Exact mainnet base units, not floating point prices or client overrides. */
+export const FIGURE_TOKEN_PAYMENTS: Partial<Record<FigureId, TokenPayment>> = {
+  bonk: { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK', decimals: 5, amount: '690000000000' },
+  jup: { mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', decimals: 6, amount: '99000000' },
+};
 export const STARTER_FIGURE_ID = 'fig1' as const;
 export const FIGURE_SLOTS = 14;
 export const DEFAULT_SOLANA_MOBILE_STORE_URL = 'https://store.solanamobile.com/';
 export interface ShopFigure {
   id: FigureId;
   name: string;
-  variant: 1 | 2;
+  variant: 1 | 2 | 3 | 4;
   description: string;
   imageUrl: string;
   priceLamports: string | null;
+  tokenPayment?: TokenPayment;
   available: boolean;
   seekerExclusive: boolean;
 }
@@ -34,6 +43,7 @@ export interface MintOrder {
   asset: string;
   cluster: ShopCluster;
   priceLamports: string;
+  tokenPayment?: TokenPayment;
   treasury: string;
   collection: string;
   transaction: string;
@@ -45,6 +55,8 @@ export interface MintOrder {
   /** Network fee + rent + protocol fees, estimated by simulation, excludes price. */
   networkFeeLamports: string;
 }
+/** Signers only need immutable transaction bytes and the intended buyer/network. */
+export type PurchaseTransaction = Pick<MintOrder, 'buyer' | 'cluster' | 'transaction'>;
 
 export interface SeekerChallenge {
   chainId: 'solana:mainnet';
@@ -82,7 +94,37 @@ export interface FigureInventory {
 }
 
 export function isFigureId(value: unknown): value is FigureId {
-  return value === 'fig1' || value === 'fig2';
+  return FIGURES.some(figure => figure.id === value);
+}
+
+export function figureVariantForId(id: FigureId): 1 | 2 | 3 | 4 {
+  return FIGURES.find(figure => figure.id === id)!.variant;
+}
+
+export function figurePaymentPrice(value: Pick<ShopFigure, 'priceLamports' | 'tokenPayment'>, cluster: ShopCluster): string {
+  if (!value.tokenPayment) return value.priceLamports !== null ? figurePrice(value.priceLamports, cluster) : 'Coming soon';
+  const { amount, decimals, symbol } = value.tokenPayment;
+  const padded = amount.padStart(decimals + 1, '0');
+  const whole = padded.slice(0, -decimals).replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const fraction = padded.slice(-decimals).replace(/0+$/, '');
+  return `${whole}${fraction ? `.${fraction}` : ''} ${symbol}`;
+}
+
+export function figurePurchaseTotal(order: MintOrder): string {
+  return order.tokenPayment
+    ? `${figurePaymentPrice(order, order.cluster)} + ${figurePrice(order.networkFeeLamports, order.cluster)}`
+    : figurePrice((BigInt(order.priceLamports) + BigInt(order.networkFeeLamports)).toString(), order.cluster);
+}
+
+/** Persist identities separately from exact asset slots for offline lineups. */
+export function figureAssetVariants(assets: OwnedFigureAsset[]): Record<string, 1 | 2 | 3 | 4> {
+  return Object.fromEntries(assets.map(asset => [asset.assetId, figureVariantForId(asset.figureId)]));
+}
+
+export function equippedFigureVariant(assetId: string | null, variants: Record<string, number>): 1 | 2 | 3 | 4 {
+  if (!assetId) return 1;
+  const variant = variants[assetId];
+  return variant === 2 || variant === 3 || variant === 4 ? variant : 2; // Legacy fig2-only caches.
 }
 
 export function formatSol(lamports: string): string {
@@ -129,6 +171,13 @@ const addressPattern = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const isAddress = (value: unknown): value is string => typeof value === 'string' && addressPattern.test(value);
 const isAmount = (value: unknown): value is string => typeof value === 'string' && /^\d{1,16}$/.test(value);
 const isCluster = (value: unknown) => value === 'devnet' || value === 'mainnet-beta';
+function validTokenPayment(value: unknown, figureId: unknown): boolean {
+  const expected = isFigureId(figureId) ? FIGURE_TOKEN_PAYMENTS[figureId] : undefined;
+  if (!expected) return value === undefined;
+  if (!value || typeof value !== 'object') return false;
+  const actual = value as TokenPayment;
+  return actual.mint === expected.mint && actual.symbol === expected.symbol && actual.decimals === expected.decimals && actual.amount === expected.amount;
+}
 
 export function isSafeShopExternalUrl(value: unknown): value is string {
   if (typeof value !== 'string') return false;
@@ -145,9 +194,11 @@ export function parseShopCatalog(value: unknown): ShopCatalog {
     || !(data.solanaMobileStoreUrl === undefined || isSafeShopExternalUrl(data.solanaMobileStoreUrl))) throw new Error('Invalid shop catalog');
   for (const entry of data.figures) {
     const figure = record(entry);
-    if (!isFigureId(figure.id) || (figure.variant !== 1 && figure.variant !== 2) || typeof figure.name !== 'string'
+    if (!isFigureId(figure.id) || figure.variant !== figureVariantForId(figure.id) || !validTokenPayment(figure.tokenPayment, figure.id) || typeof figure.name !== 'string'
       || typeof figure.description !== 'string' || typeof figure.imageUrl !== 'string' || typeof figure.seekerExclusive !== 'boolean'
-      || !(figure.priceLamports === null || isAmount(figure.priceLamports)) || typeof figure.available !== 'boolean') throw new Error('Invalid shop figure');
+      || !(figure.priceLamports === null || isAmount(figure.priceLamports))
+      || (figure.tokenPayment !== undefined && (figure.priceLamports !== '0' || (figure.available && data.cluster !== 'mainnet-beta')))
+      || typeof figure.available !== 'boolean') throw new Error('Invalid shop figure');
   }
   return data as unknown as ShopCatalog;
 }
@@ -171,7 +222,7 @@ export function parseFigureInventory(value: unknown): FigureInventory {
   const assetIds = new Set<string>();
   for (const entry of data.assets) {
     const asset = record(entry);
-    if (!isAddress(asset.assetId) || asset.figureId !== 'fig2' || typeof asset.name !== 'string' || typeof asset.imageUrl !== 'string') {
+    if (!isAddress(asset.assetId) || !isFigureId(asset.figureId) || asset.figureId === STARTER_FIGURE_ID || typeof asset.name !== 'string' || typeof asset.imageUrl !== 'string') {
       throw new Error('Invalid figure inventory');
     }
     if (assetIds.has(asset.assetId)) throw new Error('Invalid figure inventory');
@@ -190,7 +241,9 @@ export function parseMintOrder(value: unknown): MintOrder {
   const data = record(value);
   if (typeof data.id !== 'string' || !/^[a-f0-9]{64}$/.test(data.id) || !isFigureId(data.figureId)
     || !isAddress(data.buyer) || !isAddress(data.asset) || !isAddress(data.treasury) || !isAddress(data.collection)
-    || !isCluster(data.cluster) || !isAmount(data.priceLamports) || !isAmount(data.networkFeeLamports)
+    || !isCluster(data.cluster) || !validTokenPayment(data.tokenPayment, data.figureId)
+    || (data.tokenPayment !== undefined && (data.priceLamports !== '0' || data.cluster !== 'mainnet-beta'))
+    || !isAmount(data.priceLamports) || !isAmount(data.networkFeeLamports)
     || typeof data.transaction !== 'string' || data.transaction.length > 2000
     || !Number.isSafeInteger(data.lastValidBlockHeight) || !Number.isSafeInteger(data.createdAt)
     || !['prepared', 'submitted', 'confirmed', 'failed', 'expired'].includes(String(data.status))

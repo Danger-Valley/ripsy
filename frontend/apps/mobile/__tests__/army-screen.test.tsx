@@ -125,12 +125,32 @@ test('free army saves locally without a wallet or backend mutation, even offline
   expect(api.saveLoadout).not.toHaveBeenCalled();
 });
 
+test('owned BONK/Jup can be placed in distinct slots with their real names and cached identities', async () => {
+  const assets: FigureInventory['assets'] = [
+    { ...inventory.assets[0], figureId: 'bonk', name: 'BONK' },
+    { assetId: 'bbbb222222222222222222222222222222', figureId: 'jup', name: 'Jup', imageUrl: '/figures/jup.png' },
+  ];
+  api.inventory.mockResolvedValue({ ...inventory, assets });
+  api.saveLoadout.mockImplementation(async slots => ({ ...inventory, assets, slots }));
+  await mount();
+  await Renderer.act(() => slot(2).props.onPress());
+  await press('Equip BONK aaaa…1111');
+  await Renderer.act(() => slot(6).props.onPress());
+  await press('Equip Jup bbbb…2222');
+  expect(slot(2).props.accessibilityLabel).toContain('BONK');
+  expect(slot(6).props.accessibilityLabel).toContain('Jup');
+  await press('Save army');
+  const slots = api.saveLoadout.mock.calls[0][0];
+  expect(slots.filter(Boolean)).toEqual(assets.map(owned => owned.assetId));
+  expect(saveFigureSlots).toHaveBeenCalledWith(slots, assets);
+});
+
 test('equips a collectible in the selected slot and never duplicates that NFT', async () => {
   api.inventory.mockResolvedValue(inventory);
   await mount();
   await Renderer.act(() => slot(4).props.onPress());
   await press('Equip Seeker fighter aaaa…1111');
-  expect(slot(4).props.accessibilityLabel).toContain('Seeker fighter collectible');
+  expect(slot(4).props.accessibilityLabel).toContain('Seeker fighter');
   await press('Save army');
   const savedSlots = api.saveLoadout.mock.calls[0][0];
   expect(savedSlots[3]).toBe(asset);

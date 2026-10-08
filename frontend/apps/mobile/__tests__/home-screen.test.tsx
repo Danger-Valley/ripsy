@@ -184,6 +184,21 @@ test('renders the illustrated compact home with safe-area spacing', async () => 
   });
 });
 
+test.each([320, 375, 768, 1280])('keeps the replacement hero proportional inside the capped layout at %s pt', async width => {
+  const native = jest.requireActual('react-native');
+  const dimensions = jest.spyOn(native, 'useWindowDimensions').mockReturnValue({ width, height: 844, scale: 3, fontScale: 1 });
+  try {
+    const renderer = await renderHome();
+    const hero = StyleSheet.flatten(renderer.root.findByProps({ testID: 'arcade-home-hero' }).props.style);
+    expect(hero.height).toBe((Math.min(464, width - 32) + 32) * 2 / 3);
+    const logo = renderer.root.find(node => node.props.accessibilityLabel === 'RIPSY');
+    expect(StyleSheet.flatten(logo.props.style).height).toBe(84);
+    expect(logo.props.resizeMode).toBe('contain');
+  } finally {
+    dimensions.mockRestore();
+  }
+});
+
 test('normalizes a pasted invitation and opens the room', async () => {
   const renderer = await renderHome();
   const input = renderer.root.findByType(TextInput);

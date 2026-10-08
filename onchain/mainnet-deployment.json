@@ -1,0 +1,23 @@
+{
+  "verifiedAt": "2026-10-06T10:48:34.809Z",
+  "network": "mainnet-beta",
+  "program": "43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ",
+  "programData": "DZeMqKpHuE98CmdjbN4cgjXjGktUosgsCUGgScniEG3Y",
+  "upgradeAuthority": "BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh",
+  "feePayer": "BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh",
+  "binarySha256": "199b77db47f82812d115346f706dffa9913f3f207ca3ff13825f4746a5b8d256",
+  "binaryBytes": 449184,
+  "deployedSlot": "453879187",
+  "programRentLamports": 2283566680,
+  "balanceBeforeLamports": 2524685284,
+  "balanceAfterLamports": 238757194,
+  "netSpentLamports": 2285928090,
+  "deploymentSignature": "b83cVyvPhye2PSA7NnMUX8TfRMBypsptNTvK5S5K3nfCQpPFvU4KjfpBRTgZgjk3TLBoxymq4wB3bpD9kAh8xwH",
+  "confirmationStatus": "finalized",
+  "configAddress": "2Pf3Q6MyrsNzzEPxMUNGTHqmWP5ZP92rNpakeVkRPrZw",
+  "configInitialized": false,
+  "onchainBuysAllowed": false,
+  "localBackendPackEnabled": false,
+  "bufferClosed": true,
+  "initializeSimulationPassed": true
+}

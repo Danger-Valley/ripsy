@@ -37,6 +37,8 @@ export const colors = {
   boardGrass: '#83C85D',
   boardGridLine: '#B18E53',
   boardMove: '#9CDDF0',
+  boardOpponentLastMove: 'rgba(255, 107, 91, 0.16)',
+  boardOpponentLastMoveBorder: 'rgba(200, 57, 46, 0.38)',
   scrim: 'rgba(18, 58, 85, 0.78)',
   shadow: '#24617C',
   kitPanel: '#FFFDF4',

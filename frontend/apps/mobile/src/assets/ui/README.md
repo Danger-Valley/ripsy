@@ -1,5 +1,13 @@
 # Toy Box UI artwork
 
+## Replacing Home artwork (2026-10-05)
+
+The user's replacements for `home-rivals.png`, `home-robot.png`, `home-army.png` and `ripsy-toy-logo.png` are the runtime source files. Do not restore the older generated versions. After replacing the logo or splash background, run `npm run assets:sync -w @rps/mobile` from the repository root. This copies the exact original bytes into the iOS asset catalog; iOS run/upload scripts do it automatically. `npm run assets:check -w @rps/mobile` and release preflight check synchronized native copies and the seven 8 x 256 gradient ramps. Never replace `home-gradient-*.png` with logo/character art.
+
+Home renders the hero in its original 3:2 ratio using the actual capped content width, with the logo contained in an 84 pt header slot. `home-portrait.tsx` shares head crops from the replacement hero between Home and the battle HUD; adjust those crop coordinates when changing the scene composition, not the game figures. Menu icons remain contained in fixed button bounds.
+
+Startup waits for both local splash images' `onLoadEnd` (success or failure) as well as navigation restoration before removing the splash. This avoids pending native image callbacks applying splash art to recycled Home image views. There is no minimum branding delay; a 1500 ms watchdog prevents a missing callback from blocking navigation. The original replacement files remain unchanged.
+
 These original bitmap backdrops were generated with OpenAI's built-in image generation tool on 2026-10-01. They intentionally contain no UI text, logos, characters, or copied game assets. React Native renders the real RIPSY logo, RIPSY 001/Seeker fighter sprites, controls, accessibility labels, and board interaction above them.
 
 ## Illustrated startup splash — 2026-10-04

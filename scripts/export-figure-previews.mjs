@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const ids = ['fig1', 'fig2'];
+const ids = ['fig1', 'fig2', 'bonk', 'jup'];
 const html = `<!doctype html><html><meta charset="utf-8"><title>RIPSY figure previews</title>
 <style>body{background:#172129;color:white;font:16px system-ui}canvas{width:400px;height:400px}button{padding:16px}</style>
 <h1>Rive idle frame previews</h1><p id="status">Rendering…</p><div id="figures"></div><button id="export" disabled>Export previews</button>
@@ -13,7 +13,7 @@ const html = `<!doctype html><html><meta charset="utf-8"><title>RIPSY figure pre
 async function render(){
 rive.RuntimeLoader.setWasmUrl('/rive.wasm');
 const runtime=await rive.RuntimeLoader.awaitInstance();
-for(const id of ['fig1','fig2']){
+for(const id of ${JSON.stringify(ids)}){
 const canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;canvas.setAttribute('aria-label',id);document.querySelector('#figures').append(canvas);
 const file=await runtime.load(new Uint8Array(await (await fetch('/'+id+'.riv')).arrayBuffer()));
 const artboard=file.defaultArtboard();
@@ -25,11 +25,11 @@ artboard.draw(renderer);renderer.restore();runtime.resolveAnimationFrame();canva
 document.querySelector('#status').textContent='Ready: first Idle frame, no weapon.';document.querySelector('#export').disabled=false;
 }
 document.querySelector('#export').onclick=async()=>{for(const canvas of document.querySelectorAll('canvas')){const response=await fetch('/export/'+canvas.dataset.figure,{method:'POST',headers:{'Content-Type':'image/png'},body:await new Promise(resolve=>canvas.toBlob(resolve,'image/png'))});if(!response.ok)throw Error('Export failed');}document.querySelector('#status').textContent='Exported both PNGs to web and mobile.';};
-render().catch(error=>document.querySelector('#status').textContent=error.message);
+render().then(()=>{if(location.search==='?export=1')document.querySelector('#export').click();}).catch(error=>document.querySelector('#status').textContent=error.message);
 </script></html>`;
 const server = createServer(async (request, response) => {
   try {
-    if (request.method === 'GET' && request.url === '/') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
+    if (request.method === 'GET' && ['/', '/?export=1'].includes(request.url)) { response.setHeader('content-type', 'text/html'); response.end(html); return; }
     if (request.method === 'GET' && ['/rive.js', '/rive.wasm'].includes(request.url)) {
       response.setHeader('content-type', request.url.endsWith('wasm') ? 'application/wasm' : 'application/javascript');
       response.end(await fs.readFile(require.resolve(`@rive-app/canvas${request.url}`))); return;

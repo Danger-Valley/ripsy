@@ -28,7 +28,7 @@ export function canMoveTo(piece: Piece, targetOwner: Owner) {
 export const Owner = { None: 0, P0: 1, P1: 2 } as const;
 export type Owner = (typeof Owner)[keyof typeof Owner];
 
-export const FigureVariant = { Empty: 0, Fig1: 1, Fig2: 2 } as const;
+export const FigureVariant = { Empty: 0, Fig1: 1, Fig2: 2, Bonk: 3, Jup: 4 } as const;
 export type FigureVariant = (typeof FigureVariant)[keyof typeof FigureVariant];
 
 export const Phase = {
@@ -401,7 +401,7 @@ function isOwner(value: number): value is Owner {
 }
 
 function isFigureVariant(value: number): value is FigureVariant {
-  return value === FigureVariant.Empty || value === FigureVariant.Fig1 || value === FigureVariant.Fig2;
+  return Object.values(FigureVariant).some(variant => variant === value);
 }
 
 function legacyFigureVariants(owners: number[]): FigureVariant[] {

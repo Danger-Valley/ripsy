@@ -5,6 +5,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Phase } from '@rps/core';
 import { ActiveGameCard } from '../components/active-game-card';
+import { HomePortraitImage } from '../components/home-portrait';
 import { SettingsDialog } from '../components/settings-dialogs';
 import { homeArt, homeFont, ToyHomeButton, ToyHomePanel, ToyShine } from '../components/toy-home-controls';
 import { SolanaWalletCard } from '../components/solana-wallet-card';
@@ -29,6 +30,9 @@ export function HomeScreen({ navigation, route }: Props) {
   const isGameConnected = game.isConnected;
   const push = usePushNotifications(sessionToken);
   const { width: windowWidth } = useWindowDimensions();
+  const leftGutter = Math.max(16, insets.left + 12);
+  const rightGutter = Math.max(16, insets.right + 12);
+  const heroWidth = Math.min(464, windowWidth - leftGutter - rightGutter) + 32;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [roomCode, setRoomCode] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -117,8 +121,8 @@ export function HomeScreen({ navigation, route }: Props) {
         contentContainerStyle={[styles.scrollContent, {
           paddingTop: insets.top + 8,
           paddingBottom: Math.max(16, insets.bottom + 12),
-          paddingLeft: Math.max(16, insets.left + 12),
-          paddingRight: Math.max(16, insets.right + 12),
+          paddingLeft: leftGutter,
+          paddingRight: rightGutter,
         }]}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefreshing} tintColor="#0879AD" onRefresh={() => { refreshGames(true).catch(() => undefined); }} />}
@@ -126,7 +130,7 @@ export function HomeScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
         testID="home-scroll">
         <View style={styles.container}>
-          <View testID="arcade-home-hero" style={[styles.hero, { height: Math.min(windowWidth - 8, 488) * 2 / 3 }]}>
+          <View testID="arcade-home-hero" style={[styles.hero, { height: heroWidth * 2 / 3 }]}>
             <Image pointerEvents="none" accessibilityElementsHidden source={homeArt.rivals} resizeMode="cover" style={styles.heroArt} />
             <View style={styles.heroHeader}>
               <Pressable
@@ -135,7 +139,7 @@ export function HomeScreen({ navigation, route }: Props) {
                 onPress={() => { haptics.select(); sounds.play('click'); navigation.navigate('Army'); }}
                 style={({ pressed }) => [styles.profile, pressed && styles.pressed]}>
                 <View accessibilityElementsHidden style={styles.profilePortrait}>
-                  <Image source={homeArt.rivals} resizeMode="contain" style={styles.profileFigure} />
+                  <HomePortraitImage />
                 </View>
                 <Text maxFontSizeMultiplier={1.3} style={styles.profileName}>Your army</Text>
               </Pressable>
@@ -259,10 +263,9 @@ const styles = StyleSheet.create({
   hero: { position: 'relative', marginHorizontal: -16 },
   heroArt: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' },
   heroHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingTop: 3 },
-  logo: { position: 'absolute', top: -3, left: '21%', width: '58%', height: 106 },
+  logo: { position: 'absolute', top: 0, left: '21%', width: '58%', height: 84 },
   profile: { width: 59, height: 66, borderRadius: 17, borderColor: '#FFFFFF', borderWidth: 1.5, backgroundColor: '#D7F7FF', shadowColor: '#18688A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.26, shadowRadius: 3, elevation: 3, alignItems: 'center' },
-  profilePortrait: { width: 54, height: 48, borderRadius: 14, overflow: 'hidden' },
-  profileFigure: { position: 'absolute', width: 180, height: 120, left: -17, top: -41 },
+  profilePortrait: { width: 48, height: 48, borderRadius: 14, overflow: 'hidden' },
   profileName: { fontFamily: homeFont, color: '#07345C', fontSize: 10, fontWeight: '800' },
   pressed: { transform: [{ translateY: 2 }], opacity: 0.9 },
   actions: { marginTop: -12, gap: 12 },

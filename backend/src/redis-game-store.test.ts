@@ -24,12 +24,13 @@ class FakeRedis implements RedisCommands {
     const [expected, next, _ttl, message, deadline] = options.arguments;
     if (!key || !channel || expected === undefined || next === undefined || message === undefined) return 0;
     if (this.values.get(key) !== expected) return 0;
-    this.values.set(key, next);
+    const changed = expected !== next;
+    if (changed) this.values.set(key, next);
     if (deadlinesKey) {
       if (deadline) await this.zAdd(deadlinesKey, { score: Number(deadline), value: message });
       else await this.zRem(deadlinesKey, message);
     }
-    this.events.push({ channel, message });
+    if (changed) this.events.push({ channel, message });
     return 1;
   }
 
@@ -83,6 +84,74 @@ test('persists game state in Redis-compatible storage', async () => {
   assert.ok(redis.events.length >= 2);
   assert.deepEqual((await firstInstance.list('alice')).map(game => game.gameId), [created.gameId]);
   assert.deepEqual((await secondInstance.list('bob')).map(game => game.gameId), [created.gameId]);
+});
+
+test('current-schema reads and broadcasts never publish another update', async () => {
+  const redis = new FakeRedis();
+  const store = new RedisGameStore(redis);
+  const game = await store.create('alice');
+  await store.join(game.gameId, 'bob');
+  const before = [...redis.values.entries()];
+  redis.events.length = 0;
+  for (let iteration = 0; iteration < 8; iteration++) {
+    await store.get(game.gameId, 'alice');
+    await store.list('bob');
+    const views = await store.views(game.gameId);
+    assert.equal(views.length, 2);
+    assert.equal(redis.events.length, 0, 'reading a broadcast must not enqueue the next broadcast');
+  }
+  assert.deepEqual([...redis.values.entries()], before);
+});
+
+test('schema 4 migrates once and its broadcast does not migrate again', async () => {
+  const redis = new FakeRedis();
+  const store = new RedisGameStore(redis);
+  const created = await store.create('alice');
+  const key = [...redis.values.keys()][0]!;
+  const legacy = JSON.parse(redis.values.get(key)!);
+  legacy.schemaVersion = 4;
+  delete legacy.figureVariants;
+  redis.values.set(key, JSON.stringify(legacy));
+  redis.events.length = 0;
+  await store.get(created.gameId, 'alice');
+  assert.equal(JSON.parse(redis.values.get(key)!).schemaVersion, 5);
+  assert.equal(redis.events.length, 1);
+  redis.events.length = 0;
+  await store.views(created.gameId);
+  await store.get(created.gameId, 'alice');
+  assert.equal(redis.events.length, 0);
+});
+
+test('concurrent legacy reads on different replicas publish one migration', async () => {
+  const redis = new FakeRedis();
+  const first = new RedisGameStore(redis);
+  const second = new RedisGameStore(redis);
+  const created = await first.create('alice');
+  const key = [...redis.values.keys()][0]!;
+  const legacy = JSON.parse(redis.values.get(key)!);
+  legacy.schemaVersion = 4;
+  redis.values.set(key, JSON.stringify(legacy));
+  redis.events.length = 0;
+  await Promise.all([first.get(created.gameId, 'alice'), second.views(created.gameId)]);
+  assert.equal(JSON.parse(redis.values.get(key)!).schemaVersion, 5);
+  assert.equal(redis.events.length, 1);
+  await Promise.all([first.views(created.gameId), second.views(created.gameId)]);
+  assert.equal(redis.events.length, 1);
+});
+
+test('reading an overdue game publishes its result once, not on subsequent broadcasts', async () => {
+  const redis = new FakeRedis();
+  let nowMs = Date.parse('2026-10-07T11:00:00.000Z');
+  const store = new RedisGameStore(redis, { now: () => new Date(nowMs) });
+  const game = await store.create('alice');
+  redis.events.length = 0;
+  nowMs += 180_001;
+  assert.equal((await store.get(game.gameId, 'alice')).phase, Phase.Finished);
+  assert.equal(redis.events.length, 1);
+  redis.events.length = 0;
+  await store.views(game.gameId);
+  await store.get(game.gameId, 'alice');
+  assert.equal(redis.events.length, 0);
 });
 
 test('persists and replaces a creator lineup before another instance joins', async () => {

@@ -1,0 +1,17 @@
+[toolchain]
+anchor_version = "0.31.1"
+solana_version = "3.1.9"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+ripsy_packs = "43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ"
+
+[programs.mainnet]
+ripsy_packs = "43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ"
+
+[provider]
+cluster = "localnet"
+wallet = "keys/local-test-wallet.json"

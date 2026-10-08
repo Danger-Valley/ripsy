@@ -5,6 +5,7 @@ import {
   chooseWeapon,
   createGameRecord,
   gameView,
+  parseGameRecord,
   joinGame,
   movePiece,
   settleGameDeadline,
@@ -22,6 +23,22 @@ const lineup = [
 const xs = Array.from({ length: 14 }, (_, index) => index % 7);
 const aliceYs = Array.from({ length: 14 }, (_, index) => 5 + Math.floor(index / 7));
 const bobYs = Array.from({ length: 14 }, (_, index) => Math.floor(index / 7));
+
+test('BONK/Jup variants survive saved state, hidden views and movement', () => {
+  const game = createGameRecord('new-figures', 'alice');
+  joinGame(game, 'bob');
+  submitLineup(game, 'alice', xs, aliceYs, lineup, new Date(), [3, 4, ...Array(12).fill(1)]);
+  submitLineup(game, 'bob', xs, bobYs, lineup);
+  const restored = parseGameRecord(JSON.stringify(game));
+  assert.equal(restored.figureVariants[toIdx(0, 5)], 3);
+  assert.equal(restored.figureVariants[toIdx(1, 5)], 4);
+  const opponent = gameView(restored, 'bob');
+  assert.equal(opponent.figureVariants![toIdx(0, 5)], 3);
+  assert.equal(opponent.pieces[toIdx(0, 5)], Piece.Empty);
+  movePiece(restored, 'alice', 0, 5, 0, 4);
+  assert.equal(restored.figureVariants[toIdx(0, 4)], 3);
+  assert.equal(restored.figureVariants[toIdx(0, 5)], 0);
+});
 
 test('creates, joins, and starts a game after both lineups', () => {
   const game = createGameRecord('game-1', 'alice');

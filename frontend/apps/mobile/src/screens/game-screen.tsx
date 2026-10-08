@@ -21,9 +21,9 @@ import { createGameInviteUrl, normalizeRoomCode } from '../invitations';
 import { LOCAL_PLAYER_ID } from '../local-computer-game';
 import type { RootStackParamList } from '../navigation';
 import { spacing } from '../theme';
-import { loadFigureSlots, saveFigureSlots } from '../storage/figure-loadout';
+import { loadFigureSlots, loadFigureVariants, saveFigureSlots } from '../storage/figure-loadout';
 import { ShopClient } from '@rps/game-client/shop';
-import { FIGURE_SLOTS } from '@rps/core/shop';
+import { equippedFigureVariant, figureAssetVariants, FIGURE_SLOTS } from '@rps/core/shop';
 import { getGameWebSocketUrl } from '../config';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Game'>;
@@ -91,22 +91,25 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
   const lineupAttention = useRef(new Animated.Value(0)).current;
   const [reduceMotionEnabled, setReduceMotionEnabled] = useState<boolean | null>(null);
   const [armyFigureSlots, setArmyFigureSlots] = useState<Array<string | null> | null>(null);
+  const [armyFigureVariants, setArmyFigureVariants] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let active = true;
     const load = async () => {
       let slots = await loadFigureSlots();
+      let variants = await loadFigureVariants();
       if (sessionToken) {
         try {
           const client = new ShopClient(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken);
           const inventory = await client.inventory();
           slots = inventory.slots;
-          await saveFigureSlots(slots);
+          variants = figureAssetVariants(inventory.assets);
+          await saveFigureSlots(slots, inventory.assets);
         } catch {
           // A wallet is optional. The cached army remains available offline.
         }
       }
-      if (active) setArmyFigureSlots(slots);
+      if (active) { setArmyFigureVariants(variants); setArmyFigureSlots(slots); }
     };
     load().catch(() => {
       if (active) setArmyFigureSlots(Array<string | null>(FIGURE_SLOTS).fill(null));
@@ -135,6 +138,11 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
     && !game.gameState.p1
     && (game.gameState.phase === Phase.Created || game.gameState.phase === Phase.LineupP0Set),
   );
+  const isFinished = game.gameState?.phase === Phase.Finished;
+  // A command racing the server deadline can fail after the result arrives.
+  // The confirmed result explains this case; keep unrelated failures visible.
+  const battleError = [actionError, game.error].find(error => error
+    && !(isFinished && error === 'The game is not active'));
 
   useEffect(() => {
     let isMounted = true;
@@ -208,14 +216,14 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
       setLineup(savedLineup);
       setIsLineupDirty(false);
     } else {
-      setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots));
+      setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots, armyFigureVariants));
       setIsLineupDirty(true);
     }
-  }, [armyFigureSlots, canEditLineup, game.gameState, game.isPlayer0, game.ownOwner, lineup.length]);
+  }, [armyFigureSlots, armyFigureVariants, canEditLineup, game.gameState, game.isPlayer0, game.ownOwner, lineup.length]);
 
   useEffect(() => {
-    if (!game.gameState?.tiePending) setSelected(null);
-  }, [game.gameState?.tiePending]);
+    if (!game.gameState?.tiePending || isFinished) setSelected(null);
+  }, [game.gameState?.tiePending, isFinished]);
 
   useEffect(() => {
     const state = game.gameState;
@@ -274,7 +282,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
 
   const onCellPress = (coordinate: Coordinate) => {
     const state = visibleState;
-    if (!state || animation.isAnimating || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
+    if (!state || game.gameState?.phase !== Phase.Active || game.isBusy || animation.isAnimating || state.phase !== Phase.Active || !game.isMyTurn || state.tiePending) return;
     const index = toIdx(coordinate.x, coordinate.y);
     const owner = state.owners[index];
     const isMovable = isMovablePiece(state.pieces[index]!);
@@ -336,7 +344,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
         {isWaitingForOpponent && <WaitingPanel gameId={gameId} onInvite={() => { shareRoom().catch(() => undefined); }} />}
-        {(actionError || game.error) && <StatusBanner message={actionError || game.error || ''} tone="error" />}
+        {battleError && <StatusBanner message={battleError} tone="error" />}
 
         <GameClocks state={game.gameState} ownOwner={game.ownOwner} />
 
@@ -345,7 +353,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
           availableMoves={availableMoves}
           combatAnimation={animation.activeCombat}
           combatPhase={animation.combatPhase}
-          interactionEnabled={Boolean(!animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending)}
+          interactionEnabled={Boolean(game.gameState.phase === Phase.Active && !game.isBusy && !animation.isAnimating && game.isMyTurn && visibleState?.phase === Phase.Active && !visibleState.tiePending)}
           isPlayer1={game.isPlayer1}
           moveAnimation={animation.activeMove}
           moveProgress={animation.progress}
@@ -386,7 +394,7 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
           onShuffle={() => {
             playSound('shuffle');
             setSelected(null);
-            setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots ?? Array<string | null>(FIGURE_SLOTS).fill(null)));
+            setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots ?? Array<string | null>(FIGURE_SLOTS).fill(null), armyFigureVariants));
             setIsLineupDirty(true);
           }}
           onSave={() => { submitLineup().catch(() => undefined); }}
@@ -395,8 +403,11 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
 
       <WeaponChoiceModal
         busy={game.isBusy}
-        isOpen={Boolean(!animation.isAnimating && visibleState?.tiePending && visibleState.playerChoice === Choice.None && isParticipant)}
-        onChoose={choice => { perform(() => game.chooseWeapon(choice)).catch(() => undefined); }}
+        isOpen={Boolean(game.gameState.phase === Phase.Active && !animation.isAnimating && visibleState?.tiePending && visibleState.playerChoice === Choice.None && isParticipant)}
+        onChoose={choice => {
+          if (game.gameState?.phase !== Phase.Active || game.isBusy) return;
+          perform(() => game.chooseWeapon(choice)).catch(() => undefined);
+        }}
       />
       <VictoryFireworks
         victoryId={visibleState?.phase === Phase.Finished && visibleState.winner === playerId
@@ -423,10 +434,10 @@ function getStateMessage(state: GameState | null, isParticipant: boolean, canEdi
     return 'Set your lineup using the controls below the board';
   }
   if (phase === Phase.Created) return isParticipant ? 'Waiting for an opponent to join' : 'This room has an open player slot';
-  if (phase === Phase.Active) return isMyTurn ? 'Your turn — select a piece' : isComputer ? "Computer's turn" : "Opponent's turn";
+  if (phase === Phase.Active) return isMyTurn ? 'Your turn - select a piece' : isComputer ? "Computer's turn" : "Opponent's turn";
   if (phase === Phase.Finished) {
-    if (state?.finishReason === 'lineup_timeout') return 'Game canceled — a lineup was not saved in time';
-    if (state?.finishReason === 'timeout') return state.winner === playerId ? 'Victory — opponent ran out of time' : 'Time expired — you lost';
+    if (state?.finishReason === 'lineup_timeout') return 'Game canceled - a lineup was not saved in time';
+    if (state?.finishReason === 'timeout') return state.winner === playerId ? 'Victory - opponent ran out of time' : 'Time expired - you lost';
     return state?.winner === playerId ? 'Victory' : 'Game finished';
   }
   return 'Preparing game…';
@@ -454,7 +465,7 @@ function lineupFromState(state: GameState, owner: Owner): LineupPiece[] {
   return lineup;
 }
 
-function createRandomLineup(isPlayer0: boolean, configuredSlots: Array<string | null>): LineupPiece[] {
+function createRandomLineup(isPlayer0: boolean, configuredSlots: Array<string | null>, variants: Record<string, number> = {}): LineupPiece[] {
   const pieces: Piece[] = [
     Piece.Rock, Piece.Rock, Piece.Rock, Piece.Rock,
     Piece.Paper, Piece.Paper, Piece.Paper, Piece.Paper,
@@ -468,7 +479,7 @@ function createRandomLineup(isPlayer0: boolean, configuredSlots: Array<string | 
   const figureSlots = configuredSlots.length === FIGURE_SLOTS
     ? configuredSlots.map(figureAssetId => ({
       figureAssetId,
-      figureVariant: figureAssetId ? FigureVariant.Fig2 : FigureVariant.Fig1,
+      figureVariant: equippedFigureVariant(figureAssetId, variants),
     }))
     : Array.from({ length: FIGURE_SLOTS }, () => ({ figureAssetId: null, figureVariant: FigureVariant.Fig1 }));
   shuffle(pieces);

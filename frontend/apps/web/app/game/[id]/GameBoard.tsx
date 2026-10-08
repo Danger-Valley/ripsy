@@ -32,6 +32,9 @@ interface Props {
 export function GameBoard(props: Props) {
   const { riveFile: figure1File, status: figure1Status } = useRiveFile({ src: '/figures/fig1.riv' });
   const { riveFile: figure2File, status: figure2Status } = useRiveFile({ src: '/figures/fig2.riv' });
+  const { riveFile: bonkFile } = useRiveFile({ src: '/figures/bonk.riv' });
+  const { riveFile: jupFile } = useRiveFile({ src: '/figures/jup.riv' });
+  const figureFiles = [null, figure1File, figure2File, bonkFile, jupFile];
   const figuresReady = figure1Status === 'success' && figure1File && figure2Status === 'success' && figure2File;
   const preview = new Map(props.previewLineup?.map(item => [toIdx(item.x, item.y), item]));
   return (
@@ -61,7 +64,7 @@ export function GameBoard(props: Props) {
               ?? (opponentPreview
                 ? (displayIndex % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2)
                 : props.state.figureVariants?.[index] ?? FigureVariant.Fig1);
-          const riveFile = figureVariant === FigureVariant.Fig2 ? figure2File : figure1File;
+          const riveFile = figureFiles[figureVariant ?? FigureVariant.Fig1];
           const isMine = owner === props.ownOwner && props.ownOwner !== Owner.None;
           const combatLanding = Boolean(props.combatAnimation?.resolution === 'resolved' && props.combatPhase === 'settle' && same(props.combatAnimation.to, coordinate));
           const combatant = Boolean(props.combatAnimation && !combatLanding && (same(props.combatAnimation.from, coordinate) || same(props.combatAnimation.to, coordinate)));
@@ -85,7 +88,7 @@ export function GameBoard(props: Props) {
                 >
                   {figuresReady && riveFile ? <RpsFigure
                     isMyFigure={isMine}
-                    key={trapDestination ? `trap-${props.trapAnimationSequence}` : 'piece'}
+                    key={`${figureVariant ?? FigureVariant.Fig1}:${isMine ? 'back' : 'front'}:${trapDestination ? `trap-${props.trapAnimationSequence}` : 'piece'}`}
                     onActionTriggered={trapDestination ? trigger => props.onTrapActionTriggered(trigger as 'Trap Activate') : movingSource ? props.onMoveActionTriggered : undefined}
                     riveFile={riveFile}
                     staggerStart={opponentPreview}
@@ -100,11 +103,11 @@ export function GameBoard(props: Props) {
           );
         })}
       </div>
-      {figuresReady && props.combatAnimation && props.combatPhase && (
-        <CombatScene combat={props.combatAnimation} figure1File={figure1File} figure2File={figure2File} isPlayer1={props.isPlayer1} ownOwner={props.ownOwner} phase={props.combatPhase} />
+      {figuresReady && props.combatAnimation && props.combatPhase && figureFiles[props.combatAnimation.attackerFigureVariant ?? FigureVariant.Fig1] && figureFiles[props.combatAnimation.defenderFigureVariant ?? FigureVariant.Fig1] && (
+        <CombatScene combat={props.combatAnimation} figureFiles={figureFiles} isPlayer1={props.isPlayer1} ownOwner={props.ownOwner} phase={props.combatPhase} />
       )}
-      {figuresReady && props.trapAnimation && (
-        <TrapScene animation={props.trapAnimation} isPlayer1={props.isPlayer1} key={`trap-victim-${props.trapAnimationSequence}`} onActionTriggered={props.onTrapActionTriggered} ownOwner={props.ownOwner} riveFile={props.trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
+      {figuresReady && props.trapAnimation && figureFiles[props.trapAnimation.attackerFigureVariant ?? FigureVariant.Fig1] && (
+        <TrapScene animation={props.trapAnimation} isPlayer1={props.isPlayer1} key={`trap-victim-${props.trapAnimationSequence}`} onActionTriggered={props.onTrapActionTriggered} ownOwner={props.ownOwner} riveFile={figureFiles[props.trapAnimation.attackerFigureVariant ?? FigureVariant.Fig1]} />
       )}
     </div>
   );
@@ -121,14 +124,14 @@ function TrapScene({ animation, isPlayer1, onActionTriggered, ownOwner, riveFile
   </div>;
 }
 
-function CombatScene({ combat, figure1File, figure2File, isPlayer1, ownOwner, phase }: { combat: CombatAnimation; figure1File: unknown; figure2File: unknown; isPlayer1: boolean; ownOwner: Owner; phase: CombatAnimationPhase }) {
+function CombatScene({ combat, figureFiles, isPlayer1, ownOwner, phase }: { combat: CombatAnimation; figureFiles: unknown[]; isPlayer1: boolean; ownOwner: Owner; phase: CombatAnimationPhase }) {
   const attacker = toDisplay(combat.from, isPlayer1);
   const defender = toDisplay(combat.to, isPlayer1);
   const attackerIsMine = combat.attackerOwner === ownOwner;
   const defenderIsMine = combat.defenderOwner === ownOwner;
   return <div className={styles.combatLayer}>
-    <Combatant combat={combat} isMine={attackerIsMine} isWinner={combat.winnerOwner === combat.attackerOwner} phase={phase} piece={combat.attackerPiece} position={attacker} target={defender} targetSide={attackerIsMine ? -1 : 1} riveFile={combat.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
-    <Combatant combat={combat} isMine={defenderIsMine} isWinner={combat.winnerOwner === combat.defenderOwner} phase={phase} piece={combat.defenderPiece} position={defender} target={attacker} targetSide={defenderIsMine ? -1 : 1} riveFile={combat.defenderFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File} />
+    <Combatant combat={combat} isMine={attackerIsMine} isWinner={combat.winnerOwner === combat.attackerOwner} phase={phase} piece={combat.attackerPiece} position={attacker} target={defender} targetSide={attackerIsMine ? -1 : 1} riveFile={figureFiles[combat.attackerFigureVariant ?? FigureVariant.Fig1]!} />
+    <Combatant combat={combat} isMine={defenderIsMine} isWinner={combat.winnerOwner === combat.defenderOwner} phase={phase} piece={combat.defenderPiece} position={defender} target={attacker} targetSide={defenderIsMine ? -1 : 1} riveFile={figureFiles[combat.defenderFigureVariant ?? FigureVariant.Fig1]!} />
   </div>;
 }
 

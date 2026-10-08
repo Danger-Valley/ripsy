@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { canMoveTo, Choice, FigureVariant, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, HEIGHT, type GameState } from '@rps/core';
 import { usePlayerIdentity, useRipsyGame } from '@rps/game-client';
 import { ShopClient } from '@rps/game-client/shop';
-import { FIGURE_SLOTS } from '@rps/core/shop';
+import { equippedFigureVariant, figureAssetVariants, FIGURE_SLOTS } from '@rps/core/shop';
 import { toast } from 'sonner';
 import { GameBoard, type LineupPiece } from './GameBoard';
 import { useWebAnimationQueue } from './use-web-animation-queue';
@@ -52,11 +52,14 @@ export function BattleScreen({ game, gameId, playerId, sessionToken, isComputer 
   const [joinStatus, setJoinStatus] = useState<JoinStatus>('idle');
   const [joinError, setJoinError] = useState<string | null>(null);
   const [armyFigureSlots, setArmyFigureSlots] = useState<Array<string | null> | null>(null);
+  const [armyFigureVariants, setArmyFigureVariants] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let active = true;
     const load = async () => {
       let slots: Array<string | null> = Array(FIGURE_SLOTS).fill(null);
+      let variants: Record<string, number> = {};
+      try { const cached = JSON.parse(localStorage.getItem('ripsy.figure-variants.v1') ?? '{}'); if (cached && typeof cached === 'object' && !Array.isArray(cached)) variants = cached; } catch {}
       try {
         const stored = JSON.parse(localStorage.getItem('ripsy.figure-loadout.v1') ?? 'null') as unknown;
         if (Array.isArray(stored) && stored.length === FIGURE_SLOTS && stored.every(value => value === null || typeof value === 'string')) slots = stored;
@@ -65,10 +68,12 @@ export function BattleScreen({ game, gameId, playerId, sessionToken, isComputer 
         try {
           const inventory = await new ShopClient(process.env.NEXT_PUBLIC_SHOP_API_URL ?? 'https://api.ripsy.fun', sessionToken).inventory();
           slots = inventory.slots;
+          variants = figureAssetVariants(inventory.assets);
           localStorage.setItem('ripsy.figure-loadout.v1', JSON.stringify(slots));
+          localStorage.setItem('ripsy.figure-variants.v1', JSON.stringify(variants));
         } catch {}
       }
-      if (active) setArmyFigureSlots(slots);
+      if (active) { setArmyFigureVariants(variants); setArmyFigureSlots(slots); }
     };
     void load();
     return () => { active = false; };
@@ -117,10 +122,10 @@ export function BattleScreen({ game, gameId, playerId, sessionToken, isComputer 
       setLineup(saved);
       setLineupDirty(false);
     } else {
-      setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots));
+      setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots, armyFigureVariants));
       setLineupDirty(true);
     }
-  }, [armyFigureSlots, canEditLineup, game.gameState, game.isPlayer0, game.ownOwner, lineup.length]);
+  }, [armyFigureSlots, armyFigureVariants, canEditLineup, game.gameState, game.isPlayer0, game.ownOwner, lineup.length]);
 
   useEffect(() => { if (!game.gameState?.tiePending) setSelected(null); }, [game.gameState?.tiePending]);
 
@@ -246,7 +251,7 @@ export function BattleScreen({ game, gameId, playerId, sessionToken, isComputer 
                 {lineupSaved ? <span className={styles.readyBadge}><i /> READY</span> : game.gameState.lineupDeadlineAt ? <LineupCountdown deadlineAt={game.gameState.lineupDeadlineAt} /> : null}
               </div>
               <div className={styles.lineupActions}>
-                <button onClick={() => { setSelected(null); setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots ?? Array<string | null>(FIGURE_SLOTS).fill(null))); setLineupDirty(true); }}>Shuffle</button>
+                <button onClick={() => { setSelected(null); setLineup(createRandomLineup(game.isPlayer0, armyFigureSlots ?? Array<string | null>(FIGURE_SLOTS).fill(null), armyFigureVariants)); setLineupDirty(true); }}>Shuffle</button>
                 <button className={styles.primaryButton} disabled={lineupSaved || game.isBusy} onClick={() => saveLineup().catch(() => undefined)}>{lineupSaved ? 'Lineup saved' : hasSubmitted ? 'Save changes' : 'Save lineup'}</button>
               </div>
             </section>
@@ -306,7 +311,7 @@ function getStateMessage(state: GameState, hasSubmitted: boolean, isMyTurn: bool
 }
 
 function lineupFromState(state: GameState, owner: Owner) { return state.owners.flatMap((value, index) => value === owner && state.pieces[index] !== Piece.Empty ? [{ x: index % WIDTH, y: Math.floor(index / WIDTH), piece: state.pieces[index]!, figureVariant: state.figureVariants?.[index] ?? FigureVariant.Fig1 }] : []); }
-function createRandomLineup(isPlayer0: boolean, configuredSlots: Array<string | null>): LineupPiece[] { const pieces: Piece[] = [Piece.Rock, Piece.Rock, Piece.Rock, Piece.Rock, Piece.Paper, Piece.Paper, Piece.Paper, Piece.Paper, Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Flag, Piece.Trap]; const figureSlots = configuredSlots.length === FIGURE_SLOTS ? configuredSlots.map(figureAssetId => ({ figureAssetId, figureVariant: figureAssetId ? FigureVariant.Fig2 : FigureVariant.Fig1 })) : Array.from({ length: FIGURE_SLOTS }, () => ({ figureAssetId: null, figureVariant: FigureVariant.Fig1 })); const cells = Array.from({ length: WIDTH * 2 }, (_, index) => ({ x: index % WIDTH, y: isPlayer0 ? HEIGHT - 2 + Math.floor(index / WIDTH) : Math.floor(index / WIDTH) })); shuffle(pieces); shuffle(figureSlots); shuffle(cells); return pieces.map((piece, index) => ({ ...cells[index]!, piece, ...figureSlots[index]! })); }
+function createRandomLineup(isPlayer0: boolean, configuredSlots: Array<string | null>, variants: Record<string, number> = {}): LineupPiece[] { const pieces: Piece[] = [Piece.Rock, Piece.Rock, Piece.Rock, Piece.Rock, Piece.Paper, Piece.Paper, Piece.Paper, Piece.Paper, Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Scissors, Piece.Flag, Piece.Trap]; const figureSlots = configuredSlots.length === FIGURE_SLOTS ? configuredSlots.map(figureAssetId => ({ figureAssetId, figureVariant: equippedFigureVariant(figureAssetId, variants) })) : Array.from({ length: FIGURE_SLOTS }, () => ({ figureAssetId: null, figureVariant: FigureVariant.Fig1 })); const cells = Array.from({ length: WIDTH * 2 }, (_, index) => ({ x: index % WIDTH, y: isPlayer0 ? HEIGHT - 2 + Math.floor(index / WIDTH) : Math.floor(index / WIDTH) })); shuffle(pieces); shuffle(figureSlots); shuffle(cells); return pieces.map((piece, index) => ({ ...cells[index]!, piece, ...figureSlots[index]! })); }
 function shuffle<T>(items: T[]) { for (let index = items.length - 1; index > 0; index -= 1) { const target = Math.floor(Math.random() * (index + 1)); [items[index], items[target]] = [items[target]!, items[index]!]; } }
 function normalizeRoomCode(value: string | string[] | undefined) { const raw = Array.isArray(value) ? value[0] : value; return raw?.trim().toLowerCase().replace(/[^a-z0-9]/g, '') ?? ''; }
 function same(a: Coordinate, b: Coordinate) { return a.x === b.x && a.y === b.y; }

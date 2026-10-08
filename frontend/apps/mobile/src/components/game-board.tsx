@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, type ComponentProps } from 'react';
 import { Animated, Image, Platform, Pressable, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
 import { useRiveFile, type RiveFile } from '@rive-app/react-native';
 import { FigureVariant, HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
@@ -7,9 +7,12 @@ import { sounds } from '../audio/sounds';
 import { colors } from '../theme';
 import { RIVE_JUMP_TRAVEL_DELAY_MS, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation, type TrapAnimation } from '../game-animation';
 import { RiveGamePiece, type RiveActionTrigger } from './rive-game-piece';
+import { useLastOpponentMove } from '../hooks/use-last-opponent-move';
 
 const figure1Asset = require('../assets/figures/fig1.riv');
 const figure2Asset = require('../assets/figures/fig2.riv');
+const bonkAsset = require('../assets/figures/bonk.riv');
+const jupAsset = require('../assets/figures/jup.riv');
 const boardArenaAsset = require('../assets/ui/battle-toy-frame-v2.png');
 const boardBorderWidth = 0;
 // Match the inspected blank sand aperture, not the requested AI prompt geometry.
@@ -63,11 +66,17 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
   const { width } = useWindowDimensions();
   const { riveFile: figure1File } = useRiveFile(figure1Asset);
   const { riveFile: figure2File } = useRiveFile(figure2Asset);
+  const { riveFile: bonkFile } = useRiveFile(bonkAsset);
+  const { riveFile: jupFile } = useRiveFile(jupAsset);
+  const figureFiles = [null, figure1File, figure2File, bonkFile, jupFile];
   const boardSize = Math.max(1, Math.min(width - 24, 620, maxSize));
   const playableSize = boardSize * BOARD_PLAYABLE_RATIO;
   const playableInset = (boardSize - playableSize) / 2;
   const cellSize = playableSize / WIDTH;
   const preview = useMemo(() => new Map(previewLineup?.map(item => [toIdx(item.x, item.y), item])), [previewLineup]);
+  const lastOpponentMove = useLastOpponentMove(state, ownOwner);
+  const lastMoveDisplay = lastOpponentMove && !previewLineup && !showOpponentFormation
+    ? toDisplayCoordinate(lastOpponentMove, isPlayer1) : null;
   const movingDisplayFrom = moveAnimation ? toDisplayCoordinate(moveAnimation.from, isPlayer1) : null;
   const trapDisplayTo = trapAnimation ? toDisplayCoordinate(trapAnimation.to, isPlayer1) : null;
   const handleMoveActionTriggered = useCallback(() => {
@@ -91,7 +100,9 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
                       styles.gridCell,
                       { width: cellSize, height: cellSize },
                       (displayX + displayY) % 2 === 0 && styles.alternateGridCell,
+                      lastMoveDisplay?.x === displayX && lastMoveDisplay.y === displayY && styles.lastOpponentMoveCell,
                     ]}
+                    testID={lastMoveDisplay?.x === displayX && lastMoveDisplay.y === displayY ? 'last-opponent-move-cell' : undefined}
                   />
                 ))}
               </View>
@@ -132,7 +143,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
                 ?? (isOpponentPreview
                   ? ((displayX + displayY * WIDTH) % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2)
                   : state?.figureVariants?.[index] ?? FigureVariant.Fig1);
-            const riveFile = figureVariant === FigureVariant.Fig2 ? figure2File : figure1File;
+            const riveFile = figureFiles[figureVariant ?? FigureVariant.Fig1];
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isCombatLandingDestination = Boolean(
               combatAnimation?.resolution === 'resolved'
@@ -154,12 +165,13 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
             const hint = isSelected
               ? 'Selected piece'
               : isAvailable ? 'Move selected piece here' : isActionable ? 'Select this piece' : undefined;
+            const isLastOpponentMove = lastMoveDisplay?.x === displayX && lastMoveDisplay.y === displayY;
             return (
               <Pressable
                 collapsable={false}
                 accessibilityRole={isActionable ? 'button' : 'text'}
                 accessibilityLabel={`Row ${displayY + 1}, column ${displayX + 1}, ${occupant}`}
-                accessibilityHint={hint}
+                accessibilityHint={isLastOpponentMove ? [hint, 'Opponent last moved here'].filter(Boolean).join('. ') : hint}
                 accessibilityState={{ disabled: !isActionable, selected: isSelected }}
                 disabled={!isActionable}
                 key={displayX}
@@ -192,7 +204,8 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
                       },
                     ]}>
                     {riveFile ? (
-                      <RiveGamePiece
+                      <StationaryBoardPiece
+                        collisionSequence={isTrapDestination ? trapAnimationSequence : undefined}
                         actionTrigger={isTrapDestination
                           ? 'Trap Activate'
                           : isMovingSource && moveAnimation
@@ -200,7 +213,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
                             : undefined}
                         file={riveFile}
                         isMine={isMine}
-                        key={isTrapDestination ? `trap-${trapAnimationSequence}` : 'piece'}
+                        key="piece"
                         onActionTriggered={isTrapDestination
                           ? trigger => onTrapActionTriggered?.(trigger as 'Trap Activate')
                           : isMovingSource
@@ -221,7 +234,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
             })}
           </View>
         ))}
-        {combatAnimation && combatPhase && moveProgress && figure1File && figure2File ? (
+        {combatAnimation && combatPhase && moveProgress && figureFiles[combatAnimation.attackerFigureVariant ?? FigureVariant.Fig1] && figureFiles[combatAnimation.defenderFigureVariant ?? FigureVariant.Fig1] ? (
           <CombatScene
             cellSize={cellSize}
             combat={combatAnimation}
@@ -229,25 +242,35 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
             ownOwner={ownOwner}
             phase={combatPhase}
             progress={moveProgress}
-            figure1File={figure1File}
-            figure2File={figure2File}
+            figureFiles={figureFiles}
             onAttack={onCombatActionTriggered}
           />
         ) : null}
-        {trapAnimation && (trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File) ? (
+        {trapAnimation && (figureFiles[trapAnimation.attackerFigureVariant ?? FigureVariant.Fig1]) ? (
           <TrapScene
             animation={trapAnimation}
             cellSize={cellSize}
             isPlayer1={isPlayer1}
             onActionTriggered={onTrapActionTriggered}
             ownOwner={ownOwner}
-            riveFile={trapAnimation.attackerFigureVariant === FigureVariant.Fig2 ? figure2File! : figure1File!}
+            riveFile={figureFiles[trapAnimation.attackerFigureVariant ?? FigureVariant.Fig1]!}
             key={`trap-victim-${trapAnimationSequence}`}
           />
         ) : null}
       </View>
     </View>
   );
+}
+
+function StationaryBoardPiece({ collisionSequence, ...props }: ComponentProps<typeof RiveGamePiece> & { collisionSequence?: number }) {
+  const [lastCollisionSequence, setLastCollisionSequence] = useState(collisionSequence);
+  // Adjust before commit, not in an effect: an event gets one fresh controller.
+  // Keep that event key after completion. Returning to 'piece' would initialize
+  // a second Front trap and visibly replay its Trap Activate timeline.
+  if (collisionSequence !== undefined && collisionSequence !== lastCollisionSequence) {
+    setLastCollisionSequence(collisionSequence);
+  }
+  return <RiveGamePiece key={lastCollisionSequence === undefined ? 'piece' : `trap-${lastCollisionSequence}`} {...props} />;
 }
 
 function TrapScene({ animation, cellSize, isPlayer1, onActionTriggered, ownOwner, riveFile }: {
@@ -287,15 +310,14 @@ function TrapScene({ animation, cellSize, isPlayer1, onActionTriggered, ownOwner
   );
 }
 
-function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, figure1File, figure2File, onAttack }: {
+function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, figureFiles, onAttack }: {
   cellSize: number;
   combat: CombatAnimation;
   isPlayer1: boolean;
   ownOwner: Owner;
   phase: CombatAnimationPhase;
   progress: Animated.Value;
-  figure1File: RiveFile;
-  figure2File: RiveFile;
+  figureFiles: Array<RiveFile | null | undefined>;
   onAttack?: () => void;
 }) {
   const attacker = toDisplayCoordinate(combat.from, isPlayer1);
@@ -312,7 +334,7 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, f
         piece={combat.attackerPiece}
         position={attacker}
         progress={progress}
-        riveFile={combat.attackerFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
+        riveFile={figureFiles[combat.attackerFigureVariant ?? FigureVariant.Fig1]!}
         target={defender}
         targetSide={attackerIsMine ? -1 : 1}
         winnerDestination={defender}
@@ -326,7 +348,7 @@ function CombatScene({ cellSize, combat, isPlayer1, ownOwner, phase, progress, f
         piece={combat.defenderPiece}
         position={defender}
         progress={progress}
-        riveFile={combat.defenderFigureVariant === FigureVariant.Fig2 ? figure2File : figure1File}
+        riveFile={figureFiles[combat.defenderFigureVariant ?? FigureVariant.Fig1]!}
         target={attacker}
         targetSide={defenderIsMine ? -1 : 1}
         winnerDestination={defender}
@@ -497,6 +519,7 @@ const styles = StyleSheet.create({
   gridRow: { flexDirection: 'row' },
   gridCell: { backgroundColor: 'rgba(232, 200, 140, 0.30)', borderColor: 'rgba(177, 142, 83, 0.38)', borderWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.65)' },
   alternateGridCell: { backgroundColor: 'rgba(255, 247, 221, 0.38)' },
+  lastOpponentMoveCell: { backgroundColor: colors.boardOpponentLastMove, borderColor: colors.boardOpponentLastMoveBorder, borderTopColor: colors.boardOpponentLastMoveBorder },
   row: { flexDirection: 'row', overflow: 'visible' },
   // Fabric sorts native children by zIndex. Changing it removes/reinserts
   // rows (and their TextureViews), destroying Android Rive surfaces. Android

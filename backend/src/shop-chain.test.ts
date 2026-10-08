@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
-import { generateSigner, lamports, publicKey, type RpcInterface } from '@metaplex-foundation/umi';
+import { generateSigner, lamports, publicKey, type PublicKey, type RpcInterface } from '@metaplex-foundation/umi';
 import { base58 } from '@metaplex-foundation/umi/serializers';
 import { Key, MPL_CORE_PROGRAM_ID } from '@metaplex-foundation/mpl-core';
 import { getCollectionV1AccountDataSerializer } from '@metaplex-foundation/mpl-core/dist/src/generated/types/collectionV1AccountData.js';
 import { createShopChain } from './shop-chain.js';
 import { loadShopConfig } from './shop-config.js';
-import { FIGURES, type MintOrder } from '@rps/core/shop';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS, parseMintOrder, type MintOrder } from '@rps/core/shop';
+import { findAssociatedTokenPda, getMintAccountDataSerializer, getTokenAccountDataSerializer, TokenState } from '@metaplex-foundation/mpl-toolbox';
+import { SHOP_TOKEN_PROGRAM } from './shop-token-payment.js';
 
 function fixture() {
   const umi = createUmi('http://localhost:8899');
@@ -66,7 +68,7 @@ test('Core mint and exact SOL payment share a v0 message with buyer as owner/pay
 
 test('new mint transactions use the exact canonical fighter name with no extra RIPSY prefix', async () => {
   const f = fixture();
-  for (const figure of FIGURES) {
+  for (const figure of FIGURES.filter(candidate => candidate.id === 'fig1' || candidate.id === 'fig2')) {
     const prepared = await f.chain.prepare(figure.id, f.buyer.publicKey, '100000000');
     const transaction = f.umi.transactions.deserialize(Buffer.from(prepared.transaction, 'base64'));
     const data = Buffer.from(transaction.message.instructions[1]!.data);
@@ -125,3 +127,64 @@ test('expiry requires finalized height and complete history, not a missing RPC r
   f.umi.rpc.getTransaction = async () => null;
   await assert.rejects(() => f.chain.status(order), /reconciliation/);
 });
+
+function tokenFixture(id: 'bonk' | 'jup') {
+  const f = fixture();
+  f.config.cluster = 'mainnet-beta';
+  const payment = FIGURE_TOKEN_PAYMENTS[id]!;
+  const mint = publicKey(payment.mint);
+  const source = findAssociatedTokenPda(f.umi, { owner: f.buyer.publicKey, mint, tokenProgramId: SHOP_TOKEN_PROGRAM })[0];
+  const destination = findAssociatedTokenPda(f.umi, { owner: f.treasury, mint, tokenProgramId: SHOP_TOKEN_PROGRAM })[0];
+  const original = f.umi.rpc.getAccount;
+  let tokenBalance = BigInt(payment.amount);
+  let decimals = payment.decimals;
+  let owner: PublicKey = SHOP_TOKEN_PROGRAM;
+  f.umi.rpc.getAccount = async address => address === f.collection ? original(address) : {
+    exists: true, publicKey: address, owner, lamports: lamports(1000000n), executable: false,
+    data: address === mint
+      ? getMintAccountDataSerializer().serialize({ mintAuthority: null, supply: 10000000000000000n, decimals, isInitialized: true, freezeAuthority: null })
+      : getTokenAccountDataSerializer().serialize({ mint, owner: f.buyer.publicKey, amount: tokenBalance, delegate: null, state: TokenState.Initialized, isNative: null, delegatedAmount: 0n, closeAuthority: null }),
+  };
+  f.umi.rpc.call = (async method => method === 'getGenesisHash' ? '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d' : 0) as RpcInterface['call'];
+  f.umi.rpc.simulateTransaction = (async () => ({ err: null, logs: [], accounts: [{ lamports: 997000000 }] })) as unknown as RpcInterface['simulateTransaction'];
+  return { ...f, payment, mint, source, destination, setBalance: (value: bigint) => { tokenBalance = value; }, setDecimals: (value: number) => { decimals = value; }, setOwner: (value: typeof owner) => { owner = value; } };
+}
+
+for (const id of ['bonk', 'jup'] as const) {
+  test(`${id}: exact checked token payment and Core purchase are atomic with buyer signing`, async () => {
+    const f = tokenFixture(id);
+    const prepared = await f.chain.prepare(id, f.buyer.publicKey, '0');
+    const order: MintOrder = { ...prepared, id: 'b'.repeat(64), figureId: id, buyer: f.buyer.publicKey, cluster: 'mainnet-beta', priceLamports: '0', tokenPayment: f.payment, treasury: f.treasury, collection: f.collection, createdAt: 1, status: 'prepared', signature: null, error: null };
+    assert.deepEqual(parseMintOrder(order), order);
+    const tx = f.umi.transactions.deserialize(Buffer.from(prepared.transaction, 'base64'));
+    assert.equal(tx.message.accounts[0], f.buyer.publicKey);
+    assert.equal(tx.message.instructions.length, 3);
+    const [ata, transfer, core] = tx.message.instructions;
+    assert.equal(Buffer.from(ata!.data)[0], 1); // Idempotent treasury ATA creation.
+    assert.equal(tx.message.accounts[ata!.accountIndexes[1]!], f.destination);
+    assert.equal(tx.message.accounts[transfer!.programIndex], SHOP_TOKEN_PROGRAM);
+    assert.deepEqual(transfer!.accountIndexes.map(index => tx.message.accounts[index]), [f.source, f.mint, f.destination, f.buyer.publicKey]);
+    const bytes = Buffer.from(transfer!.data);
+    assert.equal(bytes[0], 12); // TransferChecked, not unchecked Transfer.
+    assert.equal(bytes.readBigUInt64LE(1), BigInt(f.payment.amount));
+    assert.equal(bytes[9], f.payment.decimals);
+    assert.equal(tx.message.accounts[core!.programIndex], MPL_CORE_PROGRAM_ID);
+    assert.ok(Buffer.from(core!.data).includes(Buffer.from(`/figures/${id}.json`)));
+    assert.equal(prepared.networkFeeLamports, '3000000'); // No token amount subtracted from SOL fees.
+    const signed = await f.buyer.signTransaction(tx);
+    assert.ok(f.chain.validateSigned(order, Buffer.from(f.umi.transactions.serialize(signed)).toString('base64')));
+    assert.throws(() => f.chain.validateSigned(order, prepared.transaction), /signature/);
+    await assert.rejects(() => f.chain.prepare(id, f.buyer.publicKey, '1'), /configuration/);
+  });
+  test(`${id}: insufficient balance, decimals and wrong program fail before signing`, async () => {
+    const f = tokenFixture(id);
+    f.setBalance(BigInt(f.payment.amount) - 1n);
+    await assert.rejects(() => f.chain.prepare(id, f.buyer.publicKey, '0'), /Not enough/);
+    f.setBalance(BigInt(f.payment.amount)); f.setDecimals(f.payment.decimals + 1);
+    await assert.rejects(() => f.chain.prepare(id, f.buyer.publicKey, '0'), /currency/);
+    f.setDecimals(f.payment.decimals); f.setOwner(MPL_CORE_PROGRAM_ID);
+    await assert.rejects(() => f.chain.prepare(id, f.buyer.publicKey, '0'), /currency/);
+    f.config.cluster = 'devnet';
+    await assert.rejects(() => f.chain.prepare(id, f.buyer.publicKey, '0'), /configuration/);
+  });
+}

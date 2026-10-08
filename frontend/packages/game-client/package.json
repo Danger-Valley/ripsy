@@ -10,7 +10,8 @@
     "./socket": "./src/ripsy-socket-client.ts",
     "./session": "./src/player-session.ts",
     "./shop": "./src/shop-client.ts",
-    "./use-shop": "./src/use-shop.ts"
+    "./use-shop": "./src/use-shop.ts",
+    "./use-pack-shop": "./src/use-pack-shop.ts"
   },
   "dependencies": {
     "@rps/core": "*"

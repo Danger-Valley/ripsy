@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "priceBaseUnits": "1099000000",
+  "drops": [
+    { "figureId": "jup", "weight": 500000 },
+    { "figureId": "bonk", "weight": 500000 }
+  ]
+}

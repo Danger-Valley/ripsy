@@ -1,5 +1,5 @@
 import { publicKey } from '@metaplex-foundation/umi';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURES, isSafeShopExternalUrl, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURES, FIGURE_TOKEN_PAYMENTS, isSafeShopExternalUrl, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
 
 export interface ShopConfig {
   enabled: boolean;
@@ -50,8 +50,9 @@ export function shopCatalog(config: ShopConfig): ShopCatalog {
     figures: FIGURES.filter(figure => figure.purchasable).map(figure => ({
       ...figure,
       imageUrl: `${config.publicOrigin}/figures/${figure.id}.png`,
-      priceLamports: config.prices[figure.id],
-      available: config.enabled && config.prices[figure.id] !== null,
+      priceLamports: FIGURE_TOKEN_PAYMENTS[figure.id] ? '0' : config.prices[figure.id as 'fig1' | 'fig2'],
+      ...(FIGURE_TOKEN_PAYMENTS[figure.id] ? { tokenPayment: FIGURE_TOKEN_PAYMENTS[figure.id] } : {}),
+      available: config.enabled && (FIGURE_TOKEN_PAYMENTS[figure.id] ? config.cluster === 'mainnet-beta' : config.prices[figure.id as 'fig1' | 'fig2'] !== null),
     })),
   };
 }

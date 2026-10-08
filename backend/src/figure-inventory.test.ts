@@ -13,6 +13,7 @@ test('existing Core collectibles use the renamed fighter label without changing 
   t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
     result: { items: [{
       id: firstAsset,
+      interface: 'MplCoreAsset',
       grouping: [{ group_key: 'collection', group_value: collection }],
       content: { json_uri: 'https://www.ripsy.fun/figures/fig2.json', metadata: { name: 'RIPSY Figure 02' } },
     }] },
@@ -79,7 +80,7 @@ test('online lineups cannot use more paid figures than the saved NFT loadout', a
   await service.validateLineup('player', [FigureVariant.Fig2, ...Array(13).fill(FigureVariant.Fig1)]);
   await assert.rejects(
     () => service.validateLineup('player', [FigureVariant.Fig2, FigureVariant.Fig2, ...Array(12).fill(FigureVariant.Fig1)]),
-    /allows 1 Seeker fighter slot/,
+    /allows 1 collectible fighter slot/,
   );
 });
 
@@ -109,5 +110,38 @@ test('online lineups bind each paid slot to the exact equipped Core collectible'
   const misaligned = [...shuffledAssets];
   misaligned[0] = firstAsset;
   misaligned[11] = null;
-  await assert.rejects(() => service.validateLineup('player', variants, misaligned), /only be assigned to a Seeker fighter slot/);
+  await assert.rejects(() => service.validateLineup('player', variants, misaligned), /free fighter slot/);
+});
+
+test('BONK/Jup ownership enforces per-slot model, saved set and uniqueness', async () => {
+  const redis = new MemoryRedis();
+  const assets = [
+    { assetId: firstAsset, figureId: 'bonk' as const, name: 'BONK', imageUrl: '/figures/bonk.png' },
+    { assetId: secondAsset, figureId: 'jup' as const, name: 'Jup', imageUrl: '/figures/jup.png' },
+  ];
+  const service = new FigureInventoryService(redis, { address: async () => wallet }, { listOwned: async () => assets });
+  const slots = [firstAsset, secondAsset, ...Array(12).fill(null)];
+  await service.save('player', { slots });
+  const variants = [3, 4, ...Array(12).fill(1)];
+  await service.validateLineup('player', variants, slots);
+  await service.validateLineup('player', variants);
+  await assert.rejects(() => service.validateLineup('player', [4, 3, ...Array(12).fill(1)], slots), /does not match/);
+  await assert.rejects(() => service.validateLineup('player', [2, 2, ...Array(12).fill(1)]), /does not match/);
+  await assert.rejects(() => service.validateLineup('player', variants, [firstAsset, firstAsset, ...Array(12).fill(null)]), /only be used/);
+});
+
+test('inventory recognizes new official Core models but rejects foreign, burnt and mismatched assets', async t => {
+  const collection = 'official';
+  const core = (id: string, figureId: string) => ({ id, interface: 'MplCoreAsset', grouping: [{ group_key: 'collection', group_value: collection }], content: { json_uri: `https://www.ripsy.fun/figures/${figureId}.json`, metadata: { attributes: [{ trait_type: 'Figure', value: figureId }] } } });
+  const mismatched = core(wallet, 'bonk');
+  mismatched.content.json_uri = 'https://www.ripsy.fun/figures/jup.json';
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ result: { items: [
+    core(firstAsset, 'bonk'), core(secondAsset, 'jup'),
+    { ...core(wallet, 'bonk'), interface: 'V1_NFT' },
+    { ...core(wallet, 'jup'), burnt: true },
+    { ...core(wallet, 'bonk'), grouping: [{ group_key: 'collection', group_value: 'foreign' }] },
+    mismatched,
+  ] } })));
+  const assets = await createFigureAssetSource('https://rpc.example.test', collection, 'https://www.ripsy.fun').listOwned(wallet);
+  assert.deepEqual(assets.map(asset => [asset.figureId, asset.name]).sort(), [['bonk', 'BONK'], ['jup', 'Jup']]);
 });

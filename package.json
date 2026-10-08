@@ -20,6 +20,7 @@
     "build:prod-seeker": "npm run build:prod-seeker -w @rps/mobile",
     "mobile:release:preflight": "npm run release:preflight -w @rps/mobile --",
     "rive:timings": "node scripts/inspect-rive-timings.mjs",
+    "figures:check": "node scripts/check-figure-assets.mjs",
     "shop:previews": "node scripts/export-figure-previews.mjs",
     "shop:check-collection": "node --env-file=.env --import tsx backend/scripts/create-shop-collection.ts",
     "shop:create-collection": "node --env-file=.env --import tsx backend/scripts/create-shop-collection.ts --create",

@@ -1,5 +1,5 @@
 import { FigureVariant } from '@rps/core';
-import { FIGURES, FIGURE_SLOTS, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
+import { FIGURES, FIGURE_SLOTS, figureVariantForId, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
 import { ShopError } from './shop-error.js';
 import type { ShopRedis } from './shop-service.js';
 
@@ -60,18 +60,19 @@ export class FigureInventoryService {
     assetIds?: Array<string | null>,
   ): Promise<void> {
     const requested = variants ?? Array(FIGURE_SLOTS).fill(FigureVariant.Fig1);
-    const fig2Count = requested.filter(variant => variant === FigureVariant.Fig2).length;
+    if (requested.length !== FIGURE_SLOTS || requested.some(variant => !FIGURES.some(figure => figure.variant === variant))) throw new ShopError('Invalid figure variants');
+    const collectibleCount = requested.filter(variant => variant !== FigureVariant.Fig1).length;
     if (assetIds && (assetIds.length !== FIGURE_SLOTS || requested.length !== FIGURE_SLOTS)) {
       throw new ShopError(`A lineup must identify exactly ${FIGURE_SLOTS} figure slots.`);
     }
     if (assetIds) {
       requested.forEach((variant, index) => {
         const assetId = assetIds[index];
-        if (variant === FigureVariant.Fig2 && !assetId) {
-          throw new ShopError('Every Seeker fighter slot must identify its Core collectible.', 403);
+        if (variant !== FigureVariant.Fig1 && !assetId) {
+          throw new ShopError('Every collectible fighter slot must identify its Core collectible.', 403);
         }
-        if (variant !== FigureVariant.Fig2 && assetId) {
-          throw new ShopError('A Core collectible can only be assigned to a Seeker fighter slot.', 403);
+        if (variant === FigureVariant.Fig1 && assetId) {
+          throw new ShopError('A Core collectible cannot be assigned to a free fighter slot.', 403);
         }
       });
       const selected = assetIds.filter((assetId): assetId is string => Boolean(assetId));
@@ -79,16 +80,27 @@ export class FigureInventoryService {
         throw new ShopError('One collectible can only be used in one lineup slot.', 409);
       }
     }
-    if (fig2Count === 0) return;
+    if (collectibleCount === 0) return;
     const inventory = await this.get(playerId);
     const equipped = inventory.slots.filter((assetId): assetId is string => Boolean(assetId));
     const equippedCount = equipped.length;
-    if (fig2Count !== equippedCount) {
-      throw new ShopError(`Your saved army allows ${equippedCount} Seeker fighter slot${equippedCount === 1 ? '' : 's'}.`, 403);
+    if (collectibleCount !== equippedCount) {
+      throw new ShopError(`Your saved army allows ${equippedCount} collectible fighter slot${equippedCount === 1 ? '' : 's'}.`, 403);
     }
     // Legacy clients only sent visual variants. New clients prove the exact Core assets
     // used by the shuffled lineup, without publishing those wallet identifiers in GameState.
-    if (!assetIds) return;
+    if (!assetIds) {
+      // Old clients only support fig2. Check per-model counts, not total ownership.
+      for (const figure of FIGURES.filter(candidate => candidate.purchasable)) {
+        const count = equipped.filter(id => inventory.assets.some(asset => asset.assetId === id && asset.figureId === figure.id)).length;
+        if (requested.filter(variant => variant === figure.variant).length !== count) throw new ShopError('Your lineup does not match your saved figures.', 403);
+      }
+      return;
+    }
+    requested.forEach((variant, index) => {
+      const asset = inventory.assets.find(candidate => candidate.assetId === assetIds[index]);
+      if (variant !== FigureVariant.Fig1 && (!asset || figureVariantForId(asset.figureId) !== variant)) throw new ShopError('The collectible does not match this fighter.', 403);
+    });
     const selected = assetIds.filter((assetId): assetId is string => Boolean(assetId));
     const equippedSet = new Set(equipped);
     if (selected.some(assetId => !equippedSet.has(assetId)) || equipped.some(assetId => !selected.includes(assetId))) {
@@ -143,7 +155,7 @@ export function createFigureAssetSource(rpcUrl: string, collection: string | nul
 function parseAsset(value: unknown, collection: string, publicOrigin: string): OwnedFigureAsset | null {
   if (!value || typeof value !== 'object') return null;
   const item = value as Record<string, unknown>;
-  if (typeof item.id !== 'string') return null;
+  if (typeof item.id !== 'string' || item.interface !== 'MplCoreAsset' || item.burnt === true) return null;
   const grouping = Array.isArray(item.grouping) ? item.grouping : [];
   const belongs = grouping.some(entry => entry && typeof entry === 'object'
     && (entry as Record<string, unknown>).group_key === 'collection'
@@ -155,13 +167,19 @@ function parseAsset(value: unknown, collection: string, publicOrigin: string): O
   const figure = attributes.find(attribute => attribute && typeof attribute === 'object'
     && (attribute as Record<string, unknown>).trait_type === 'Figure') as Record<string, unknown> | undefined;
   const jsonUri = typeof content.json_uri === 'string' ? content.json_uri : '';
-  if (figure?.value !== 'fig2' && !/\/figures\/fig2\.json(?:\?.*)?$/.test(jsonUri)) return null;
+  const byTrait = FIGURES.find(candidate => candidate.purchasable && figure?.value === candidate.id);
+  let metadataPath = '';
+  try { metadataPath = new URL(jsonUri).pathname; } catch {}
+  const byUri = FIGURES.find(candidate => candidate.purchasable && metadataPath === `/figures/${candidate.id}.json`);
+  if (byTrait && byUri && byTrait.id !== byUri.id) return null;
+  const definition = byTrait ?? byUri;
+  if (!definition || definition.id === 'fig1') return null;
   const links = content.links && typeof content.links === 'object' ? content.links as Record<string, unknown> : {};
   return {
     assetId: item.id,
-    figureId: 'fig2',
+    figureId: definition.id,
     // The app's fighter name is canonical even for NFTs minted before a rename.
-    name: FIGURES.find(figure => figure.id === 'fig2')!.name,
-    imageUrl: typeof links.image === 'string' ? links.image : `${publicOrigin}/figures/fig2.png`,
+    name: definition.name,
+    imageUrl: typeof links.image === 'string' ? links.image : `${publicOrigin}/figures/${definition.id}.png`,
   };
 }

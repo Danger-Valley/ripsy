@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { publicKey } from '@metaplex-foundation/umi';
-import { isFigureId, isTerminalMint, type MintOrder } from '@rps/core/shop';
+import { FIGURE_TOKEN_PAYMENTS, isFigureId, isTerminalMint, type MintOrder } from '@rps/core/shop';
 import { shopCatalog, type ShopConfig } from './shop-config.js';
 import type { ShopChain } from './shop-chain.js';
 import { ShopError } from './shop-error.js';
@@ -18,7 +18,13 @@ const retention = 60 * 60 * 24 * 90;
 export class ShopService {
   constructor(private redis: ShopRedis, private config: ShopConfig, private chain: ShopChain, private prefix = 'ripsy', private seeker?: SeekerGate) {}
 
-  catalog() { return shopCatalog(this.config); }
+  catalog(version = 2) {
+    const catalog = shopCatalog(this.config);
+    // Existing native builds reject unknown figure IDs. Keep their browsing
+    // usable while updated clients opt into the token-priced catalog.
+    if (version < 2) catalog.figures = catalog.figures.filter(figure => figure.variant <= 2);
+    return catalog;
+  }
 
   async create(playerId: string, input: Record<string, unknown>): Promise<MintOrder> {
     if (!this.config.enabled) throw new ShopError('Minting is not available yet.', 503);
@@ -30,7 +36,9 @@ export class ShopService {
     if (buyer === this.config.treasury || buyer === this.config.collection) throw new ShopError('Use a customer wallet for this purchase');
     if (typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(input.idempotencyKey)) throw new ShopError('Invalid purchase request ID');
     const figureId = input.figureId;
-    const price = this.config.prices[figureId];
+    const tokenPayment = FIGURE_TOKEN_PAYMENTS[figureId];
+    if (tokenPayment && this.config.cluster !== 'mainnet-beta') throw new ShopError('This figure is only available on the production store.', 409);
+    const price = tokenPayment ? '0' : this.config.prices[figureId as 'fig1' | 'fig2'];
     if (!price) throw new ShopError('This figure is not available yet', 409);
     const id = createHash('sha256').update(`${playerId}:${input.idempotencyKey}`).digest('hex');
     return this.lock(id, async () => {
@@ -49,6 +57,7 @@ export class ShopService {
       const prepared = await this.chain.prepare(figureId, buyer, price);
       const order: MintOrder = {
         id, figureId, buyer, ...prepared, cluster: this.config.cluster, priceLamports: price,
+        ...(tokenPayment ? { tokenPayment: { ...tokenPayment } } : {}),
         treasury: this.config.treasury!, collection: this.config.collection!, createdAt: Date.now(),
         status: 'prepared', signature: null, error: null,
       };

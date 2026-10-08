@@ -1,8 +1,10 @@
 import React from 'react';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
-import { Piece } from '@rps/core';
+import { RiveView } from '@rive-app/react-native';
+import { HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
 import { RiveGamePiece, type RiveActionTrigger } from '../src/components/rive-game-piece';
+import { GameBoard } from '../src/components/game-board';
 
 const mockRiveViewRef = {
   awaitViewReady: jest.fn(() => Promise.resolve(true)),
@@ -31,6 +33,10 @@ jest.mock('@rive-app/react-native', () => {
     useRive: () => {
       const [riveViewRef] = ReactModule.useState(() => mockCreateRiveViewRef());
       return { riveViewRef: mockReportedRiveViewRef ?? riveViewRef, setHybridRef: { f: () => undefined } };
+    },
+    useRiveFile: () => {
+      const [riveFile] = ReactModule.useState(() => ({}));
+      return { riveFile };
     },
   };
 });
@@ -117,6 +123,89 @@ test('keeps a revealed opponent trap in trap state after the collision scene', a
 
   expect(mockRiveViewRef.setNumberInputValue).toHaveBeenCalledWith('Weapon', Piece.Empty);
   expect(mockRiveViewRef.triggerInput).toHaveBeenCalledWith('Trap Activate');
+});
+
+test('an in-place opponent trap reveal with an explicit collision does not also run initialization activation', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  const callback = jest.fn();
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<RiveGamePiece file={mockRiveFile} isMine={false} piece={Piece.Empty} size={80} />);
+  });
+  mockRiveViewRef.triggerInput.mockClear();
+  await ReactTestRenderer.act(async () => {
+    renderer.update(<RiveGamePiece file={mockRiveFile} isMine={false} piece={Piece.Trap} size={80}
+      actionTrigger="Trap Activate" onActionTriggered={callback} />);
+  });
+  expect(mockRiveViewRef.triggerInput.mock.calls).toEqual([['Trap Activate']]);
+  expect(callback).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('callback changes and clearing an explicit trap action do not restart or reinitialize it', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  const callback = jest.fn();
+  const render = (active: boolean, onActionTriggered: (trigger: RiveActionTrigger) => void = callback) => (
+    <RiveGamePiece file={mockRiveFile} isMine={false} piece={Piece.Trap} size={80}
+      actionTrigger={active ? 'Trap Activate' : undefined} onActionTriggered={onActionTriggered} />
+  );
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(render(true)); });
+  const nativeView = renderer.root.findByType(RiveView);
+  await ReactTestRenderer.act(async () => { renderer.update(render(true, trigger => callback(trigger))); });
+  expect(mockRiveViewRef.triggerInput.mock.calls).toEqual([['Trap Activate']]);
+  await ReactTestRenderer.act(async () => { renderer.update(render(false)); });
+  expect(mockRiveViewRef.triggerInput.mock.calls).toEqual([['Trap Activate']]);
+  expect(callback).toHaveBeenCalledTimes(1);
+  expect(renderer.root.findByType(RiveView)).toBe(nativeView);
+  expect(mockRiveViewRef.play).toHaveBeenCalledTimes(1);
+  expect(mockRiveViewRef.playIfNeeded).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test.each([
+  ['ios', false], ['ios', true], ['android', false], ['android', true],
+] as const)('board plays each trap collision once and retains the trap after settling: %s, local trap %s', async (platform, isMine) => {
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: platform });
+  const owners = Array<Owner>(WIDTH * HEIGHT).fill(Owner.None);
+  const pieces = Array<Piece>(WIDTH * HEIGHT).fill(Piece.Empty);
+  const trapOwner = isMine ? Owner.P0 : Owner.P1;
+  owners[4 * WIDTH] = trapOwner;
+  pieces[4 * WIDTH] = isMine ? Piece.Trap : Piece.Empty;
+  const initial: GameState = {
+    gameId: 'abcdef12', phase: Phase.Active, p0: 'alice', p1: 'bob', isP1Turn: false,
+    owners, pieces, live0: 1, live1: 1, attacker: 0, defender: 0, outcome: 0,
+    playerChoice: 0, tiePending: false, tieFrom: { x: 0, y: 0 }, tieTo: { x: 0, y: 0 }, winner: null,
+  };
+  const revealed = { ...initial, pieces: [...pieces] };
+  revealed.pieces[4 * WIDTH] = Piece.Trap;
+  const onTrigger = jest.fn();
+  const render = (state: GameState, sequence: number, active: boolean) => (
+    <GameBoard state={state} ownOwner={Owner.P0} isPlayer1={false} trapAnimationSequence={sequence}
+      onTrapActionTriggered={onTrigger}
+      trapAnimation={active ? { from: { x: 0, y: 5 }, to: { x: 0, y: 4 },
+        attackerOwner: isMine ? Owner.P1 : Owner.P0, trapOwner, attackerPiece: Piece.Rock } : null} />
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(render(initial, 0, false)); });
+  let trapView = renderer.root.findByType(RiveView);
+  let lastSequence = 0;
+  mockRiveViewRef.triggerInput.mockClear();
+  for (const [sequence, active, expected] of [[1, true, 1], [1, false, 1], [2, true, 2], [3, true, 3], [3, false, 3]] as const) {
+    await ReactTestRenderer.act(async () => { renderer.update(render(revealed, sequence, active)); });
+    expect(mockRiveViewRef.triggerInput.mock.calls.filter(([trigger]) => trigger === 'Trap Activate')).toHaveLength(expected);
+    expect(mockRiveViewRef.triggerInput.mock.calls.filter(([trigger]) => trigger === 'Fall In Trap')).toHaveLength(expected);
+    expect(onTrigger.mock.calls.filter(([trigger]) => trigger === 'Trap Activate')).toHaveLength(expected);
+    const currentTrap = renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Trap)!;
+    const currentView = currentTrap.findByType(RiveView);
+    if (active && sequence !== lastSequence) {
+      expect(currentView).not.toBe(trapView);
+      lastSequence = sequence;
+      trapView = currentView;
+    } else {
+      expect(currentView).toBe(trapView);
+    }
+  }
+  expect(mockRiveViewRef.playIfNeeded).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('starts the falling victim animation after its weapon is configured', async () => {

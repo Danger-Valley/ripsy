@@ -7,7 +7,7 @@ import { homeFont, ToyHomeButton, ToyHomePanel } from './toy-home-controls';
 import { GamePushOverlay } from './game-push-banner';
 
 /** Shared native dialogs: scroll on short screens, never animate required choices. */
-export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close dialog', keyboard = false, testID, children }: PropsWithChildren<{
+export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close dialog', keyboard = false, testID, contentKey, children }: PropsWithChildren<{
   visible: boolean;
   title: string;
   icon?: ImageSourcePropType;
@@ -15,6 +15,8 @@ export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close d
   closeLabel?: string;
   keyboard?: boolean;
   testID?: string;
+  /** Reset content scroll when a flow advances, without remounting the native window. */
+  contentKey?: string;
 }>) {
   const insets = useSafeAreaInsets();
   const navigation = useContext(NavigationContext);
@@ -29,7 +31,7 @@ export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close d
   return (
     <Modal visible={visible && focused} transparent animationType="none" onRequestClose={() => onClose?.()}>
       <KeyboardAvoidingView accessibilityViewIsModal onAccessibilityEscape={() => onClose?.()} style={styles.fill} behavior={keyboard && Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView onAccessibilityEscape={() => onClose?.()} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false} contentContainerStyle={[styles.backdrop, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}>
+        <ScrollView key={contentKey} onAccessibilityEscape={() => onClose?.()} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false} contentContainerStyle={[styles.backdrop, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}>
           <ToyHomePanel style={styles.card}>
             <View testID={testID} style={styles.body}>
               <View style={styles.header}>

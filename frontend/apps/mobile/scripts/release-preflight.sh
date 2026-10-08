@@ -28,6 +28,12 @@ check_file() {
   if [[ -s "${path}" ]]; then pass "${label}"; else fail "${label}: missing ${path}"; fi
 }
 
+if node "${script_directory}/sync-ui-assets.mjs" --check; then
+  pass "Native UI artwork copies and gradients"
+else
+  fail "Native UI artwork copies and gradients"
+fi
+
 check_metadata() {
   local directory="$1"
   local label="$2"

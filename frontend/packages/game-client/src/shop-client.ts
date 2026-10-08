@@ -1,10 +1,15 @@
 import { parseFigureInventory, parseMintOrder, parseSeekerChallenge, parseShopCatalog, parseWalletChallenge, type FigureId, type SeekerProof, type WalletProof } from '@rps/core/shop';
+import { parsePackCatalog, parsePackOrder } from '@rps/core/packs';
 
 export class ShopClient {
   // Browser fetch needs its Window/global receiver, not this ShopClient instance.
   constructor(private baseUrl: string, private token: string, private fetcher: typeof fetch = (...args) => globalThis.fetch(...args)) {}
 
-  async catalog() { return parseShopCatalog(await this.request('/shop/catalog')); }
+  async catalog() { return parseShopCatalog(await this.request('/shop/catalog?catalogVersion=2')); }
+  async packCatalog() { return parsePackCatalog(await this.request('/shop/packs/catalog')); }
+  async createPack(buyer: string, idempotencyKey: string) { return parsePackOrder(await this.request('/shop/packs/orders', { buyer, idempotencyKey })); }
+  async getPack(id: string) { return parsePackOrder(await this.request(`/shop/packs/orders/${encodeURIComponent(id)}`)); }
+  async submitPack(id: string, transaction: string) { return parsePackOrder(await this.request(`/shop/packs/orders/${encodeURIComponent(id)}/submit`, { transaction })); }
   async seekerChallenge() { return parseSeekerChallenge(await this.request('/shop/seeker/challenge', {})); }
   async verifySeeker(proof: SeekerProof) { await this.request('/shop/seeker/verify', proof); }
   async walletChallenge() { return parseWalletChallenge(await this.request('/shop/wallet/challenge', {})); }

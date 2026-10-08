@@ -3,7 +3,7 @@ import { base58FromUint8Array, base64ToBase58, base64ToUint8Array } from '@solan
 import type { SolanaWalletSession } from './storage/solana-wallet-session';
 import { loadSolanaWalletSession, saveSolanaWalletSession } from './storage/solana-wallet-session';
 import { getBase64Encoder, getBase64Decoder, getTransactionDecoder, getTransactionEncoder } from '@solana/kit';
-import type { MintOrder, SeekerChallenge, SeekerProof, WalletChallenge, WalletProof } from '@rps/core/shop';
+import type { PurchaseTransaction, SeekerChallenge, SeekerProof, WalletChallenge, WalletProof } from '@rps/core/shop';
 import { isSeekerDevice } from './seeker-device';
 
 const identity = {
@@ -43,7 +43,7 @@ export async function proveWallet(challenge: WalletChallenge): Promise<WalletPro
   }, session.walletUriBase ? { baseUri: session.walletUriBase } : undefined);
 }
 
-export async function signShopTransaction(order: MintOrder): Promise<string> {
+export async function signShopTransaction(order: PurchaseTransaction): Promise<string> {
   const session = await loadSolanaWalletSession();
   if (!session || session.address !== order.buyer) throw new Error('Reconnect the wallet selected for this purchase.');
   return transact(async wallet => {

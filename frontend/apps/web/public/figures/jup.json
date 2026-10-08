@@ -1,0 +1,8 @@
+{
+  "name": "Jup",
+  "description": "A new fighter joins your orbit.",
+  "image": "https://www.ripsy.fun/figures/jup.png",
+  "external_url": "https://www.ripsy.fun/shop",
+  "attributes": [{"trait_type":"Figure","value":"jup"},{"trait_type":"Series","value":"RIPSY Originals"}],
+  "properties": {"category":"image","files":[{"uri":"https://www.ripsy.fun/figures/jup.png","type":"image/png"}]}
+}

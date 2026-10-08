@@ -36,13 +36,18 @@ local current = redis.call('GET', KEYS[1])
 if current ~= ARGV[1] then
   return 0
 end
-redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+local changed = current ~= ARGV[2]
+if changed then
+  redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+end
 if ARGV[5] == '' then
   redis.call('ZREM', KEYS[3], ARGV[4])
 else
   redis.call('ZADD', KEYS[3], ARGV[5], ARGV[4])
 end
-redis.call('PUBLISH', KEYS[2], ARGV[4])
+if changed then
+  redis.call('PUBLISH', KEYS[2], ARGV[4])
+end
 return 1
 `;
 
@@ -235,10 +240,12 @@ export class RedisGameStore {
     const value = await this.redis.get(this.gameKey(gameId));
     if (!value) throw new Error('Game not found');
     const storedVersion = (JSON.parse(value) as { schemaVersion?: number }).schemaVersion;
-    if (storedVersion !== 4) {
+    const game = parseGameRecord(value, this.now());
+    // Compare with the parser's current schema, not an independently maintained
+    // number. A stale version check makes broadcast reads publish themselves.
+    if (storedVersion !== game.schemaVersion) {
       return this.mutateAndGetRecord(gameId, () => undefined);
     }
-    const game = parseGameRecord(value, this.now());
     const deadline = gameDeadline(game);
     if (deadline !== null && deadline <= this.now().getTime()) {
       return this.mutateAndGetRecord(gameId, current => { settleGameDeadline(current, this.now()); });

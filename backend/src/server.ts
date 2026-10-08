@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { createClient } from 'redis';
 import { RedisGameStore, type RedisCommands } from './redis-game-store.js';
 import { SessionManager } from './session.js';
+import { sendJson } from './http-json.js';
 import { createBackendDiagnostics } from './diagnostics.js';
 import {
   createFirebaseMessaging,
@@ -15,6 +16,8 @@ import { ShopError, ShopService, type ShopRedis } from './shop-service.js';
 import { createSeekerTokenChecker, SeekerVerificationService } from './seeker-verification.js';
 import { createFigureAssetSource, FigureInventoryService } from './figure-inventory.js';
 import { WalletVerificationService } from './wallet-verification.js';
+import { createPackChain } from './pack-chain.js';
+import { PackService } from './pack-service.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -66,6 +69,7 @@ try {
 const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
 const seekerVerification = new SeekerVerificationService(commandClient as unknown as ShopRedis, createSeekerTokenChecker(shopConfig.seekerRpcUrl), shopConfig.publicOrigin, keyPrefix);
 const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification);
+const packs = new PackService(commandClient as unknown as ShopRedis, createPackChain(shopConfig, process.env.PACK_ENABLED === 'true'), keyPrefix);
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
@@ -76,10 +80,27 @@ const server = createServer(async (request, response) => {
     if (request.method === 'OPTIONS') { response.writeHead(204).end(); return; }
     try {
       if (request.method === 'GET' && requestUrl.pathname === '/shop/catalog') {
-        response.writeHead(200).end(JSON.stringify(shop.catalog()));
+        response.writeHead(200).end(JSON.stringify(shop.catalog(requestUrl.searchParams.get('catalogVersion') === '2' ? 2 : 1)));
         return;
       }
       const playerId = verifyBearerSession(request.headers.authorization);
+      if (request.method === 'GET' && requestUrl.pathname === '/shop/packs/catalog') {
+        await sendJson(response, 200, packs.catalog()); return;
+      }
+      if (request.method === 'POST' && requestUrl.pathname === '/shop/packs/orders') {
+        await sendJson(response, 201, packs.create(playerId, await readJsonBody(request))); return;
+      }
+      const packMatch = /^\/shop\/packs\/orders\/([a-f0-9]{64})(\/submit)?$/.exec(requestUrl.pathname);
+      if (packMatch && request.method === 'GET' && !packMatch[2]) {
+        const result = await packs.get(playerId, packMatch[1]!);
+        if (result.status === 'confirmed') await walletVerification.bindVerified(playerId, result.buyer);
+        response.writeHead(200).end(JSON.stringify(result)); return;
+      }
+      if (packMatch && request.method === 'POST' && packMatch[2]) {
+        const body = await readJsonBody(request); const result = await packs.submit(playerId, packMatch[1]!, body.transaction);
+        if (result.status === 'confirmed') await walletVerification.bindVerified(playerId, result.buyer);
+        response.writeHead(200).end(JSON.stringify(result)); return;
+      }
       if (request.method === 'POST' && requestUrl.pathname === '/shop/seeker/challenge') {
         const result = await seekerVerification.issue(playerId);
         response.writeHead(201).end(JSON.stringify(result));
@@ -212,6 +233,15 @@ const clockInterval = setInterval(() => {
   void store.expireDueClocks().catch(() => diagnose({ level: 'error', event: 'clock.expiration_failed' }));
 }, 500);
 clockInterval.unref();
+let packRecoveryRunning = false;
+const packRecoveryInterval = setInterval(() => {
+  if (packRecoveryRunning) return;
+  packRecoveryRunning = true;
+  void packs.recoverDue(() => diagnose({ level: 'error', event: 'pack.recovery_delayed' }))
+    .catch(() => diagnose({ level: 'error', event: 'pack.recovery_failed' }))
+    .finally(() => { packRecoveryRunning = false; });
+}, 5000);
+packRecoveryInterval.unref();
 
 await subscriber.pSubscribe(store.eventPattern, (gameId) => {
   void gameSockets.broadcast(gameId);
@@ -276,6 +306,7 @@ async function shutdown(signal: string) {
   diagnose({ level: 'info', event: 'server.shutdown', signal });
   gameSockets.close();
   clearInterval(clockInterval);
+  clearInterval(packRecoveryInterval);
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await Promise.allSettled([subscriber.quit(), commandClient.quit()]);
   process.exit(0);

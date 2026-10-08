@@ -7,7 +7,7 @@ import type { Wallet, WalletAccount } from '@wallet-standard/base';
 import { SolanaSignMessage, SolanaSignTransaction, type SolanaSignMessageFeature, type SolanaSignTransactionFeature } from '@solana/wallet-standard-features';
 import { createSignInMessage } from '@solana/wallet-standard-util';
 import { getBase64Decoder, getBase64Encoder } from '@solana/kit';
-import type { MintOrder, WalletChallenge, WalletProof } from '@rps/core/shop';
+import type { PurchaseTransaction, WalletChallenge, WalletProof } from '@rps/core/shop';
 
 const STORAGE_KEY = 'ripsy.wallet.v1';
 
@@ -109,7 +109,7 @@ export function useBrowserWallet() {
     }
   }, [wallet]);
 
-  const signShopTransaction = useCallback(async (order: MintOrder) => {
+  const signShopTransaction = useCallback(async (order: PurchaseTransaction) => {
     if (!wallet || !account || account.address !== order.buyer) throw new Error('Connect the wallet selected for this purchase.');
     if (!(SolanaSignTransaction in wallet.features)) throw new Error('This wallet does not support transaction signing.');
     const features = wallet.features as Wallet['features'] & SolanaSignTransactionFeature;

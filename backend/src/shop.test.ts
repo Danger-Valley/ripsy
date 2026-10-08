@@ -3,7 +3,7 @@ import test from 'node:test';
 import { loadShopConfig, shopCatalog, type ShopConfig } from './shop-config.js';
 import { ShopError, ShopService, type ShopRedis } from './shop-service.js';
 import type { ShopChain } from './shop-chain.js';
-import { formatSol } from '@rps/core/shop';
+import { FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, figurePurchaseTotal, formatSol, parseShopCatalog } from '@rps/core/shop';
 
 const buyer = '11111111111111111111111111111111';
 const config: ShopConfig = { ...loadShopConfig({}), enabled: true, treasury: 'So11111111111111111111111111111111111111112', collection: 'SysvarRent111111111111111111111111111111111', prices: { fig1: '100000000', fig2: '200000000' } };
@@ -41,8 +41,9 @@ test('shop is disabled by default; no invented prices and no signing secrets in 
   const defaults = loadShopConfig({ SHOP_MINT_AUTHORITY_SECRET: 'not-public' });
   const catalog = shopCatalog(defaults);
   assert.equal(catalog.cluster, 'devnet');
-  assert.ok(catalog.figures.every(figure => !figure.available && figure.priceLamports === null));
-  assert.deepEqual(catalog.figures.map(figure => figure.id), ['fig2']);
+  assert.ok(catalog.figures.every(figure => !figure.available));
+  assert.equal(catalog.figures[0]!.priceLamports, null);
+  assert.deepEqual(catalog.figures.map(figure => figure.id), ['fig2', 'bonk', 'jup']);
   assert.ok(!JSON.stringify(catalog).includes('not-public'));
   assert.throws(() => loadShopConfig({ SHOP_ENABLED: 'true' }), /incomplete/);
   for (const price of ['0', '-1', '0.1', '1e9', '9007199254740992']) assert.throws(() => loadShopConfig({ SHOP_FIG2_PRICE_LAMPORTS: price }), /lamports/);
@@ -138,4 +139,30 @@ test('network errors do not erase an order or make it safe to charge again', asy
   const stored = JSON.parse((await f.redis.get(`ripsy:shop:order:${order.id}`))!);
   assert.equal(stored.order.status, 'prepared');
   assert.equal(f.prepares(), 1);
+});
+
+test('BONK/Jup prices are fixed, mainnet-only and cannot be overridden by clients', async () => {
+  const f = fixture();
+  const mainnet = { ...config, cluster: 'mainnet-beta' as const };
+  const service = new ShopService(f.redis, mainnet, f.chain);
+  const catalog = parseShopCatalog(service.catalog());
+  assert.deepEqual(service.catalog(1).figures.map(figure => figure.id), ['fig2']);
+  for (const id of ['bonk', 'jup'] as const) {
+    const figure = catalog.figures.find(candidate => candidate.id === id)!;
+    assert.equal(figure.available, true);
+    assert.equal(figure.seekerExclusive, false);
+    assert.deepEqual(figure.tokenPayment, FIGURE_TOKEN_PAYMENTS[id]);
+    const input = { figureId: id, buyer, idempotencyKey: `fixed-payment-${id}-1234`, priceLamports: '1', tokenPayment: { amount: '1' } };
+    const order = await service.create('player', input);
+    assert.equal(order.priceLamports, '0');
+    assert.deepEqual(order.tokenPayment, FIGURE_TOKEN_PAYMENTS[id]);
+    assert.equal(figurePaymentPrice(order, order.cluster), id === 'bonk' ? '6,900,000 BONK' : '99 JUP');
+    assert.equal(figurePurchaseTotal(order), id === 'bonk' ? '6,900,000 BONK + 0.000015 SOL' : '99 JUP + 0.000015 SOL');
+    assert.deepEqual(await service.create('player', input), order);
+    await assert.rejects(() => f.service.create('player', input), /production store/);
+    assert.equal(shopCatalog(config).figures.find(candidate => candidate.id === id)!.available, false);
+    const tampered = structuredClone(catalog);
+    tampered.figures.find(candidate => candidate.id === id)!.tokenPayment!.amount = '1';
+    assert.throws(() => parseShopCatalog(tampered), /Invalid shop figure/);
+  }
 });

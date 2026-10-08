@@ -3,9 +3,12 @@ jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-nav
 import { Animated, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import * as Keychain from 'react-native-keychain';
-import { FigureVariant, FinishReason, HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
+import { Choice, FigureVariant, FinishReason, HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
 import { VictoryFireworks } from '../src/components/victory-fireworks';
+import { BattleResultPanel, WeaponChoiceModal } from '../src/components/battle-panels';
+import { StatusBanner } from '../src/components/status-banner';
+import { BattleStatus } from '../src/components/toy-battle-shell';
 import { ComputerGameScreen, GameScreen } from '../src/screens/game-screen';
 import { useGameAnimationQueue } from '../src/hooks/use-game-animation-queue';
 import { useNativeRipsyGame } from '../src/hooks/use-native-ripsy-game';
@@ -199,7 +202,7 @@ test('offline computer battle skips waiting and starts after the local lineup is
 
   expect(renderer.root.findAll(node => node.props.testID === 'lineup-controls')).toHaveLength(0);
   expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(true);
-  expect(renderer.root.findAll(node => node.props.children === 'Your turn — select a piece').length).toBeGreaterThan(0);
+  expect(renderer.root.findAll(node => node.props.children === 'Your turn - select a piece').length).toBeGreaterThan(0);
 
   await ReactTestRenderer.act(() => renderer.unmount());
 });
@@ -269,6 +272,103 @@ test('keeps both clocks mounted after the game finishes', async () => {
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
+test.each([
+  [FinishReason.Timeout, 'bob', 'defeat', 'Time expired - you lost'],
+  [FinishReason.Timeout, 'alice', 'victory', 'Victory - opponent ran out of time'],
+  [FinishReason.Flag, 'bob', 'defeat', 'Game finished'],
+  [FinishReason.LineupTimeout, null, 'cancelled', 'Game canceled - a lineup was not saved in time'],
+] as const)('finished %s result takes precedence over an inactive-game error (%s)', async (finishReason, winner, outcome, message) => {
+  gameState = { ...createdGame(), p1: 'bob', phase: Phase.Finished, finishReason, winner, clock0Ms: 0, clock1Ms: 119_000, clockRunning: Owner.None };
+  jest.mocked(useNativeRipsyGame).mockReturnValue({ ...nativeGame, gameState, error: 'The game is not active' });
+  const replace = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<GameScreen navigation={{ replace } as never} route={{ params: { gameId: 'abcdef12' } } as never} />);
+  });
+  expect(renderer.root.findAllByType(StatusBanner)).toHaveLength(0);
+  expect(renderer.root.findByType(BattleStatus).props.message).toBe(message);
+  expect(renderer.root.findByType(BattleResultPanel).props.outcome).toBe(outcome);
+  expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(false);
+  expect(renderer.root.find(node => node.props.testID === 'game-clocks')).toBeDefined();
+  await ReactTestRenderer.act(() => renderer.root.findByType(BattleResultPanel).props.onBack());
+  expect(replace).toHaveBeenCalledWith('Home');
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('inactive-game errors stay visible until a finished snapshot is confirmed', async () => {
+  gameState = { ...createdGame(), p1: 'bob', phase: Phase.Active };
+  nativeGame = { ...nativeGame, gameState, error: 'The game is not active' };
+  jest.mocked(useNativeRipsyGame).mockReturnValue(nativeGame);
+  const render = () => <GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(render()); });
+  expect(renderer.root.findByType(StatusBanner).props.message).toBe('The game is not active');
+  nativeGame = { ...nativeGame, gameState: { ...gameState, phase: Phase.Finished, finishReason: FinishReason.Timeout, winner: 'bob' } };
+  jest.mocked(useNativeRipsyGame).mockReturnValue(nativeGame);
+  await ReactTestRenderer.act(async () => renderer.update(render()));
+  expect(renderer.root.findAllByType(StatusBanner)).toHaveLength(0);
+  expect(renderer.root.findByType(BattleResultPanel).props.outcome).toBe('defeat');
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('a move rejected after timeout does not add an error above the result', async () => {
+  gameState = { ...createdGame(), p1: 'bob', phase: Phase.Active };
+  gameState.owners[5 * WIDTH] = Owner.P0;
+  gameState.pieces[5 * WIDTH] = Piece.Rock;
+  let rejectMove!: (error: Error) => void;
+  const movePiece = jest.fn(() => new Promise<never>((_resolve, reject) => { rejectMove = reject; }));
+  nativeGame = { ...nativeGame, gameState, movePiece };
+  jest.mocked(useNativeRipsyGame).mockReturnValue(nativeGame);
+  const render = () => <GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(render()); });
+  await ReactTestRenderer.act(() => renderer.root.findByType(GameBoard).props.onCellPress({ x: 0, y: 5 }));
+  await ReactTestRenderer.act(() => renderer.root.findByType(GameBoard).props.onCellPress({ x: 0, y: 4 }));
+  expect(movePiece).toHaveBeenCalledTimes(1);
+  nativeGame = { ...nativeGame, gameState: { ...gameState, phase: Phase.Finished, finishReason: FinishReason.Timeout, winner: 'bob' } };
+  jest.mocked(useNativeRipsyGame).mockReturnValue(nativeGame);
+  await ReactTestRenderer.act(async () => renderer.update(render()));
+  await ReactTestRenderer.act(async () => rejectMove(new Error('The game is not active')));
+  expect(renderer.root.findAllByType(StatusBanner)).toHaveLength(0);
+  expect(renderer.root.findByType(BattleResultPanel).props.outcome).toBe('defeat');
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('authoritative finish locks an older displayed board and weapon picker immediately', async () => {
+  const displayedState: GameState = { ...createdGame(), p1: 'bob', phase: Phase.Active, tiePending: true, playerChoice: Choice.None };
+  displayedState.owners[5 * WIDTH] = Owner.P0;
+  displayedState.pieces[5 * WIDTH] = Piece.Rock;
+  gameState = { ...displayedState, phase: Phase.Finished, tiePending: false, winner: 'bob', finishReason: FinishReason.Timeout };
+  jest.mocked(useNativeRipsyGame).mockReturnValue({ ...nativeGame, gameState });
+  const queued = jest.mocked(useGameAnimationQueue).getMockImplementation()!;
+  jest.mocked(useGameAnimationQueue).mockImplementation(state => ({ ...queued(state), displayedState }));
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />);
+  });
+  expect(renderer.root.findByType(GameBoard).props.interactionEnabled).toBe(false);
+  expect(renderer.root.findByType(WeaponChoiceModal).props.isOpen).toBe(false);
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(WeaponChoiceModal).props.onChoose(Choice.Rock);
+    renderer.root.findByType(GameBoard).props.onCellPress({ x: 0, y: 5 });
+  });
+  expect(nativeGame.chooseWeapon).not.toHaveBeenCalled();
+  expect(renderer.root.findByType(GameBoard).props.selected).toBeNull();
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('unrelated server failures remain visible on the result screen', async () => {
+  gameState = { ...createdGame(), p1: 'bob', phase: Phase.Finished, finishReason: FinishReason.Timeout, winner: 'bob' };
+  jest.mocked(useNativeRipsyGame).mockReturnValue({ ...nativeGame, gameState, error: 'Connection lost' });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />);
+  });
+  expect(renderer.root.findByType(StatusBanner).props.message).toBe('Connection lost');
+  expect(renderer.root.findByType(BattleResultPanel).props.outcome).toBe('defeat');
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('an open room is joined automatically before showing the board and lineup', async () => {
   gameState = { ...createdGame(), p0: 'bob' };
   const joinGame = jest.fn(() => Promise.resolve({ type: 'result' as const, requestId: 'join' }));
@@ -315,6 +415,26 @@ test('an open room is joined automatically before showing the board and lineup',
   await ReactTestRenderer.act(() => {
     renderer.unmount();
   });
+});
+
+test('offline cached BONK/Jup keep their identities through shuffle and submission', async () => {
+  const bonk = 'Vote111111111111111111111111111111111111111';
+  const jup = 'SysvarC1ock11111111111111111111111111111111';
+  const slots = [bonk, jup, ...Array(12).fill(null)];
+  jest.mocked(Keychain.getGenericPassword)
+    .mockResolvedValueOnce({ username: 'ripsy-figure-loadout', password: JSON.stringify(slots), service: 'com.dangervalley.ripsy.figure-loadout', storage: Keychain.STORAGE_TYPE.AES_GCM_NO_AUTH })
+    .mockResolvedValueOnce({ username: 'ripsy-figure-variants', password: JSON.stringify({ [bonk]: 3, [jup]: 4 }), service: 'com.dangervalley.ripsy.figure-loadout.variants', storage: Keychain.STORAGE_TYPE.AES_GCM_NO_AUTH });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<GameScreen navigation={{ replace: jest.fn() } as never} route={{ params: { gameId: 'abcdef12' } } as never} />);
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup').props.onPress();
+  });
+  const [, , , variants, assetIds] = submitLineup.mock.calls[0]!;
+  expect(assetIds?.filter(Boolean).sort()).toEqual([bonk, jup].sort());
+  assetIds?.forEach((assetId, index) => expect(variants?.[index]).toBe(assetId === bonk ? 3 : assetId === jup ? 4 : 1));
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 function createdGame(): GameState {

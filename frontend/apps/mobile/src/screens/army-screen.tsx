@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type PressableProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ShopClient } from '@rps/game-client/shop';
-import { FIGURE_SLOTS, figureStoreMessage, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
+import { FIGURES, FIGURE_SLOTS, figureStoreMessage, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
 import { getGameWebSocketUrl } from '../config';
 import { sounds } from '../audio/sounds';
 import { StatusBanner } from '../components/status-banner';
@@ -20,6 +20,8 @@ import type { RootStackParamList } from '../navigation';
 const figureImages = {
   fig1: require('../assets/shop/fig1.png'),
   fig2: require('../assets/shop/fig2.png'),
+  bonk: require('../assets/shop/bonk.png'),
+  jup: require('../assets/shop/jup.png'),
 };
 const scenery = require('../assets/ui/battle-playground.png');
 const woodTray = require('../assets/ui/army-wood-tray.png');
@@ -69,7 +71,7 @@ export function ArmyScreen({ navigation, route }: Props) {
       }
       const next = await client.inventory();
       setInventory(next); setSlots(next.slots); setSelectedSlot(null);
-      await saveFigureSlots(next.slots);
+      await saveFigureSlots(next.slots, next.assets);
       if (verify) setWalletOpen(false);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Could not load your figures.';
@@ -112,7 +114,7 @@ export function ArmyScreen({ navigation, route }: Props) {
       if (inventory) {
         const next = await client.saveLoadout(slots);
         setInventory(next); setSlots(next.slots);
-        await saveFigureSlots(next.slots);
+        await saveFigureSlots(next.slots, next.assets);
       } else {
         // The mandatory free starter needs no wallet or network authorization.
         await saveFigureSlots(starterSlots());
@@ -175,13 +177,13 @@ export function ArmyScreen({ navigation, route }: Props) {
                     accessibilityRole="button"
                     accessibilityState={{ selected: selectedSlot === index, disabled: busy }}
                     accessibilityHint="Select this slot, then choose a fighter below"
-                    accessibilityLabel={`Army slot ${index + 1}, ${assetId ? 'Seeker fighter collectible' : 'free RIPSY 001'}`}
+                    accessibilityLabel={`Army slot ${index + 1}, ${assetId ? inventory?.assets.find(asset => asset.assetId === assetId)?.name ?? 'Collectible fighter' : 'free RIPSY 001'}`}
                     disabled={busy}
                     key={index}
                     onPress={() => setSelectedSlot(current => current === index ? null : index)}
                     style={({ pressed }) => [styles.slot, assetId && styles.slotCollectible, selectedSlot === index && styles.slotSelected, pressed && styles.pressed]}>
                     <View pointerEvents="none" style={styles.slotPlinth} />
-                    <Image pointerEvents="none" source={assetId ? figureImages.fig2 : figureImages.fig1} style={styles.slotImage} />
+                    <Image pointerEvents="none" source={figureImages[inventory?.assets.find(asset => asset.assetId === assetId)?.figureId ?? 'fig1']} style={styles.slotImage} />
                     <Text pointerEvents="none" maxFontSizeMultiplier={1.3} style={styles.slotNumber}>{index + 1}</Text>
                   </ArmyControl>;
                 })}
@@ -206,9 +208,9 @@ export function ArmyScreen({ navigation, route }: Props) {
             {tab === 'owned' && inventory?.assets.map(asset => (
               <FigureCard width={figureCardWidth} key={asset.assetId} name={asset.name} image={figureImages[asset.figureId]} badge={equipped.has(asset.assetId) ? 'IN ARMY' : 'OWNED'} caption="In your collection" selected={equipped.has(asset.assetId)} button={equipped.has(asset.assetId) ? 'Remove' : 'Select'} disabled={busy || (!equipped.has(asset.assetId) && allSlotsUsed && selectedSlot === null)} accessibilityLabel={`${equipped.has(asset.assetId) ? 'Remove' : 'Equip'} ${asset.name} ${short(asset.assetId)}`} onPress={() => toggleAsset(asset)} />
             ))}
-            {tab === 'all' && <FigureCard width={figureCardWidth} name="Seeker fighter" image={figureImages.fig2} badge="SEEKER" caption={inventory ? `${inventory.assets.filter(asset => asset.figureId === 'fig2').length} in your collection` : 'Seeker exclusive'} button="Visit shop" tone="coral" onPress={openShop} />}
+            {tab === 'all' && FIGURES.filter(figure => figure.purchasable).map(figure => <FigureCard width={figureCardWidth} key={figure.id} name={figure.name} image={figureImages[figure.id]} badge={figure.seekerExclusive ? 'SEEKER' : 'COLLECTIBLE'} caption={inventory ? `${inventory.assets.filter(asset => asset.figureId === figure.id).length} in your collection` : 'Collect it in the shop'} button="Visit shop" tone="coral" onPress={openShop} />)}
           </ScrollView>
-          <Text style={styles.collectionHint}>{tab === 'owned' ? 'Each collectible fills one slot. Free fighters fill the rest.' : 'RIPSY 001 is free. Collect Seeker fighter in the shop.'}</Text>
+          <Text style={styles.collectionHint}>{tab === 'owned' ? 'Each collectible fills one slot. Free fighters fill the rest.' : 'RIPSY 001 is free. Discover more fighters in the shop.'}</Text>
         </ToyHomePanel>
 
         <ArmyControl focusRadius={18} accessibilityRole="button" accessibilityLabel={inventory ? 'Manage collection' : address ? 'Load your collection' : external.isSupported ? 'Connect your wallet' : 'Register'} onPress={() => { if (!external.isSupported && !address && !inventory) register(); else setWalletOpen(true); }} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>

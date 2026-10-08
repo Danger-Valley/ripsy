@@ -4,6 +4,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import { FigureVariant, HEIGHT, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard } from '../src/components/game-board';
 import { RiveGamePiece } from '../src/components/rive-game-piece';
+import { colors } from '../src/theme';
 
 function createState(): GameState {
   const owners: Owner[] = Array.from({ length: WIDTH * HEIGHT }, () => Owner.None);
@@ -18,6 +19,59 @@ function createState(): GameState {
     playerChoice: 0, tiePending: false, tieFrom: { x: 0, y: 0 }, tieTo: { x: 0, y: 0 }, winner: null,
   };
 }
+
+test.each([false, true])('subtly highlights only the opponent destination in the static grid (reversed %s)', async isPlayer1 => {
+  const state = createState();
+  state.tieFrom = { x: 1, y: 0 };
+  state.tieTo = { x: 1, y: 1 };
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  const render = (selected: { x: number; y: number } | null = null) => (
+    <GameBoard state={state} ownOwner={Owner.P0} isPlayer1={isPlayer1} selected={selected} />
+  );
+  await ReactTestRenderer.act(() => { renderer = ReactTestRenderer.create(render()); });
+  const marker = renderer.root.findByProps({ testID: 'last-opponent-move-cell' });
+  expect(renderer.root.findByProps({ testID: 'board-grid' }).findByProps({ testID: 'last-opponent-move-cell' })).toBe(marker);
+  expect(StyleSheet.flatten(marker.props.style)).toMatchObject({ backgroundColor: colors.boardOpponentLastMove });
+  const row = isPlayer1 ? HEIGHT - 1 : 2;
+  const column = isPlayer1 ? WIDTH - 1 : 2;
+  expect(renderer.root.find(node => node.props.accessibilityLabel === `Row ${row}, column ${column}, empty`).props.accessibilityHint)
+    .toBe('Opponent last moved here');
+  const figures = renderer.root.findAllByType(RiveGamePiece);
+  await ReactTestRenderer.act(() => { renderer.update(render({ x: 1, y: 1 })); });
+  const selected = renderer.root.find(node => node.props.accessibilityHint === 'Selected piece. Opponent last moved here');
+  expect(StyleSheet.flatten(selected.props.style).backgroundColor).toBe(colors.rewardHighlight);
+  expect(renderer.root.findAllByType(RiveGamePiece)).toEqual(figures);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('waits for the displayed opponent move and leaves legal-move styling and hit targets unchanged', async () => {
+  const before = createState();
+  before.isP1Turn = true;
+  const from = { x: 1, y: 0 };
+  const to = { x: 1, y: 1 };
+  const move = { from, to, owner: Owner.P1, piece: Piece.Paper };
+  const next = { ...before, isP1Turn: false, tieFrom: from, tieTo: to, owners: [...before.owners], pieces: [...before.pieces] };
+  next.owners[toIdx(1, 0)] = Owner.None;
+  next.pieces[toIdx(1, 0)] = Piece.Empty;
+  next.owners[toIdx(1, 1)] = Owner.P1;
+  next.pieces[toIdx(1, 1)] = Piece.Empty;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<GameBoard state={before} ownOwner={Owner.P0} isPlayer1={false}
+      moveAnimation={move} moveProgress={new Animated.Value(0)} />);
+  });
+  expect(renderer.root.findAllByProps({ testID: 'last-opponent-move-cell' })).toHaveLength(0);
+  await ReactTestRenderer.act(() => {
+    renderer.update(<GameBoard state={next} ownOwner={Owner.P0} isPlayer1={false}
+      selected={{ x: 0, y: 0 }} availableMoves={[to]} interactionEnabled onCellPress={() => undefined} />);
+  });
+  const target = renderer.root.find(node => node.props.accessibilityHint === 'Move selected piece here. Opponent last moved here');
+  expect(target.props.accessibilityRole).toBe('button');
+  expect(target.props.disabled).toBe(false);
+  expect(StyleSheet.flatten(target.props.style).backgroundColor).toBe(colors.boardMove);
+  expect(renderer.root.findByProps({ testID: 'last-opponent-move-cell' })).toBeDefined();
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
 
 test('exposes piece names and only actionable cells as buttons', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -189,9 +243,18 @@ test('renders synchronized trap activation and falling victim Rive actions', asy
   expect(repeatedTrapFigures.find(figure => figure.props.actionTrigger === 'Trap Activate')).not.toBe(
     firstTrapFigure,
   );
+  const secondTrapFigure = repeatedTrapFigures.find(figure => figure.props.actionTrigger === 'Trap Activate');
   expect(repeatedTrapFigures.find(figure => figure.props.actionTrigger === 'Fall In Trap')).not.toBe(
     firstVictimFigure,
   );
+  await ReactTestRenderer.act(() => {
+    renderer.update(<GameBoard isPlayer1={false} ownOwner={Owner.P0} state={state} trapAnimationSequence={2} />);
+  });
+  const settledTrap = renderer.root.findAllByType(RiveGamePiece).find(figure => figure.props.piece === Piece.Trap);
+  expect(settledTrap).toBe(secondTrapFigure);
+  expect(settledTrap?.props.actionTrigger).toBeUndefined();
+  expect(renderer.root.findAllByProps({ testID: 'trap-scene' })).toHaveLength(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('renders the local lineup preview as non-interactive before battle', async () => {
@@ -722,7 +785,7 @@ test.each([false, true])('remounts shuffled figure models with local Back facing
   await ReactTestRenderer.act(() => { renderer = ReactTestRenderer.create(renderBoard(FigureVariant.Fig1)); });
   const localCell = () => renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your paper');
   let previousView = localCell().findByProps({ testID: 'rive-view' });
-  for (const variant of [FigureVariant.Fig2, FigureVariant.Fig1, FigureVariant.Fig2]) {
+  for (const variant of [FigureVariant.Fig2, FigureVariant.Bonk, FigureVariant.Jup, FigureVariant.Fig1, FigureVariant.Fig2]) {
     await ReactTestRenderer.act(() => { renderer.update(renderBoard(variant)); });
     const currentView = localCell().findByProps({ testID: 'rive-view' });
     expect(currentView).not.toBe(previousView);

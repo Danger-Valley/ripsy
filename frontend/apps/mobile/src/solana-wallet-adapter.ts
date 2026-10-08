@@ -1,5 +1,5 @@
 import type { SolanaWalletSession } from './storage/solana-wallet-session';
-import type { MintOrder, SeekerChallenge, SeekerProof, WalletChallenge, WalletProof } from '@rps/core/shop';
+import type { PurchaseTransaction, SeekerChallenge, SeekerProof, WalletChallenge, WalletProof } from '@rps/core/shop';
 
 export const isSolanaWalletSupported = false;
 export async function proveSeekerWallet(_challenge: SeekerChallenge): Promise<SeekerProof> {
@@ -8,7 +8,7 @@ export async function proveSeekerWallet(_challenge: SeekerChallenge): Promise<Se
 export async function proveWallet(_challenge: WalletChallenge): Promise<WalletProof> {
   throw new Error('Connect a supported Solana wallet to verify your army.');
 }
-export async function signShopTransaction(_order: MintOrder): Promise<string> {
+export async function signShopTransaction(_order: PurchaseTransaction): Promise<string> {
   throw new Error('Connect a supported wallet to sign this purchase.');
 }
 

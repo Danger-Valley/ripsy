@@ -1,0 +1,8 @@
+{
+  "name": "BONK",
+  "description": "Bring a little BONK to the battlefield.",
+  "image": "https://www.ripsy.fun/figures/bonk.png",
+  "external_url": "https://www.ripsy.fun/shop",
+  "attributes": [{"trait_type":"Figure","value":"bonk"},{"trait_type":"Series","value":"RIPSY Originals"}],
+  "properties": {"category":"image","files":[{"uri":"https://www.ripsy.fun/figures/bonk.png","type":"image/png"}]}
+}

@@ -5,6 +5,7 @@ set -euo pipefail
 script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mobile_directory="$(cd "${script_directory}/.." && pwd)"
 source "${script_directory}/load-native-env.sh"
+node "${script_directory}/sync-ui-assets.mjs"
 
 cd "${mobile_directory}"
 exec react-native run-ios "$@"

@@ -42,8 +42,10 @@ build_status:
   web_metadata_deployed: true
   backend_pack_routes_deployed: true
   native_pack_release_uploaded: true
-  native_release_build: 56
-  native_ore_release_uploaded: false
+  native_release_build: 57
+  native_ore_release_uploaded: true
+  native_dynamic_figures_release_uploaded: true
+  native_update_gate_release_uploaded: true
   real_vrf_core_end_to_end_verified: false
 ```
 
@@ -71,7 +73,16 @@ finalized account/transaction/fee verification and the live enabled API check
 pass; historical edition 1 remains unchanged. The backend source commit
 3794a0f is deployed, and live ORE metadata/previews are verified. Actual rent
 plus fee was 0.04629904 SOL from the approved RIPSY fees wallet. No program
-upgrade, authority change or paid customer test occurred. Native build 56 is
-still the last uploaded release and does not include ORE; new native builds
-are required. Publication evidence: `onchain/edition-2-publication.json` and
+upgrade, authority change or paid customer test occurred. Native build 56 did
+not include ORE. Publication evidence: `onchain/edition-2-publication.json` and
 `onchain/edition-2-report.html`.
+
+Native 1.0.0 (57), released 2026-10-08, includes ORE, server-delivered figures,
+the mandatory update gate and adaptive Android launcher icons. App Store
+Connect confirms VALID/internal IN_BETA_TESTING with automatic notification;
+the signed Android APK is published and independently download/hash verified.
+All 501 mobile tests, mobile TypeScript, five-model asset checks and production
+release preflight pass. Live figure/catalog/update endpoints were verified
+read-only; all three update minimums remain zero. No backend deployment,
+paid transaction or physical-device verification occurred during this release.
+Evidence: `files/releases/1.0.0-57.md`.

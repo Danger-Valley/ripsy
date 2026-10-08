@@ -1,5 +1,6 @@
 import { publicKey } from '@metaplex-foundation/umi';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURES, FIGURE_TOKEN_PAYMENTS, isSafeShopExternalUrl, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, isSafeShopExternalUrl, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 
 export interface ShopConfig {
   enabled: boolean;
@@ -11,7 +12,7 @@ export interface ShopConfig {
   authoritySecret: string | undefined;
   publicOrigin: string;
   solanaMobileStoreUrl: string;
-  prices: Record<'fig1' | 'fig2', string | null>;
+  prices: Record<string, string | null>;
 }
 
 export function loadShopConfig(env: NodeJS.ProcessEnv): ShopConfig {
@@ -26,7 +27,8 @@ export function loadShopConfig(env: NodeJS.ProcessEnv): ShopConfig {
   if (!isSafeShopExternalUrl(solanaMobileStoreUrl)) throw new Error('SHOP_SOLANA_MOBILE_STORE_URL must be an HTTPS URL without credentials');
   // RIPSY 001 is the permanent free starter and must never become purchasable
   // through a stale environment variable.
-  const prices = { fig1: null, fig2: readPrice(env.SHOP_FIG2_PRICE_LAMPORTS) };
+  const prices = { ...Object.fromEntries(FIGURES.map(f => [f.id, readPrice(f.priceLamports)])),
+    fig1: null, fig2: readPrice(env.SHOP_FIG2_PRICE_LAMPORTS ?? FIGURES.find(f => f.id === 'fig2')?.priceLamports) };
   if (enabled && (!treasury || !collection || !env.SHOP_MINT_AUTHORITY_SECRET)) throw new Error('Shop signing configuration is incomplete');
   if (enabled && cluster === 'mainnet-beta' && !env.SHOP_SOLANA_RPC_URL) throw new Error('Set a production SHOP_SOLANA_RPC_URL');
   return {
@@ -48,11 +50,12 @@ export function shopCatalog(config: ShopConfig): ShopCatalog {
     cluster: config.cluster, treasury: config.treasury, collection: config.collection,
     solanaMobileStoreUrl: config.solanaMobileStoreUrl,
     figures: FIGURES.filter(figure => figure.purchasable).map(figure => ({
-      ...figure,
+      id: figure.id, name: figure.name, variant: figure.variant,
+      description: figure.description, seekerExclusive: figure.seekerExclusive,
       imageUrl: `${config.publicOrigin}/figures/${figure.id}.png`,
-      priceLamports: FIGURE_TOKEN_PAYMENTS[figure.id] ? '0' : config.prices[figure.id as 'fig1' | 'fig2'],
+      priceLamports: FIGURE_TOKEN_PAYMENTS[figure.id] ? '0' : config.prices[figure.id] ?? null,
       ...(FIGURE_TOKEN_PAYMENTS[figure.id] ? { tokenPayment: FIGURE_TOKEN_PAYMENTS[figure.id] } : {}),
-      available: config.enabled && (FIGURE_TOKEN_PAYMENTS[figure.id] ? config.cluster === 'mainnet-beta' : config.prices[figure.id as 'fig1' | 'fig2'] !== null),
+      available: config.enabled && (FIGURE_TOKEN_PAYMENTS[figure.id] ? config.cluster === 'mainnet-beta' : Boolean(config.prices[figure.id])),
     })),
   };
 }

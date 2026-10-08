@@ -80,5 +80,5 @@ test('updated clients explicitly request the expanded catalog without breaking o
     return new Response(JSON.stringify(catalog));
   });
   assert.deepEqual(await client.catalog(), catalog);
-  assert.equal(requested, 'https://api.example.test/shop/catalog?catalogVersion=3');
+  assert.equal(requested, 'https://api.example.test/shop/catalog?catalogVersion=4');
 });

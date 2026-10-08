@@ -1,6 +1,9 @@
+import { isModelVariant } from '@rps/core/figure-manifest';
 /** Shop is deliberately independent of gameplay and its anonymous identity. */
 export type ShopCluster = 'devnet' | 'mainnet-beta';
-export type FigureId = 'fig1' | 'fig2' | 'bonk' | 'jup' | 'ore';
+/** Stable server-issued slug, not an app-release enum. */
+export type FigureId = string;
+/** Offline/legacy bootstrap only. Authoritative catalog lives on the backend. */
 export const FIGURES = [
   { id: 'fig1' as const, name: 'RIPSY 001', variant: 1 as const, description: 'The original RIPSY fighter. Free in every army.', seekerExclusive: false, purchasable: false },
   { id: 'fig2' as const, name: 'Seeker fighter', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.', seekerExclusive: true, purchasable: true },
@@ -21,7 +24,7 @@ export const DEFAULT_SOLANA_MOBILE_STORE_URL = 'https://store.solanamobile.com/'
 export interface ShopFigure {
   id: FigureId;
   name: string;
-  variant: 1 | 2 | 3 | 4 | 5;
+  variant: number;
   description: string;
   imageUrl: string;
   priceLamports: string | null;
@@ -86,6 +89,7 @@ export interface OwnedFigureAsset {
   figureId: Exclude<FigureId, typeof STARTER_FIGURE_ID>;
   name: string;
   imageUrl: string;
+  variant?: number;
 }
 
 /** `null` means the free starter fig1. Every non-null asset may occur once. */
@@ -96,19 +100,19 @@ export interface FigureInventory {
 }
 
 export function isFigureId(value: unknown): value is FigureId {
-  return FIGURES.some(figure => figure.id === value);
+  return typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(value);
 }
 
-export function figureVariantForId(id: FigureId): 1 | 2 | 3 | 4 | 5 {
-  return FIGURES.find(figure => figure.id === id)!.variant;
+export function figureVariantForId(id: FigureId): number {
+  return FIGURES.find(figure => figure.id === id)?.variant ?? 1;
 }
 
 export function figurePaymentPrice(value: Pick<ShopFigure, 'priceLamports' | 'tokenPayment'>, cluster: ShopCluster): string {
   if (!value.tokenPayment) return value.priceLamports !== null ? figurePrice(value.priceLamports, cluster) : 'Coming soon';
   const { amount, decimals, symbol } = value.tokenPayment;
   const padded = amount.padStart(decimals + 1, '0');
-  const whole = padded.slice(0, -decimals).replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const fraction = padded.slice(-decimals).replace(/0+$/, '');
+  const whole = (decimals ? padded.slice(0, -decimals) : padded).replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const fraction = decimals ? padded.slice(-decimals).replace(/0+$/, '') : '';
   return `${whole}${fraction ? `.${fraction}` : ''} ${symbol}`;
 }
 
@@ -119,14 +123,14 @@ export function figurePurchaseTotal(order: MintOrder): string {
 }
 
 /** Persist identities separately from exact asset slots for offline lineups. */
-export function figureAssetVariants(assets: OwnedFigureAsset[]): Record<string, 1 | 2 | 3 | 4 | 5> {
-  return Object.fromEntries(assets.map(asset => [asset.assetId, figureVariantForId(asset.figureId)]));
+export function figureAssetVariants(assets: OwnedFigureAsset[]): Record<string, number> {
+  return Object.fromEntries(assets.map(asset => [asset.assetId, asset.variant ?? figureVariantForId(asset.figureId)]));
 }
 
-export function equippedFigureVariant(assetId: string | null, variants: Record<string, number>): 1 | 2 | 3 | 4 | 5 {
+export function equippedFigureVariant(assetId: string | null, variants: Record<string, number>): number {
   if (!assetId) return 1;
   const variant = variants[assetId];
-  return variant === 2 || variant === 3 || variant === 4 || variant === 5 ? variant : 2; // Legacy fig2-only caches.
+  return typeof variant === 'number' && Number.isInteger(variant) && variant >= 1 && variant <= 255 ? variant : 2; // Legacy fig2-only caches.
 }
 
 export function formatSol(lamports: string): string {
@@ -173,12 +177,14 @@ const addressPattern = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const isAddress = (value: unknown): value is string => typeof value === 'string' && addressPattern.test(value);
 const isAmount = (value: unknown): value is string => typeof value === 'string' && /^\d{1,16}$/.test(value);
 const isCluster = (value: unknown) => value === 'devnet' || value === 'mainnet-beta';
-function validTokenPayment(value: unknown, figureId: unknown): boolean {
-  const expected = isFigureId(figureId) ? FIGURE_TOKEN_PAYMENTS[figureId] : undefined;
-  if (!expected) return value === undefined;
+function validTokenPayment(value: unknown, _figureId: unknown): boolean {
+  if (value === undefined) return true;
   if (!value || typeof value !== 'object') return false;
   const actual = value as TokenPayment;
-  return actual.mint === expected.mint && actual.symbol === expected.symbol && actual.decimals === expected.decimals && actual.amount === expected.amount;
+  return isAddress(actual.mint) && typeof actual.symbol === 'string' && /^[A-Za-z0-9$._-]{1,16}$/.test(actual.symbol)
+    && Number.isInteger(actual.decimals) && actual.decimals >= 0 && actual.decimals <= 18
+    && typeof actual.amount === 'string' && /^[1-9]\d{0,19}$/.test(actual.amount)
+    && BigInt(actual.amount) <= 18446744073709551615n;
 }
 
 export function isSafeShopExternalUrl(value: unknown): value is string {
@@ -196,12 +202,15 @@ export function parseShopCatalog(value: unknown): ShopCatalog {
     || !(data.solanaMobileStoreUrl === undefined || isSafeShopExternalUrl(data.solanaMobileStoreUrl))) throw new Error('Invalid shop catalog');
   for (const entry of data.figures) {
     const figure = record(entry);
-    if (!isFigureId(figure.id) || figure.variant !== figureVariantForId(figure.id) || !validTokenPayment(figure.tokenPayment, figure.id) || typeof figure.name !== 'string'
-      || typeof figure.description !== 'string' || typeof figure.imageUrl !== 'string' || typeof figure.seekerExclusive !== 'boolean'
+    if (!isFigureId(figure.id) || !isModelVariant(figure.variant) || !validTokenPayment(figure.tokenPayment, figure.id) || typeof figure.name !== 'string'
+      || typeof figure.description !== 'string' || !isSafeShopExternalUrl(figure.imageUrl) || typeof figure.seekerExclusive !== 'boolean'
       || !(figure.priceLamports === null || isAmount(figure.priceLamports))
       || (figure.tokenPayment !== undefined && (figure.priceLamports !== '0' || (figure.available && data.cluster !== 'mainnet-beta')))
       || typeof figure.available !== 'boolean') throw new Error('Invalid shop figure');
   }
+  const catalogFigures = data.figures as ShopFigure[];
+  if (catalogFigures.length > 255 || new Set(catalogFigures.map(f => f.id)).size !== catalogFigures.length
+    || new Set(catalogFigures.map(f => f.variant)).size !== catalogFigures.length) throw new Error('Invalid shop catalog');
   return data as unknown as ShopCatalog;
 }
 
@@ -224,7 +233,9 @@ export function parseFigureInventory(value: unknown): FigureInventory {
   const assetIds = new Set<string>();
   for (const entry of data.assets) {
     const asset = record(entry);
-    if (!isAddress(asset.assetId) || !isFigureId(asset.figureId) || asset.figureId === STARTER_FIGURE_ID || typeof asset.name !== 'string' || typeof asset.imageUrl !== 'string') {
+    if (!isAddress(asset.assetId) || !isFigureId(asset.figureId) || asset.figureId === STARTER_FIGURE_ID || typeof asset.name !== 'string' || typeof asset.imageUrl !== 'string'
+      || (asset.variant !== undefined && (!isModelVariant(asset.variant) || asset.variant === 1))
+      || (asset.variant === undefined && !FIGURES.some(f => f.id === asset.figureId))) {
       throw new Error('Invalid figure inventory');
     }
     if (assetIds.has(asset.assetId)) throw new Error('Invalid figure inventory');

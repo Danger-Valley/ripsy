@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { publicKey } from '@metaplex-foundation/umi';
-import { FIGURE_TOKEN_PAYMENTS, isFigureId, isTerminalMint, type MintOrder } from '@rps/core/shop';
+import { isFigureId, isTerminalMint, type MintOrder } from '@rps/core/shop';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 import { shopCatalog, type ShopConfig } from './shop-config.js';
 import type { ShopChain } from './shop-chain.js';
 import { ShopError } from './shop-error.js';
@@ -24,13 +25,15 @@ export class ShopService {
     // usable while updated clients opt into the token-priced catalog.
     if (version < 2) catalog.figures = catalog.figures.filter(figure => figure.variant <= 2);
     else if (version < 3) catalog.figures = catalog.figures.filter(figure => figure.variant <= 4);
+    else if (version < 4) catalog.figures = catalog.figures.filter(figure => figure.variant <= 5);
     return catalog;
   }
 
   async create(playerId: string, input: Record<string, unknown>): Promise<MintOrder> {
     if (!this.config.enabled) throw new ShopError('Minting is not available yet.', 503);
-    if (!isFigureId(input.figureId)) throw new ShopError('Unknown figure');
+    if (!isFigureId(input.figureId) || !FIGURES.some(f => f.id === input.figureId)) throw new ShopError('Unknown figure');
     if (input.figureId === 'fig1') throw new ShopError('RIPSY 001 is free for every player and is not sold in the shop.', 409);
+    if (!FIGURES.find(f => f.id === input.figureId)!.purchasable) throw new ShopError('This figure is not available for purchase.', 409);
     if (typeof input.buyer !== 'string') throw new ShopError('Connect a Solana wallet first');
     let buyer: string;
     try { buyer = String(publicKey(input.buyer)); } catch { throw new ShopError('Invalid wallet address'); }
@@ -39,7 +42,7 @@ export class ShopService {
     const figureId = input.figureId;
     const tokenPayment = FIGURE_TOKEN_PAYMENTS[figureId];
     if (tokenPayment && this.config.cluster !== 'mainnet-beta') throw new ShopError('This figure is only available on the production store.', 409);
-    const price = tokenPayment ? '0' : this.config.prices[figureId as 'fig1' | 'fig2'];
+    const price = tokenPayment ? '0' : this.config.prices[figureId];
     if (!price) throw new ShopError('This figure is not available yet', 409);
     const id = createHash('sha256').update(`${playerId}:${input.idempotencyKey}`).digest('hex');
     return this.lock(id, async () => {
@@ -48,7 +51,7 @@ export class ShopService {
         if (existing.order.buyer !== buyer || existing.order.figureId !== figureId) throw new ShopError('Purchase request already used', 409);
         return this.refresh(existing);
       }
-      if (figureId === 'fig2') {
+      if (FIGURES.find(f => f.id === figureId)!.seekerExclusive) {
         if (!this.seeker) throw new ShopError('Seeker verification is temporarily unavailable. Try again shortly.', 503);
         await this.seeker.assertVerified(playerId, buyer);
       }

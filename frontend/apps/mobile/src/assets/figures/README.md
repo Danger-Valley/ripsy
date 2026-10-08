@@ -1,6 +1,6 @@
 # Figure runtime contract
 
-All four assets (`fig1.riv`, `fig2.riv`, `bonk.riv`, `jup.riv`) expose the same artboard, state machines, inputs, animation names, and authored timings. The board selects each owned model per piece while reusing the complete movement, combat, trap, and death pipeline below. BONK/Jup are unchanged copies of the user's `files/BonkFighter.riv` and `files/JupFighter.riv`; shop previews are their actual first Idle/No Weapon frames. Run `npm run figures:check` from the repository root to validate geometry, timelines, inputs and native/web byte equality.
+The five bundled assets (`fig1.riv`, `fig2.riv`, `bonk.riv`, `jup.riv`, `ore.riv`) expose the same artboard, state machines, inputs, animation names, and authored timings. The board also accepts compatible future models from the backend manifest and verified native disk cache, without adding bundled imports. Each owned model reuses the complete movement, combat, trap, and death pipeline below. Shop previews are actual first Idle/No Weapon frames. Run `npm run figures:check` from the repository root to validate every server registration's digest and contract, plus native/web byte equality for bundled models. See the root `DYNAMIC_FIGURES.md` before registering future fighters.
 
 The file contains one `Artboard` with two state machines:
 

@@ -14,22 +14,19 @@ import { proveWallet as proveExternalWallet } from '../solana-wallet-adapter';
 import { saveFigureSlots } from '../storage/figure-loadout';
 import { ToyDialog } from '../components/toy-dialog';
 import { colors, spacing } from '../theme';
+import { figurePortrait, useFigureCatalog } from '../figures/catalog';
+import { bundledHashes } from '../figures/remote-animation';
+import { cacheFigureAnimation } from '../figures/asset-cache';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
-const figureImages = {
-  fig1: require('../assets/shop/fig1.png'),
-  fig2: require('../assets/shop/fig2.png'),
-  bonk: require('../assets/shop/bonk.png'),
-  jup: require('../assets/shop/jup.png'),
-  ore: require('../assets/shop/ore.png'),
-};
 const scenery = require('../assets/ui/battle-playground.png');
 const woodTray = require('../assets/ui/army-wood-tray.png');
 const starterSlots = () => Array<string | null>(FIGURE_SLOTS).fill(null);
 type Props = NativeStackScreenProps<RootStackParamList, 'Army'>;
 
 export function ArmyScreen({ navigation, route }: Props) {
+  const definitions = useFigureCatalog();
   const insets = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
   const contentWidth = Math.min(width, 720);
@@ -112,6 +109,13 @@ export function ArmyScreen({ navigation, route }: Props) {
   const save = async () => {
     setActivity('saving'); setError(null); setSaved(false);
     try {
+      // Save a playable offline army, not just asset IDs whose models are missing.
+      const selectedModels = new Set(slots.filter(Boolean).map(id => inventory?.assets.find(a => a.assetId === id)?.figureId));
+      for (const id of selectedModels) {
+        const model = definitions.find(f => f.id === id);
+        if (!model?.animation && !FIGURES.some(f => f.id === id)) throw new Error('Could not load this fighter. Reopen your army and try again.');
+        if (model?.animation && model.animation.sha256 !== bundledHashes[model.variant]) await cacheFigureAnimation(model.animation);
+      }
       if (inventory) {
         const next = await client.saveLoadout(slots);
         setInventory(next); setSlots(next.slots);
@@ -184,7 +188,7 @@ export function ArmyScreen({ navigation, route }: Props) {
                     onPress={() => setSelectedSlot(current => current === index ? null : index)}
                     style={({ pressed }) => [styles.slot, assetId && styles.slotCollectible, selectedSlot === index && styles.slotSelected, pressed && styles.pressed]}>
                     <View pointerEvents="none" style={styles.slotPlinth} />
-                    <Image pointerEvents="none" source={figureImages[inventory?.assets.find(asset => asset.assetId === assetId)?.figureId ?? 'fig1']} style={styles.slotImage} />
+                    <Image pointerEvents="none" source={figurePortrait(inventory?.assets.find(asset => asset.assetId === assetId)?.figureId ?? 'fig1', definitions)} style={styles.slotImage} />
                     <Text pointerEvents="none" maxFontSizeMultiplier={1.3} style={styles.slotNumber}>{index + 1}</Text>
                   </ArmyControl>;
                 })}
@@ -205,11 +209,11 @@ export function ArmyScreen({ navigation, route }: Props) {
             </ArmyControl>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.figureList} accessibilityLabel="Available fighters">
-            <FigureCard width={figureCardWidth} name="RIPSY 001" image={figureImages.fig1} badge="FREE" caption="Your free starter" button={selectedSlot === null ? 'Pick a slot' : 'Use fighter'} accessibilityLabel="Use free RIPSY 001" disabled={busy || selectedSlot === null} onPress={selectStarter} />
+            <FigureCard width={figureCardWidth} name={definitions.find(f => f.id === 'fig1')?.name ?? 'RIPSY 001'} image={figurePortrait('fig1', definitions)} badge="FREE" caption="Your free starter" button={selectedSlot === null ? 'Pick a slot' : 'Use fighter'} accessibilityLabel="Use free RIPSY 001" disabled={busy || selectedSlot === null} onPress={selectStarter} />
             {tab === 'owned' && inventory?.assets.map(asset => (
-              <FigureCard width={figureCardWidth} key={asset.assetId} name={asset.name} image={figureImages[asset.figureId]} badge={equipped.has(asset.assetId) ? 'IN ARMY' : 'OWNED'} caption="In your collection" selected={equipped.has(asset.assetId)} button={equipped.has(asset.assetId) ? 'Remove' : 'Select'} disabled={busy || (!equipped.has(asset.assetId) && allSlotsUsed && selectedSlot === null)} accessibilityLabel={`${equipped.has(asset.assetId) ? 'Remove' : 'Equip'} ${asset.name} ${short(asset.assetId)}`} onPress={() => toggleAsset(asset)} />
+              <FigureCard width={figureCardWidth} key={asset.assetId} name={asset.name} image={figurePortrait(asset.figureId, definitions, asset.imageUrl)} badge={equipped.has(asset.assetId) ? 'IN ARMY' : 'OWNED'} caption="In your collection" selected={equipped.has(asset.assetId)} button={equipped.has(asset.assetId) ? 'Remove' : 'Select'} disabled={busy || (!equipped.has(asset.assetId) && allSlotsUsed && selectedSlot === null)} accessibilityLabel={`${equipped.has(asset.assetId) ? 'Remove' : 'Equip'} ${asset.name} ${short(asset.assetId)}`} onPress={() => toggleAsset(asset)} />
             ))}
-            {tab === 'all' && FIGURES.filter(figure => figure.purchasable).map(figure => <FigureCard width={figureCardWidth} key={figure.id} name={figure.name} image={figureImages[figure.id]} badge={figure.seekerExclusive ? 'SEEKER' : 'COLLECTIBLE'} caption={inventory ? `${inventory.assets.filter(asset => asset.figureId === figure.id).length} in your collection` : 'Collect it in the shop'} button="Visit shop" tone="coral" onPress={openShop} />)}
+            {tab === 'all' && definitions.filter(figure => figure.purchasable).map(figure => <FigureCard width={figureCardWidth} key={figure.id} name={figure.name} image={figurePortrait(figure.id, definitions)} badge={figure.seekerExclusive ? 'SEEKER' : 'COLLECTIBLE'} caption={inventory ? `${inventory.assets.filter(asset => asset.figureId === figure.id).length} in your collection` : 'Collect it in the shop'} button="Visit shop" tone="coral" onPress={openShop} />)}
           </ScrollView>
           <Text style={styles.collectionHint}>{tab === 'owned' ? 'Each collectible fills one slot. Free fighters fill the rest.' : 'RIPSY 001 is free. Discover more fighters in the shop.'}</Text>
         </ToyHomePanel>
@@ -251,7 +255,7 @@ export function ArmyScreen({ navigation, route }: Props) {
 }
 
 function FigureCard({ width, name, image, badge, caption, button, selected, disabled, tone = 'blue', accessibilityLabel, onPress }: {
-  width: number; name: string; image: number; badge: string; caption: string; button: string;
+  width: number; name: string; image: import('react-native').ImageSourcePropType; badge: string; caption: string; button: string;
   selected?: boolean; disabled?: boolean; tone?: 'blue' | 'coral'; accessibilityLabel?: string; onPress: () => void;
 }) {
   return (

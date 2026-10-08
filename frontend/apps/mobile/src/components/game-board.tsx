@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState, type ComponentProps } from 'react';
-import { Animated, Image, Platform, Pressable, StyleSheet, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { Animated, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type ImageSourcePropType } from 'react-native';
 import { useRiveFile, type RiveFile } from '@rive-app/react-native';
 import { FigureVariant, HEIGHT, isMovablePiece, Owner, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { haptics } from '../haptics';
@@ -8,6 +8,8 @@ import { colors } from '../theme';
 import { RIVE_JUMP_TRAVEL_DELAY_MS, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation, type TrapAnimation } from '../game-animation';
 import { RiveGamePiece, type RiveActionTrigger } from './rive-game-piece';
 import { useLastOpponentMove } from '../hooks/use-last-opponent-move';
+import { figurePortrait, refreshFigureCatalog, useFigureCatalog } from '../figures/catalog';
+import { bundledHashes, RemoteAnimation } from '../figures/remote-animation';
 
 const figure1Asset = require('../assets/figures/fig1.riv');
 const figure2Asset = require('../assets/figures/fig2.riv');
@@ -71,6 +73,29 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
   const { riveFile: jupFile } = useRiveFile(jupAsset);
   const { riveFile: oreFile } = useRiveFile(oreAsset);
   const figureFiles = [null, figure1File, figure2File, bonkFile, jupFile, oreFile];
+  const definitions = useFigureCatalog();
+  const [remoteFiles, setRemoteFiles] = useState<Record<number, { hash: string; file: RiveFile }>>({});
+  const [failedVariants, setFailedVariants] = useState<Record<number, boolean>>({});
+  const [downloadRetry, setDownloadRetry] = useState(0);
+  const onRemoteFailure = useCallback((variant: number) => setFailedVariants(current => current[variant] ? current : { ...current, [variant]: true }), []);
+  const onRemoteReady = useCallback((variant: number, hash: string, file: RiveFile) => {
+    setRemoteFiles(current => current[variant]?.file === file ? current : { ...current, [variant]: { hash, file } });
+  }, []);
+  const neededVariants = new Set([
+    ...Object.keys(remoteFiles).map(Number),
+    ...(state?.figureVariants ?? []), ...(previewLineup?.map(p => p.figureVariant ?? 1) ?? []),
+    moveAnimation?.figureVariant ?? 1, combatAnimation?.attackerFigureVariant ?? 1,
+    combatAnimation?.defenderFigureVariant ?? 1, trapAnimation?.attackerFigureVariant ?? 1,
+  ]);
+  const remoteDefinitions = definitions.filter(f => neededVariants.has(f.variant) && f.animation && f.animation.sha256 !== bundledHashes[f.variant]);
+  const missingVariants = [...neededVariants].filter(v => v > 0 && !definitions.some(f => f.variant === v)).sort().join(',');
+  useEffect(() => { if (missingVariants) refreshFigureCatalog(true).catch(() => undefined); }, [missingVariants]);
+  for (const f of remoteDefinitions) {
+    const ready = remoteFiles[f.variant];
+    figureFiles[f.variant] = ready?.hash === f.animation!.sha256 ? ready.file : null;
+  }
+  const assetsReady = [...neededVariants].filter(v => v > 0).every(v => Boolean(figureFiles[v]));
+  const downloadFailed = [...neededVariants].some(v => !figureFiles[v] && (failedVariants[v] || !definitions.some(f => f.variant === v)));
   const boardSize = Math.max(1, Math.min(width - 24, 620, maxSize));
   const playableSize = boardSize * BOARD_PLAYABLE_RATIO;
   const playableInset = (boardSize - playableSize) / 2;
@@ -85,7 +110,8 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
     onMoveActionTriggered?.(RIVE_JUMP_TRAVEL_DELAY_MS);
   }, [onMoveActionTriggered]);
 
-  return (
+  return (<>
+    {remoteDefinitions.map(f => <RemoteAnimation key={`${f.variant}:${f.animation!.sha256}`} variant={f.variant} animation={f.animation!} onReady={onRemoteReady} onFailure={onRemoteFailure} retry={downloadRetry} />)}
     <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]} testID="game-board">
       <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.boardFrame}>
         <Image source={boardArenaAsset} style={styles.boardArenaArt} />
@@ -160,7 +186,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
             const isSelected = selected?.x === x && selected.y === y;
             const isAvailable = availableMoves.some(move => move.x === x && move.y === y);
             const isMovable = isMovablePiece(piece);
-            const isActionable = Boolean(interactionEnabled && onCellPress && (selected ? (isMine && isMovable) || isAvailable : isMine && isMovable));
+            const isActionable = Boolean(assetsReady && interactionEnabled && onCellPress && (selected ? (isMine && isMovable) || isAvailable : isMine && isMovable));
             const occupant = owner === Owner.None
               ? 'empty'
               : isMine ? `your ${pieceName(piece)}` : 'opponent piece';
@@ -226,7 +252,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
                         size={cellSize * 1.68}
                         staggerStart={isOpponentPreview}
                       />
-                    ) : null}
+                    ) : <Image accessibilityLabel="Loading fighter" source={figurePortrait(definitions.find(f => f.variant === figureVariant)?.id ?? 'fig1', definitions)} style={[styles.loadingPortrait, { width: cellSize * 1.68, height: cellSize * 1.68 }]} />}
                   </Animated.View>
                 ) : isAvailable && selected ? (
                   <Image source={moveArrowSource(selected, { x, y }, isPlayer1)} style={styles.moveArrow} />
@@ -260,7 +286,11 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
           />
         ) : null}
       </View>
-    </View>
+      {!assetsReady && <View style={styles.loadingModels}>
+        <Text accessibilityLiveRegion="polite" style={styles.loadingCopy}>{downloadFailed ? 'Could not load all fighters.' : 'Loading fighters...'}</Text>
+        {downloadFailed && <Pressable accessibilityRole="button" accessibilityLabel="Retry loading fighters" onPress={() => { setFailedVariants({}); setDownloadRetry(n => n + 1); refreshFigureCatalog(true).catch(() => undefined); }} style={styles.retryModels}><Text style={styles.retryCopy}>Try again</Text></Pressable>}
+      </View>}
+    </View></>
   );
 }
 
@@ -512,6 +542,11 @@ function opponentOf(owner: Owner): Owner {
 }
 
 const styles = StyleSheet.create({
+  loadingPortrait: { resizeMode: 'contain' },
+  loadingModels: { position: 'absolute', left: 20, right: 20, bottom: 8, zIndex: 100, elevation: 100, borderRadius: 14, padding: 10, backgroundColor: colors.kitPanel },
+  loadingCopy: { color: colors.ink, textAlign: 'center' },
+  retryModels: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  retryCopy: { color: colors.ink, fontWeight: 'bold' },
   board: { alignSelf: 'center', overflow: 'visible', shadowColor: colors.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.28, shadowRadius: 13, elevation: 7 },
   boardFrame: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', borderRadius: 22, backgroundColor: colors.boardGrass },
   boardArenaArt: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', resizeMode: 'contain' },

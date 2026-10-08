@@ -5,7 +5,7 @@ import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { publicKey } from '@metaplex-foundation/umi';
 import { fetchCollection } from '@metaplex-foundation/mpl-core';
 import { INITIAL_PACK, PACK_PROGRAM_ID } from '@rps/core/packs';
-import { FIGURES } from '@rps/core/shop';
+import { FIGURES } from '../src/figure-registry.js';
 import { decodeConfig, decodeEdition } from '../src/pack-codec.js';
 import { loadShopConfig } from '../src/shop-config.js';
 import { verifyPackFigureResources } from '../src/pack-metadata.js';

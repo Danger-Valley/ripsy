@@ -1,0 +1,80 @@
+[
+  {
+    "id": "fig1",
+    "name": "RIPSY 001",
+    "variant": 1,
+    "description": "The original RIPSY fighter. Free in every army.",
+    "seekerExclusive": false,
+    "purchasable": false,
+    "animation": {
+      "sha256": "b44ee60dcabf2893b0409abd2193a5e68a32af0211c400417508524a7f3ff0ba",
+      "bytes": 545066
+    }
+  },
+  {
+    "id": "fig2",
+    "name": "Seeker fighter",
+    "variant": 2,
+    "description": "A new face for your collection. The same fighting spirit.",
+    "seekerExclusive": true,
+    "purchasable": true,
+    "animation": {
+      "sha256": "7ebfc2d64675e7882f4dfb7b2e6d8d23a03e1442756876cc0605ec0d33584668",
+      "bytes": 483073
+    }
+  },
+  {
+    "id": "bonk",
+    "name": "BONK",
+    "variant": 3,
+    "description": "Bring a little BONK to the battlefield.",
+    "seekerExclusive": false,
+    "purchasable": true,
+    "tokenPayment": {
+      "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+      "symbol": "BONK",
+      "decimals": 5,
+      "amount": "690000000000"
+    },
+    "animation": {
+      "sha256": "26a1faafefac4102b17c41d2738ac5509602313eb5f94168fe36d722a8f1d75f",
+      "bytes": 386065
+    }
+  },
+  {
+    "id": "jup",
+    "name": "Jup",
+    "variant": 4,
+    "description": "A new fighter joins your orbit.",
+    "seekerExclusive": false,
+    "purchasable": true,
+    "tokenPayment": {
+      "mint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      "symbol": "JUP",
+      "decimals": 6,
+      "amount": "99000000"
+    },
+    "animation": {
+      "sha256": "fe42caa994fa8b88066d37a35e60917208e8bd394113e278e1e4212e930255ad",
+      "bytes": 400625
+    }
+  },
+  {
+    "id": "ore",
+    "name": "ORE",
+    "variant": 5,
+    "description": "Strike gold on the battlefield.",
+    "seekerExclusive": false,
+    "purchasable": true,
+    "tokenPayment": {
+      "mint": "oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp",
+      "symbol": "ORE",
+      "decimals": 11,
+      "amount": "25000000000"
+    },
+    "animation": {
+      "sha256": "68dfc42ecf16277df605a0acfc574f608014acdaae3260565f989cc9010f3520",
+      "bytes": 385216
+    }
+  }
+]

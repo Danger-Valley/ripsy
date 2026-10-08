@@ -9,7 +9,7 @@ import {
 } from "@metaplex-foundation/umi";
 import { base58 } from "@metaplex-foundation/umi/serializers";
 import { fetchCollection } from "@metaplex-foundation/mpl-core";
-import { FIGURES } from "@rps/core/shop";
+import { FIGURES } from "../src/figure-registry.js";
 import {
   INITIAL_PACK,
   PACK_PROGRAM_ID,
@@ -127,7 +127,8 @@ if (action === "initialize") {
       );
     // Edition URIs cannot be corrected in place. Validate live resources first.
     for (const drop of table.drops) {
-      const figure = FIGURES.find(f => f.id === drop.figureId)!;
+      const figure = FIGURES.find(f => f.id === drop.figureId && f.purchasable && !f.seekerExclusive);
+      if (!figure) throw new Error('Pack contains an unregistered or restricted figure');
       await verifyPackFigureResources(config.publicOrigin, figure,
         readFileSync(`frontend/apps/web/public/figures/${figure.id}.png`));
     }

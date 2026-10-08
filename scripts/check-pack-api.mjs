@@ -54,6 +54,16 @@ try {
   const current = await get('/shop/catalog?catalogVersion=3');
   assert.equal(current.status, 200);
   assert.deepEqual((await current.json()).figures.map(f => f.id), ['fig2', 'bonk', 'jup', 'ore']);
+  stage = 'dynamic-figure-catalog';
+  const manifestResponse = await get('/shop/figures');
+  assert.equal(manifestResponse.status, 200);
+  const manifest = await manifestResponse.json();
+  assert.equal(manifest.schema, 1);
+  const dynamicResponse = await get('/shop/catalog?catalogVersion=4');
+  assert.equal(dynamicResponse.status, 200);
+  const dynamic = await dynamicResponse.json();
+  assert.deepEqual(dynamic.figures.map(f => f.id), manifest.figures.filter(f => f.purchasable).map(f => f.id));
+  for (const drop of catalog.drops) assert.ok(manifest.figures.some(f => f.id === drop.figureId), 'Published pack model must have resources');
   console.log(JSON.stringify({ healthy: true, authenticationRequired: true,
     packPurchasesBlocked: !catalog.available, priceAndWeightsMatch: true, legacyCatalogCompatible: true,
     paidTransactionCreated: false }));

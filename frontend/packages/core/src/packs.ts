@@ -1,5 +1,5 @@
 import {
-  FIGURES,
+  isFigureId,
   figurePaymentPrice,
   type FigureId,
   type TokenPayment,
@@ -77,12 +77,7 @@ export function validatePackDrops(drops: PackDrop[]): void {
     new Set(drops.map((drop) => drop?.figureId)).size !== drops.length ||
     drops.some(
       (drop) =>
-        !FIGURES.some(
-          (figure) =>
-            figure.id === drop?.figureId &&
-            figure.purchasable &&
-            !figure.seekerExclusive
-        ) ||
+        !isFigureId(drop?.figureId) || drop.figureId === 'fig1' || drop.figureId === 'fig2' ||
         !Number.isSafeInteger(drop?.weight) ||
         drop.weight <= 0
     ) ||

@@ -1,11 +1,13 @@
 import { parseFigureInventory, parseMintOrder, parseSeekerChallenge, parseShopCatalog, parseWalletChallenge, type FigureId, type SeekerProof, type WalletProof } from '@rps/core/shop';
 import { parsePackCatalog, parsePackOrder } from '@rps/core/packs';
+import { parseFigureManifest } from '@rps/core/figure-manifest';
 
 export class ShopClient {
   // Browser fetch needs its Window/global receiver, not this ShopClient instance.
   constructor(private baseUrl: string, private token: string, private fetcher: typeof fetch = (...args) => globalThis.fetch(...args)) {}
 
-  async catalog() { return parseShopCatalog(await this.request('/shop/catalog?catalogVersion=3')); }
+  async catalog() { return parseShopCatalog(await this.request('/shop/catalog?catalogVersion=4')); }
+  async figures() { return parseFigureManifest(await this.request('/shop/figures')); }
   async packCatalog() { return parsePackCatalog(await this.request('/shop/packs/catalog')); }
   async createPack(buyer: string, idempotencyKey: string) { return parsePackOrder(await this.request('/shop/packs/orders', { buyer, idempotencyKey })); }
   async getPack(id: string) { return parsePackOrder(await this.request(`/shop/packs/orders/${encodeURIComponent(id)}`)); }

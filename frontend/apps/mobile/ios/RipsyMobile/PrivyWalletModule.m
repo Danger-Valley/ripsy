@@ -3,6 +3,7 @@
 // Standalone audio bridge: reuse this compiled translation unit without
 // modifying legacy Xcode target membership or adding a CocoaPods dependency.
 #include "Audio/RipsyAudioModule.inc"
+#include "Figures/RipsyFigureCache.inc"
 
 @interface RCT_EXTERN_MODULE(PrivyWallet, NSObject)
 

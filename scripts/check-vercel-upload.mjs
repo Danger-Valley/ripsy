@@ -1,5 +1,7 @@
 // Ask the actual Vercel uploader what it will send, before sending anything.
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+const figures = JSON.parse(readFileSync(new URL('../backend/src/figure-registry.json', import.meta.url), 'utf8'));
 const child = spawn('npx', ['--offline', '--yes', 'vercel@62.4.0', 'deploy', '--dry', '--json',
   '--prod', '--scope', 'danger-valley'], { stdio: ['ignore', 'pipe', 'pipe'] });
 let output = '';
@@ -17,7 +19,8 @@ child.on('close', code => {
     if (unsafe) throw new Error(`Unsafe deployment path: ${unsafe}`);
     for (const path of ['package.json', 'package-lock.json', 'scripts/apply-patches.mjs',
       'frontend/apps/web/package.json', 'frontend/tsconfig.base.json', 'frontend/packages/core/src/packs.ts',
-      ...['jup', 'bonk', 'ore'].flatMap(id => ['json', 'png', 'riv'].map(ext => `frontend/apps/web/public/figures/${id}.${ext}`))])
+      'frontend/packages/core/src/figure-manifest.ts',
+      ...figures.flatMap(({ id, purchasable }) => (purchasable ? ['json', 'png', 'riv'] : ['png', 'riv']).map(ext => `frontend/apps/web/public/figures/${id}.${ext}`))])
       if (!files.includes(path)) throw new Error(`Required web input missing: ${path}`);
     console.log(JSON.stringify({ verified: true, sourceFiles: files.length, sourceBytes: data.totalSize,
       backendAndNativeExcluded: true, secretsExcluded: true }));

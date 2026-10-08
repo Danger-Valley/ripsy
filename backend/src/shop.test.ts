@@ -166,12 +166,13 @@ test('BONK/Jup/ORE prices are fixed, mainnet-only and cannot be overridden by cl
     assert.equal(shopCatalog(config).figures.find(candidate => candidate.id === id)!.available, false);
     const tampered = structuredClone(catalog);
     tampered.figures.find(candidate => candidate.id === id)!.tokenPayment!.amount = '1';
-    assert.throws(() => parseShopCatalog(tampered), /Invalid shop figure/);
+    // A structurally valid server price can change without a mobile release.
+    assert.equal(parseShopCatalog(tampered).figures.find(candidate => candidate.id === id)!.tokenPayment!.amount, '1');
     for (const field of ['mint', 'decimals', 'symbol'] as const) {
       const bad = structuredClone(catalog);
       const payment = bad.figures.find(candidate => candidate.id === id)!.tokenPayment!;
-      if (field === 'decimals') payment.decimals++;
-      else payment[field] = 'invalid';
+      if (field === 'decimals') payment.decimals = 19;
+      else payment[field] = field === 'symbol' ? 'bad symbol' : 'invalid';
       assert.throws(() => parseShopCatalog(bad), /Invalid shop figure/);
     }
   }

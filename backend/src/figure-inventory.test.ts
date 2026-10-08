@@ -20,7 +20,7 @@ test('existing Core collectibles use the renamed fighter label without changing 
   })));
   const source = createFigureAssetSource('https://rpc.example.test', collection, 'https://www.ripsy.fun');
   assert.deepEqual(await source.listOwned(wallet), [{
-    assetId: firstAsset, figureId: 'fig2', name: 'Seeker fighter', imageUrl: 'https://www.ripsy.fun/figures/fig2.png',
+    assetId: firstAsset, figureId: 'fig2', variant: 2, name: 'Seeker fighter', imageUrl: 'https://www.ripsy.fun/figures/fig2.png',
   }]);
 });
 

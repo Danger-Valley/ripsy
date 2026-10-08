@@ -29,7 +29,7 @@ export const Owner = { None: 0, P0: 1, P1: 2 } as const;
 export type Owner = (typeof Owner)[keyof typeof Owner];
 
 export const FigureVariant = { Empty: 0, Fig1: 1, Fig2: 2, Bonk: 3, Jup: 4, Ore: 5 } as const;
-export type FigureVariant = (typeof FigureVariant)[keyof typeof FigureVariant];
+export type FigureVariant = number;
 
 export const Phase = {
   Created: 0,
@@ -401,7 +401,7 @@ function isOwner(value: number): value is Owner {
 }
 
 function isFigureVariant(value: number): value is FigureVariant {
-  return Object.values(FigureVariant).some(variant => variant === value);
+  return Number.isInteger(value) && value >= 0 && value <= 255;
 }
 
 function legacyFigureVariants(owners: number[]): FigureVariant[] {

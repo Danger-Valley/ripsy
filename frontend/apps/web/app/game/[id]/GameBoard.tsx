@@ -5,6 +5,10 @@ import { useRiveFile } from '@rive-app/react-canvas';
 import RpsFigure, { Weapon, type TriggerName } from './RpsFigure';
 import { RIVE_JUMP_TRAVEL_DELAY_MS, pieceMoveDurationMs, type CombatAnimation, type CombatAnimationPhase, type PieceMoveAnimation, type TrapAnimation } from './game-animation';
 import styles from './game.module.css';
+import { useCallback, useState } from 'react';
+import { useFigureCatalog } from '../../hooks/use-figure-catalog';
+import { RemoteFigureFile } from '../../hooks/remote-figure-file';
+import type { FigureDefinition } from '@rps/core/figure-manifest';
 
 export interface LineupPiece { x: number; y: number; piece: Piece; figureVariant?: FigureVariant; figureAssetId?: string | null }
 type Coordinate = { x: number; y: number };
@@ -36,9 +40,16 @@ export function GameBoard(props: Props) {
   const { riveFile: jupFile } = useRiveFile({ src: '/figures/jup.riv' });
   const { riveFile: oreFile } = useRiveFile({ src: '/figures/ore.riv' });
   const figureFiles = [null, figure1File, figure2File, bonkFile, jupFile, oreFile];
+  const definitions = useFigureCatalog();
+  const [remote, setRemote] = useState<Record<number, { hash: string; file: unknown }>>({});
+  const onReady = useCallback((variant: number, hash: string, file: unknown) => setRemote(previous => previous[variant]?.file === file ? previous : { ...previous, [variant]: { hash, file } }), []);
+  const needed = new Set([...Object.keys(remote).map(Number), ...(props.state.figureVariants ?? []), ...(props.previewLineup?.map(p => p.figureVariant ?? 1) ?? []), props.moveAnimation?.figureVariant ?? 1, props.combatAnimation?.attackerFigureVariant ?? 1, props.combatAnimation?.defenderFigureVariant ?? 1, props.trapAnimation?.attackerFigureVariant ?? 1]);
+  const downloads = definitions.filter(f => needed.has(f.variant) && f.variant > 5 && f.animation) as FigureDefinition[];
+  for (const f of downloads) if (remote[f.variant]?.hash === f.animation.sha256) figureFiles[f.variant] = remote[f.variant]!.file as typeof figure1File;
   const figuresReady = figure1Status === 'success' && figure1File && figure2Status === 'success' && figure2File;
   const preview = new Map(props.previewLineup?.map(item => [toIdx(item.x, item.y), item]));
-  return (
+  return (<>
+    {downloads.map(f => <RemoteFigureFile key={`${f.variant}:${f.animation.sha256}`} figure={f} onReady={onReady} />)}
     <div className={styles.board} aria-label="RIPSY game board">
       <div className={styles.boardSurface} aria-hidden>
         {Array.from({ length: WIDTH * HEIGHT }, (_, index) => <i key={index} />)}
@@ -110,7 +121,7 @@ export function GameBoard(props: Props) {
       {figuresReady && props.trapAnimation && figureFiles[props.trapAnimation.attackerFigureVariant ?? FigureVariant.Fig1] && (
         <TrapScene animation={props.trapAnimation} isPlayer1={props.isPlayer1} key={`trap-victim-${props.trapAnimationSequence}`} onActionTriggered={props.onTrapActionTriggered} ownOwner={props.ownOwner} riveFile={figureFiles[props.trapAnimation.attackerFigureVariant ?? FigureVariant.Fig1]} />
       )}
-    </div>
+    </div></>
   );
 }
 

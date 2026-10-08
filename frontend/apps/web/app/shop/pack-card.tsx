@@ -1,7 +1,8 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { FIGURES, figurePrice, solanaExplorer } from "@rps/core/shop";
+import { figurePrice, solanaExplorer } from "@rps/core/shop";
+import { useFigureCatalog } from '../hooks/use-figure-catalog';
 import { isTerminalPack, packPrice } from "@rps/core/packs";
 import type { usePackShop } from "@rps/game-client/use-pack-shop";
 import styles from "./shop.module.css";
@@ -21,6 +22,9 @@ export function PackCard({
 }) {
   const order = pack.order;
   const catalog = pack.catalog;
+  const definitions = useFigureCatalog();
+  const name = (id: string) => definitions.find(f => f.id === id)?.name ?? id;
+  const image = (id: string) => definitions.find(f => f.id === id)?.imageUrl ?? `/figures/${id}.png`;
   return (
     <section
       className={styles.review}
@@ -38,13 +42,13 @@ export function PackCard({
             {catalog.drops.map((drop) => (
               <div key={drop.figureId}>
                 <Image
-                  src={`/figures/${drop.figureId}.png`}
+                  unoptimized src={image(drop.figureId)}
                   alt=""
                   width={150}
                   height={150}
                 />
                 <strong>
-                  {FIGURES.find((f) => f.id === drop.figureId)?.name}
+                  {name(drop.figureId)}
                 </strong>
                 <span>{drop.weight / 10_000}% chance</span>
               </div>
@@ -93,7 +97,7 @@ export function PackCard({
                 {order.drops
                   .map(
                     (d) =>
-                      `${FIGURES.find((f) => f.id === d.figureId)?.name} ${
+                      `${name(d.figureId)} ${
                         d.weight / 10_000
                       }%`
                   )
@@ -114,15 +118,14 @@ export function PackCard({
           {order?.status === "confirmed" && order.result && (
             <>
               <Image
-                src={`/figures/${order.result}.png`}
+                unoptimized src={image(order.result)}
                 alt={
-                  FIGURES.find((f) => f.id === order.result)?.name ??
-                  "Your fighter"
+                  name(order.result)
                 }
                 width={220}
                 height={220}
               />
-              <h3>{FIGURES.find((f) => f.id === order.result)?.name}</h3>
+              <h3>{name(order.result)}</h3>
               <div className={styles.actions}>
                 <Link href={`/army?minted=${encodeURIComponent(order.asset)}`}>
                   Add to your army

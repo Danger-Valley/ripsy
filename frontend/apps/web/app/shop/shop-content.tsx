@@ -7,7 +7,8 @@ import { usePlayerIdentity } from '@rps/game-client';
 import { useShop, type PurchaseStorage } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { PackCard } from './pack-card';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURES, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, isTerminalMint, solanaExplorer, type PurchaseTransaction } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, isTerminalMint, solanaExplorer, type PurchaseTransaction } from '@rps/core/shop';
+import { useFigureCatalog } from '../hooks/use-figure-catalog';
 import { useBrowserWallet } from '../hooks/use-browser-wallet';
 import styles from './shop.module.css';
 
@@ -26,6 +27,7 @@ export interface EmbeddedWallet {
 }
 
 export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
+  const definitions = useFigureCatalog();
   const { sessionToken, error: sessionError } = usePlayerIdentity();
   const external = useBrowserWallet();
   const shop = useShop(process.env.NEXT_PUBLIC_SHOP_API_URL ?? 'https://api.ripsy.fun', sessionToken, storage);
@@ -88,7 +90,7 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
         <p>{order.status === 'confirmed' ? 'Purchase complete. Your figure is in your collection.' : order.status === 'submitted' ? 'Processing your purchase. You can return later; this purchase is saved.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Review the total below. Nothing is purchased until you approve.'}</p>
         {order.status === 'prepared' && address !== order.buyer && <p>Sign in to the purchase account to approve this saved order. Its destination cannot be changed.</p>}
         {order.cluster === 'devnet' && <p>Test purchase only. No real payment.</p>}
-        <dl><dt>Figure</dt><dd>{FIGURES.find(figure => figure.id === order.figureId)?.name ?? 'Fighter'}</dd><dt>Price</dt><dd>{figurePaymentPrice(order, order.cluster)}</dd><dt>Estimated additional fees</dt><dd>{figurePrice(order.networkFeeLamports, order.cluster)}</dd><dt>Estimated total</dt><dd>{figurePurchaseTotal(order)}</dd><dt>Sold by</dt><dd>RIPSY</dd></dl>
+        <dl><dt>Figure</dt><dd>{definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}</dd><dt>Price</dt><dd>{figurePaymentPrice(order, order.cluster)}</dd><dt>Estimated additional fees</dt><dd>{figurePrice(order.networkFeeLamports, order.cluster)}</dd><dt>Estimated total</dt><dd>{figurePurchaseTotal(order)}</dd><dt>Sold by</dt><dd>RIPSY</dd></dl>
         <details><summary>Payment details</summary><dl><dt>Purchase account</dt><dd className={styles.address}>{order.buyer}</dd><dt>Seller account</dt><dd className={styles.address}>{order.treasury}</dd></dl>{order.signature && <a href={solanaExplorer('tx', order.signature, order.cluster)} target="_blank" rel="noreferrer">View payment record ↗</a>}</details>
         <div className={styles.actions}>
           {order.status === 'prepared' && <button className={styles.primary} disabled={shop.busy || address !== order.buyer} onClick={() => { void shop.confirm(walletKind === 'privy' ? embedded!.sign : external.signShopTransaction); }}>{shop.busy ? 'Waiting for approval…' : shop.signingStarted ? 'Retry purchase approval' : 'Confirm purchase'}</button>}
@@ -101,7 +103,7 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
     <section className={styles.grid} aria-label="Available figures">
       {!shop.catalog && !error && [1].map(id => <div className={styles.skeleton} key={id} aria-label="Loading figure" />)}
       {shop.catalog?.figures.map(figure => <article className={styles.card} key={figure.id}>
-        <div className={styles.art}><span className={styles.edition}>RIPSY ORIGINALS · {String(figure.variant).padStart(2, '0')}</span><Image src={`/figures/${figure.id}.png`} alt={figure.name} width={512} height={512} priority /></div>
+        <div className={styles.art}><span className={styles.edition}>RIPSY ORIGINALS · {String(figure.variant).padStart(2, '0')}</span><Image unoptimized src={figure.imageUrl} alt={figure.name} width={512} height={512} priority /></div>
         <div className={styles.cardCopy}><h2>{figure.name}</h2><p>{figure.description}</p>{figure.seekerExclusive && <strong className={styles.exclusive}>SEEKER EXCLUSIVE</strong>}<div className={styles.price}><strong>{figure.priceLamports ? figurePaymentPrice(figure, shop.catalog!.cluster) : 'Coming soon'}</strong></div>
           {figure.seekerExclusive ? <a className={styles.primary} href={shop.catalog?.solanaMobileStoreUrl ?? DEFAULT_SOLANA_MOBILE_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Solana Mobile Exclusive">Solana Mobile Exclusive</a> : <button className={styles.primary} disabled={!figure.available || !address || !shop.ready || !pack.ready || shop.hasPurchase || pack.hasPurchase || walletBusy} onClick={() => { if (address) void shop.prepare(figure.id, address); }}>{!figure.available ? 'Purchases coming soon' : address ? 'Buy figure' : 'Sign in to buy figures'}</button>}
         </div>

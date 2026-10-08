@@ -1,7 +1,6 @@
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import {
-  FIGURES,
   figurePrice,
   figureStoreMessage,
   solanaExplorer,
@@ -17,12 +16,8 @@ import {
 } from './toy-home-controls';
 import { StatusBanner } from './status-banner';
 import { colors, spacing } from '../theme';
+import { figurePortrait, useFigureCatalog } from '../figures/catalog';
 
-const portraits = {
-  jup: require('../assets/shop/jup.png'),
-  bonk: require('../assets/shop/bonk.png'),
-  ore: require('../assets/shop/ore.png'),
-};
 export function ShopPack({
   pack,
   address,
@@ -39,6 +34,7 @@ export function ShopPack({
   onOpenPurchase(): void;
 }) {
   const catalog = pack.catalog;
+  const definitions = useFigureCatalog();
   return (
     <ToyHomePanel style={styles.card}>
       <View style={styles.heading}>
@@ -58,14 +54,14 @@ export function ShopPack({
           <View style={styles.drops}>
             {catalog.drops.map(drop => (
               <View style={styles.drop} key={drop.figureId}>
-                {drop.figureId in portraits && (
+                {(
                   <Image
-                    source={portraits[drop.figureId as keyof typeof portraits]}
+                    source={figurePortrait(drop.figureId, definitions)}
                     style={styles.portrait}
                   />
                 )}
                 <Text style={styles.name}>
-                  {FIGURES.find(f => f.id === drop.figureId)?.name}
+                  {definitions.find(f => f.id === drop.figureId)?.name ?? drop.figureId}
                 </Text>
                 <Text style={styles.copy}>{`${
                   drop.weight / 10_000
@@ -150,6 +146,7 @@ export function ShopPackPurchase({
 }) {
   const order = pack.order;
   const [recordError, setRecordError] = useState<string | null>(null);
+  const definitions = useFigureCatalog();
   useEffect(() => {
     setRecordError(null);
   }, [order?.id]);
@@ -195,14 +192,14 @@ export function ShopPackPurchase({
         <>
           {order.status === 'confirmed' && order.result && (
             <View style={styles.resultReveal}>
-              {order.result in portraits && (
+              {(
                 <Image
-                  source={portraits[order.result as keyof typeof portraits]}
+                  source={figurePortrait(order.result, definitions)}
                   style={styles.result}
                 />
               )}
               <Text style={styles.title}>
-                {FIGURES.find(f => f.id === order.result)?.name}
+                {definitions.find(f => f.id === order.result)?.name ?? order.result}
               </Text>
             </View>
           )}
@@ -216,7 +213,7 @@ export function ShopPackPurchase({
                 {order.drops
                   .map(
                     d =>
-                      `${FIGURES.find(f => f.id === d.figureId)?.name} ${
+                      `${definitions.find(f => f.id === d.figureId)?.name ?? d.figureId} ${
                         d.weight / 10_000
                       }%`,
                   )

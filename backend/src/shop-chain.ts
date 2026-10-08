@@ -3,7 +3,8 @@ import { createNoopSigner, generateSigner, keypairIdentity, lamports, publicKey,
 import { base58 } from '@metaplex-foundation/umi/serializers';
 import { createV1, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import { mplToolbox, transferSol } from '@metaplex-foundation/mpl-toolbox';
-import { FIGURES, FIGURE_TOKEN_PAYMENTS, type FigureId, type MintOrder } from '@rps/core/shop';
+import { type FigureId, type MintOrder } from '@rps/core/shop';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 import type { ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
 import { shopTokenPayment } from './shop-token-payment.js';

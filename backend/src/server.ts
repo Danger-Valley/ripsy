@@ -17,6 +17,7 @@ import { createSeekerTokenChecker, SeekerVerificationService } from './seeker-ve
 import { createFigureAssetSource, FigureInventoryService } from './figure-inventory.js';
 import { WalletVerificationService } from './wallet-verification.js';
 import { createPackChain } from './pack-chain.js';
+import { figureManifest } from './figure-resources.js';
 import { PackService } from './pack-service.js';
 
 const port = Number(process.env.PORT ?? 8080);
@@ -79,9 +80,12 @@ const server = createServer(async (request, response) => {
     response.setHeader('content-type', 'application/json');
     if (request.method === 'OPTIONS') { response.writeHead(204).end(); return; }
     try {
+      if (request.method === 'GET' && requestUrl.pathname === '/shop/figures') {
+        response.writeHead(200).end(JSON.stringify(figureManifest(shopConfig.publicOrigin))); return;
+      }
       if (request.method === 'GET' && requestUrl.pathname === '/shop/catalog') {
         const catalogVersion = requestUrl.searchParams.get('catalogVersion');
-        response.writeHead(200).end(JSON.stringify(shop.catalog(catalogVersion === '3' ? 3 : catalogVersion === '2' ? 2 : 1)));
+        response.writeHead(200).end(JSON.stringify(shop.catalog(catalogVersion === '4' ? 4 : catalogVersion === '3' ? 3 : catalogVersion === '2' ? 2 : 1)));
         return;
       }
       const playerId = verifyBearerSession(request.headers.authorization);

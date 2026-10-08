@@ -1,11 +1,11 @@
-import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { packPurchaseStorage } from '../storage/pack-purchase';
 import { packPurchaseTitle, ShopPack, ShopPackPurchase } from '../components/shop-pack';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, FIGURES, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, isTerminalMint, solanaExplorer, type ShopFigure } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, isTerminalMint, solanaExplorer, type ShopFigure } from '@rps/core/shop';
 import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
@@ -16,16 +16,17 @@ import { saveFigureSlots } from '../storage/figure-loadout';
 import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from '../components/toy-home-controls';
 import { ToyBadge, ToyDialog } from '../components/toy-dialog';
 import { StatusBanner } from '../components/status-banner';
+import { figurePortrait, useFigureCatalog } from '../figures/catalog';
 import { colors, spacing } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
-const images = { fig1: require('../assets/shop/fig1.png'), fig2: require('../assets/shop/fig2.png'), bonk: require('../assets/shop/bonk.png'), jup: require('../assets/shop/jup.png'), ore: require('../assets/shop/ore.png') };
 const scenery = require('../assets/ui/battle-playground.png');
 const showcase = require('../assets/ui/toy-box-home-arena.png');
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
 
 export function ShopScreen({ navigation, route }: Props) {
+  const definitions = useFigureCatalog();
   const insets = useSafeAreaInsets();
   const { sessionToken, error: sessionError } = usePlayerIdentity();
   const wallet = useSolanaWallet();
@@ -34,6 +35,16 @@ export function ShopScreen({ navigation, route }: Props) {
   const pack = usePackShop(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken, packPurchaseStorage);
   const purchaseBlocked = shop.hasPurchase || pack.hasPurchase;
   const purchaseBusy = shop.busy || pack.busy;
+  const loadFigures = shop.loadCatalog, loadPack = pack.loadCatalog;
+  useEffect(() => {
+    const refresh = () => {
+      if (purchaseBlocked || purchaseBusy || navigation.isFocused?.() === false) return;
+      loadFigures(); loadPack();
+    };
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
+    const unsubscribe = navigation.addListener?.('focus', refresh);
+    return () => { subscription.remove(); unsubscribe?.(); };
+  }, [navigation, loadFigures, loadPack, purchaseBlocked, purchaseBusy]);
   const order = shop.order;
   const [walletKind, setWalletKind] = useState<'external' | 'privy'>(wallet.isSupported && !route.params?.signIn ? 'external' : 'privy');
   const [walletOpen, setWalletOpen] = useState(Boolean(route.params?.signIn));
@@ -123,7 +134,7 @@ export function ShopScreen({ navigation, route }: Props) {
           <View style={styles.showcase}>
             <Image pointerEvents="none" accessibilityElementsHidden source={showcase} style={styles.showcaseScenery} />
             <View pointerEvents="none" style={styles.plinthBase} /><View pointerEvents="none" style={styles.plinthTop} />
-            <Image accessibilityLabel={figure.name + ' preview'} source={images[figure.id]} style={styles.figureImage} />
+            <Image accessibilityLabel={figure.name + ' preview'} source={figurePortrait(figure.id, definitions, figure.imageUrl)} style={styles.figureImage} />
             <View style={styles.edition}><Text style={styles.editionText}>FIG {String(figure.variant).padStart(2, '0')}</Text></View>
             {figure.seekerExclusive && <View style={styles.exclusive}><Text style={styles.exclusiveText}>SEEKER EXCLUSIVE</Text></View>}
           </View>
@@ -153,7 +164,7 @@ export function ShopScreen({ navigation, route }: Props) {
           <ToyBadge tone={order.status === 'confirmed' ? 'green' : order.status === 'failed' || order.status === 'expired' ? 'coral' : 'yellow'}>{order.status === 'confirmed' ? 'PURCHASE COMPLETE' : order.status === 'submitted' ? 'PROCESSING PURCHASE' : order.status === 'failed' ? 'PURCHASE FAILED' : order.status === 'expired' ? 'PURCHASE EXPIRED' : 'AWAITING YOUR APPROVAL'}</ToyBadge>
           <PurchaseProgress status={order.status} />
           <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'confirmed' ? 'Purchase complete. Your figure is in your collection.' : order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Review the total below. Nothing is purchased until you approve.'}</Text>
-          <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={images[order.figureId]} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{FIGURES.find(figure => figure.id === order.figureId)?.name ?? 'Fighter'}</Text></View>
+          <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={figurePortrait(order.figureId, definitions)} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}</Text></View>
           <View style={styles.breakdown}>
             <ReceiptRow label="Figure price" value={figurePaymentPrice(order, order.cluster)} />
             <ReceiptRow label="Estimated additional fees" value={figurePrice(order.networkFeeLamports, order.cluster)} />

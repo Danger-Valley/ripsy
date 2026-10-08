@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -10,10 +11,17 @@ RuntimeLoader.setWasmBinary(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffse
 RuntimeLoader.setWasmFallbackUrl(null);
 const runtime = await RuntimeLoader.awaitInstance();
 let baseline;
-for (const id of ['fig1', 'fig2', 'bonk', 'jup', 'ore']) {
-  const native = fs.readFileSync(`frontend/apps/mobile/src/assets/figures/${id}.riv`);
-  assert.deepEqual(native, fs.readFileSync(`frontend/apps/web/public/figures/${id}.riv`), `${id} native/web Rive bytes`);
-  assert.deepEqual(fs.readFileSync(`frontend/apps/mobile/src/assets/shop/${id}.png`), fs.readFileSync(`frontend/apps/web/public/figures/${id}.png`), `${id} previews`);
+const registry = JSON.parse(fs.readFileSync('backend/src/figure-registry.json', 'utf8'));
+for (const { id, animation } of registry) {
+  const native = fs.readFileSync(`frontend/apps/web/public/figures/${id}.riv`);
+  assert.equal(native.length, animation.bytes, `${id} published length`);
+  assert.equal(createHash('sha256').update(native).digest('hex'), animation.sha256, `${id} published digest`);
+  fs.accessSync(`frontend/apps/web/public/figures/${id}.png`);
+  const bundled = `frontend/apps/mobile/src/assets/figures/${id}.riv`;
+  if (fs.existsSync(bundled)) {
+    assert.deepEqual(native, fs.readFileSync(bundled), `${id} native/web Rive bytes`);
+    assert.deepEqual(fs.readFileSync(`frontend/apps/mobile/src/assets/shop/${id}.png`), fs.readFileSync(`frontend/apps/web/public/figures/${id}.png`), `${id} previews`);
+  }
   const loader = new runtime.CustomFileAssetLoader({ loadContents: () => true });
   const file = await runtime.load(new Uint8Array(native), loader, false);
   assert.equal(file.artboardCount(), 1);
@@ -37,5 +45,5 @@ for (const id of ['fig1', 'fig2', 'bonk', 'jup', 'ore']) {
   if (baseline) assert.deepEqual(contract, baseline, `${id} must preserve authored timing/state contracts`);
   else baseline = contract;
   board.delete(); file.delete(); loader.delete?.();
-  console.log(`${id}: matching geometry, timelines, inputs and native/web assets`);
+  console.log(`${id}: verified digest, geometry, timelines and inputs`);
 }

@@ -21,7 +21,7 @@ import {
   setComputeUnitLimit,
 } from "@metaplex-foundation/mpl-toolbox";
 import { MPL_CORE_PROGRAM_ID } from "@metaplex-foundation/mpl-core";
-import { FIGURES } from "@rps/core/shop";
+import { FIGURES } from "./figure-registry.js";
 import {
   INITIAL_PACK,
   PACK_PAYMENT,

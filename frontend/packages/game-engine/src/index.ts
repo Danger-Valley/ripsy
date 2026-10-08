@@ -124,7 +124,7 @@ export function submitLineup(
   const figureVariants = rawFigureVariants ?? starterFigureVariants();
   if (
     figureVariants.length !== 14
-    || figureVariants.some(value => !Object.values(FigureVariant).some(variant => variant !== FigureVariant.Empty && variant === value))
+    || figureVariants.some(value => !Number.isInteger(value) || value < 1 || value > 255)
   ) {
     throw new Error('A lineup contains an invalid figure variant');
   }
@@ -466,7 +466,7 @@ function validFigureVariants(value: unknown, owners: Owner[] | undefined): Figur
   if (
     Array.isArray(value)
     && value.length === CELLS
-    && value.every(item => Object.values(FigureVariant).some(variant => variant === item))
+    && value.every(item => Number.isInteger(item) && item >= 0 && item <= 255)
   ) return [...value] as FigureVariant[];
   const variants: FigureVariant[] = Array(CELLS).fill(FigureVariant.Empty);
   for (const owner of [Owner.P0, Owner.P1]) {

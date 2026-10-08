@@ -1,5 +1,6 @@
 import { FigureVariant } from '@rps/core';
-import { FIGURES, FIGURE_SLOTS, figureVariantForId, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
+import { FIGURE_SLOTS, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
+import { FIGURES, figureVariantForId } from './figure-registry.js';
 import { ShopError } from './shop-error.js';
 import type { ShopRedis } from './shop-service.js';
 
@@ -178,6 +179,7 @@ function parseAsset(value: unknown, collection: string, publicOrigin: string): O
   return {
     assetId: item.id,
     figureId: definition.id,
+    variant: definition.variant,
     // The app's fighter name is canonical even for NFTs minted before a rename.
     name: definition.name,
     imageUrl: typeof links.image === 'string' ? links.image : `${publicOrigin}/figures/${definition.id}.png`,

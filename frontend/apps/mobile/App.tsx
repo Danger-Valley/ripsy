@@ -15,6 +15,7 @@ import { StartupSplash } from './src/components/startup-splash';
 import { GamePushBannerContext, GamePushOverlay } from './src/components/game-push-banner';
 import { useGamePushAlerts } from './src/hooks/use-game-push-alerts';
 import { useSoundLifecycle } from './src/hooks/use-sounds';
+import { useFigureCatalogLifecycle } from './src/figures/catalog';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const navigationTheme = {
@@ -24,6 +25,7 @@ const navigationTheme = {
 
 function App() {
   useSoundLifecycle();
+  useFigureCatalogLifecycle();
   const [initialState, setInitialState] = useState<InitialState | undefined>();
   const [hasRestoredNavigation, setHasRestoredNavigation] = useState(false);
   // iOS image callbacks can outlive unmount and paint a recycled Home view.

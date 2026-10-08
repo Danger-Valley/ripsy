@@ -5,7 +5,7 @@ import { FIGURES } from '@rps/core/shop';
 import { readFileSync } from 'node:fs';
 
 test('fighter catalog and mint metadata use the approved display names without changing IDs', () => {
-  assert.deepEqual(FIGURES.map(figure => [figure.id, figure.name]), [['fig1', 'RIPSY 001'], ['fig2', 'Seeker fighter'], ['bonk', 'BONK'], ['jup', 'Jup']]);
+  assert.deepEqual(FIGURES.map(figure => [figure.id, figure.name]), [['fig1', 'RIPSY 001'], ['fig2', 'Seeker fighter'], ['bonk', 'BONK'], ['jup', 'Jup'], ['ore', 'ORE']]);
   for (const figure of FIGURES) {
     const metadata = JSON.parse(readFileSync(new URL(`../public/figures/${figure.id}.json`, import.meta.url), 'utf8'));
     assert.equal(metadata.name, figure.name);
@@ -80,5 +80,5 @@ test('updated clients explicitly request the expanded catalog without breaking o
     return new Response(JSON.stringify(catalog));
   });
   assert.deepEqual(await client.catalog(), catalog);
-  assert.equal(requested, 'https://api.example.test/shop/catalog?catalogVersion=2');
+  assert.equal(requested, 'https://api.example.test/shop/catalog?catalogVersion=3');
 });

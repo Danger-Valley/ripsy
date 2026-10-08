@@ -128,7 +128,7 @@ test('expiry requires finalized height and complete history, not a missing RPC r
   await assert.rejects(() => f.chain.status(order), /reconciliation/);
 });
 
-function tokenFixture(id: 'bonk' | 'jup') {
+function tokenFixture(id: 'bonk' | 'jup' | 'ore') {
   const f = fixture();
   f.config.cluster = 'mainnet-beta';
   const payment = FIGURE_TOKEN_PAYMENTS[id]!;
@@ -150,7 +150,7 @@ function tokenFixture(id: 'bonk' | 'jup') {
   return { ...f, payment, mint, source, destination, setBalance: (value: bigint) => { tokenBalance = value; }, setDecimals: (value: number) => { decimals = value; }, setOwner: (value: typeof owner) => { owner = value; } };
 }
 
-for (const id of ['bonk', 'jup'] as const) {
+for (const id of ['bonk', 'jup', 'ore'] as const) {
   test(`${id}: exact checked token payment and Core purchase are atomic with buyer signing`, async () => {
     const f = tokenFixture(id);
     const prepared = await f.chain.prepare(id, f.buyer.publicKey, '0');

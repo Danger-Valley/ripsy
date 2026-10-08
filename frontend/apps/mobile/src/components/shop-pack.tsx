@@ -21,6 +21,7 @@ import { colors, spacing } from '../theme';
 const portraits = {
   jup: require('../assets/shop/jup.png'),
   bonk: require('../assets/shop/bonk.png'),
+  ore: require('../assets/shop/ore.png'),
 };
 export function ShopPack({
   pack,
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
   },
   drops: { flexDirection: 'row', gap: spacing.md },
   drop: { flex: 1, alignItems: 'center', gap: spacing.xs },
-  portrait: { width: 130, height: 130, resizeMode: 'contain' },
+  portrait: { width: '100%', maxWidth: 130, aspectRatio: 1, resizeMode: 'contain' },
   resultReveal: { alignItems: 'center', gap: spacing.xs },
   result: { width: '100%', maxWidth: 220, height: 220, resizeMode: 'contain' },
   name: { fontFamily: homeFont, color: colors.ink, fontSize: 19 },

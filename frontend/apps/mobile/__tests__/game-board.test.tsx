@@ -785,7 +785,7 @@ test.each([false, true])('remounts shuffled figure models with local Back facing
   await ReactTestRenderer.act(() => { renderer = ReactTestRenderer.create(renderBoard(FigureVariant.Fig1)); });
   const localCell = () => renderer.root.find(node => node.props.accessibilityLabel === 'Row 7, column 1, your paper');
   let previousView = localCell().findByProps({ testID: 'rive-view' });
-  for (const variant of [FigureVariant.Fig2, FigureVariant.Bonk, FigureVariant.Jup, FigureVariant.Fig1, FigureVariant.Fig2]) {
+  for (const variant of [FigureVariant.Fig2, FigureVariant.Bonk, FigureVariant.Jup, FigureVariant.Ore, FigureVariant.Fig1, FigureVariant.Fig2]) {
     await ReactTestRenderer.act(() => { renderer.update(renderBoard(variant)); });
     const currentView = localCell().findByProps({ testID: 'rive-view' });
     expect(currentView).not.toBe(previousView);

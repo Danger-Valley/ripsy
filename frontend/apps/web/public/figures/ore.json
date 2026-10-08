@@ -1,0 +1,8 @@
+{
+  "name": "ORE",
+  "description": "Strike gold on the battlefield. An official RIPSY fighter collectible.",
+  "image": "https://www.ripsy.fun/figures/ore.png",
+  "external_url": "https://www.ripsy.fun/shop",
+  "attributes": [{"trait_type":"Figure","value":"ore"},{"trait_type":"Series","value":"RIPSY Originals"}],
+  "properties": {"category":"image","files":[{"uri":"https://www.ripsy.fun/figures/ore.png","type":"image/png"}]}
+}

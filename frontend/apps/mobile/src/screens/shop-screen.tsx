@@ -20,7 +20,7 @@ import { colors, spacing } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
-const images = { fig1: require('../assets/shop/fig1.png'), fig2: require('../assets/shop/fig2.png'), bonk: require('../assets/shop/bonk.png'), jup: require('../assets/shop/jup.png') };
+const images = { fig1: require('../assets/shop/fig1.png'), fig2: require('../assets/shop/fig2.png'), bonk: require('../assets/shop/bonk.png'), jup: require('../assets/shop/jup.png'), ore: require('../assets/shop/ore.png') };
 const scenery = require('../assets/ui/battle-playground.png');
 const showcase = require('../assets/ui/toy-box-home-arena.png');
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;

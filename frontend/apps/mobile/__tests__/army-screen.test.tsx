@@ -125,10 +125,11 @@ test('free army saves locally without a wallet or backend mutation, even offline
   expect(api.saveLoadout).not.toHaveBeenCalled();
 });
 
-test('owned BONK/Jup can be placed in distinct slots with their real names and cached identities', async () => {
+test('owned BONK/Jup/ORE can be placed in distinct slots with their real names and cached identities', async () => {
   const assets: FigureInventory['assets'] = [
     { ...inventory.assets[0], figureId: 'bonk', name: 'BONK' },
     { assetId: 'bbbb222222222222222222222222222222', figureId: 'jup', name: 'Jup', imageUrl: '/figures/jup.png' },
+    { assetId: 'cccc333333333333333333333333333333', figureId: 'ore', name: 'ORE', imageUrl: '/figures/ore.png' },
   ];
   api.inventory.mockResolvedValue({ ...inventory, assets });
   api.saveLoadout.mockImplementation(async slots => ({ ...inventory, assets, slots }));
@@ -137,8 +138,11 @@ test('owned BONK/Jup can be placed in distinct slots with their real names and c
   await press('Equip BONK aaaa…1111');
   await Renderer.act(() => slot(6).props.onPress());
   await press('Equip Jup bbbb…2222');
+  await Renderer.act(() => slot(9).props.onPress());
+  await press('Equip ORE cccc…3333');
   expect(slot(2).props.accessibilityLabel).toContain('BONK');
   expect(slot(6).props.accessibilityLabel).toContain('Jup');
+  expect(slot(9).props.accessibilityLabel).toContain('ORE');
   await press('Save army');
   const slots = api.saveLoadout.mock.calls[0][0];
   expect(slots.filter(Boolean)).toEqual(assets.map(owned => owned.assetId));

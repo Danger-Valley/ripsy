@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-10-07
+Last updated: 2026-10-08
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -25,6 +25,15 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 - Production HTTP and WebSocket endpoint: `https://api.ripsy.fun` / `wss://api.ripsy.fun`.
 - The Railway `Dockerfile` must copy and install `@rps/game-engine` alongside `@rps/backend` and `@rps/core`; production backend imports resolve it as a local npm workspace.
 - Mobile is bare React Native Community CLI with checked-in `ios/` and `android/` projects. Never introduce Expo.
+
+## ORE fighter and pack edition 2 (2026-10-08)
+
+- ORE (`ore`, visual variant 5) costs exactly 0.25 ORE: mint `oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp`, 11 decimals, `25000000000` base units. Read-only mainnet verification confirms initialized classic SPL Token ownership and precision. The server selects the currency/amount; buyer-signed checked transfer and Core creation remain atomic, with no client price overrides or Seeker-only gate.
+- Native and web include the actual user-supplied OreFighter Rive and matching real first-Idle-frame/no-weapon PNG. All five assets have identical artboard, timeline and state-machine-input contracts. Army, online/offline model caches, stationary/jump/combat/trap rendering and pack-result previews recognize variant 5; one exact collectible still occupies only one slot. No Rive timings or facing rules changed.
+- Updated clients request `/shop/catalog?catalogVersion=3`. Version 2 retains only fig2/BONK/Jup; unversioned/version 1 retains fig2. Installed older clients do not understand ORE inventories/game snapshots or edition-2 pack responses and must update before using ORE. Unknown pack responses fail parsing before buyer approval. Do not equate catalog compatibility with old-client support for a new model.
+- `onchain/pack-config.json` prepares immutable edition 2: Jup 40%, BONK 40%, ORE 20%, unchanged 1,099 SKR. Keep `INITIAL_PACK` and existing edition-1 receipts at 50/50. Runtime price/results always come from each onchain edition, never from this candidate JSON. Publishing is separate from deploying code and requires the existing pack admin plus verified live metadata. No program upgrade is needed.
+- Both inspected pack UIs iterate the dynamic table. Native portrait width now fits three rewards without a fixed 130-point overflow. Web uses the existing wrapping layout and dynamic image paths. Operator readiness follows the actually published edition; the API checker compares against the candidate file and therefore intentionally fails until that edition is published.
+- Local code/assets are prepared; native releases and production publication are not implied. See the change ledger for verified checks and activation status.
 
 ## Illustrated startup splash (2026-10-04)
 
@@ -576,6 +585,8 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 ## Change ledger
 
 This ledger summarizes the recent work that established the native reference. Consult `git show <commit>` for exact diffs.
+
+- 2026-10-08 - added ORE (`ore`, variant 5) for exactly 0.25 ORE with verified mainnet mint precision/owner, atomic checked token payment, canonical Core metadata, actual first-frame preview, inventory/slot authorization, offline caches and both native/web Rive rendering. Prepared append-only pack edition 2 (Jup/BONK/ORE 40/40/20, still 1,099 SKR), preserving edition 1 and old paid-order tables. Catalog v3 exposes ORE while v1/v2 keep their existing model sets. All 99 backend, 466 mobile (43 suites), 21 web and 6 Rust tests pass, along with all three app TypeScript checks, focused native lint, web production build, five-figure contract/asset checks and Android production Metro bundling. Vercel's actual dry-run includes all ORE assets and excludes secrets/native/backend source. Local first-frame export was visually inspected; physical-device/paid ORE/VRF tests and native releases are not claimed. Mainnet remains edition 1 until an explicitly approved edition-2 publication; source preparation is not live activation.
 
 - 2026-10-08 - `b54d029` records the accumulated fighter/pack program and shop work, native purchase popup, last-opponent-move tint, trap continuity, finished-result guards, Redis feedback-loop fix, artwork tooling and native release 56 evidence. Web parity remains as described in the matrix; a Git push is not proof of a successful web/backend deployment. Verification before commit: 95 backend, 459 native and 21 web tests pass, with all three app TypeScript checks passing. The initial full native run had two intermittent lineup readiness failures; the isolated 20-test lineup suite and a subsequent complete 459-test run passed without code changes, so test timing remains an investigation item. The explicit commit-all request includes these accumulated changes; future completed tasks should commit/push their scoped non-sensitive changes as recorded in AGENTS.md.
 

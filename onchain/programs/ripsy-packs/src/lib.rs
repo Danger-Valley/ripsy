@@ -585,18 +585,23 @@ mod tests {
         assert!(validate_drops(&d).is_err());
     }
     #[test]
-    fn deterministic_future_reward() {
+    fn deterministic_ore_reward() {
         let mut d = drops();
         d[0].weight = 400_000;
         d[1].weight = 400_000;
         d.push(Drop {
             variant: 5,
             weight: 200_000,
-            name: "Future fighter".into(),
-            uri: "https://www.ripsy.fun/figures/future.json".into(),
+            name: "ORE".into(),
+            uri: "https://www.ripsy.fun/figures/ore.json".into(),
         });
         assert!(validate_drops(&d).is_ok());
+        assert_eq!(drop_for_ticket(0, &d).unwrap(), 0);
+        assert_eq!(drop_for_ticket(399_999, &d).unwrap(), 0);
+        assert_eq!(drop_for_ticket(400_000, &d).unwrap(), 1);
+        assert_eq!(drop_for_ticket(799_999, &d).unwrap(), 1);
         assert_eq!(drop_for_ticket(800_000, &d).unwrap(), 2);
+        assert_eq!(drop_for_ticket(999_999, &d).unwrap(), 2);
         for i in 0u16..256 {
             let r = hashv(&[&i.to_le_bytes()]).to_bytes();
             assert_eq!(choose_drop(&r, &d).unwrap(), choose_drop(&r, &d).unwrap());

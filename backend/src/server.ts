@@ -80,7 +80,8 @@ const server = createServer(async (request, response) => {
     if (request.method === 'OPTIONS') { response.writeHead(204).end(); return; }
     try {
       if (request.method === 'GET' && requestUrl.pathname === '/shop/catalog') {
-        response.writeHead(200).end(JSON.stringify(shop.catalog(requestUrl.searchParams.get('catalogVersion') === '2' ? 2 : 1)));
+        const catalogVersion = requestUrl.searchParams.get('catalogVersion');
+        response.writeHead(200).end(JSON.stringify(shop.catalog(catalogVersion === '3' ? 3 : catalogVersion === '2' ? 2 : 1)));
         return;
       }
       const playerId = verifyBearerSession(request.headers.authorization);

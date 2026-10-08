@@ -13,6 +13,7 @@ const figure1Asset = require('../assets/figures/fig1.riv');
 const figure2Asset = require('../assets/figures/fig2.riv');
 const bonkAsset = require('../assets/figures/bonk.riv');
 const jupAsset = require('../assets/figures/jup.riv');
+const oreAsset = require('../assets/figures/ore.riv');
 const boardArenaAsset = require('../assets/ui/battle-toy-frame-v2.png');
 const boardBorderWidth = 0;
 // Match the inspected blank sand aperture, not the requested AI prompt geometry.
@@ -68,7 +69,8 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
   const { riveFile: figure2File } = useRiveFile(figure2Asset);
   const { riveFile: bonkFile } = useRiveFile(bonkAsset);
   const { riveFile: jupFile } = useRiveFile(jupAsset);
-  const figureFiles = [null, figure1File, figure2File, bonkFile, jupFile];
+  const { riveFile: oreFile } = useRiveFile(oreAsset);
+  const figureFiles = [null, figure1File, figure2File, bonkFile, jupFile, oreFile];
   const boardSize = Math.max(1, Math.min(width - 24, 620, maxSize));
   const playableSize = boardSize * BOARD_PLAYABLE_RATIO;
   const playableInset = (boardSize - playableSize) / 2;

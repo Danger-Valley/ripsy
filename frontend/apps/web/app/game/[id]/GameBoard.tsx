@@ -34,7 +34,8 @@ export function GameBoard(props: Props) {
   const { riveFile: figure2File, status: figure2Status } = useRiveFile({ src: '/figures/fig2.riv' });
   const { riveFile: bonkFile } = useRiveFile({ src: '/figures/bonk.riv' });
   const { riveFile: jupFile } = useRiveFile({ src: '/figures/jup.riv' });
-  const figureFiles = [null, figure1File, figure2File, bonkFile, jupFile];
+  const { riveFile: oreFile } = useRiveFile({ src: '/figures/ore.riv' });
+  const figureFiles = [null, figure1File, figure2File, bonkFile, jupFile, oreFile];
   const figuresReady = figure1Status === 'success' && figure1File && figure2Status === 'success' && figure2File;
   const preview = new Map(props.previewLineup?.map(item => [toIdx(item.x, item.y), item]));
   return (

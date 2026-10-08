@@ -147,6 +147,19 @@ function fixture() {
   };
 }
 const input = { buyer, idempotencyKey: "pack-purchase-request-12345" };
+test('ORE edition has Jup/BONK/ORE 40/40/20 at the unchanged SKR price; old orders remain pinned', () => {
+  const config = JSON.parse(readFileSync(new URL('../../onchain/pack-config.json', import.meta.url), 'utf8'));
+  const catalog = parsePackCatalog({ ...INITIAL_PACK, version: config.version,
+    payment: { ...PACK_PAYMENT, amount: config.priceBaseUnits }, drops: config.drops });
+  assert.equal(catalog.version, 2);
+  assert.equal(packPrice(catalog.payment), '1,099 SKR');
+  assert.deepEqual(catalog.drops, [
+    { figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 },
+  ]);
+  assert.equal(parsePackOrder({ ...prepared, version: 2, drops: catalog.drops, status: 'confirmed', result: 'ore', randomness: 'f'.repeat(64) }).result, 'ore');
+  assert.deepEqual(parsePackOrder(prepared).drops, INITIAL_PACK.drops);
+  assert.throws(() => parsePackOrder({ ...prepared, status: 'confirmed', result: 'ore', randomness: 'f'.repeat(64) }));
+});
 test("confirmed initial pack is 1,099 SKR, Jup/BONK 50/50, no Seeker or free figure", () => {
   assert.equal(packPrice(PACK_PAYMENT), "1,099 SKR");
   assert.deepEqual(INITIAL_PACK.drops, [

@@ -63,6 +63,14 @@ The final deployment preflight balance was **2.524685284 SOL** after funding. An
 
 ## Changing chances
 
+### ORE edition 2 candidate (2026-10-08)
+
+`onchain/pack-config.json` now prepares edition 2: Jup 40%, BONK 40%, ORE 20%, still 1,099 SKR. Historical edition 1 remains unchanged at 50/50; its deployment evidence and paid receipts are not rewritten. Adding ORE needs no program upgrade. Deploy the updated backend and canonical ORE JSON/PNG/Rive first, distribute updated native clients (variant 5), verify live resources, then simulate and explicitly publish with the recorded admin. Until publication, the live catalog continues to report edition 1. This source change alone does not activate the new odds.
+
+Individual ORE purchases use `oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp`, verified mainnet classic SPL Token with 11 decimals. The fixed amount is `25000000000` base units (0.25 ORE), with the existing atomic checked-token-transfer/Core path. No new environment variable or payment key is needed.
+
+The actual edition allocation is 8,985 bytes; a read-only 2026-10-08 RPC quote was 46,294,040 lamports of rent, excluding the transaction fee. The confirmed admin held 191,076,554 lamports at that check. Recheck before publication. No funds were spent obtaining the quote. `check-packs.ts` inspects the active edition's resources; `check-pack-api.mjs` expects the candidate version/weights in `onchain/pack-config.json`, including catalog v3, and should fail until deployment/publication is complete.
+
 Edit `onchain/pack-config.json`, increase `version` by exactly one, and publish a **new** edition. Weights are integers totaling `1000000` (`500000` = 50%, `10000` = 1%). `priceBaseUnits` is an exact SKR integer, never a floating-point number. Initial version 1 is locked to the approved 1,099 SKR / 50-50 specification.
 
 The admin CLI uses an explicit keypair path and simulates by default. Run from the repository root:

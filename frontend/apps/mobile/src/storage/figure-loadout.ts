@@ -18,7 +18,7 @@ export async function loadFigureVariants(): Promise<Record<string, number>> {
   if (!credentials) return {};
   try {
     const value = JSON.parse(credentials.password) as unknown;
-    if (value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(variant => typeof variant === 'number' && [1, 2, 3, 4].includes(variant))) return value as Record<string, number>;
+    if (value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(variant => typeof variant === 'number' && [1, 2, 3, 4, 5].includes(variant))) return value as Record<string, number>;
   } catch {}
   return {};
 }

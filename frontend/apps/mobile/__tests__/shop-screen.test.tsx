@@ -4,7 +4,7 @@ import Renderer from 'react-test-renderer';
 import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { INITIAL_PACK, PACK_PAYMENT } from '@rps/core/packs';
-import { FIGURE_TOKEN_PAYMENTS, type MintOrder, type ShopFigure } from '@rps/core/shop';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, type MintOrder, type ShopFigure } from '@rps/core/shop';
 import { ShopScreen } from '../src/screens/shop-screen';
 import { usePlayerIdentity } from '../src/hooks/use-player-identity';
 import { useSolanaWallet } from '../src/hooks/use-solana-wallet';
@@ -60,6 +60,21 @@ async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
 const packOrder = { ...order, payment: PACK_PAYMENT, drops: INITIAL_PACK.drops, receipt: order.asset, edition: order.asset, version: 1, result: null, randomness: null };
 
+test.each(['ios', 'android'] as const)('ORE pack shows all three chances and its confirmed reward on %s', async os => {
+  jest.replaceProperty(Platform, 'OS', os);
+  const drops = [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }];
+  setPack({ catalog: { ...INITIAL_PACK, available: true, version: 2, drops } });
+  await mount();
+  for (const label of ['Jup', 'BONK', 'ORE', '40% chance', '20% chance']) expect(text(label)).toBe(true);
+  setPack({ catalog: { ...INITIAL_PACK, available: true, version: 2, drops }, hasPurchase: true,
+    order: { ...packOrder, version: 2, drops, status: 'confirmed', result: 'ore' } });
+  await updateScreen();
+  const modal = purchaseModal('pack');
+  expect(modal.findAllByType(Text).some(node => node.props.children === 'ORE')).toBe(true);
+  expect(button('Done')).toBeDefined();
+  expect(pack.prepare).not.toHaveBeenCalled();
+});
+
 test.each(['ios','android'] as const)('packs offer the same SKR price and 50/50 drops on non-Seeker %s, using email signing',async os=>{
   jest.replaceProperty(Platform,'OS',os);
   jest.mocked(usePackShop).mockReturnValue({...pack,catalog:{...INITIAL_PACK,available:true}} as unknown as ReturnType<typeof usePackShop>);
@@ -73,17 +88,17 @@ test.each(['ios','android'] as const)('packs offer the same SKR price and 50/50 
   await press('Approve pack purchase');expect(pack.confirm).toHaveBeenCalledWith(signer);
 });
 
-test.each(['bonk', 'jup'] as const)('%s review shows token price plus separate SOL fees, with no Seeker exclusivity proof', async id => {
+test.each(['bonk', 'jup', 'ore'] as const)('%s review shows token price plus separate SOL fees, with no Seeker exclusivity proof', async id => {
   external();
-  const figure: ShopFigure = { ...fig2, id, variant: id === 'bonk' ? 3 : 4, name: id === 'bonk' ? 'BONK' : 'Jup', seekerExclusive: false, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] };
+  const figure: ShopFigure = { ...fig2, ...FIGURES.find(f => f.id === id)!, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] };
   setShop({ catalog: { ...shop.catalog, figures: [figure] } });
   await mount();
-  expect(text(id === 'bonk' ? '6,900,000 BONK' : '99 JUP')).toBe(true);
+  expect(text(figurePaymentPrice(figure, 'mainnet-beta'))).toBe(true);
   await press(`Buy ${figure.name}`);
   expect(shop.prepare).toHaveBeenCalledWith(id, buyer, undefined);
   setShop({ hasPurchase: true, order: { ...order, figureId: id, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] } });
   await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />));
-  expect(text(id === 'bonk' ? '6,900,000 BONK + 0.001005 SOL' : '99 JUP + 0.001005 SOL')).toBe(true);
+  expect(text(`${figurePaymentPrice(figure, 'mainnet-beta')} + 0.001005 SOL`)).toBe(true);
   expect(text('0 SOL')).toBe(false);
 });
 
@@ -431,15 +446,15 @@ test.each(['ios', 'android'] as const)('ordinary %s offers email registration be
 });
 
 test.each([
-  ['ios', 'bonk'], ['ios', 'jup'], ['android', 'bonk'], ['android', 'jup'],
+  ['ios', 'bonk'], ['ios', 'jup'], ['ios', 'ore'], ['android', 'bonk'], ['android', 'jup'], ['android', 'ore'],
 ] as const)('%s can buy %s with its email account and explicit approval', async (os, id) => {
   jest.replaceProperty(Platform, 'OS', os);
   const signer = jest.fn();
   jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: buyer, signShopTransaction: signer });
-  const figure: ShopFigure = { ...fig2, id, variant: id === 'bonk' ? 3 : 4, name: id === 'bonk' ? 'BONK' : 'Jup', seekerExclusive: false, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] };
+  const figure: ShopFigure = { ...fig2, ...FIGURES.find(f => f.id === id)!, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] };
   setShop({ catalog: { ...shop.catalog, figures: [figure] } });
   await mount();
-  expect(text(id === 'bonk' ? '6,900,000 BONK' : '99 JUP')).toBe(true);
+  expect(text(figurePaymentPrice(figure, 'mainnet-beta'))).toBe(true);
   await press(`Buy ${figure.name}`);
   expect(shop.prepare).toHaveBeenCalledWith(id, buyer, undefined);
   expect(shop.confirm).not.toHaveBeenCalled();
@@ -447,7 +462,7 @@ test.each([
   const savedOrder = { ...order, figureId: id, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] };
   setShop({ catalog: { ...shop.catalog, figures: [figure] }, hasPurchase: true, order: savedOrder });
   await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />));
-  expect(text(id === 'bonk' ? '6,900,000 BONK + 0.001005 SOL' : '99 JUP + 0.001005 SOL')).toBe(true);
+  expect(text(`${figurePaymentPrice(figure, 'mainnet-beta')} + 0.001005 SOL`)).toBe(true);
   await press('Confirm purchase');
   expect(shop.confirm).toHaveBeenCalledWith(signer);
   expect(signShopTransaction).not.toHaveBeenCalled();

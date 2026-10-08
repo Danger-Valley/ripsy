@@ -1,9 +1,11 @@
 // Diagnostic session only. Never signs, submits or creates a paid transaction.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 const origin = 'https://api.ripsy.fun';
 const expectEnabled = process.argv.includes('--enabled');
+const expectedEdition = JSON.parse(readFileSync(new URL('../onchain/pack-config.json', import.meta.url), 'utf8'));
 const get = (path, options = {}) => fetch(`${origin}${path}`, {
   ...options, signal: AbortSignal.timeout(15000),
 });
@@ -25,12 +27,10 @@ try {
   assert.equal(response.status, 200);
   const catalog = await response.json();
   assert.equal(catalog.available, expectEnabled, 'Catalog does not match the requested activation state');
-  assert.equal(catalog.version, 1);
-  assert.equal(catalog.payment.amount, '1099000000');
+  assert.equal(catalog.version, expectedEdition.version);
+  assert.equal(catalog.payment.amount, expectedEdition.priceBaseUnits);
   assert.equal(catalog.payment.mint, 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3');
-  assert.deepEqual(catalog.drops, [
-    { figureId: 'jup', weight: 500000 }, { figureId: 'bonk', weight: 500000 },
-  ]);
+  assert.deepEqual(catalog.drops, expectedEdition.drops);
   // Enabled mode is strictly read-only apart from the diagnostic session.
   // Never attempt a real order during an operator health check.
   if (!expectEnabled) {
@@ -50,6 +50,10 @@ try {
   const modern = await get('/shop/catalog?catalogVersion=2');
   assert.equal(modern.status, 200);
   assert.deepEqual((await modern.json()).figures.map(f => f.id), ['fig2', 'bonk', 'jup']);
+  stage = 'ore-catalog';
+  const current = await get('/shop/catalog?catalogVersion=3');
+  assert.equal(current.status, 200);
+  assert.deepEqual((await current.json()).figures.map(f => f.id), ['fig2', 'bonk', 'jup', 'ore']);
   console.log(JSON.stringify({ healthy: true, authenticationRequired: true,
     packPurchasesBlocked: !catalog.available, priceAndWeightsMatch: true, legacyCatalogCompatible: true,
     paidTransactionCreated: false }));

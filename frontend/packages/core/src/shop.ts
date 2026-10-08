@@ -1,17 +1,19 @@
 /** Shop is deliberately independent of gameplay and its anonymous identity. */
 export type ShopCluster = 'devnet' | 'mainnet-beta';
-export type FigureId = 'fig1' | 'fig2' | 'bonk' | 'jup';
+export type FigureId = 'fig1' | 'fig2' | 'bonk' | 'jup' | 'ore';
 export const FIGURES = [
   { id: 'fig1' as const, name: 'RIPSY 001', variant: 1 as const, description: 'The original RIPSY fighter. Free in every army.', seekerExclusive: false, purchasable: false },
   { id: 'fig2' as const, name: 'Seeker fighter', variant: 2 as const, description: 'A new face for your collection. The same fighting spirit.', seekerExclusive: true, purchasable: true },
   { id: 'bonk' as const, name: 'BONK', variant: 3 as const, description: 'Bring a little BONK to the battlefield.', seekerExclusive: false, purchasable: true },
   { id: 'jup' as const, name: 'Jup', variant: 4 as const, description: 'A new fighter joins your orbit.', seekerExclusive: false, purchasable: true },
+  { id: 'ore' as const, name: 'ORE', variant: 5 as const, description: 'Strike gold on the battlefield.', seekerExclusive: false, purchasable: true },
 ];
 export interface TokenPayment { mint: string; symbol: string; decimals: number; amount: string }
 /** Exact mainnet base units, not floating point prices or client overrides. */
 export const FIGURE_TOKEN_PAYMENTS: Partial<Record<FigureId, TokenPayment>> = {
   bonk: { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK', decimals: 5, amount: '690000000000' },
   jup: { mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', decimals: 6, amount: '99000000' },
+  ore: { mint: 'oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp', symbol: 'ORE', decimals: 11, amount: '25000000000' },
 };
 export const STARTER_FIGURE_ID = 'fig1' as const;
 export const FIGURE_SLOTS = 14;
@@ -19,7 +21,7 @@ export const DEFAULT_SOLANA_MOBILE_STORE_URL = 'https://store.solanamobile.com/'
 export interface ShopFigure {
   id: FigureId;
   name: string;
-  variant: 1 | 2 | 3 | 4;
+  variant: 1 | 2 | 3 | 4 | 5;
   description: string;
   imageUrl: string;
   priceLamports: string | null;
@@ -97,7 +99,7 @@ export function isFigureId(value: unknown): value is FigureId {
   return FIGURES.some(figure => figure.id === value);
 }
 
-export function figureVariantForId(id: FigureId): 1 | 2 | 3 | 4 {
+export function figureVariantForId(id: FigureId): 1 | 2 | 3 | 4 | 5 {
   return FIGURES.find(figure => figure.id === id)!.variant;
 }
 
@@ -117,14 +119,14 @@ export function figurePurchaseTotal(order: MintOrder): string {
 }
 
 /** Persist identities separately from exact asset slots for offline lineups. */
-export function figureAssetVariants(assets: OwnedFigureAsset[]): Record<string, 1 | 2 | 3 | 4> {
+export function figureAssetVariants(assets: OwnedFigureAsset[]): Record<string, 1 | 2 | 3 | 4 | 5> {
   return Object.fromEntries(assets.map(asset => [asset.assetId, figureVariantForId(asset.figureId)]));
 }
 
-export function equippedFigureVariant(assetId: string | null, variants: Record<string, number>): 1 | 2 | 3 | 4 {
+export function equippedFigureVariant(assetId: string | null, variants: Record<string, number>): 1 | 2 | 3 | 4 | 5 {
   if (!assetId) return 1;
   const variant = variants[assetId];
-  return variant === 2 || variant === 3 || variant === 4 ? variant : 2; // Legacy fig2-only caches.
+  return variant === 2 || variant === 3 || variant === 4 || variant === 5 ? variant : 2; // Legacy fig2-only caches.
 }
 
 export function formatSol(lamports: string): string {

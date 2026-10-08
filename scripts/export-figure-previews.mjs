@@ -5,7 +5,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const ids = ['fig1', 'fig2', 'bonk', 'jup'];
+const allIds = ['fig1', 'fig2', 'bonk', 'jup', 'ore'];
+const selected = process.argv.find(arg => arg.startsWith('--figure='))?.slice('--figure='.length);
+if (selected && !allIds.includes(selected)) throw new Error('Unknown figure preview');
+const ids = selected ? [selected] : allIds;
 const html = `<!doctype html><html><meta charset="utf-8"><title>RIPSY figure previews</title>
 <style>body{background:#172129;color:white;font:16px system-ui}canvas{width:400px;height:400px}button{padding:16px}</style>
 <h1>Rive idle frame previews</h1><p id="status">Rendering…</p><div id="figures"></div><button id="export" disabled>Export previews</button>

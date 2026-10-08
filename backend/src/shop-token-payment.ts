@@ -9,7 +9,7 @@ export const SHOP_TOKEN_PROGRAM = publicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss
 export async function shopTokenPayment(umi: Umi, buyer: Signer, treasury: string, payment: TokenPayment) {
   const mint = publicKey(payment.mint);
   const mintAccount = await fetchMint(umi, mint);
-  // These two catalog mints are classic SPL Token, verified on mainnet. Never
+  // Catalog currencies use classic SPL Token. Never
   // silently substitute Token-2022 or accept a changed precision/owner.
   if (mintAccount.header.owner !== SHOP_TOKEN_PROGRAM || !mintAccount.isInitialized || mintAccount.decimals !== payment.decimals) {
     throw new ShopError('The payment currency could not be verified. No payment was sent.', 503);

@@ -24,19 +24,20 @@ const xs = Array.from({ length: 14 }, (_, index) => index % 7);
 const aliceYs = Array.from({ length: 14 }, (_, index) => 5 + Math.floor(index / 7));
 const bobYs = Array.from({ length: 14 }, (_, index) => Math.floor(index / 7));
 
-test('BONK/Jup variants survive saved state, hidden views and movement', () => {
+test('BONK/Jup/ORE variants survive saved state, hidden views and movement', () => {
   const game = createGameRecord('new-figures', 'alice');
   joinGame(game, 'bob');
-  submitLineup(game, 'alice', xs, aliceYs, lineup, new Date(), [3, 4, ...Array(12).fill(1)]);
+  submitLineup(game, 'alice', xs, aliceYs, lineup, new Date(), [5, 4, 3, ...Array(11).fill(1)]);
   submitLineup(game, 'bob', xs, bobYs, lineup);
   const restored = parseGameRecord(JSON.stringify(game));
-  assert.equal(restored.figureVariants[toIdx(0, 5)], 3);
+  assert.equal(restored.figureVariants[toIdx(0, 5)], 5);
   assert.equal(restored.figureVariants[toIdx(1, 5)], 4);
+  assert.equal(restored.figureVariants[toIdx(2, 5)], 3);
   const opponent = gameView(restored, 'bob');
-  assert.equal(opponent.figureVariants![toIdx(0, 5)], 3);
+  assert.equal(opponent.figureVariants![toIdx(0, 5)], 5);
   assert.equal(opponent.pieces[toIdx(0, 5)], Piece.Empty);
   movePiece(restored, 'alice', 0, 5, 0, 4);
-  assert.equal(restored.figureVariants[toIdx(0, 4)], 3);
+  assert.equal(restored.figureVariants[toIdx(0, 4)], 5);
   assert.equal(restored.figureVariants[toIdx(0, 5)], 0);
 });
 

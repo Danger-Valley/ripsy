@@ -18,11 +18,12 @@ const retention = 60 * 60 * 24 * 90;
 export class ShopService {
   constructor(private redis: ShopRedis, private config: ShopConfig, private chain: ShopChain, private prefix = 'ripsy', private seeker?: SeekerGate) {}
 
-  catalog(version = 2) {
+  catalog(version = 3) {
     const catalog = shopCatalog(this.config);
     // Existing native builds reject unknown figure IDs. Keep their browsing
     // usable while updated clients opt into the token-priced catalog.
     if (version < 2) catalog.figures = catalog.figures.filter(figure => figure.variant <= 2);
+    else if (version < 3) catalog.figures = catalog.figures.filter(figure => figure.variant <= 4);
     return catalog;
   }
 

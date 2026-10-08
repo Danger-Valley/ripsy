@@ -5,7 +5,7 @@ export class ShopClient {
   // Browser fetch needs its Window/global receiver, not this ShopClient instance.
   constructor(private baseUrl: string, private token: string, private fetcher: typeof fetch = (...args) => globalThis.fetch(...args)) {}
 
-  async catalog() { return parseShopCatalog(await this.request('/shop/catalog?catalogVersion=2')); }
+  async catalog() { return parseShopCatalog(await this.request('/shop/catalog?catalogVersion=3')); }
   async packCatalog() { return parsePackCatalog(await this.request('/shop/packs/catalog')); }
   async createPack(buyer: string, idempotencyKey: string) { return parsePackOrder(await this.request('/shop/packs/orders', { buyer, idempotencyKey })); }
   async getPack(id: string) { return parsePackOrder(await this.request(`/shop/packs/orders/${encodeURIComponent(id)}`)); }

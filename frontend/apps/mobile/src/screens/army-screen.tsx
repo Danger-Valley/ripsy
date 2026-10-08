@@ -22,6 +22,7 @@ const figureImages = {
   fig2: require('../assets/shop/fig2.png'),
   bonk: require('../assets/shop/bonk.png'),
   jup: require('../assets/shop/jup.png'),
+  ore: require('../assets/shop/ore.png'),
 };
 const scenery = require('../assets/ui/battle-playground.png');
 const woodTray = require('../assets/ui/army-wood-tray.png');

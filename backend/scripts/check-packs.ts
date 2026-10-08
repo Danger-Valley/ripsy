@@ -46,8 +46,12 @@ async function main() {
   if (origin.protocol !== 'https:' || origin.username || origin.password || origin.search || origin.hash)
     throw new Error('Public HTTPS metadata origin required');
   const resources = [];
-  for (const drop of INITIAL_PACK.drops) {
-    const figure = FIGURES.find(f => f.id === drop.figureId)!;
+  const drops = edition?.drops ?? INITIAL_PACK.drops.map(drop => ({
+    variant: FIGURES.find(f => f.id === drop.figureId)!.variant,
+  }));
+  for (const drop of drops) {
+    const figure = FIGURES.find(f => f.variant === drop.variant && f.purchasable && !f.seekerExclusive);
+    if (!figure) throw new Error('Unsupported published pack figure');
     const uri = `${config.publicOrigin}/figures/${figure.id}.json`;
     const image = `${config.publicOrigin}/figures/${figure.id}.png`;
     let metadataOk = false, imageOk = false;

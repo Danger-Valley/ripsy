@@ -17,7 +17,7 @@ child.on('close', code => {
     if (unsafe) throw new Error(`Unsafe deployment path: ${unsafe}`);
     for (const path of ['package.json', 'package-lock.json', 'scripts/apply-patches.mjs',
       'frontend/apps/web/package.json', 'frontend/tsconfig.base.json', 'frontend/packages/core/src/packs.ts',
-      ...['jup', 'bonk'].flatMap(id => ['json', 'png', 'riv'].map(ext => `frontend/apps/web/public/figures/${id}.${ext}`))])
+      ...['jup', 'bonk', 'ore'].flatMap(id => ['json', 'png', 'riv'].map(ext => `frontend/apps/web/public/figures/${id}.${ext}`))])
       if (!files.includes(path)) throw new Error(`Required web input missing: ${path}`);
     console.log(JSON.stringify({ verified: true, sourceFiles: files.length, sourceBytes: data.totalSize,
       backendAndNativeExcluded: true, secretsExcluded: true }));

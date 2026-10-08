@@ -10,7 +10,7 @@ RuntimeLoader.setWasmBinary(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffse
 RuntimeLoader.setWasmFallbackUrl(null);
 const runtime = await RuntimeLoader.awaitInstance();
 let baseline;
-for (const id of ['fig1', 'fig2', 'bonk', 'jup']) {
+for (const id of ['fig1', 'fig2', 'bonk', 'jup', 'ore']) {
   const native = fs.readFileSync(`frontend/apps/mobile/src/assets/figures/${id}.riv`);
   assert.deepEqual(native, fs.readFileSync(`frontend/apps/web/public/figures/${id}.riv`), `${id} native/web Rive bytes`);
   assert.deepEqual(fs.readFileSync(`frontend/apps/mobile/src/assets/shop/${id}.png`), fs.readFileSync(`frontend/apps/web/public/figures/${id}.png`), `${id} previews`);

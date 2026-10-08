@@ -13,6 +13,7 @@ import {
   PACK_PROGRAM_ID,
   INITIAL_PACK,
   parsePackOrder,
+  type PackCatalog,
   type PackOrder,
 } from "@rps/core/packs";
 import { FIGURES } from "@rps/core/shop";
@@ -24,7 +25,7 @@ import {
 import { createPackChain } from "./pack-chain.js";
 import { loadShopConfig } from "./shop-config.js";
 
-async function fixture() {
+async function fixture(catalog: PackCatalog = INITIAL_PACK) {
   const umi = createUmi("http://127.0.0.1:8899");
   const authority = generateSigner(umi),
     buyer = generateSigner(umi),
@@ -47,7 +48,7 @@ async function fixture() {
       })
     )[0];
   const version = Buffer.alloc(4);
-  version.writeUInt32LE(1);
+  version.writeUInt32LE(catalog.version);
   const root = await pda([utf("config")]),
     edition = await pda([utf("edition"), version]);
   const rootData = Buffer.concat([
@@ -59,9 +60,9 @@ async function fixture() {
     Buffer.from([0, 255]),
   ]);
   const d = publishEditionData(
-    1,
+    catalog.version,
     BigInt(PACK_PAYMENT.amount),
-    INITIAL_PACK.drops.map((drop) => {
+    catalog.drops.map((drop) => {
       const f = FIGURES.find((f) => f.id === drop.figureId)!;
       return {
         variant: f.variant,
@@ -232,4 +233,25 @@ test("wrong-owner receipt and purchase simulation failure stay fail-closed", asy
     () => g.chain.prepare(g.buyer.publicKey, new Uint8Array(32)),
     /No payment was sent/
   );
+});
+test('edition 2 maps the verified ORE result and fixes its claim recipient without changing old receipts', async () => {
+  const catalog: PackCatalog = { ...INITIAL_PACK, version: 2, drops: [
+    { figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 },
+  ] };
+  const f = await fixture(catalog);
+  assert.equal(f.order.version, 2);
+  assert.deepEqual((await f.chain.catalog()).drops, catalog.drops);
+  f.setReceipt(1, 2);
+  assert.equal((await f.chain.status(f.order)).result, 'ore');
+  parsePackOrder({ ...f.order, ...(await f.chain.status(f.order)) });
+  const claim = await f.chain.prepareClaim(f.order);
+  const tx = f.umi.transactions.deserialize(Buffer.from(claim.transaction, 'base64'));
+  const ix = tx.message.instructions.at(-1)!;
+  assert.equal(tx.message.accounts[ix.accountIndexes[3]!], f.buyer.publicKey);
+  assert.equal(tx.message.accounts[ix.accountIndexes[6]!], f.order.asset);
+  const old = await fixture();
+  old.setReceipt(1, 1);
+  assert.equal((await old.chain.status(old.order)).result, 'bonk');
+  assert.equal(old.order.version, 1);
+  assert.deepEqual(old.order.drops, INITIAL_PACK.drops);
 });

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RIPSY pack edition 2 - finalized publication</title>
+<style>
+  body{margin:0;background:#f2f6fa;color:#17334c;font:16px/1.6 system-ui,sans-serif}
+  main{max-width:850px;margin:40px auto;padding:32px;background:white;border-radius:18px}
+  h1{line-height:1.2}h2{margin-top:28px;font-size:20px}code{overflow-wrap:anywhere}
+  dt{font-weight:650;margin-top:12px}dd{margin:4px 0}a{color:#086d9d}
+  .status{padding:16px;border-radius:10px;background:#e0f5ee}.pending{background:#fff3d6;padding:16px;border-radius:10px}
+  table{border-collapse:collapse;width:100%;text-align:left}th,td{padding:10px;border-bottom:1px solid #dbe5ed}
+  @media(max-width:700px){main{margin:12px;padding:20px}}
+</style>
+<main>
+  <h1>Fighter pack edition 2</h1>
+  <p class="status">Published and finalized on Solana mainnet. Production API reports purchases available.</p>
+  <p>Verified 8 October 2026 at 12:23 UTC. Price remains <strong>1,099 SKR</strong>.</p>
+  <table><thead><tr><th>Fighter</th><th>Chance</th><th>Weight</th></tr></thead>
+    <tbody><tr><td>Jup</td><td>40%</td><td>400000</td></tr>
+      <tr><td>BONK</td><td>40%</td><td>400000</td></tr>
+      <tr><td>ORE</td><td>20%</td><td>200000</td></tr></tbody>
+  </table>
+  <dl>
+    <dt>Finalized transaction</dt>
+    <dd><a href="https://explorer.solana.com/tx/2h9bWNFbbTe7qjW7sWUrL1CjK3sBoH2THoM9kMhsNDcd87AHAZHvpUMmoBpLUNSoKY478w6ra8s7kx2nvMZ7JZXr">View publication</a> - slot 454543522</dd>
+    <dt>Edition account</dt><dd><code>GXTL36kxVXCTH6pZcQWYQmPD6E1fcJSsCW4yJeokWXPT</code></dd>
+    <dt>Fee payer</dt><dd><code>BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh</code></dd>
+    <dt>Actual publication cost</dt><dd>0.04629404 SOL rent + 0.000005 SOL fee = <strong>0.04629904 SOL</strong>.</dd>
+    <dt>Fee payer balance after this transaction</dt><dd>0.144777514 SOL</dd>
+  </dl>
+  <h2>Verified</h2>
+  <ul>
+    <li>Explicit user approval, correct mainnet genesis/admin, sufficient funds and no existing edition 2 before publication.</li>
+    <li>Successful signed simulation before broadcast, followed by finalized transaction success and exact balance accounting.</li>
+    <li>Edition version, price, weights, names, metadata URIs, collection, treasury and delivery authority match the intended table.</li>
+    <li>Historical edition 1 remains Jup/BONK 50/50. Existing paid receipts retain their original terms.</li>
+    <li>Canonical live metadata and exact PNG preview bytes verified for all three rewards.</li>
+    <li>Production API reports edition 2, unchanged price, exact chances and available=true. Catalog v1/v2 compatibility and ORE catalog v3 verified.</li>
+    <li>Nineteen focused pack/backend regressions pass. No program upgrade, authority change or customer purchase was performed.</li>
+  </ul>
+  <h2>Rollout and operational limits</h2>
+  <p class="pending">Native build 56 does not contain ORE. A new iOS/Android release is required to use variant 5. This publication did not upload native builds or verify a real paid VRF-to-Core purchase.</p>
+  <p>The delivery authority held 0.00878604 SOL at readiness check. Monitor its funding; this is not guaranteed ongoing claim capacity. The local PACK_ENABLED value is false; the live API independently confirms purchases enabled.</p>
+  <p>Edition 2 is append-only. Any approved rollback or replacement must publish a new sequential edition, not overwrite existing receipts. Existing program upgrade authority and oracle/delivery trust assumptions are unchanged; this is not a completed security audit.</p>
+  <p>Machine-readable evidence: <a href="edition-2-publication.json">edition-2-publication.json</a>.</p>
+</main>
+</html>

@@ -34,12 +34,16 @@ build_status:
   packs_enabled: true
   pack_config_initialized: true
   pack_config_paused: false
-  pack_edition: 1
+  pack_edition: 2
+  pack_edition_updated_at: 2026-10-08T12:23:29.402Z
+  pack_edition_signature: 2h9bWNFbbTe7qjW7sWUrL1CjK3sBoH2THoM9kMhsNDcd87AHAZHvpUMmoBpLUNSoKY478w6ra8s7kx2nvMZ7JZXr
+  pack_drop_percentages: { jup: 40, bonk: 40, ore: 20 }
   pack_price_skr: 1099
   web_metadata_deployed: true
   backend_pack_routes_deployed: true
   native_pack_release_uploaded: true
   native_release_build: 56
+  native_ore_release_uploaded: false
   real_vrf_core_end_to_end_verified: false
 ```
 
@@ -60,3 +64,14 @@ on Seeker. No SKR purchase was made by the operator.
 
 Deployment evidence: `onchain/mainnet-deployment.json`,
 `onchain/deployment-report.html`, and `PACK_SHOP_SETUP.md`.
+
+On 2026-10-08 the user explicitly approved and the operator published immutable
+edition 2 (Jup 40%, BONK 40%, ORE 20%, unchanged 1,099 SKR). Signed simulation,
+finalized account/transaction/fee verification and the live enabled API check
+pass; historical edition 1 remains unchanged. The backend source commit
+3794a0f is deployed, and live ORE metadata/previews are verified. Actual rent
+plus fee was 0.04629904 SOL from the approved RIPSY fees wallet. No program
+upgrade, authority change or paid customer test occurred. Native build 56 is
+still the last uploaded release and does not include ORE; new native builds
+are required. Publication evidence: `onchain/edition-2-publication.json` and
+`onchain/edition-2-report.html`.

@@ -19,6 +19,7 @@ import { WalletVerificationService } from './wallet-verification.js';
 import { createPackChain } from './pack-chain.js';
 import { figureManifest } from './figure-resources.js';
 import { PackService } from './pack-service.js';
+import { loadMobileUpdatePolicy, sendMobileUpdatePolicy } from './mobile-update-policy.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -32,6 +33,7 @@ if (!configuredSessionSecret && process.env.NODE_ENV === 'production') {
 const sessionManager = new SessionManager(configuredSessionSecret ?? 'ripsy-local-development-secret-change-me', sessionTtlSeconds);
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,http://localhost:3100').split(',').map(value => value.trim()).filter(Boolean));
 const diagnose = createBackendDiagnostics();
+const mobileUpdatePolicy = loadMobileUpdatePolicy(process.env);
 
 const commandClient = createClient({ url: redisUrl });
 const subscriber = commandClient.duplicate();
@@ -74,6 +76,11 @@ const packs = new PackService(commandClient as unknown as ShopRedis, createPackC
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+  if (requestUrl.pathname === '/mobile/update-policy') {
+    if (!applyCors(request.headers.origin, response)) return;
+    sendMobileUpdatePolicy(request, response, mobileUpdatePolicy);
+    return;
+  }
   if (requestUrl.pathname.startsWith('/shop/')) {
     if (!applyCors(request.headers.origin, response)) return;
     response.setHeader('cache-control', 'no-store');

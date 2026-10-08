@@ -17,6 +17,7 @@ class MainApplication : Application(), ReactApplication {
           add(PrivyWalletPackage())
           add(RipsyAudioPackage())
           add(RipsyFigureCachePackage())
+          add(RipsyAppInfoPackage())
         },
     )
   }

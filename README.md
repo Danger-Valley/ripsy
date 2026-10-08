@@ -60,6 +60,8 @@ Games expire after seven days of inactivity by default. Configure the backend wi
 
 Agents working on the web gameplay experience should start with [WEB_PARITY_HANDOFF.md](WEB_PARITY_HANDOFF.md). It records the native reference behavior, shared backend contracts, Rive animation details, and the remaining web parity backlog.
 
+Mandatory mobile updates are controlled by the Railway backend's `MOBILE_UPDATE_POLICY`. See [APP_UPDATES.md](APP_UPDATES.md) for separate iOS, Google Play and Seeker/dApp Store minimum builds, safe activation and rollback. The gate is disabled by default and requires a new native release before installed users can receive it.
+
 ## Game flow
 
 1. Player 0 creates a room and shares its URL.

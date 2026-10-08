@@ -4,6 +4,7 @@
 // modifying legacy Xcode target membership or adding a CocoaPods dependency.
 #include "Audio/RipsyAudioModule.inc"
 #include "Figures/RipsyFigureCache.inc"
+#include "Updates/RipsyAppInfo.inc"
 
 @interface RCT_EXTERN_MODULE(PrivyWallet, NSObject)
 

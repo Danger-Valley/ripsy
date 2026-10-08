@@ -16,6 +16,7 @@ import { GamePushBannerContext, GamePushOverlay } from './src/components/game-pu
 import { useGamePushAlerts } from './src/hooks/use-game-push-alerts';
 import { useSoundLifecycle } from './src/hooks/use-sounds';
 import { useFigureCatalogLifecycle } from './src/figures/catalog';
+import { AppUpdateGate } from './src/updates/app-update-gate';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const navigationTheme = {
@@ -23,7 +24,7 @@ const navigationTheme = {
   colors: { ...DefaultTheme.colors, background: colors.background, card: colors.background, border: colors.border, primary: colors.primary, text: colors.text },
 };
 
-function App() {
+function GameApp() {
   useSoundLifecycle();
   useFigureCatalogLifecycle();
   const [initialState, setInitialState] = useState<InitialState | undefined>();
@@ -120,5 +121,9 @@ function App() {
 const styles = StyleSheet.create({
   app: { flex: 1 },
 });
+
+function App() {
+  return <AppUpdateGate><GameApp /></AppUpdateGate>;
+}
 
 export default App;

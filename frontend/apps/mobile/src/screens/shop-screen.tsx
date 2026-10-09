@@ -1,11 +1,12 @@
 import { ActivityIndicator, AppState, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { packPurchaseStorage } from '../storage/pack-purchase';
 import { packPurchaseTitle, ShopPack, ShopPackPurchase } from '../components/shop-pack';
 import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, isTerminalMint, solanaExplorer, type ShopFigure } from '@rps/core/shop';
+import { isTerminalPack } from '@rps/core/packs';
 import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
@@ -48,12 +49,24 @@ export function ShopScreen({ navigation, route }: Props) {
   const order = shop.order;
   const [walletKind, setWalletKind] = useState<'external' | 'privy'>(wallet.isSupported && !route.params?.signIn ? 'external' : 'privy');
   const [walletOpen, setWalletOpen] = useState(Boolean(route.params?.signIn));
-  const [purchasePopup, setPurchasePopup] = useState<'figure' | 'pack' | null>(shop.hasPurchase ? 'figure' : pack.hasPurchase ? 'pack' : null);
-  // Open new/restored intents once, not after every background status update.
-  // Closing a popup does not clear the durable purchase or permit a new charge.
+  const [purchasePopup, setPurchasePopup] = useState<'figure' | 'pack' | null>(null);
+  const seenPurchases = useRef({ figure: false, pack: false });
+  // Recover unfinished intents once. A saved terminal receipt is history, not
+  // a new purchase: keep it available through View purchase without opening it.
+  // Status updates never reopen a manually hidden popup or discard recovery data.
   useEffect(() => {
-    setPurchasePopup(shop.hasPurchase ? 'figure' : pack.hasPurchase ? 'pack' : null);
-  }, [shop.hasPurchase, pack.hasPurchase]);
+    const previous = seenPurchases.current;
+    const openFigure = shop.hasPurchase && !previous.figure && (!order || !isTerminalMint(order));
+    const openPack = pack.hasPurchase && !previous.pack && (!pack.order || !isTerminalPack(pack.order));
+    seenPurchases.current = { figure: shop.hasPurchase, pack: pack.hasPurchase };
+    setPurchasePopup(current => {
+      if (openFigure) return 'figure';
+      if (openPack) return 'pack';
+      if (current === 'figure' && previous.figure && !shop.hasPurchase) return null;
+      if (current === 'pack' && previous.pack && !pack.hasPurchase) return null;
+      return current;
+    });
+  }, [shop.hasPurchase, pack.hasPurchase, order, pack.order]);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);

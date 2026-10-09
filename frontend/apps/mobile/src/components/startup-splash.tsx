@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
 import { homeArt, homeFont } from './toy-home-controls';
+
+const splashArtwork = require('../assets/ui/splash-playground-v1.png');
 
 /** Finish actual restoration and local image loading, without a branding delay. */
 export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void }) {
@@ -23,20 +25,50 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
     const fallback = setTimeout(finish, 1500);
     return () => clearTimeout(fallback);
   }, [finish, onArtworkReady]);
-  const { width, height } = useWindowDimensions();
+  const window = useWindowDimensions();
+  const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
+  const [loadingHeight, setLoadingHeight] = useState<number | null>(null);
   const insets = useSafeAreaInsets();
-  const logoWidth = Math.min(width * 0.78, 440, height * 0.7);
+  const fitArtwork = Platform.OS === 'android';
+  const { width, height } = fitArtwork && viewport ? viewport : window;
+  const source = Image.resolveAssetSource(splashArtwork);
+  const sourceWidth = source?.width ?? 0;
+  const sourceHeight = source?.height ?? 0;
+  const artworkRatio = sourceWidth > 0 && sourceHeight > 0 ? sourceWidth / sourceHeight : 0.5;
+  // Android windows vary with edge-to-edge, navigation mode and multi-window.
+  // Fit the whole illustration to the measured view, not a cropped window-sized image.
+  const loadingReserve = 32 + (loadingHeight ?? 36 + 12 + 24 * Math.min(window.fontScale, 1.6)) + 16;
+  const artworkTop = insets.top + 8;
+  const availableHeight = Math.max(1, height - artworkTop - insets.bottom - loadingReserve);
+  const availableWidth = Math.max(1, width - insets.left - insets.right);
+  const artworkWidth = Math.min(availableWidth, availableHeight * artworkRatio);
+  const artworkHeight = artworkWidth / artworkRatio;
+  const artworkFrame = {
+    position: 'absolute' as const,
+    width: artworkWidth,
+    height: artworkHeight,
+    left: insets.left + (availableWidth - artworkWidth) / 2,
+    top: artworkTop + (availableHeight - artworkHeight) / 2,
+  };
+  const logoWidth = fitArtwork
+    ? Math.min(artworkWidth * 0.78, 440, artworkHeight * 0.7)
+    : Math.min(width * 0.78, 440, height * 0.7);
   const logoHeight = logoWidth / 2.5;
   return (
-    <View testID="startup-splash" style={styles.screen}>
+    <View testID="startup-splash" style={styles.screen} onLayout={({ nativeEvent: { layout } }) => {
+      if (fitArtwork && layout.width > 0 && layout.height > 0) {
+        setViewport(previous => previous?.width === layout.width && previous?.height === layout.height
+          ? previous : { width: layout.width, height: layout.height });
+      }
+    }}>
       <Image
-        source={require('../assets/ui/splash-playground-v1.png')}
-        resizeMode="cover"
+        source={splashArtwork}
+        resizeMode={fitArtwork ? 'contain' : 'cover'}
         onLoadEnd={() => imageSettled('background')}
         accessible={false}
         accessibilityElementsHidden
         importantForAccessibility="no"
-        style={StyleSheet.absoluteFill}
+        style={fitArtwork ? artworkFrame : StyleSheet.absoluteFill}
       />
       <Image
         source={homeArt.logo}
@@ -47,10 +79,18 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
         style={[styles.logo, {
           width: logoWidth,
           height: logoHeight,
-          top: Math.max(insets.top + 16, height * 0.25 - logoHeight / 2),
+          ...(fitArtwork ? {
+            left: artworkFrame.left + (artworkWidth - logoWidth) / 2,
+            top: artworkFrame.top + artworkHeight * 0.25 - logoHeight / 2,
+          } : {
+            top: Math.max(insets.top + 16, height * 0.25 - logoHeight / 2),
+          }),
         }]}
       />
-      <View style={[styles.loading, { bottom: insets.bottom + 32 }]}>
+      <View testID="startup-loading" style={[styles.loading, { bottom: insets.bottom + 32 }]}
+        onLayout={({ nativeEvent: { layout } }) => {
+          if (fitArtwork && layout.height > 0) setLoadingHeight(layout.height);
+        }}>
         <Text maxFontSizeMultiplier={1.6} style={styles.caption}>Opening the toy box…</Text>
         <ActivityIndicator accessibilityLabel="Loading RIPSY" accessibilityRole="progressbar" color={colors.ink} size="large" />
       </View>

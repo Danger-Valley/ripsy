@@ -151,6 +151,14 @@ function tokenFixture(id: 'bonk' | 'jup' | 'ore') {
 }
 
 for (const id of ['bonk', 'jup', 'ore'] as const) {
+  test(`${id}: admin quote changes the actual checked transfer amount without changing currency`, async () => {
+    const f = tokenFixture(id); const quote = { ...f.payment, amount: (BigInt(f.payment.amount) / 2n).toString() };
+    const prepared = await f.chain.prepare(id, f.buyer.publicKey, '0', quote);
+    const tx = f.umi.transactions.deserialize(Buffer.from(prepared.transaction, 'base64'));
+    assert.equal(Buffer.from(tx.message.instructions[1]!.data).readBigUInt64LE(1), BigInt(quote.amount));
+    await assert.rejects(() => f.chain.prepare(id, f.buyer.publicKey, '0', { ...quote, mint: f.buyer.publicKey }), /currency/);
+    await assert.rejects(() => f.chain.prepare(id, f.buyer.publicKey, '0', { ...quote, amount: '0' }), /currency/);
+  });
   test(`${id}: exact checked token payment and Core purchase are atomic with buyer signing`, async () => {
     const f = tokenFixture(id);
     const prepared = await f.chain.prepare(id, f.buyer.publicKey, '0');

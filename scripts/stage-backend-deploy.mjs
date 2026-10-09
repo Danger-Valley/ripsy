@@ -19,6 +19,10 @@ for (const base of ['backend', 'frontend/packages/core', 'frontend/packages/game
   walk(`${base}/src`);
 }
 let bytes = 0;
+// Only approved preview images are needed by admin edition-resource verification.
+for (const entry of readdirSync(join(root, 'frontend/apps/web/public/figures'), { withFileTypes: true })) {
+  if (entry.isFile() && /^[a-z0-9-]+\.png$/.test(entry.name)) files.push(`frontend/apps/web/public/figures/${entry.name}`);
+}
 for (const file of files) {
   if (/(^|\/)(\.env[^/]*|keys)(\/|$)|keypair|\.(p8|p12|jks|keystore)$/i.test(file))
     throw new Error(`Unsafe deployment input: ${file}`);

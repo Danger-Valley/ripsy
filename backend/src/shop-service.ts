@@ -6,6 +6,7 @@ import { shopCatalog, type ShopConfig } from './shop-config.js';
 import type { ShopChain } from './shop-chain.js';
 import { ShopError } from './shop-error.js';
 import type { SeekerGate } from './seeker-verification.js';
+import type { ShopPricingService } from './shop-pricing.js';
 export { ShopError } from './shop-error.js';
 
 export interface ShopRedis {
@@ -17,7 +18,13 @@ interface StoredOrder { playerId: string; order: MintOrder; signed?: string }
 const retention = 60 * 60 * 24 * 90;
 
 export class ShopService {
-  constructor(private redis: ShopRedis, private config: ShopConfig, private chain: ShopChain, private prefix = 'ripsy', private seeker?: SeekerGate) {}
+  constructor(private redis: ShopRedis, private config: ShopConfig, private chain: ShopChain, private prefix = 'ripsy', private seeker?: SeekerGate, private pricing?: ShopPricingService) {}
+
+  async liveCatalog(version = 3) {
+    const catalog = this.pricing ? await this.pricing.catalog() : shopCatalog(this.config);
+    catalog.figures = catalog.figures.filter(figure => version >= 4 || figure.variant <= (version < 2 ? 2 : version < 3 ? 4 : 5));
+    return catalog;
+  }
 
   catalog(version = 3) {
     const catalog = shopCatalog(this.config);
@@ -40,10 +47,7 @@ export class ShopService {
     if (buyer === this.config.treasury || buyer === this.config.collection) throw new ShopError('Use a customer wallet for this purchase');
     if (typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(input.idempotencyKey)) throw new ShopError('Invalid purchase request ID');
     const figureId = input.figureId;
-    const tokenPayment = FIGURE_TOKEN_PAYMENTS[figureId];
-    if (tokenPayment && this.config.cluster !== 'mainnet-beta') throw new ShopError('This figure is only available on the production store.', 409);
-    const price = tokenPayment ? '0' : this.config.prices[figureId];
-    if (!price) throw new ShopError('This figure is not available yet', 409);
+    if (FIGURE_TOKEN_PAYMENTS[figureId] && this.config.cluster !== 'mainnet-beta') throw new ShopError('This figure is only available on the production store.', 409);
     const id = createHash('sha256').update(`${playerId}:${input.idempotencyKey}`).digest('hex');
     return this.lock(id, async () => {
       const existing = await this.read(id, playerId, false);
@@ -51,6 +55,11 @@ export class ShopService {
         if (existing.order.buyer !== buyer || existing.order.figureId !== figureId) throw new ShopError('Purchase request already used', 409);
         return this.refresh(existing);
       }
+      // A saved request retains its original quote even after an admin price change.
+      const quote = this.pricing ? await this.pricing.payment(figureId) : { price: FIGURE_TOKEN_PAYMENTS[figureId] ? '0' : this.config.prices[figureId], tokenPayment: FIGURE_TOKEN_PAYMENTS[figureId] };
+      const { price, tokenPayment } = quote;
+      if (tokenPayment && this.config.cluster !== 'mainnet-beta') throw new ShopError('This figure is only available on the production store.', 409);
+      if (!price) throw new ShopError('This figure is not available yet', 409);
       if (FIGURES.find(f => f.id === figureId)!.seekerExclusive) {
         if (!this.seeker) throw new ShopError('Seeker verification is temporarily unavailable. Try again shortly.', 503);
         await this.seeker.assertVerified(playerId, buyer);
@@ -58,7 +67,7 @@ export class ShopService {
       const bucket = `${this.prefix}:shop:rate:${playerId}:${Math.floor(Date.now() / 60_000)}`;
       const count = Number(await this.redis.eval("local n = redis.call('INCR', KEYS[1]); if n == 1 then redis.call('EXPIRE', KEYS[1], 120) end; return n", { keys: [bucket], arguments: [] }));
       if (count > 8) throw new ShopError('Too many mint requests. Wait a minute and try again.', 429);
-      const prepared = await this.chain.prepare(figureId, buyer, price);
+      const prepared = await this.chain.prepare(figureId, buyer, price, tokenPayment);
       const order: MintOrder = {
         id, figureId, buyer, ...prepared, cluster: this.config.cluster, priceLamports: price,
         ...(tokenPayment ? { tokenPayment: { ...tokenPayment } } : {}),

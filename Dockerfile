@@ -14,6 +14,9 @@ RUN npm ci --ignore-scripts --workspace @rps/backend --workspace @rps/core --wor
 COPY backend ./backend
 COPY frontend/packages/core ./frontend/packages/core
 COPY frontend/packages/game-engine ./frontend/packages/game-engine
+# Publication verifies immutable metadata against the approved preview bytes.
+# PNGs only, no Rive/native/web build output in the backend image.
+COPY frontend/apps/web/public/figures/*.png ./frontend/apps/web/public/figures/
 
 ENV NODE_ENV=production
 EXPOSE 8080

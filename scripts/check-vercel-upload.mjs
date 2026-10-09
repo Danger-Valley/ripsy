@@ -20,6 +20,8 @@ child.on('close', code => {
     for (const path of ['package.json', 'package-lock.json', 'scripts/apply-patches.mjs',
       'frontend/apps/web/package.json', 'frontend/tsconfig.base.json', 'frontend/packages/core/src/packs.ts',
       'frontend/packages/core/src/figure-manifest.ts',
+      'frontend/packages/core/src/shop-admin.ts', 'frontend/apps/web/app/admin/shop/page.tsx',
+      'frontend/apps/web/app/admin/shop/shop-admin-content.tsx',
       ...figures.flatMap(({ id, purchasable }) => (purchasable ? ['json', 'png', 'riv'] : ['png', 'riv']).map(ext => `frontend/apps/web/public/figures/${id}.${ext}`))])
       if (!files.includes(path)) throw new Error(`Required web input missing: ${path}`);
     console.log(JSON.stringify({ verified: true, sourceFiles: files.length, sourceBytes: data.totalSize,

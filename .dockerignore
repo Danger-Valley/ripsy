@@ -1,7 +1,14 @@
 .git
 .superstack
 node_modules
-frontend/apps
+frontend/apps/*
+!frontend/apps/web
+frontend/apps/web/*
+!frontend/apps/web/public
+frontend/apps/web/public/*
+!frontend/apps/web/public/figures
+frontend/apps/web/public/figures/*
+!frontend/apps/web/public/figures/*.png
 frontend/packages/game-client
 *.pdf
 **/build

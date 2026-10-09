@@ -1,0 +1,51 @@
+.page { max-width: 1280px; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 24px max(32px, env(safe-area-inset-bottom)); min-height: 100dvh; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+.header h1 { color: var(--foreground); font-size: clamp(28px, 4vw, 44px); line-height: 1.12; margin: 12px 0; }
+.page p { line-height: 1.5; max-width: 70ch; }
+.page h2 { margin: 0 0 12px; font-size: 24px; }
+.page h3 { margin: 24px 0 12px; }
+.page a { color: var(--foreground); text-underline-offset: 4px; }
+.card { background: var(--card); border-radius: 24px; padding: 24px; box-shadow: 0 6px 0 var(--toy-sand-dark); margin-bottom: 28px; min-width: 0; }
+.sectionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.sectionHeader p { color: var(--muted-foreground); margin: 0; }
+.badge { display: inline-block; border-radius: 12px; padding: 8px 12px; background: var(--toy-yellow-light); font-size: 14px; font-weight: 700; white-space: nowrap; }
+.address { display: block; overflow-wrap: anywhere; font-family: var(--font-mono), monospace; font-size: 13px; line-height: 1.5; }
+.actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.page button { padding: 12px 16px; min-height: 44px; font-size: 16px; font-weight: 700; }
+.page button:disabled { cursor: not-allowed; opacity: .55; }
+.primary { background: var(--gradient-accent); box-shadow: 0 4px 0 var(--toy-yellow-dark); }
+.page .primary:hover:not(:disabled) { background: var(--reward); }
+.figures { display: grid; gap: 24px; margin: 24px 0; }
+.figure { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; align-items: start; }
+.figure img { object-fit: contain; background: var(--background); border-radius: 12px; }
+.figure p { font-size: 14px; color: var(--muted-foreground); margin: 4px 0 8px; }
+.currency { display: inline-block; margin-left: 8px; font-size: 14px; font-weight: 400; }
+.page label { display: block; font-weight: 700; margin-bottom: 8px; }
+.page input:not([type=checkbox]) { width: 100%; min-height: 48px; padding: 12px; border: 1px solid var(--muted-foreground); border-radius: 12px; background: var(--input); color: var(--foreground); font: inherit; font-variant-numeric: tabular-nums; }
+.page input:focus-visible, .page a:focus-visible, .page summary:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
+.page input[aria-invalid=true] { border-color: var(--destructive); }
+.page small { display: block; color: var(--muted-foreground); line-height: 1.5; margin-top: 8px; font-size: 13px; }
+.page details { margin-top: 12px; }
+.page summary { cursor: pointer; font-size: 14px; }
+.page fieldset { border: 0; margin: 24px 0 0; padding: 0; min-width: 0; }
+.page legend { font-weight: 700; margin-bottom: 16px; }
+.chance { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 16px; align-items: center; margin: 12px 0; }
+.chance div { display: flex; gap: 8px; align-items: center; }
+.chance input { text-align: right; }
+.total { font-weight: 700; font-variant-numeric: tabular-nums; padding: 12px; border-radius: 12px; background: var(--muted); }
+.review { margin-top: 24px; padding: 20px; background: var(--muted); border-radius: 16px; }
+.review h3 { margin-top: 0; }
+.review button { margin: 8px 8px 8px 0; }
+.page ul { padding-left: 24px; line-height: 1.7; }
+.page .checkbox { display: flex; align-items: flex-start; gap: 12px; line-height: 1.5; margin-top: 20px; }
+.checkbox input { width: 22px; height: 22px; flex: 0 0 22px; accent-color: var(--ring); }
+.error, .notice, .progress { padding: 16px 20px; border-radius: 16px; margin-bottom: 24px; background: var(--muted); }
+.error { border-left: 4px solid var(--destructive); background: var(--card); }
+.error p { margin: 8px 0 16px; }
+.notice { background: var(--toy-yellow-light); }
+.progress { background: var(--card); }
+.audit { padding-left: 24px; }
+.audit > li { margin-bottom: 24px; }
+.footer { color: var(--foreground); font-size: 14px; text-align: center; padding: 16px; }
+@media (min-width: 960px) { .columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 28px; } }
+@media (max-width: 600px) { .page { padding-left: 16px; padding-right: 16px; } .header { align-items: flex-start; flex-direction: column; gap: 12px; } .card { padding: 20px; } .sectionHeader { flex-wrap: wrap; } .figure { grid-template-columns: 48px minmax(0, 1fr); gap: 12px; } .figure img { width: 48px; height: 64px; } .chance { grid-template-columns: minmax(0, 1fr) 112px; gap: 12px; } .review { padding: 16px; } }

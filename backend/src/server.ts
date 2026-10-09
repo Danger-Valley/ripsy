@@ -20,6 +20,11 @@ import { createPackChain } from './pack-chain.js';
 import { figureManifest } from './figure-resources.js';
 import { PackService } from './pack-service.js';
 import { loadMobileUpdatePolicy, sendMobileUpdatePolicy } from './mobile-update-policy.js';
+import { ShopPricingService } from './shop-pricing.js';
+import { ShopAdminAuth } from './shop-admin-auth.js';
+import { ShopAdminService } from './shop-admin.js';
+import { createPackAdminChain } from './pack-admin-chain.js';
+import { handleShopAdmin } from './shop-admin-http.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -71,7 +76,10 @@ try {
 }
 const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
 const seekerVerification = new SeekerVerificationService(commandClient as unknown as ShopRedis, createSeekerTokenChecker(shopConfig.seekerRpcUrl), shopConfig.publicOrigin, keyPrefix);
-const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification);
+const pricing = new ShopPricingService(commandClient as unknown as ShopRedis, shopConfig, keyPrefix);
+const adminAuth = new ShopAdminAuth(commandClient as unknown as ShopRedis, shopConfig.publicOrigin, process.env.SHOP_ADMIN_WALLET, keyPrefix);
+const shopAdmin = new ShopAdminService(commandClient as unknown as ShopRedis, shopConfig, pricing, createPackAdminChain(shopConfig, adminAuth.address), keyPrefix);
+const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification, pricing);
 const packs = new PackService(commandClient as unknown as ShopRedis, createPackChain(shopConfig, process.env.PACK_ENABLED === 'true'), keyPrefix);
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const server = createServer(async (request, response) => {
@@ -87,12 +95,15 @@ const server = createServer(async (request, response) => {
     response.setHeader('content-type', 'application/json');
     if (request.method === 'OPTIONS') { response.writeHead(204).end(); return; }
     try {
+      if (requestUrl.pathname.startsWith('/shop/admin/')) {
+        await handleShopAdmin(request, response, requestUrl.pathname, { auth: adminAuth, service: shopAdmin, prices: pricing, verifyPlayer: verifyBearerSession, readBody: readJsonBody }); return;
+      }
       if (request.method === 'GET' && requestUrl.pathname === '/shop/figures') {
         response.writeHead(200).end(JSON.stringify(figureManifest(shopConfig.publicOrigin))); return;
       }
       if (request.method === 'GET' && requestUrl.pathname === '/shop/catalog') {
         const catalogVersion = requestUrl.searchParams.get('catalogVersion');
-        response.writeHead(200).end(JSON.stringify(shop.catalog(catalogVersion === '4' ? 4 : catalogVersion === '3' ? 3 : catalogVersion === '2' ? 2 : 1)));
+        await sendJson(response, 200, shop.liveCatalog(catalogVersion === '4' ? 4 : catalogVersion === '3' ? 3 : catalogVersion === '2' ? 2 : 1));
         return;
       }
       const playerId = verifyBearerSession(request.headers.authorization);

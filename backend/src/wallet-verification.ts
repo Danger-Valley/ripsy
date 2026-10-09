@@ -18,7 +18,7 @@ export class WalletVerificationService {
   private readonly domain: string;
   private readonly uri: string;
 
-  constructor(private redis: WalletRedis, publicOrigin: string, private prefix = 'ripsy') {
+  constructor(private redis: WalletRedis, publicOrigin: string, private prefix = 'ripsy', private statement = 'Verify this wallet to manage the collectible figures in your RIPSY army.') {
     this.domain = new URL(publicOrigin).host;
     this.uri = publicOrigin;
   }
@@ -34,7 +34,7 @@ export class WalletVerificationService {
       expirationTime: new Date(issuedAt.getTime() + challengeTtlSeconds * 1000).toISOString(),
       issuedAt: issuedAt.toISOString(),
       nonce: randomBytes(16).toString('hex'),
-      statement: 'Verify this wallet to manage the collectible figures in your RIPSY army.',
+      statement: this.statement,
       uri: this.uri,
       version: '1',
     };

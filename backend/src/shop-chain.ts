@@ -3,7 +3,7 @@ import { createNoopSigner, generateSigner, keypairIdentity, lamports, publicKey,
 import { base58 } from '@metaplex-foundation/umi/serializers';
 import { createV1, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import { mplToolbox, transferSol } from '@metaplex-foundation/mpl-toolbox';
-import { type FigureId, type MintOrder } from '@rps/core/shop';
+import { type FigureId, type MintOrder, type TokenPayment } from '@rps/core/shop';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 import type { ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
@@ -11,7 +11,7 @@ import { shopTokenPayment } from './shop-token-payment.js';
 
 export type ChainMint = Pick<MintOrder, 'asset' | 'transaction' | 'lastValidBlockHeight' | 'networkFeeLamports'>;
 export interface ShopChain {
-  prepare(figureId: FigureId, buyer: string, price: string): Promise<ChainMint>;
+  prepare(figureId: FigureId, buyer: string, price: string, payment?: TokenPayment): Promise<ChainMint>;
   validateSigned(order: Pick<MintOrder, 'transaction' | 'buyer'>, signed: string): string;
   send(signed: string): Promise<void>;
   status(order: MintOrder): Promise<'pending' | 'confirmed' | 'failed' | 'expired'>;
@@ -32,10 +32,12 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
     catch { throw new ShopError('Invalid transaction'); }
   };
   return {
-    async prepare(figureId, buyerAddress, price) {
+    async prepare(figureId, buyerAddress, price, paymentQuote) {
       if (!config.enabled || !config.collection || !config.treasury) throw new Error('Minting is not available yet');
       const buyer = createNoopSigner(publicKey(buyerAddress));
-      const tokenPayment = FIGURE_TOKEN_PAYMENTS[figureId];
+      const tokenPayment = paymentQuote ?? FIGURE_TOKEN_PAYMENTS[figureId];
+      const registered = FIGURE_TOKEN_PAYMENTS[figureId];
+      if (paymentQuote && (!registered || paymentQuote.mint !== registered.mint || paymentQuote.decimals !== registered.decimals || paymentQuote.symbol !== registered.symbol || !/^[1-9]\d{0,19}$/.test(paymentQuote.amount) || BigInt(paymentQuote.amount) > 18_446_744_073_709_551_615n)) throw new ShopError('Invalid payment currency');
       if (tokenPayment && (config.cluster !== 'mainnet-beta' || price !== '0')) throw new ShopError('Invalid token purchase configuration');
       const [genesis, collection, balance, blockhash] = await Promise.all([
         umi.rpc.call<string>('getGenesisHash'),

@@ -23,6 +23,7 @@ import { loadMobileUpdatePolicy, sendMobileUpdatePolicy } from './mobile-update-
 import { ShopPricingService } from './shop-pricing.js';
 import { ShopAdminAuth } from './shop-admin-auth.js';
 import { ShopAdminService } from './shop-admin.js';
+import { ShopUsdRatesService } from './shop-usd-rates.js';
 import { createPackAdminChain } from './pack-admin-chain.js';
 import { handleShopAdmin } from './shop-admin-http.js';
 
@@ -78,7 +79,8 @@ const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
 const seekerVerification = new SeekerVerificationService(commandClient as unknown as ShopRedis, createSeekerTokenChecker(shopConfig.seekerRpcUrl), shopConfig.publicOrigin, keyPrefix);
 const pricing = new ShopPricingService(commandClient as unknown as ShopRedis, shopConfig, keyPrefix);
 const adminAuth = new ShopAdminAuth(commandClient as unknown as ShopRedis, shopConfig.publicOrigin, process.env.SHOP_ADMIN_WALLET, keyPrefix);
-const shopAdmin = new ShopAdminService(commandClient as unknown as ShopRedis, shopConfig, pricing, createPackAdminChain(shopConfig, adminAuth.address), keyPrefix);
+const shopAdmin = new ShopAdminService(commandClient as unknown as ShopRedis, shopConfig, pricing, createPackAdminChain(shopConfig, adminAuth.address), keyPrefix,
+  new ShopUsdRatesService(commandClient as unknown as ShopRedis, process.env.JUPITER_API_KEY, keyPrefix));
 const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification, pricing);
 const packs = new PackService(commandClient as unknown as ShopRedis, createPackChain(shopConfig, process.env.PACK_ENABLED === 'true'), keyPrefix);
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });

@@ -192,12 +192,14 @@ test('real admin HTTP boundary requires wallet proof, not customer bearer tokens
     headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
   assert.equal((await request('settings')).status, 401);
   assert.equal((await request('prices', 'player-session', 'PUT', { revision: 0, prices: { jup: '1' } })).status, 401);
+  assert.equal((await request('usd-rates', 'player-session')).status, 401);
   assert.equal((await request('publications', 'player-session', 'POST', { ...draft, requestId: 'publication-request-1234' })).status, 401);
   const challenge = await (await request('challenge', 'player-session', 'POST')).json();
   const message = createSignInMessage({ ...challenge, address: admin.publicKey });
   const verified = await request('verify', 'player-session', 'POST', { address: admin.publicKey, nonce: challenge.nonce, signedMessage: [...message], signature: [...await admin.signMessage(message)] });
   assert.equal(verified.status, 200); const s = await verified.json();
   assert.equal((await request('settings', s.token)).status, 200);
+  const usd = await request('usd-rates', s.token); assert.equal(usd.status, 200); assert.deepEqual((await usd.json()).rates, {});
   assert.equal((await request('prices', s.token, 'PUT', { revision: 0, prices: { jup: '100' } })).status, 200);
   assert.equal((await request('session', s.token, 'DELETE')).status, 204);
   assert.equal((await request('settings', s.token)).status, 401);

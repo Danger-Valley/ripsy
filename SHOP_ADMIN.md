@@ -25,6 +25,18 @@ The backend converts decimal strings exactly to integer base units. Zero/negativ
 
 The public catalog and every **new** purchase fetch current pricing. The chain transfer and saved order use the same snapshot. Already-prepared purchases retain their original price and transaction. Rollback is another reviewed save, not a Redis reset or an environment variable change. Environment/registry prices remain defaults only where no admin override exists.
 
+## USD equivalents
+
+Figure prices (SOL, BONK, JUP, ORE and future registered payment tokens), pack SKR prices and publication cost show approximate USD equivalents beside the exact token amounts, including draft edits and confirmation reviews. This is **display-only**: editing/saving still uses exact token base units, not a USD target or automatic conversion. USD amounts exclude purchase fees; history does not pretend that today's exchange rate was the historical rate.
+
+The authenticated backend `/shop/admin/usd-rates` requests Jupiter Price V3 by allowlisted mint address, checks currency precision and positive finite rates, and caches one batched feed in Redis for 60 seconds across replicas. Failed requests are cached for 15 seconds to avoid retries flooding the provider. Timeouts are bounded to five seconds. Missing/unreliable/expired rates display **USD rate unavailable**, never a fabricated zero or a stale dollar value. Provider/cache errors do not prevent token price edits or publication.
+
+The page refreshes rates every 30 seconds while visible and when returning to the tab. **Refresh USD rates** does not reload settings or reset drafts. The retrieval timestamp is shown; it is not an assertion that the token traded at that exact time. All estimates use mainnet reference prices, including when inspecting a devnet store.
+
+Keyless Jupiter access is supported and was verified for all five current currencies. Optional `JUPITER_API_KEY` belongs **only in Railway** for authenticated provider access/higher configured limits. No new Vercel/native variable, wallet signature or mobile rebuild is needed. Never use a `NEXT_PUBLIC_*` price API key. Provider references: [Price V3](https://developers.jup.ag/docs/price) and [keyless access](https://developers.jup.ag/docs/portal/faq).
+
+Verification: 134 backend tests, 24 web tests, backend/web/mobile TypeScript and web production build pass. The isolated browser fixture verifies SOL/BONK/JUP/ORE/SKR estimates, live draft recalculation, provider-error recovery without lost edits, and 375/768/1280px layouts. The live keyless provider returned all five current mint rates. No figure prices, purchases, editions or odds were modified as a test; real operator wallet sign-in is still a human action.
+
 ## Pack price and probabilities
 
 The active on-chain edition is authoritative. Edit the next edition's SKR price and percentages. Use `0` to exclude an eligible reward; positive probabilities support four decimal places and must total exactly `100%`. Free, Seeker-exclusive, unregistered and duplicate figures are not permitted. Newly registered unrestricted figures automatically appear in this form after backend deployment.
@@ -43,6 +55,7 @@ An expired/failed/superseded request must be reconciled against the current edit
 - Public `GET /shop/admin/config`: enabled state and public wallet only.
 - Player-authenticated `POST /shop/admin/challenge`, `POST /shop/admin/verify`: one-time SIWS proof, dedicated admin namespace; verify returns ephemeral admin credential.
 - Admin-authenticated `GET /shop/admin/settings`, `PUT /shop/admin/prices`, `DELETE /shop/admin/session`.
+- Admin-authenticated `GET /shop/admin/usd-rates`: display-only reference rates and expiry; never changes stored prices or chain editions.
 - Admin-authenticated `POST /shop/admin/publications`, `GET /shop/admin/publications/:id`, `POST /shop/admin/publications/:id/submit`.
 - Existing CORS/body limits/no-store/error handling apply. No private keys or RPC credentials appear in admin responses.
 

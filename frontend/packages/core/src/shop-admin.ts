@@ -35,3 +35,9 @@ export interface AdminPublication {
 export interface AdminSnapshot {
   cluster: ShopCluster; prices: AdminPrices; pack: PackCatalog | null; packError: string | null;
 }
+/** Display-only mainnet reference prices. Never used to build a payment. */
+export interface AdminUsdRates {
+  source: 'Jupiter'; fetchedAt: number | null; expiresAt: number;
+  rates: Record<string, { usdPrice: number; decimals: number; blockId: number }>;
+  error: string | null;
+}

@@ -19,6 +19,7 @@ export async function handleShopAdmin(request: IncomingMessage, response: Server
     await sendJson(response, 200, path.endsWith('/challenge') ? d.auth.challenge(playerId) : d.auth.verify(playerId, await d.readBody(request))); return;
   }
   const admin = await d.auth.authenticate(request.headers.authorization);
+  if (request.method === 'GET' && path === '/shop/admin/usd-rates') { await sendJson(response, 200, d.service.usdRates()); return; }
   if (request.method === 'DELETE' && path === '/shop/admin/session') { await d.auth.logout(request.headers.authorization); response.writeHead(204).end(); return; }
   if (request.method === 'GET' && path === '/shop/admin/settings') { await sendJson(response, 200, d.service.snapshot()); return; }
   if (request.method === 'PUT' && path === '/shop/admin/prices') { await sendJson(response, 200, d.prices.save(admin, await d.readBody(request))); return; }

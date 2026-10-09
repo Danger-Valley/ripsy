@@ -5,10 +5,14 @@ import type { ShopConfig } from './shop-config.js';
 import type { ShopPricingService } from './shop-pricing.js';
 import { parseAdminPackDraft, type PackAdminChain } from './pack-admin-chain.js';
 import { ShopError } from './shop-error.js';
+import type { ShopUsdRatesService } from './shop-usd-rates.js';
 
 interface Stored { job: AdminPublication; signed?: string }
 export class ShopAdminService {
-  constructor(private redis: ShopRedis, private config: ShopConfig, private prices: ShopPricingService, private chain: PackAdminChain, private prefix = 'ripsy') {}
+  constructor(private redis: ShopRedis, private config: ShopConfig, private prices: ShopPricingService, private chain: PackAdminChain, private prefix = 'ripsy', private usd?: ShopUsdRatesService) {}
+  async usdRates() {
+    return this.usd ? this.usd.get() : { source: 'Jupiter', fetchedAt: null, expiresAt: Date.now(), rates: {}, error: 'USD rates are unavailable.' };
+  }
   async snapshot(): Promise<AdminSnapshot> {
     let pack: AdminSnapshot['pack'] = null; let packError: string | null = null;
     try { pack = await this.chain.catalog(); } catch (error) { packError = error instanceof ShopError ? error.message : 'Pack state is temporarily unavailable. Retry before editing.'; }

@@ -6,9 +6,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePlayerIdentity } from '@rps/game-client';
 import type { WalletChallenge } from '@rps/core/shop';
 import { PACK_PROGRAM_ID } from '@rps/core/packs';
-import { decimalToUnits, unitsToDecimal, type AdminPrices, type AdminPublication, type AdminSnapshot } from '@rps/core/shop-admin';
+import { decimalToUnits, unitsToDecimal, type AdminPrices, type AdminPublication, type AdminSnapshot, type AdminUsdRates } from '@rps/core/shop-admin';
 import { useBrowserWallet } from '../../hooks/use-browser-wallet';
-import { adminRequest, AdminApiError, changedPrices, chanceWeight } from './admin-client';
+import { adminRequest, AdminApiError, changedPrices, chanceWeight, usdEstimate } from './admin-client';
 import styles from './shop-admin.module.css';
 
 type AdminSession = { token: string; address: string; expiresAt: number };
@@ -27,6 +27,11 @@ export function ShopAdminContent() {
   const [session, setSession] = useState<AdminSession | null>(null);
   const sessionRef = useRef<AdminSession | null>(null);
   const [data, setData] = useState<AdminSnapshot | null>(null);
+  const [rates, setRates] = useState<AdminUsdRates | null>(null);
+  const [ratesLoading, setRatesLoading] = useState(false);
+  const [ratesError, setRatesError] = useState<string | null>(null);
+  const [ratesRefresh, setRatesRefresh] = useState(0);
+  const [rateNow, setRateNow] = useState(Date.now());
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [packPrice, setPackPrice] = useState('');
   const [chances, setChances] = useState<Record<string, string>>({});
@@ -56,6 +61,35 @@ export function ShopAdminContent() {
     if (sessionRef.current !== current) throw new Error('The wallet or admin session changed. Sign in again.');
     return result;
   }, []);
+  useEffect(() => {
+    if (!authed) { setRates(null); return; }
+    let cancelled = false; let fetching = false;
+    const refresh = async () => {
+      if (fetching) return;
+      fetching = true; setRatesLoading(true);
+      try {
+        const next = await protectedRequest<AdminUsdRates>('usd-rates');
+        if (!cancelled) { setRates(next); setRatesError(next.error); setRateNow(Date.now()); }
+      } catch (cause) {
+        if (!cancelled) {
+          setRates(null); setRatesError('Could not load USD rates. Retry; your token prices and edits are unchanged.');
+          if (cause instanceof AdminApiError && cause.status === 401) { sessionRef.current = null; setSession(null); }
+        }
+      } finally { fetching = false; if (!cancelled) setRatesLoading(false); }
+    };
+    void refresh();
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 30_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [authed, session?.token, ratesRefresh, protectedRequest]);
+  useEffect(() => {
+    if (!rates) return;
+    const timer = setTimeout(() => setRateNow(Date.now()), Math.max(0, rates.expiresAt - Date.now()) + 1);
+    return () => clearTimeout(timer);
+  }, [rates]);
+  const usd = (amount: string, mint: string | null, decimals: number) => ratesLoading && !rates
+    ? 'Loading USD estimate...' : usdEstimate(amount, mint, decimals, rates, rateNow);
   const applyPrices = (next: AdminPrices) => { setPrices(Object.fromEntries(next.figures.map(f => [f.id, f.price]))); setReviewPrices(false); };
   const applyPack = (next: AdminSnapshot) => {
     setPackPrice(next.pack ? unitsToDecimal(next.pack.payment.amount, 6) : '');
@@ -153,28 +187,35 @@ export function ShopAdminContent() {
     </section>
     {authed && !data && <section className={styles.card}><h2>Store settings</h2><p>Loading current prices and edition...</p><button disabled={disabled} onClick={() => void perform('Loading settings...', () => load(true))}>Load settings</button></section>}
     {authed && data && <>
+      <section className={`${styles.card} ${styles.rates}`} aria-label="USD reference rates">
+        <div><strong>USD equivalents</strong><p>{ratesError ?? (rates?.fetchedAt && rateNow < rates.expiresAt
+          ? <>Mainnet rates from <a href="https://developers.jup.ag/docs/price" target="_blank" rel="noreferrer">Jupiter</a>, retrieved <time dateTime={new Date(rates.fetchedAt).toISOString()}>{new Date(rates.fetchedAt).toLocaleTimeString()}</time>.</>
+          : ratesLoading ? 'Loading market rates...' : 'Rates expired or unavailable. Refresh to get current estimates.')}</p><small>Approximate values, excluding fees. Payment stays in the listed token. Rates refresh automatically without resetting your edits.</small></div>
+        <button type="button" disabled={ratesLoading} aria-busy={ratesLoading} onClick={() => setRatesRefresh(n => n + 1)}>{ratesLoading ? 'Refreshing rates...' : 'Refresh USD rates'}</button>
+      </section>
       <div className={styles.columns}>
         <section className={styles.card} aria-labelledby="prices-title"><div className={styles.sectionHeader}><div><h2 id="prices-title">Figure prices</h2><p>Live pricing revision {data.prices.revision}</p></div><button disabled={disabled} onClick={() => applyPrices(data.prices)}>Reset edits</button></div>
           <p>Saving changes the price for new purchases on every device. Currency, recipient and figure identity are locked. RIPSY 001 stays free.</p>
           <form onSubmit={event => { event.preventDefault(); setReviewPrices(true); }}>
             <div className={styles.figures}>{data.prices.figures.map(f => <div key={f.id} className={styles.figure}>
               <Image src={`/figures/${f.id}.png`} alt="" width={64} height={80} unoptimized />
-              <div><label htmlFor={`price-${f.id}`}>{f.name} <span className={styles.currency}>{f.symbol}</span></label><p>Current: {f.price || 'Not priced'} {f.price && f.symbol}</p>
-              <input id={`price-${f.id}`} type="text" inputMode="decimal" value={prices[f.id] ?? ''} disabled={disabled || reviewPrices} onChange={event => setPrices(p => ({ ...p, [f.id]: event.target.value }))} aria-invalid={Boolean(edits.errors[f.id])} aria-describedby={`help-${f.id}`} />
+              <div><label htmlFor={`price-${f.id}`}>{f.name} <span className={styles.currency}>{f.symbol}</span></label><p>Current: {f.price || 'Not priced'} {f.price && f.symbol}{f.price && <span className={styles.usd}> {usd(f.price, f.mint, f.decimals)}</span>}</p>
+              <input id={`price-${f.id}`} type="text" inputMode="decimal" value={prices[f.id] ?? ''} disabled={disabled || reviewPrices} onChange={event => setPrices(p => ({ ...p, [f.id]: event.target.value }))} aria-invalid={Boolean(edits.errors[f.id])} aria-describedby={`usd-${f.id} help-${f.id}`} />
+              <small id={`usd-${f.id}`} className={styles.usd} data-testid={`usd-${f.id}`}>{usd(prices[f.id] ?? '', f.mint, f.decimals)}</small>
               <small id={`help-${f.id}`}>{edits.errors[f.id] ?? `Up to ${f.decimals} decimal places. No commas.`}</small>
               {f.mint && <details><summary>Payment token</summary><span className={styles.address}>{f.mint}</span></details>}</div>
             </div>)}</div>
             {!data.prices.figures.length && <p>No purchasable figures are registered.</p>}
             <button type="submit" className={styles.primary} disabled={disabled || !dirty || Object.keys(edits.errors).length > 0 || reviewPrices}>Review price changes</button>
           </form>
-          {reviewPrices && <div className={styles.review} role="region" aria-label="Review figure price changes"><h3>Confirm new prices</h3><ul>{Object.entries(edits.prices).map(([id, value]) => { const f = data.prices.figures.find(f => f.id === id)!; return <li key={id}>{f.name}: {f.price || 'Not priced'} → <strong>{value} {f.symbol}</strong></li>; })}</ul><p>These prices go live immediately after saving.</p><div className={styles.actions}><button type="button" onClick={() => setReviewPrices(false)} disabled={disabled}>Back to editing</button><button className={styles.primary} onClick={() => void savePrices()} disabled={disabled || !Object.keys(edits.prices).length}>Save live prices</button></div></div>}
+          {reviewPrices && <div className={styles.review} role="region" aria-label="Review figure price changes"><h3>Confirm new prices</h3><ul>{Object.entries(edits.prices).map(([id, value]) => { const f = data.prices.figures.find(f => f.id === id)!; return <li key={id}>{f.name}: {f.price || 'Not priced'} → <strong>{value} {f.symbol}</strong><small className={styles.usd}>{usd(value, f.mint, f.decimals)}</small></li>; })}</ul><p>These prices go live immediately after saving.</p><div className={styles.actions}><button type="button" onClick={() => setReviewPrices(false)} disabled={disabled}>Back to editing</button><button className={styles.primary} onClick={() => void savePrices()} disabled={disabled || !Object.keys(edits.prices).length}>Save live prices</button></div></div>}
         </section>
         <section className={styles.card} aria-labelledby="pack-title"><h2 id="pack-title">Fighter pack</h2>
           {!data.pack ? <><p role="alert">{data.packError}</p><button disabled={disabled} onClick={() => void perform('Loading active edition...', () => load(false))}>Retry pack state</button></> : <>
-            <p><span className={styles.badge}>Active edition {data.pack.version}</span> {data.pack.available ? 'Purchases open' : 'Purchases paused'}</p><p>Current price: <strong>{unitsToDecimal(data.pack.payment.amount, 6)} SKR</strong>. Previous editions cannot be edited.</p>
+            <p><span className={styles.badge}>Active edition {data.pack.version}</span> {data.pack.available ? 'Purchases open' : 'Purchases paused'}</p><p>Current price: <strong>{unitsToDecimal(data.pack.payment.amount, 6)} SKR</strong><span className={styles.usd}> {usd(unitsToDecimal(data.pack.payment.amount, 6), data.pack.payment.mint, 6)}</span>. Previous editions cannot be edited.</p>
             <form onSubmit={event => { event.preventDefault(); void prepare(); }}>
               <fieldset disabled={disabled || pending(job)}><legend>Next edition {data.pack.version + 1}</legend>
-                <label htmlFor="pack-price">Pack price (SKR)</label><input id="pack-price" type="text" inputMode="decimal" value={packPrice} onChange={event => setPackPrice(event.target.value)} /><small>Up to 6 decimal places. Payment stays in SKR.</small>
+                <label htmlFor="pack-price">Pack price (SKR)</label><input id="pack-price" type="text" inputMode="decimal" value={packPrice} onChange={event => setPackPrice(event.target.value)} aria-describedby="usd-pack pack-price-help" /><small id="usd-pack" data-testid="usd-pack" className={styles.usd}>{usd(packPrice, data.pack.payment.mint, 6)}</small><small id="pack-price-help">Up to 6 decimal places. Payment stays in SKR.</small>
                 <h3>Drop probabilities</h3><p>Use 0 to exclude a figure. Total must be exactly 100%.</p>
                 {data.prices.figures.filter(f => f.packEligible).map(f => <div className={styles.chance} key={f.id}><label htmlFor={`chance-${f.id}`}>{f.name}</label><div><input id={`chance-${f.id}`} type="text" inputMode="decimal" value={chances[f.id] ?? '0'} onChange={event => setChances(c => ({ ...c, [f.id]: event.target.value }))} /><span>%</span></div></div>)}
                 <p className={styles.total} aria-live="polite">Total: {total === null ? 'Invalid probability' : `${unitsToDecimal(String(total), 4)}%`}</p>
@@ -183,8 +224,9 @@ export function ShopAdminContent() {
             </form><p>Simulation does not publish anything. The admin pays the network fee and edition account rent in SOL. Paused purchases stay paused.</p>
           </>}
           {recoverId && !job && <button disabled={disabled} onClick={() => void check()}>Recover pending publication</button>}
-          {job && <div className={styles.review} aria-label="Publication review"><h3>Edition {job.catalog.version}: {job.status}</h3><p><strong>{unitsToDecimal(job.catalog.payment.amount, 6)} SKR</strong> per pack</p><ul>{job.catalog.drops.map(d => <li key={d.figureId}>{data.prices.figures.find(f => f.id === d.figureId)?.name ?? d.figureId}: <strong>{unitsToDecimal(String(d.weight), 4)}%</strong></li>)}</ul>
+          {job && <div className={styles.review} aria-label="Publication review"><h3>Edition {job.catalog.version}: {job.status}</h3><p><strong>{unitsToDecimal(job.catalog.payment.amount, 6)} SKR</strong> per pack <span className={styles.usd}>{usd(unitsToDecimal(job.catalog.payment.amount, 6), job.catalog.payment.mint, 6)}</span></p><ul>{job.catalog.drops.map(d => <li key={d.figureId}>{data.prices.figures.find(f => f.id === d.figureId)?.name ?? d.figureId}: <strong>{unitsToDecimal(String(d.weight), 4)}%</strong></li>)}</ul>
             <p>Estimated publication cost: <strong>{unitsToDecimal(job.networkFeeLamports, 9)} SOL</strong> (fee + account rent)</p>
+            <small className={styles.usd}>{usd(unitsToDecimal(job.networkFeeLamports, 9), null, 9)}</small>
             <p>This calls the RIPSY Packs program on Solana mainnet and creates an immutable edition account.</p>
             <details><summary>On-chain details</summary><p>Solana mainnet</p><AdminAddress value={job.buyer} label="Administrator" /><AdminAddress value={job.edition} label="Edition account" /><AdminAddress value={PACK_PROGRAM_ID} label="RIPSY Packs program" /><p>Request: <span className={styles.address}>{job.id}</span></p></details>
             {job.signature && <p><a href={`https://solscan.io/tx/${job.signature}`} target="_blank" rel="noreferrer">View publication transaction</a></p>}

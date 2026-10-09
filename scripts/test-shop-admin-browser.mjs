@@ -22,6 +22,8 @@ const figures = [
 const payment = { mint: 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3', symbol: 'SKR', decimals: 6, amount: '1099000000' };
 const snapshot = { cluster: 'mainnet-beta', prices: { revision: 0, figures, audit: [] }, pack: { name: 'Fighter pack', available: true, version: 2, payment, drops: [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }] }, packError: null };
 let job = null; let signedCount = 0; let saveCount = 0; let expire = false;
+let ratesFailed = false; let rateCalls = 0;
+const rateValues = { SOL: 110, BONK: 0.0000033, JUP: 0.36, ORE: 107, SKR: 0.016 };
 const api = createServer(async (request, response) => {
   response.setHeader('access-control-allow-origin', request.headers.origin ?? '*');
   response.setHeader('access-control-allow-headers', 'authorization,content-type');
@@ -36,6 +38,12 @@ const api = createServer(async (request, response) => {
   if (path === '/shop/admin/challenge') return send({ nonce: 'a'.repeat(32), domain: 'localhost', uri: 'http://localhost', statement: 'Local test only', version: '1', chainId: 'solana:mainnet', issuedAt: new Date().toISOString(), expirationTime: new Date(Date.now() + 300000).toISOString() });
   if (path === '/shop/admin/verify') { expire = false; return send({ token: 'fixture-admin', address: admin, expiresAt: Date.now() + 1800000 }); }
   if (request.headers.authorization !== 'Bearer fixture-admin' || expire) return send({ error: 'Admin session expired. Sign in again.' }, 401);
+  if (path === '/shop/admin/usd-rates') {
+    rateCalls++;
+    if (ratesFailed) return send({ error: 'Provider offline' }, 503);
+    return send({ source: 'Jupiter', fetchedAt: Date.now(), expiresAt: Date.now() + 60000, error: null,
+      rates: Object.fromEntries([...figures, payment].map(f => [f.mint ?? 'So11111111111111111111111111111111111111112', { usdPrice: rateValues[f.symbol], decimals: f.decimals, blockId: 1000 }])) });
+  }
   if (path === '/shop/admin/settings') return send(snapshot);
   if (path === '/shop/admin/session') { response.writeHead(204).end(); return; }
   if (path === '/shop/admin/prices') {
@@ -98,6 +106,16 @@ try {
   await page.goto(url); await page.getByRole('button', { name: 'Connect Local test wallet', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in as admin', exact: true }).click();
   await page.getByRole('heading', { name: 'Figure prices', exact: true }).waitFor();
+  await page.getByTestId('usd-bonk').filter({ hasText: '$22.77' }).waitFor();
+  assert.equal(await page.getByTestId('usd-pack').textContent(), '≈ $17.58 USD');
+  await page.locator('#price-ore').fill('0.3'); assert.equal(await page.getByTestId('usd-ore').textContent(), '≈ $32.10 USD');
+  ratesFailed = true; await page.getByRole('button', { name: 'Refresh USD rates', exact: true }).click();
+  await page.getByTestId('usd-ore').filter({ hasText: 'USD rate unavailable' }).waitFor();
+  assert.equal(await page.locator('#price-ore').inputValue(), '0.3'); assert.equal(saveCount, 0);
+  ratesFailed = false; await page.getByRole('button', { name: 'Refresh USD rates', exact: true }).click();
+  await page.getByTestId('usd-ore').filter({ hasText: '$32.10' }).waitFor();
+  assert.equal(await page.locator('#price-ore').inputValue(), '0.3');
+  await page.locator('#price-ore').fill('0.25');
   for (const width of [375, 768, 1280]) {
     await page.setViewportSize({ width, height: 1000 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `Horizontal overflow at ${width}`);
@@ -124,7 +142,7 @@ try {
   await page.getByRole('button', { name: 'Review price changes', exact: true }).click(); await page.getByRole('button', { name: 'Save live prices', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in as admin', exact: true }).waitFor(); assert.equal(saveCount, 1);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, widths: [375, 768, 1280], exactPriceValidation: true, explicitReviewAndSignature: true, expiryBlockedSave: true, screenshots: output, realTransactionSent: false }));
+  console.log(JSON.stringify({ passed: true, widths: [375, 768, 1280], usdConversion: true, usdRecoveryPreservesDraft: true, rateCalls, exactPriceValidation: true, explicitReviewAndSignature: true, expiryBlockedSave: true, screenshots: output, realTransactionSent: false }));
 } finally {
   await browser?.close(); next.kill('SIGTERM'); api.closeAllConnections(); await new Promise(resolve => api.close(resolve));
 }

@@ -20,6 +20,9 @@
 .figure img { object-fit: contain; background: var(--background); border-radius: 12px; }
 .figure p { font-size: 14px; color: var(--muted-foreground); margin: 4px 0 8px; }
 .currency { display: inline-block; margin-left: 8px; font-size: 14px; font-weight: 400; }
+.usd { font-variant-numeric: tabular-nums; font-family: var(--font-mono), monospace; }
+.rates { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.rates p { margin: 8px 0; }
 .page label { display: block; font-weight: 700; margin-bottom: 8px; }
 .page input:not([type=checkbox]) { width: 100%; min-height: 48px; padding: 12px; border: 1px solid var(--muted-foreground); border-radius: 12px; background: var(--input); color: var(--foreground); font: inherit; font-variant-numeric: tabular-nums; }
 .page input:focus-visible, .page a:focus-visible, .page summary:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }

@@ -1,5 +1,17 @@
 import { decimalToUnits } from '@rps/core/shop-admin';
-import type { AdminFigure } from '@rps/core/shop-admin';
+import type { AdminFigure, AdminUsdRates } from '@rps/core/shop-admin';
+
+export const SOL_PRICE_MINT = 'So11111111111111111111111111111111111111112';
+/** Floating point is display-only. Payments still use exact decimalToUnits. */
+export function usdEstimate(amount: string, mint: string | null, decimals: number, rates: AdminUsdRates | null, now = Date.now()): string {
+  try { decimalToUnits(amount, decimals); } catch { return 'USD estimate appears for a valid price.'; }
+  const rate = rates?.rates[mint ?? SOL_PRICE_MINT];
+  if (!rates || now >= rates.expiresAt || !rate || rate.decimals !== decimals || !Number.isFinite(rate.usdPrice) || rate.usdPrice <= 0) return 'USD rate unavailable';
+  const value = Number(amount) * rate.usdPrice;
+  if (!Number.isFinite(value) || value <= 0) return 'USD estimate unavailable';
+  if (value < 0.01) return '≈ < $0.01 USD';
+  return `≈ ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} USD`;
+}
 
 export const adminApiOrigin = () => (process.env.NEXT_PUBLIC_SHOP_API_URL ?? 'https://api.ripsy.fun').replace(/\/$/, '');
 export class AdminApiError extends Error { constructor(message: string, readonly status: number) { super(message); } }

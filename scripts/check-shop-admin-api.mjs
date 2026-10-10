@@ -18,10 +18,16 @@ try {
   stage = 'cors'; assert.equal((await get('/shop/admin/config', { headers: { origin: 'https://not-ripsy.invalid' } })).status, 403);
   stage = 'catalog'; const catalog = await (await get('/shop/catalog?catalogVersion=4')).json();
   assert.deepEqual(catalog.figures.map(f => f.id), ['fig2', 'bonk', 'jup', 'ore']);
+  stage = 'seeker-payment'; const seeker = catalog.figures.find(f => f.id === 'fig2');
+  assert.equal(seeker.seekerExclusive, true); assert.equal(seeker.priceLamports, '0');
+  assert.equal(seeker.tokenPayment.mint, 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3');
+  assert.equal(seeker.tokenPayment.symbol, 'SKR'); assert.equal(seeker.tokenPayment.decimals, 6);
+  const seekerPrice = process.argv.find(a => a.startsWith('--seeker-price='))?.slice(15);
+  if (seekerPrice) assert.equal(seeker.tokenPayment.amount, seekerPrice);
   const pack = await (await get('/shop/packs/catalog', { headers })).json();
   stage = 'web-admin'; const page = await fetch('https://www.ripsy.fun/admin/shop', { signal: AbortSignal.timeout(15000) });
   assert.equal(page.status, 200); assert.ok((await page.text()).includes('Shop control room'));
-  console.log(JSON.stringify({ ready: true, wallet: address, customerTokensRejected: true, corsRestricted: true, prices: catalog.figures.map(f => ({ id: f.id, amount: f.tokenPayment?.amount ?? f.priceLamports })), packVersion: pack.version, packAmount: pack.payment.amount, packDrops: pack.drops, transactionSent: false }));
+  console.log(JSON.stringify({ ready: true, wallet: address, customerTokensRejected: true, corsRestricted: true, prices: catalog.figures.map(f => ({ id: f.id, amount: f.tokenPayment?.amount ?? f.priceLamports, currency: f.tokenPayment?.symbol ?? 'SOL' })), packVersion: pack.version, packAmount: pack.payment.amount, packDrops: pack.drops, transactionSent: false }));
 } catch (error) {
   console.error(JSON.stringify({ ready: false, failedStage: stage, errorType: error.name, transactionSent: false })); process.exitCode = 1;
 }

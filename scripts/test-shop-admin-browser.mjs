@@ -14,13 +14,14 @@ const { chromium } = await import(pathToFileURL(modulePath).href);
 const output = mkdtempSync(join(tmpdir(), 'ripsy-admin-ui-'));
 const admin = 'BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh';
 const figures = [
-  { id: 'fig2', name: 'Seeker fighter', symbol: 'SOL', decimals: 9, mint: null, price: '0.01', amount: '10000000', packEligible: false },
+  { id: 'fig2', name: 'Seeker fighter', symbol: 'SKR', decimals: 6, mint: 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3', price: '1', amount: '1000000', packEligible: false },
   { id: 'bonk', name: 'BONK', symbol: 'BONK', decimals: 5, mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', price: '6900000', amount: '690000000000', packEligible: true },
   { id: 'jup', name: 'Jup', symbol: 'JUP', decimals: 6, mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', price: '99', amount: '99000000', packEligible: true },
   { id: 'ore', name: 'ORE', symbol: 'ORE', decimals: 11, mint: 'oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp', price: '0.25', amount: '25000000000', packEligible: true },
 ];
 const payment = { mint: 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3', symbol: 'SKR', decimals: 6, amount: '1099000000' };
-const snapshot = { cluster: 'mainnet-beta', prices: { revision: 0, figures, audit: [] }, pack: { name: 'Fighter pack', available: true, version: 2, payment, drops: [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }] }, packError: null };
+const snapshot = { cluster: 'mainnet-beta', prices: { revision: 1, figures, audit: [{ at: Date.now(), address: admin, revision: 1,
+  changes: { fig2: { before: '10000000', after: '20000000', currency: { mint: null, symbol: 'SOL', decimals: 9 } } } }] }, pack: { name: 'Fighter pack', available: true, version: 2, payment, drops: [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }] }, packError: null };
 let job = null; let signedCount = 0; let saveCount = 0; let expire = false;
 snapshot.packPriceRevision = '0';
 let ratesFailed = false; let rateCalls = 0;
@@ -50,7 +51,8 @@ const api = createServer(async (request, response) => {
   if (path === '/shop/admin/prices') {
     saveCount++; assert.equal(body.revision, snapshot.prices.revision);
     for (const [id, price] of Object.entries(body.prices)) {
-      const f = figures.find(f => f.id === id); const [w, d = ''] = price.split('.'); f.price = price; f.amount = (BigInt(w) * 10n ** BigInt(f.decimals) + BigInt(d.padEnd(f.decimals, '0') || '0')).toString();
+      const f = figures.find(f => f.id === id); assert.deepEqual(body.currencies[id], { mint: f.mint, symbol: f.symbol, decimals: f.decimals });
+      const [w, d = ''] = price.split('.'); f.price = price; f.amount = (BigInt(w) * 10n ** BigInt(f.decimals) + BigInt(d.padEnd(f.decimals, '0') || '0')).toString();
     }
     snapshot.prices.revision++; return send(snapshot.prices);
   }
@@ -112,6 +114,12 @@ try {
   await page.getByRole('button', { name: 'Sign in as admin', exact: true }).click();
   await page.getByRole('heading', { name: 'Figure prices', exact: true }).waitFor();
   await page.getByTestId('usd-bonk').filter({ hasText: '$22.77' }).waitFor();
+  assert.equal(await page.locator('#price-fig2').inputValue(), '1');
+  assert.equal(await page.getByTestId('usd-fig2').textContent(), '≈ $0.02 USD');
+  await page.getByText('Seeker fighter: 0.01 → 0.02 SOL', { exact: true }).waitFor();
+  await page.locator('#price-fig2').fill('1.0000001');
+  assert.equal(await page.getByRole('button', { name: 'Review price changes', exact: true }).isDisabled(), true);
+  await page.locator('#price-fig2').fill('1');
   assert.equal(await page.getByTestId('usd-pack').textContent(), '≈ $17.58 USD');
   await page.locator('#price-ore').fill('0.3'); assert.equal(await page.getByTestId('usd-ore').textContent(), '≈ $32.10 USD');
   ratesFailed = true; await page.getByRole('button', { name: 'Refresh USD rates', exact: true }).click();

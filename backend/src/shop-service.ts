@@ -47,7 +47,6 @@ export class ShopService {
     if (buyer === this.config.treasury || buyer === this.config.collection) throw new ShopError('Use a customer wallet for this purchase');
     if (typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(input.idempotencyKey)) throw new ShopError('Invalid purchase request ID');
     const figureId = input.figureId;
-    if (FIGURE_TOKEN_PAYMENTS[figureId] && this.config.cluster !== 'mainnet-beta') throw new ShopError('This figure is only available on the production store.', 409);
     const id = createHash('sha256').update(`${playerId}:${input.idempotencyKey}`).digest('hex');
     return this.lock(id, async () => {
       const existing = await this.read(id, playerId, false);
@@ -55,7 +54,8 @@ export class ShopService {
         if (existing.order.buyer !== buyer || existing.order.figureId !== figureId) throw new ShopError('Purchase request already used', 409);
         return this.refresh(existing);
       }
-      // A saved request retains its original quote even after an admin price change.
+      // Saved requests retain their exact original currency/quote, including
+      // legacy SOL fig2 receipts. New SKR payments below remain mainnet-only.
       const quote = this.pricing ? await this.pricing.payment(figureId) : { price: FIGURE_TOKEN_PAYMENTS[figureId] ? '0' : this.config.prices[figureId], tokenPayment: FIGURE_TOKEN_PAYMENTS[figureId] };
       const { price, tokenPayment } = quote;
       if (tokenPayment && this.config.cluster !== 'mainnet-beta') throw new ShopError('This figure is only available on the production store.', 409);

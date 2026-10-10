@@ -18,6 +18,12 @@
     "description": "A new face for your collection. The same fighting spirit.",
     "seekerExclusive": true,
     "purchasable": true,
+    "tokenPayment": {
+      "mint": "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3",
+      "symbol": "SKR",
+      "decimals": 6,
+      "amount": "1000000"
+    },
     "animation": {
       "sha256": "7ebfc2d64675e7882f4dfb7b2e6d8d23a03e1442756876cc0605ec0d33584668",
       "bytes": 483073

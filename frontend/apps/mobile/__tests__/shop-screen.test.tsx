@@ -182,6 +182,26 @@ test('Seeker wallet prepares with the existing proof function but does not sign 
   expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet);
   expect(shop.confirm).not.toHaveBeenCalled();
 });
+test('Seeker SKR catalog and new purchase review keep SOL fees separate; old SOL receipts retain their units', async () => {
+  external();
+  const figure = { ...fig2, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 };
+  const catalog = { ...shop.catalog, figures: [figure] };
+  setShop({ catalog }); await mount();
+  expect(text('1 SKR')).toBe(true);
+  await press('Buy Seeker fighter');
+  expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet);
+  expect(shop.confirm).not.toHaveBeenCalled();
+  setShop({ catalog, hasPurchase: true, order: { ...order, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 } });
+  await updateScreen();
+  let modal = purchaseModal('figure');
+  expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR')).toBe(true);
+  expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR + 0.001005 SOL')).toBe(true);
+  setShop({ catalog, hasPurchase: true, order }); await updateScreen();
+  modal = purchaseModal('figure');
+  expect(modal.findAllByType(Text).some(node => node.props.children === '0.01 SOL')).toBe(true);
+  expect(modal.findAllByType(Text).some(node => node.props.children === '0.011005 SOL')).toBe(true);
+  expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR')).toBe(false);
+});
 test('an embedded wallet cannot bypass Seeker fighter Seeker eligibility', async () => {
   jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: buyer });
   await mount(); await press('Solana Mobile Exclusive');

@@ -14,6 +14,7 @@ export const FIGURES = [
 export interface TokenPayment { mint: string; symbol: string; decimals: number; amount: string }
 /** Exact mainnet base units, not floating point prices or client overrides. */
 export const FIGURE_TOKEN_PAYMENTS: Partial<Record<FigureId, TokenPayment>> = {
+  fig2: { mint: 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3', symbol: 'SKR', decimals: 6, amount: '1000000' },
   bonk: { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK', decimals: 5, amount: '690000000000' },
   jup: { mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', decimals: 6, amount: '99000000' },
   ore: { mint: 'oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp', symbol: 'ORE', decimals: 11, amount: '25000000000' },

@@ -27,8 +27,9 @@ export function loadShopConfig(env: NodeJS.ProcessEnv): ShopConfig {
   if (!isSafeShopExternalUrl(solanaMobileStoreUrl)) throw new Error('SHOP_SOLANA_MOBILE_STORE_URL must be an HTTPS URL without credentials');
   // RIPSY 001 is the permanent free starter and must never become purchasable
   // through a stale environment variable.
-  const prices = { ...Object.fromEntries(FIGURES.map(f => [f.id, readPrice(f.priceLamports)])),
-    fig1: null, fig2: readPrice(env.SHOP_FIG2_PRICE_LAMPORTS ?? FIGURES.find(f => f.id === 'fig2')?.priceLamports) };
+  // Seeker fighter now uses its registered SKR price. Never reinterpret the
+  // obsolete SHOP_FIG2_PRICE_LAMPORTS environment value as a token amount.
+  const prices = { ...Object.fromEntries(FIGURES.map(f => [f.id, readPrice(f.priceLamports)])), fig1: null };
   if (enabled && (!treasury || !collection || !env.SHOP_MINT_AUTHORITY_SECRET)) throw new Error('Shop signing configuration is incomplete');
   if (enabled && cluster === 'mainnet-beta' && !env.SHOP_SOLANA_RPC_URL) throw new Error('Set a production SHOP_SOLANA_RPC_URL');
   return {

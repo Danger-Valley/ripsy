@@ -68,7 +68,7 @@ test('Core mint and exact SOL payment share a v0 message with buyer as owner/pay
 
 test('new mint transactions use the exact canonical fighter name with no extra RIPSY prefix', async () => {
   const f = fixture();
-  for (const figure of FIGURES.filter(candidate => candidate.id === 'fig1' || candidate.id === 'fig2')) {
+  for (const figure of FIGURES.filter(candidate => candidate.id === 'fig1')) {
     const prepared = await f.chain.prepare(figure.id, f.buyer.publicKey, '100000000');
     const transaction = f.umi.transactions.deserialize(Buffer.from(prepared.transaction, 'base64'));
     const data = Buffer.from(transaction.message.instructions[1]!.data);
@@ -128,7 +128,7 @@ test('expiry requires finalized height and complete history, not a missing RPC r
   await assert.rejects(() => f.chain.status(order), /reconciliation/);
 });
 
-function tokenFixture(id: 'bonk' | 'jup' | 'ore') {
+function tokenFixture(id: 'fig2' | 'bonk' | 'jup' | 'ore') {
   const f = fixture();
   f.config.cluster = 'mainnet-beta';
   const payment = FIGURE_TOKEN_PAYMENTS[id]!;
@@ -150,7 +150,7 @@ function tokenFixture(id: 'bonk' | 'jup' | 'ore') {
   return { ...f, payment, mint, source, destination, setBalance: (value: bigint) => { tokenBalance = value; }, setDecimals: (value: number) => { decimals = value; }, setOwner: (value: typeof owner) => { owner = value; } };
 }
 
-for (const id of ['bonk', 'jup', 'ore'] as const) {
+for (const id of ['fig2', 'bonk', 'jup', 'ore'] as const) {
   test(`${id}: admin quote changes the actual checked transfer amount without changing currency`, async () => {
     const f = tokenFixture(id); const quote = { ...f.payment, amount: (BigInt(f.payment.amount) / 2n).toString() };
     const prepared = await f.chain.prepare(id, f.buyer.publicKey, '0', quote);
@@ -178,6 +178,8 @@ for (const id of ['bonk', 'jup', 'ore'] as const) {
     assert.equal(bytes[9], f.payment.decimals);
     assert.equal(tx.message.accounts[core!.programIndex], MPL_CORE_PROGRAM_ID);
     assert.ok(Buffer.from(core!.data).includes(Buffer.from(`/figures/${id}.json`)));
+    const data = Buffer.from(core!.data); const nameLength = data.readUInt32LE(2);
+    assert.equal(data.subarray(6, 6 + nameLength).toString('utf8'), FIGURES.find(f => f.id === id)!.name);
     assert.equal(prepared.networkFeeLamports, '3000000'); // No token amount subtracted from SOL fees.
     const signed = await f.buyer.signTransaction(tx);
     assert.ok(f.chain.validateSigned(order, Buffer.from(f.umi.transactions.serialize(signed)).toString('base64')));

@@ -5,6 +5,7 @@ import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { generateSigner } from '@metaplex-foundation/umi';
 import { createSignInMessage } from '@solana/wallet-standard-util';
 import { decimalToUnits, unitsToDecimal, type AdminPublication } from '@rps/core/shop-admin';
+import { FIGURE_TOKEN_PAYMENTS } from '@rps/core/shop';
 import { INITIAL_PACK, PACK_PAYMENT } from '@rps/core/packs';
 import { parseShopCatalog } from '@rps/core/shop';
 import { ShopAdminAuth } from './shop-admin-auth.js';
@@ -42,6 +43,7 @@ const admin = generateSigner(umi); const other = generateSigner(umi);
 const config = { ...loadShopConfig({}), enabled: true, cluster: 'mainnet-beta' as const,
   treasury: generateSigner(umi).publicKey, collection: generateSigner(umi).publicKey, prices: { fig1: null, fig2: '10000000' } };
 const draft = { expectedVersion: 2, price: '1099', drops: [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }] };
+const skrCurrency = { mint: FIGURE_TOKEN_PAYMENTS.fig2!.mint, symbol: 'SKR', decimals: 6 };
 async function proof(auth: ShopAdminAuth | WalletVerificationService, signer = admin, player = 'player') {
   const challenge = auth instanceof ShopAdminAuth ? await auth.challenge(player) : await auth.issue(player);
   const signedMessage = createSignInMessage({ ...challenge, address: signer.publicKey });
@@ -127,16 +129,41 @@ test('global admin challenge limit cannot be bypassed by creating fresh player s
 });
 test('live figure prices persist across replicas, protect currencies/free figure and keep an atomic audit', async () => {
   const f = fixture(); const before = await f.pricing.get(); assert.equal(before.revision, 0);
-  const next = await f.pricing.save(admin.publicKey, { revision: 0, prices: { bonk: '7000000', jup: '100.25', ore: '0.3', fig2: '0.02' } });
+  const next = await f.pricing.save(admin.publicKey, { revision: 0, prices: { bonk: '7000000', jup: '100.25', ore: '0.3', fig2: '2' },
+    currencies: { fig2: skrCurrency, bonk: { ...FIGURE_TOKEN_PAYMENTS.bonk }, jup: { ...FIGURE_TOKEN_PAYMENTS.jup }, ore: { ...FIGURE_TOKEN_PAYMENTS.ore } } });
   assert.equal(next.revision, 1); assert.equal(next.audit.length, 1);
-  assert.deepEqual(next.audit[0]!.changes.ore, { before: '25000000000', after: '30000000000' });
+  assert.deepEqual(next.audit[0]!.changes.ore, { before: '25000000000', after: '30000000000', currency: { mint: FIGURE_TOKEN_PAYMENTS.ore!.mint, symbol: 'ORE', decimals: 11 } });
   const replica = new ShopPricingService(f.redis, config);
   const catalog = parseShopCatalog(await replica.catalog());
   assert.equal(catalog.figures.find(f => f.id === 'jup')!.tokenPayment!.amount, '100250000');
-  assert.equal(catalog.figures.find(f => f.id === 'fig2')!.priceLamports, '20000000');
-  for (const prices of [{ fig1: '1' }, { unknown: '1' }, { ore: '0.000000000001' }, { jup: 'NaN' }, { fig2: '9007199.254740992' }]) await assert.rejects(() => replica.save(admin.publicKey, { revision: 1, prices }));
+  assert.equal(catalog.figures.find(f => f.id === 'fig2')!.priceLamports, '0');
+  assert.equal(catalog.figures.find(f => f.id === 'fig2')!.tokenPayment!.amount, '2000000');
+  for (const prices of [{ fig1: '1' }, { unknown: '1' }, { ore: '0.000000000001' }, { jup: 'NaN' }, { fig2: '9007199.254740992' }]) await assert.rejects(() => replica.save(admin.publicKey, { revision: 1, prices, currencies: { fig2: skrCurrency } }));
   await assert.rejects(() => replica.save(admin.publicKey, { revision: 0, prices: { jup: '2' } }), /another session/);
   assert.equal((await replica.get()).audit.length, 1);
+});
+test('Seeker SKR migration ignores old SOL overrides, keeps other prices/history and rejects stale SOL editors', async () => {
+  const f = fixture();
+  const old = { revision: 7, amounts: { fig2: '20000000', jup: '1000000' },
+    audit: [{ at: 1, address: admin.publicKey, revision: 7, changes: { fig2: { before: '10000000', after: '20000000' } } }] };
+  f.redis.data.set('ripsy:shop:admin:prices', JSON.stringify(old));
+  const snapshot = await f.pricing.get(); const figure = snapshot.figures.find(f => f.id === 'fig2')!;
+  assert.equal(figure.price, '1'); assert.equal(figure.symbol, 'SKR'); assert.equal(figure.decimals, 6);
+  assert.equal(figure.mint, skrCurrency.mint); assert.equal(figure.packEligible, false);
+  assert.equal(snapshot.figures.find(f => f.id === 'jup')!.price, '1');
+  assert.deepEqual(snapshot.audit[0]!.changes.fig2!.currency, { mint: null, symbol: 'SOL', decimals: 9 });
+  assert.deepEqual(JSON.parse(f.redis.data.get('ripsy:shop:admin:prices')!), old); // Reads do not rewrite old state.
+  for (const currencies of [undefined, { fig2: { mint: null, symbol: 'SOL', decimals: 9 } }])
+    await assert.rejects(() => f.pricing.save(admin.publicKey, { revision: 7, prices: { fig2: '0.02' }, currencies }), /currency changed/);
+  await f.pricing.save(admin.publicKey, { revision: 7, prices: { jup: '2' } });
+  assert.equal((await f.pricing.payment('fig2')).tokenPayment!.amount, '1000000');
+  const next = await f.pricing.save(admin.publicKey, { revision: 8, prices: { fig2: '2.123456' }, currencies: { fig2: skrCurrency } });
+  assert.equal(next.figures.find(f => f.id === 'fig2')!.price, '2.123456');
+  assert.deepEqual(next.audit[0]!.changes.fig2!.currency, skrCurrency);
+  assert.deepEqual(next.audit[2]!.changes.fig2!.currency, { mint: null, symbol: 'SOL', decimals: 9 });
+  const replica = new ShopPricingService(f.redis, config);
+  assert.equal((await replica.catalog()).figures.find(f => f.id === 'fig2')!.tokenPayment!.amount, '2123456');
+  await assert.rejects(() => replica.save(admin.publicKey, { revision: 9, prices: { fig2: '1.0000001' }, currencies: { fig2: skrCurrency } }), /6 decimal/);
 });
 test('two simultaneous saves cannot overwrite the same pricing revision', async () => {
   const f = fixture(); const replica = new ShopPricingService(f.redis, config);

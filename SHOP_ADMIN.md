@@ -80,6 +80,24 @@ Run `npm run test:backend`, `npm run test -w @rps/web`, all app typechecks and `
 
 ## Price/storage source deployment, 2026-10-10
 
+Seeker fighter currency follow-up: default 1 SKR (six decimals), mainnet-only and
+still Seeker-exclusive/not pack-eligible. Price overrides now capture currency;
+unqualified legacy fig2 SOL overrides are ignored, not converted. History captures
+its original units, including old SOL edits. The browser sends expected mint/
+symbol/decimals with price saves; stale SOL editors are rejected before writing.
+Other saved figure prices and old purchase transactions are preserved. The old
+`SHOP_FIG2_PRICE_LAMPORTS` variable is ignored; no new env/native release or pack
+program upgrade is needed. Source/live verification status is recorded below.
+
+Verification for this follow-up: 145 backend, 511 mobile and 24 web tests pass,
+with all app typechecks, production web build and the isolated 375/768/1280px
+admin browser fixture. Read-only mainnet RPC confirms SKR is an initialized
+classic SPL mint with six decimals. Tests cover the exact 1 SKR transfer, atomic
+Core creation, Seeker proof, legacy SOL receipt recovery and mixed-currency price
+history. No real paid transaction or physical wallet test was performed.
+Do not roll back to a currency-blind pricing backend with purchases open: it
+cannot interpret newly stored SKR overrides safely.
+
 `ed4d652` is deployed to Railway (`a4406f47-01d7-4533-8aea-fd6a5bbe43b4`,
 SUCCESS) and Vercel (`ripsy-8c07lpy49-danger-valley.vercel.app`, production READY
 and aliased to `www.ripsy.fun`). The verified upload excludes backend/native/

@@ -143,7 +143,9 @@ export function ShopAdminContent() {
     try { if (sessionRef.current) await protectedRequest('session', 'DELETE'); } finally { sessionRef.current = null; setSession(null); setData(null); setJob(null); }
   });
   const savePrices = () => perform('Saving figure prices...', async () => {
-    const next = await protectedRequest<AdminPrices>('prices', 'PUT', { revision: data!.prices.revision, prices: edits.prices });
+    const currencies = Object.fromEntries(data!.prices.figures.filter(f => f.id in edits.prices)
+      .map(f => [f.id, { mint: f.mint, symbol: f.symbol, decimals: f.decimals }]));
+    const next = await protectedRequest<AdminPrices>('prices', 'PUT', { revision: data!.prices.revision, prices: edits.prices, currencies });
     setData(previous => previous ? { ...previous, prices: next } : null); applyPrices(next); setNotice('Figure prices saved. New purchases use these prices; existing requests keep their original quote.');
   });
   const prepare = (kind: 'edition' | 'price' = 'edition') => perform('Verifying and simulating...', async () => {
@@ -249,7 +251,10 @@ export function ShopAdminContent() {
           </div>}
         </section>
       </div>
-      <section className={styles.card}><h2>Price history</h2>{!data.prices.audit.length ? <p>No admin price changes yet. The store is using its configured defaults.</p> : <ol className={styles.audit}>{data.prices.audit.slice(0, 20).map(a => <li key={a.revision}><strong>Revision {a.revision}</strong> · <time dateTime={new Date(a.at).toISOString()}>{new Date(a.at).toLocaleString()}</time><ul>{Object.entries(a.changes).map(([id, change]) => { const f = data.prices.figures.find(f => f.id === id); return <li key={id}>{f?.name ?? id}: {change.before && f ? unitsToDecimal(change.before, f.decimals) : 'Not priced'} → {f ? unitsToDecimal(change.after, f.decimals) : change.after} {f?.symbol}</li>; })}</ul><span className={styles.address}>{a.address}</span></li>)}</ol>}</section>
+      <section className={styles.card}><h2>Price history</h2>{!data.prices.audit.length ? <p>No admin price changes yet. The store is using its configured defaults.</p> : <ol className={styles.audit}>{data.prices.audit.slice(0, 20).map(a => <li key={a.revision}><strong>Revision {a.revision}</strong> · <time dateTime={new Date(a.at).toISOString()}>{new Date(a.at).toLocaleString()}</time><ul>{Object.entries(a.changes).map(([id, change]) => {
+        const f = data.prices.figures.find(f => f.id === id); const denomination = change.currency ?? f;
+        return <li key={id}>{f?.name ?? id}: {change.before && denomination ? unitsToDecimal(change.before, denomination.decimals) : 'Not priced'} → {denomination ? unitsToDecimal(change.after, denomination.decimals) : change.after} {denomination?.symbol}</li>;
+      })}</ul><span className={styles.address}>{a.address}</span></li>)}</ol>}</section>
     </>}
     <footer className={styles.footer}>RIPSY admin · No private keys are stored in this page.</footer>
   </main>;

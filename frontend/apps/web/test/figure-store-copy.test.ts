@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { figurePrice, figureStoreMessage } from '@rps/core/shop';
+import { FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, figurePrice, figureStoreMessage } from '@rps/core/shop';
 
 test('technical store failures become actionable purchase and account messages', () => {
   assert.equal(figureStoreMessage('Minting is unavailable.'), 'Purchases are not available yet.');
@@ -22,6 +22,8 @@ test('purchase errors retain funds and uncertain payment status guidance', () =>
 });
 
 test('actual payments retain exact currency units; test purchases are clearly distinct', () => {
+  assert.equal(figurePaymentPrice({ priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 }, 'mainnet-beta'), '1 SKR');
+  assert.equal(figurePaymentPrice({ priceLamports: '10000000' }, 'mainnet-beta'), '0.01 SOL'); // Historical receipt.
   assert.equal(figurePrice('11005000', 'mainnet-beta'), '0.011005 SOL');
   assert.equal(figurePrice('11005000', 'devnet'), '0.011005 test credits');
   assert.equal(figurePrice('1', 'mainnet-beta'), '0.000000001 SOL');

@@ -22,8 +22,10 @@ export interface AdminFigure {
 }
 export interface AdminPrices {
   revision: number; figures: AdminFigure[];
-  audit: Array<{ at: number; address: string; revision: number; changes: Record<string, { before: string | null; after: string }> }>;
+  audit: Array<{ at: number; address: string; revision: number; changes: Record<string, { before: string | null; after: string; currency?: AdminPriceCurrency }> }>;
 }
+/** Price overrides/history carry units so a later currency change cannot reinterpret them. */
+export interface AdminPriceCurrency { mint: string | null; symbol: string; decimals: number }
 export interface AdminPackDraft { expectedVersion: number; price: string; drops: PackDrop[] }
 export interface AdminPackPriceDraft { expectedVersion: number; expectedPrice: string; expectedRevision: string; price: string }
 export interface AdminPublication {

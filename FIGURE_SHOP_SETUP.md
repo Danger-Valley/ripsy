@@ -3,12 +3,26 @@
 ## Implemented scope
 
 Home → Figure shop exists on native and at `/shop` on web. The catalog contains
-only purchasable collectibles: Seeker-exclusive fig2, BONK and Jup. Every successful purchase
+only purchasable collectibles: Seeker-exclusive fig2, BONK, Jup and ORE. Every successful purchase
 creates one new **Metaplex Core asset** in the configured RIPSY Core collection.
 Fig1 is the mandatory free starter, fills every unconfigured army slot, and is
 never listed, priced, or minted by the shop. There is no custom gameplay contract,
 supply cap, or secondary marketplace. A buyer can collect multiple copies; each
 copy can occupy only one Army slot.
+
+### Seeker fighter SKR pricing (2026-10-10)
+
+- Seeker fighter's default price is **1 SKR**: mint
+  `SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3`, six decimals, 1,000,000 units.
+- New orders use one atomic checked SPL token payment + Core creation on mainnet.
+  Genuine Seeker wallet proof is still required; it stays excluded from packs.
+  SOL is only for additional network/rent fees and is displayed separately.
+- `SHOP_FIG2_PRICE_LAMPORTS` is obsolete/ignored. No new environment variable,
+  native rebuild, collection creation or pack-program upgrade is needed.
+- Saved SOL price overrides are not reinterpreted as SKR. Admin SKR overrides
+  carry their currency, old history retains SOL units, and stale SOL editors
+  cannot save a number as SKR. Existing purchases retain their captured currency,
+  amount and signed message for recovery, including legacy devnet receipts.
 
 ### BONK and Jup rollout (2026-10-06)
 
@@ -76,8 +90,8 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 
 ## Decisions/credentials still required
 
-1. Confirm the **SOL** price for fig2, and devnet vs mainnet-beta. Until then
-   no price is invented; cards show “Coming soon” and paid minting is disabled.
+1. Seeker fighter's confirmed default price is **1 SKR**, mainnet only. Keep new
+   payments disabled until the production credentials/resources are configured.
 2. Supply a treasury **public address** on the chosen network.
 3. The production **RIPSY Originals** Core collection was created on mainnet-beta
    on 2026-09-21. Configure its address from the production record below and keep
@@ -105,7 +119,7 @@ needs a browser WebGL renderer; it does not use a screenshot of the live board.
 | `SHOP_TREASURY_ADDRESS` | Exact payment recipient |
 | `SHOP_COLLECTION_ADDRESS` | Existing Core collection controlled by mint authority |
 | `SHOP_MINT_AUTHORITY_SECRET` | Server-only 64-byte JSON Solana keypair |
-| `SHOP_FIG2_PRICE_LAMPORTS` | Positive integer string; blank disables fig2 |
+| `SHOP_FIG2_PRICE_LAMPORTS` | Obsolete and ignored. Remove it; SKR defaults come from the registry and admin overrides from Redis. |
 | `SHOP_PUBLIC_ORIGIN` | HTTPS host of `/figures/fig1.json` etc.; default `https://www.ripsy.fun` |
 | `SHOP_SOLANA_MOBILE_STORE_URL` | Public HTTPS store/referral URL returned in `GET /shop/catalog` as `solanaMobileStoreUrl`; default `https://store.solanamobile.com/`. Set in Railway, not Vercel/mobile build env. Redeploy/restart backend after changing it; clients receive it on their next catalog fetch without an app update. |
 
@@ -207,9 +221,9 @@ tested.
 2. `POST /shop/orders` accepts `figureId`, `buyer`, `idempotencyKey`. The server
    chooses price/treasury/collection/metadata; client-supplied price is ignored.
 3. Server verifies RPC genesis and collection authority, generates an asset
-   signer, constructs one v0 message: **SOL transfer + Core createV1** for fig2,
-   or **idempotent treasury token account + TransferChecked + Core createV1**
-   for BONK/Jup. The buyer
+   signer, constructs one v0 message: **idempotent treasury token account +
+   TransferChecked + Core createV1** for Seeker fighter (SKR), BONK, Jup and ORE.
+   Historical SOL orders retain their original message. The buyer
    is both owner and fee/rent payer. Authority and asset partially sign; no user
    funds move yet. Simulation estimates additional fees before review.
 4. Wallet signs the unchanged message after explicit user review. Server compares

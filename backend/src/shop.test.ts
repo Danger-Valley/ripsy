@@ -6,7 +6,7 @@ import type { ShopChain } from './shop-chain.js';
 import { FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, figurePurchaseTotal, formatSol, parseShopCatalog } from '@rps/core/shop';
 
 const buyer = '11111111111111111111111111111111';
-const config: ShopConfig = { ...loadShopConfig({}), enabled: true, treasury: 'So11111111111111111111111111111111111111112', collection: 'SysvarRent111111111111111111111111111111111', prices: { fig1: '100000000', fig2: '200000000' } };
+const config: ShopConfig = { ...loadShopConfig({}), cluster: 'mainnet-beta', enabled: true, treasury: 'So11111111111111111111111111111111111111112', collection: 'SysvarRent111111111111111111111111111111111', prices: { fig1: '100000000', fig2: '200000000' } };
 const input = { figureId: 'fig2', buyer, idempotencyKey: 'purchase-test-123456' };
 class MemoryRedis implements ShopRedis {
   data = new Map<string, string>();
@@ -42,11 +42,12 @@ test('shop is disabled by default; no invented prices and no signing secrets in 
   const catalog = shopCatalog(defaults);
   assert.equal(catalog.cluster, 'devnet');
   assert.ok(catalog.figures.every(figure => !figure.available));
-  assert.equal(catalog.figures[0]!.priceLamports, null);
+  assert.equal(catalog.figures[0]!.priceLamports, '0');
+  assert.deepEqual(catalog.figures[0]!.tokenPayment, FIGURE_TOKEN_PAYMENTS.fig2);
   assert.deepEqual(catalog.figures.map(figure => figure.id), ['fig2', 'bonk', 'jup', 'ore']);
   assert.ok(!JSON.stringify(catalog).includes('not-public'));
   assert.throws(() => loadShopConfig({ SHOP_ENABLED: 'true' }), /incomplete/);
-  for (const price of ['0', '-1', '0.1', '1e9', '9007199254740992']) assert.throws(() => loadShopConfig({ SHOP_FIG2_PRICE_LAMPORTS: price }), /lamports/);
+  for (const price of ['10000000', '0', '-1', '0.1', '1e9']) assert.equal(loadShopConfig({ SHOP_FIG2_PRICE_LAMPORTS: price }).prices.fig2, null);
   assert.equal(formatSol('1'), '0.000000001 SOL');
   assert.equal(formatSol('1200000000'), '1.2 SOL');
   assert.equal(loadShopConfig({ SOLANA_RPC_URL: 'https://mainnet.example.test' }).seekerRpcUrl, 'https://mainnet.example.test');
@@ -57,9 +58,33 @@ test('prices are server owned and idempotency survives switching replicas', asyn
   const first = await f.service.create('player', { ...input, priceLamports: '1' });
   const repeated = await f.replica.create('player', input);
   assert.deepEqual(first, repeated);
-  assert.equal(first.priceLamports, '200000000');
+  assert.equal(first.priceLamports, '0');
+  assert.deepEqual(first.tokenPayment, FIGURE_TOKEN_PAYMENTS.fig2);
   assert.equal(f.prepares(), 1);
   await assert.rejects(() => f.replica.create('player', { ...input, buyer: 'SysvarC1ock11111111111111111111111111111111' }), /already used/);
+});
+
+test('legacy SOL Seeker purchases recover their exact original quote/bytes after the SKR switch', async () => {
+  const f = fixture(); const prepared = await f.service.create('player', input);
+  const key = `ripsy:shop:order:${prepared.id}`;
+  const stored = JSON.parse(f.redis.data.get(key)!);
+  stored.order.priceLamports = '10000000'; delete stored.order.tokenPayment;
+  stored.order.transaction = 'original-partially-signed-SOL-transaction';
+  f.redis.data.set(key, JSON.stringify(stored));
+  assert.deepEqual(await f.replica.create('player', input), stored.order);
+  assert.deepEqual(await f.replica.get('player', prepared.id), stored.order);
+  f.chain.validateSigned = (order, signed) => { assert.equal(order.transaction, stored.order.transaction);
+    assert.equal(signed, 'signed-original-SOL-transaction'); return '1'.repeat(64); };
+  const send = f.chain.send; const broadcasts: string[] = [];
+  f.chain.send = async signed => { const saved = JSON.parse(f.redis.data.get(key)!);
+    assert.equal(saved.order.priceLamports, '10000000'); assert.equal(saved.order.tokenPayment, undefined);
+    broadcasts.push(signed); await send(signed); };
+  assert.equal((await f.replica.submit('player', prepared.id, 'signed-original-SOL-transaction')).status, 'submitted');
+  f.setState('confirmed'); assert.equal((await f.replica.get('player', prepared.id)).status, 'confirmed');
+  assert.equal(f.prepares(), 1); assert.ok(broadcasts.length > 0);
+  assert.ok(broadcasts.every(bytes => bytes === 'signed-original-SOL-transaction')); // Identical-byte recovery, not a second purchase.
+  stored.order.cluster = 'devnet'; stored.order.status = 'confirmed'; f.redis.data.set(key, JSON.stringify(stored));
+  assert.deepEqual(await new ShopService(f.redis, { ...config, cluster: 'devnet' }, f.chain).create('player', input), stored.order);
 });
 
 test('catalog exposes the default or configured store referral URL, with no unsafe schemes', () => {
@@ -162,8 +187,8 @@ test('BONK/Jup/ORE prices are fixed, mainnet-only and cannot be overridden by cl
     assert.equal(figurePaymentPrice(order, order.cluster), prices[id]);
     assert.equal(figurePurchaseTotal(order), `${prices[id]} + 0.000015 SOL`);
     assert.deepEqual(await service.create('player', input), order);
-    await assert.rejects(() => f.service.create('player', input), /production store/);
-    assert.equal(shopCatalog(config).figures.find(candidate => candidate.id === id)!.available, false);
+    await assert.rejects(() => new ShopService(f.redis, { ...config, cluster: 'devnet' }, f.chain).create('player', { ...input, idempotencyKey: `devnet-payment-${id}-1234` }), /production store/);
+    assert.equal(shopCatalog({ ...config, cluster: 'devnet' }).figures.find(candidate => candidate.id === id)!.available, false);
     const tampered = structuredClone(catalog);
     tampered.figures.find(candidate => candidate.id === id)!.tokenPayment!.amount = '1';
     // A structurally valid server price can change without a mobile release.

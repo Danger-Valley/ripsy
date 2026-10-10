@@ -29,7 +29,9 @@ build_status:
   mainnet_program_id: 43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ
   deployment_date: 2026-10-06T10:48:34.809Z
   rpc_provider: configured-private-mainnet-rpc
-  binary_sha256: 199b77db47f82812d115346f706dffa9913f3f207ca3ff13825f4746a5b8d256
+  binary_sha256: 530e0b4cacbb91bf4280a33887aa19eb9c2aa0fb9e2f08cce584383bc93f3ac4
+  price_storage_upgrade_slot: 455263846
+  price_storage_upgrade_verified_at: 2026-10-10T13:02:30.786Z
   upgrade_authority: BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh
   packs_enabled: true
   pack_config_initialized: true
@@ -91,12 +93,27 @@ Evidence: `files/releases/1.0.0-57.md`.
 
 Source now supports independently mutable edition prices and exact-size new
 reward tables. Historical Config/Edition/Receipt layouts, receipt prices and
-VRF/claim rules are unchanged. The production program hash above is still live;
-the new binary has not been uploaded to mainnet. Local actual SBF upgrade and
-regressions pass. Activation requires explicit upgrade approval and sufficient
-temporary upload funding. See `onchain/PRICE_UPGRADE.md`; no production price,
-edition, authority or purchase was changed during preparation.
+VRF/claim rules are unchanged. At preparation time the old binary remained live;
+the new binary had not been uploaded to mainnet. Local actual SBF upgrade and
+regressions passed. Activation required explicit upgrade approval and sufficient
+temporary upload funding. See the activation follow-up below and
+`onchain/PRICE_UPGRADE.md`; no production price, edition, authority or purchase
+was changed during preparation.
 
 Source `ed4d652` is now deployed to Railway and Vercel; live access-control,
 price-only admin bundle and unchanged edition-2 catalog checks pass. This does
 not activate the mainnet program upgrade or allow the new price instruction yet.
+
+Activation follow-up (2026-10-10): user funded/approved the one-time mainnet
+upgrade. Exact reviewed target binary is finalized at slot 455263846, same
+program/authority. Config and editions 1/2 are byte-identical; no mainnet paid
+receipt accounts existed in the snapshot (compatibility tested using a synthetic
+old receipt in an actual local upgrade). No price/chances/pause/authority/customer
+purchase changed. Mainnet unsigned price-operation simulation returns 25 bytes
+and live catalog/admin checks pass: edition 2, 1,099 SKR, 40/40/20. Existing
+source deployments need no new env or native build. Net balance reduction was
+0.175751993 SOL, with 2.455941241 SOL temporary buffer deposit fully refunded
+and 0.173207680 SOL permanent rent growth. Remaining fee-wallet balance was
+2.971254085 SOL. Evidence: `onchain/price-upgrade-deployment.json` and
+`onchain/price-upgrade-report.html`. Real VRF/Core paid end-to-end and completed
+project-wide security audit remain unclaimed; old binary retained for rollback.

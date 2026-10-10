@@ -1,4 +1,53 @@
-# Pack price/storage upgrade - prepared, not mainnet activated
+# Pack price/storage upgrade - mainnet activated 2026-10-10
+
+## Activation verified
+
+The user explicitly funded and approved this one-time upgrade. Finalized slot
+`455263846` now contains the exact reviewed 483,280-byte target binary below.
+Program ID and upgrade authority are unchanged. Config and both historical
+edition accounts are byte-identical to the pre-upgrade snapshot; no mainnet
+receipt accounts existed in that snapshot. Old paid receipt compatibility was
+checked with a synthetic receipt through an actual localhost old-to-new upgrade,
+not a claimed real VRF/Core paid test.
+
+The live enabled catalog/admin remain edition 2, 1,099 SKR, Jup/BONK/ORE
+40/40/20. A no-key, unsigned mainnet price-instruction simulation passed and
+returned a 25-byte pricing account; that hypothetical change was never sent.
+No price account, new edition, purchase, authority or pause change was published.
+The existing admin page can now prepare price-only changes for the human to sign.
+No native build or additional backend/web deployment was needed.
+
+- Upgrade: `5s8q81s6q7L5kwPrfyyrSKkGUXFxRHguDJczBFgKr6M3rRz8H3VmGQzDiwbf4GWQWRKA4PF4s1T8bUWhhADp2i2z`.
+- Extension: `3HK5CdNhmrnT3Uow6qAeHKXSKb9iVoG6vLiSNjwhqXfCtrubtBmtgT2ZULB2x6QvBNYBDZtjqjWuiKnZMD2GPhVG`.
+- Permanent program growth rent: 0.173207680 SOL.
+- Actual temporary buffer deposit/refund: 2.455941241 SOL. The CLI funds slightly
+  above the 2.455900600 SOL minimum buffer rent estimate. Finalized transaction
+  balances prove the entire deposit returned to BJom and the buffer closed.
+- Wallet net reduction: 0.175751993 SOL, including balance-derived total fees
+  of 0.002544313 SOL (assumes no unrelated wallet activity during this interval).
+  Extension and upgrade each independently show a 6,400-lamport fee.
+- Remaining fee-wallet balance at verification: 2.971254085 SOL.
+- Evidence: `price-upgrade-deployment.json`, `price-upgrade-report.html`.
+
+The recovered buffer key and raw account snapshot are ignored local files.
+The runner defaults to read-only and pins both hashes/address/authority. It uses
+the supported Loader-v3 ExtendProgram (6) then Upgrade (3) in separate finalized
+blocks; checked extension (9) is not enabled on this mainnet. RPC permits only
+one returned simulation account and Umi's adapter omits simulation commitment,
+so use finalized blockhashes and verify simulated ProgramData bytes. All failed
+preliminary simulations sent no extension/upgrade. Upload happened only once.
+Ambiguous recorded broadcasts require chain inspection, not blind resubmission.
+
+```sh
+node --env-file=.env onchain/scripts/check-price-upgrade.mjs
+node --env-file=.env --import tsx onchain/scripts/verify-price-upgrade.ts
+# Local deployment evidence verification (requires ignored start/state files):
+node --env-file=.env onchain/scripts/upgrade-price-mainnet.mjs --verify
+```
+
+The capability fixture intentionally pins today's unmodified edition/price; if
+the admin later changes them, update this diagnostic rather than resetting state.
+The historical preparation/deployment notes below are retained as audit history.
 
 ## Scope and compatibility
 

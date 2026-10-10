@@ -120,6 +120,18 @@ edition publication or mainnet program upgrade was sent. The form cannot prepare
 a signable price update until the separately approved/funded program upgrade.
 See `onchain/PRICE_UPGRADE.md` for compatibility, costs and rollout.
 
+Activation follow-up, 2026-10-10: the separately approved mainnet upgrade is now
+finalized, exact target bytes/authority verified (slot 455263846). Unsigned
+mainnet price-operation simulation and live admin/API checks pass; the price
+form can now prepare changes. No desired price was saved or signed. Edition 2
+remains 1,099 SKR / Jup 40%, BONK 40%, ORE 20%. The first price account costs
+777,240 lamports rent plus actual transaction fee, later price-only changes
+need no new rent/edition. A future three-drop edition needs 2,098,040 lamports
+rent for 285 bytes, not the old 8,985-byte allocation. Current old editions are
+not resized/refunded. New chances still require a separate signed edition;
+already-paid receipts retain their price and table. See
+`onchain/price-upgrade-deployment.json` for finalized costs/refund evidence.
+
 ## Production readiness, 2026-10-09
 
 Implementation commit `f4724b7d1f8d779af0e89800b79d842c74aa680c` is deployed successfully to Railway (`545348d2-c78a-4e6a-8d7b-4ab874ebe377`) and Vercel (`ripsy-482m9jj3r-danger-valley.vercel.app`, production READY). Railway and the ignored local `.env` contain only the selected **public** admin address as the new setting. No frontend/native secret was added.

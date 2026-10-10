@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RIPSY pack pricing upgrade - verified mainnet</title>
+<style>
+body{margin:0;background:#e9f8fc;color:#173c50;font:16px/1.6 system-ui,sans-serif}
+main{max-width:820px;margin:36px auto;padding:30px;background:#fff;border-radius:20px}
+h1{line-height:1.2}h2{font-size:21px;margin-top:28px}code{overflow-wrap:anywhere}
+dt{font-weight:650;margin-top:12px}dd{margin:4px 0}.ok{background:#dff3df;padding:16px;border-radius:12px}
+.note{background:#fff4ce;padding:16px;border-radius:12px}a{color:#0876a3}
+@media(max-width:650px){main{margin:12px;padding:20px}}
+</style>
+<main>
+<h1>Pack price/storage upgrade</h1>
+<p class="ok">User-approved mainnet upgrade finalized. Price-only administration is active. No price or odds change was published.</p>
+<p>Verified 10 October 2026 at 13:02 UTC / 15:02 Warsaw.</p>
+<dl>
+<dt>Program / unchanged upgrade authority</dt>
+<dd><a href="https://explorer.solana.com/address/43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ">43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ</a><br><code>BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh</code></dd>
+<dt>Finalized upgrade / memory extension</dt>
+<dd><a href="https://explorer.solana.com/tx/5s8q81s6q7L5kwPrfyyrSKkGUXFxRHguDJczBFgKr6M3rRz8H3VmGQzDiwbf4GWQWRKA4PF4s1T8bUWhhADp2i2z">Upgrade, slot 455263846</a> / <a href="https://explorer.solana.com/tx/3HK5CdNhmrnT3Uow6qAeHKXSKb9iVoG6vLiSNjwhqXfCtrubtBmtgT2ZULB2x6QvBNYBDZtjqjWuiKnZMD2GPhVG">Extension transaction</a></dd>
+<dt>Exact onchain binary</dt>
+<dd>483,280 bytes<br><code>530e0b4cacbb91bf4280a33887aa19eb9c2aa0fb9e2f08cce584383bc93f3ac4</code></dd>
+<dt>Net wallet reduction / permanent rent / balance-derived fees</dt>
+<dd>0.175751993 SOL / 0.173207680 SOL / 0.002544313 SOL. Wallet delta assumes no unrelated activity during the interval. Extension and upgrade each show 6,400 lamports fee independently.</dd>
+<dt>Temporary upload buffer</dt>
+<dd>2.455941241 SOL deposited and fully returned to BJom, independently checked from finalized upgrade pre/post balances; buffer closed. Minimum rent estimate was 2.455900600 SOL.</dd>
+<dt>Remaining fee-wallet balance</dt>
+<dd>2.971254085 SOL at verification.</dd>
+</dl>
+<h2>What is now available</h2>
+<ul>
+<li>Change pack price through the existing admin page without publishing a new reward edition. First pricing account is 25 bytes / 777,240 lamports rent plus transaction fee; later price updates need no new rent.</li>
+<li>Future reward editions allocate actual serialized bytes. Today's three rewards need 285 bytes / 2,098,040 lamports rent rather than the former 8,985 bytes. Existing large editions are not resized or refunded.</li>
+<li>Purchased receipts retain their captured payment and immutable reward table. Future odds still need a separately approved edition.</li>
+</ul>
+<h2>Verification</h2>
+<ul>
+<li>Reviewed build reproduced exactly. Eight Rust tests and three Loader ABI tests pass. The known unlinked Core SDK stack warning is not a claim of a clean project audit.</li>
+<li>Actual localhost old-to-new SBF upgrade passes with a synthetic old paid receipt, unchanged legacy edition, CAS/replay/zero/inactive-edition rejection, 25-byte pricing and compact new edition.</li>
+<li>Finalized executable/loader ownership, full code bytes/hash, authority, extension rent, buffer refund and both transaction errors verified.</li>
+<li>Config and historical editions 1/2 are byte-identical. No mainnet receipt accounts existed in the snapshot; a real paid receipt migration is not claimed.</li>
+<li>No-key mainnet price-instruction simulation creates the expected 25-byte account without sending it. Live API/admin auth/CORS checks pass.</li>
+<li>Current edition 2 remains enabled at 1,099 SKR, Jup 40%, BONK 40%, ORE 20%. Authority, pause, collection, delivery identity and existing figure prices were not changed.</li>
+</ul>
+<h2>Limits and rollback</h2>
+<p class="note">No customer purchase, real VRF/Core end-to-end validation, physical-device test, new native release or completed project-wide security audit was performed. The program remains upgradeable and delivery still depends on the existing operational authority.</p>
+<p>Old verified binary is retained locally. If price overrides are later activated, separately approve pausing buys before any rollback to the old program, which ignores those overrides. Do not remove price accounts, editions or receipts. No rollback or pause was performed.</p>
+<p>Evidence: <code>onchain/price-upgrade-deployment.json</code> and <code>onchain/PRICE_UPGRADE.md</code>. Private keys, RPC credentials, raw snapshot and binaries are excluded from Git.</p>
+</main>
+</html>

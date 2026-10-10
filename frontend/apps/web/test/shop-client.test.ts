@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ShopClient } from '@rps/game-client/shop';
+import { ShopClient, ShopRequestError } from '@rps/game-client/shop';
 import { FIGURES } from '@rps/core/shop';
 import { readFileSync } from 'node:fs';
 
@@ -16,6 +16,18 @@ test('fighter catalog and mint metadata use the approved display names without c
 });
 
 const catalog = { cluster: 'devnet', treasury: null, collection: null, figures: [] };
+
+test('SOL recovery sends only a payment mode and surfaces only a validated server token shortfall', async () => {
+  const recovery = { code: 'INSUFFICIENT_PURCHASE_TOKEN', mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', required: '1000000', balance: '0' };
+  let body: unknown;
+  const client = new ShopClient('https://api.example.test', 'session', async (_url, init) => {
+    body = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ error: 'Not enough JUP', recovery }), { status: 400 });
+  });
+  await assert.rejects(() => client.create('jup', recovery.mint, 'persisted-key-12345', 'sol'), (e: unknown) => e instanceof ShopRequestError && e.recovery?.required === '1000000');
+  assert.deepEqual(body, { figureId: 'jup', buyer: recovery.mint, idempotencyKey: 'persisted-key-12345', paymentMode: 'sol' });
+  const invalid = new ShopClient('https://api.example.test', '', async () => new Response(JSON.stringify({ error: 'Not enough JUP', recovery: { ...recovery, balance: '1000000' } }), { status: 400 }));
+  await assert.rejects(() => invalid.createPack(recovery.mint, 'persisted-key-12345', 'sol'), (e: unknown) => e instanceof ShopRequestError && e.recovery === null);
+});
 
 test('default browser fetch keeps its global receiver, not a ShopClient receiver', async () => {
   const original = globalThis.fetch;

@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { figurePrice, solanaExplorer } from "@rps/core/shop";
+import { figurePrice, formatSol, solFundingNotice, solanaExplorer } from "@rps/core/shop";
 import { useFigureCatalog } from '../hooks/use-figure-catalog';
 import { isTerminalPack, packPrice } from "@rps/core/packs";
 import type { usePackShop } from "@rps/game-client/use-pack-shop";
@@ -73,6 +73,7 @@ export function PackCard({
       )}
       {pack.hasPurchase && (
         <>
+          {pack.fundingRequired && <><p>Use SOL to cover the missing {pack.fundingRequired.symbol}. Review the total before approval.</p><button className={styles.primary} aria-busy={pack.busy} disabled={blocked || pack.busy || address !== pack.purchaseBuyer} onClick={() => { void pack.buyWithSol(); }}>Buy with SOL</button></>}
           <p>
             {order?.status === "confirmed"
               ? "Purchase complete. Your fighter is in your collection."
@@ -89,10 +90,9 @@ export function PackCard({
           {order?.status === "prepared" && (
             <>
               <p>
-                {packPrice(order.payment)} +{" "}
-                {figurePrice(order.networkFeeLamports, "mainnet-beta")}{" "}
-                estimated additional fees.
+                {order.solFunding ? `Pack price: ${packPrice(order.payment)}. Estimated additional fees: ${formatSol(order.networkFeeLamports)}.` : `${packPrice(order.payment)} + ${figurePrice(order.networkFeeLamports, 'mainnet-beta')} estimated additional fees.`}
               </p>
+              {order.solFunding && <><p>Pay with SOL: {formatSol(order.solFunding.inputLamports)}. Estimated total including fees: {formatSol((BigInt(order.solFunding.inputLamports) + BigInt(order.networkFeeLamports)).toString())}.</p><p>{solFundingNotice(order.solFunding)}</p></>}
               <p>
                 {order.drops
                   .map(

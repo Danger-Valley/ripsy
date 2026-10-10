@@ -48,7 +48,7 @@ async function mount(params?: { signIn: boolean }) { await Renderer.act(async ()
 function button(label: string) { return tree.root.findAll(node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0]; }
 async function press(label: string) { await Renderer.act(async () => { await button(label).props.onPress(); }); }
 function text(value: string) { return tree.root.findAllByType(Text).some(node => node.props.children === value); }
-function setShop(next: object) { jest.mocked(useShop).mockReturnValue({ ...shop, ...next } as ReturnType<typeof useShop>); }
+function setShop(next: object) { jest.mocked(useShop).mockReturnValue({ ...shop, purchaseBuyer: null, fundingRequired: null, buyWithSol: jest.fn(), ...next } as ReturnType<typeof useShop>); }
 function external(address: string | null = buyer) { jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: true, address, status: address ? 'connected' : 'disconnected' }); }
 function visibleModals() { return tree.root.findAllByType(Modal).filter(node => node.props.visible); }
 function purchaseModal(id: 'figure' | 'pack') {
@@ -58,6 +58,25 @@ function purchaseModal(id: 'figure' | 'pack') {
 }
 async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />)); }
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
+
+test('insufficient tokens offer Buy with SOL in the existing popup, without opening a wallet or auto-approving', async () => {
+  const buyWithSol = jest.fn().mockResolvedValue(undefined);
+  external();
+  setShop({ hasPurchase: true, purchaseBuyer: buyer, error: 'Not enough ORE', fundingRequired: { symbol: 'ORE' }, buyWithSol });
+  await mount(); purchaseModal('figure');
+  expect(button('Buy with SOL')).toBeDefined();
+  await press('Buy with SOL');
+  expect(buyWithSol).toHaveBeenCalledTimes(1); expect(shop.confirm).not.toHaveBeenCalled(); expect(connect).not.toHaveBeenCalled();
+  setShop({ hasPurchase: true, purchaseBuyer: buyer, error: 'Not enough ORE', fundingRequired: { symbol: 'ORE' }, buyWithSol, busy: true });
+  await updateScreen(); expect(button('Buy with SOL').props.disabled).toBe(true);
+});
+
+test('pack missing SKR uses SOL recovery in its popup, not a new pack purchase', async () => {
+  const buyWithSol = jest.fn().mockResolvedValue(undefined);
+  external(); setPack({ hasPurchase: true, purchaseBuyer: buyer, fundingRequired: { symbol: 'SKR' }, error: 'Not enough SKR', buyWithSol });
+  await mount(); purchaseModal('pack'); await press('Buy with SOL');
+  expect(buyWithSol).toHaveBeenCalledTimes(1); expect(pack.prepare).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
+});
 const packOrder = { ...order, payment: PACK_PAYMENT, drops: INITIAL_PACK.drops, receipt: order.asset, edition: order.asset, version: 1, result: null, randomness: null };
 
 test.each(['ios', 'android'] as const)('ORE pack shows all three chances and its confirmed reward on %s', async os => {

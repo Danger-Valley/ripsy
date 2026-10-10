@@ -4,6 +4,7 @@ import { isTerminalPack, type PackOrder } from "@rps/core/packs";
 import type { ShopRedis } from "./shop-service.js";
 import { ShopError } from "./shop-error.js";
 import type { PackChain } from "./pack-chain.js";
+import { writePreparedOrder } from './shop-order-fence.js';
 interface Stored {
   playerId: string;
   nonce: string;
@@ -54,6 +55,7 @@ export class PackService {
     );
   }
   async create(playerId: string, input: Record<string, unknown>) {
+    if (input.paymentMode !== undefined && input.paymentMode !== 'sol') throw new ShopError('Invalid payment method');
     if (
       typeof input.buyer !== "string" ||
       typeof input.idempotencyKey !== "string" ||
@@ -69,7 +71,7 @@ export class PackService {
     const id = createHash("sha256")
       .update(`${playerId}:${input.idempotencyKey}`)
       .digest("hex");
-    return this.lock(id, async () => {
+    return this.lock(id, async commit => {
       const existing = await this.read(id, playerId, false);
       if (existing) {
         if (existing.order.buyer !== buyer)
@@ -89,7 +91,7 @@ export class PackService {
       if (count > 8)
         throw new ShopError("Too many pack requests. Wait a minute.", 429);
       const nonce = randomBytes(32);
-      const prepared = await this.chain.prepare(buyer, nonce);
+      const prepared = await this.chain.prepare(buyer, nonce, input.paymentMode as 'sol' | undefined);
       const order: PackOrder = {
         ...prepared,
         id,
@@ -99,7 +101,7 @@ export class PackService {
         result: null,
         randomness: null,
       };
-      await this.write({ playerId, nonce: nonce.toString("hex"), order });
+      await commit({ playerId, nonce: nonce.toString("hex"), order });
       return order;
     });
   }
@@ -189,7 +191,7 @@ export class PackService {
       }
     );
   }
-  private async lock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+  private async lock<T>(id: string, fn: (commit: (stored: Stored) => Promise<void>) => Promise<T>): Promise<T> {
     if (!/^[a-f0-9]{64}$/.test(id))
       throw new ShopError("Pack purchase not found", 404);
     const key = `${this.prefix}:packs:lock:${id}`,
@@ -197,7 +199,7 @@ export class PackService {
     if (!(await this.redis.set(key, token, { NX: true, EX: 120 })))
       throw new ShopError("Purchase is updating. Try again shortly.", 409);
     try {
-      return await fn();
+      return await fn(stored => writePreparedOrder(this.redis, key, token, `${this.prefix}:packs:order:${id}`, JSON.stringify(stored), 0, { key: `${this.prefix}:packs:pending`, id }));
     } finally {
       await this.redis.eval(
         "if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) end return 0",

@@ -7,7 +7,7 @@ import { usePlayerIdentity } from '@rps/game-client';
 import { useShop, type PurchaseStorage } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { PackCard } from './pack-card';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, isTerminalMint, solanaExplorer, type PurchaseTransaction } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, formatSol, solFundingNotice, isTerminalMint, solanaExplorer, type PurchaseTransaction } from '@rps/core/shop';
 import { useFigureCatalog } from '../hooks/use-figure-catalog';
 import { useBrowserWallet } from '../hooks/use-browser-wallet';
 import styles from './shop.module.css';
@@ -92,11 +92,13 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
         {order.cluster === 'devnet' && <p>Test purchase only. No real payment.</p>}
         <dl><dt>Figure</dt><dd>{definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}</dd><dt>Price</dt><dd>{figurePaymentPrice(order, order.cluster)}</dd><dt>Estimated additional fees</dt><dd>{figurePrice(order.networkFeeLamports, order.cluster)}</dd><dt>Estimated total</dt><dd>{figurePurchaseTotal(order)}</dd><dt>Sold by</dt><dd>RIPSY</dd></dl>
         <details><summary>Payment details</summary><dl><dt>Purchase account</dt><dd className={styles.address}>{order.buyer}</dd><dt>Seller account</dt><dd className={styles.address}>{order.treasury}</dd></dl>{order.signature && <a href={solanaExplorer('tx', order.signature, order.cluster)} target="_blank" rel="noreferrer">View payment record ↗</a>}</details>
+        {order.solFunding && <><p>Pay with SOL: {formatSol(order.solFunding.inputLamports)}</p><p>{solFundingNotice(order.solFunding)}</p></>}
         <div className={styles.actions}>
           {order.status === 'prepared' && <button className={styles.primary} disabled={shop.busy || address !== order.buyer} onClick={() => { void shop.confirm(walletKind === 'privy' ? embedded!.sign : external.signShopTransaction); }}>{shop.busy ? 'Waiting for approval…' : shop.signingStarted ? 'Retry purchase approval' : 'Confirm purchase'}</button>}
           {order.status === 'confirmed' && <a href={`/army?minted=${encodeURIComponent(order.asset)}`}>Add to your army →</a>}
         </div>
-      </> : <p>Preparing your purchase. If the connection was interrupted, retry to recover this request.</p>}
+      </> : <p>{shop.fundingRequired ? `Use SOL to cover the missing ${shop.fundingRequired.symbol}. Review the total before approval.` : shop.error ? 'No payment has been approved. Check status or cancel and try again.' : 'Preparing your purchase. If the connection was interrupted, retry to recover this request.'}</p>}
+      {shop.fundingRequired && <button className={styles.primary} aria-busy={shop.busy} disabled={shop.busy || address !== shop.purchaseBuyer} onClick={() => { void shop.buyWithSol(); }}>Buy with SOL</button>}
       <div className={styles.actions}><button disabled={shop.busy} onClick={() => { void shop.checkStatus(); }}>Check status</button>{canClose && <button disabled={shop.busy} onClick={() => { void shop.dismiss(); }}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</button>}</div>
     </section>}
 

@@ -1,4 +1,6 @@
 import { isModelVariant } from '@rps/core/figure-manifest';
+import { validateSolFunding, type SolFunding } from '@rps/core/sol-funding';
+export { parseTokenShortfall, validateSolFunding, solFundingNotice, type SolFunding, type TokenShortfall } from '@rps/core/sol-funding';
 /** Shop is deliberately independent of gameplay and its anonymous identity. */
 export type ShopCluster = 'devnet' | 'mainnet-beta';
 /** Stable server-issued slug, not an app-release enum. */
@@ -43,6 +45,7 @@ export interface ShopCatalog {
 }
 export type MintStatus = 'prepared' | 'submitted' | 'confirmed' | 'failed' | 'expired';
 export interface MintOrder {
+  solFunding?: SolFunding;
   id: string;
   figureId: FigureId;
   buyer: string;
@@ -118,6 +121,7 @@ export function figurePaymentPrice(value: Pick<ShopFigure, 'priceLamports' | 'to
 }
 
 export function figurePurchaseTotal(order: MintOrder): string {
+  if (order.solFunding) return formatSol((BigInt(order.solFunding.inputLamports) + BigInt(order.networkFeeLamports)).toString());
   return order.tokenPayment
     ? `${figurePaymentPrice(order, order.cluster)} + ${figurePrice(order.networkFeeLamports, order.cluster)}`
     : figurePrice((BigInt(order.priceLamports) + BigInt(order.networkFeeLamports)).toString(), order.cluster);
@@ -147,6 +151,7 @@ export function figureStoreMessage(message: string | null | undefined, fallback 
   if (!message) return fallback;
   // Hardware-store branding is intentional, not payment jargon.
   if (/Solana Mobile store/i.test(message)) return message;
+  if (/^Buy with SOL is temporarily unavailable\.|^This SOL purchase is too large\.|^This exchange cannot fit with the purchase\.|^Additional fees exceed the SOL purchase limit\./.test(message)) return message;
   if (/insufficient|not enough (?:funds|sol)|balance.{0,20}(?:low|small)/i.test(message)) return 'Not enough funds to complete this purchase.';
   if (/(?:genesis token|seed vault|\bSGT\b)/i.test(message)) return 'This figure is only available to eligible Seeker owners. Connect your Seeker wallet and try again.';
   if (/connection (?:was )?(?:cancelled|canceled)/i.test(message)) return 'Connection cancelled.';
@@ -263,5 +268,6 @@ export function parseMintOrder(value: unknown): MintOrder {
     || !['prepared', 'submitted', 'confirmed', 'failed', 'expired'].includes(String(data.status))
     || !(data.signature === null || (typeof data.signature === 'string' && /^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(data.signature)))
     || !(data.error === null || typeof data.error === 'string')) throw new Error('Invalid mint order');
+  validateSolFunding(data.solFunding, data.tokenPayment as TokenPayment | undefined);
   return data as unknown as MintOrder;
 }

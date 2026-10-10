@@ -7,6 +7,7 @@ import type { ShopChain } from './shop-chain.js';
 import { ShopError } from './shop-error.js';
 import type { SeekerGate } from './seeker-verification.js';
 import type { ShopPricingService } from './shop-pricing.js';
+import { writePreparedOrder } from './shop-order-fence.js';
 export { ShopError } from './shop-error.js';
 
 export interface ShopRedis {
@@ -38,6 +39,7 @@ export class ShopService {
 
   async create(playerId: string, input: Record<string, unknown>): Promise<MintOrder> {
     if (!this.config.enabled) throw new ShopError('Minting is not available yet.', 503);
+    if (input.paymentMode !== undefined && input.paymentMode !== 'sol') throw new ShopError('Invalid payment method');
     if (!isFigureId(input.figureId) || !FIGURES.some(f => f.id === input.figureId)) throw new ShopError('Unknown figure');
     if (input.figureId === 'fig1') throw new ShopError('RIPSY 001 is free for every player and is not sold in the shop.', 409);
     if (!FIGURES.find(f => f.id === input.figureId)!.purchasable) throw new ShopError('This figure is not available for purchase.', 409);
@@ -48,7 +50,7 @@ export class ShopService {
     if (typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(input.idempotencyKey)) throw new ShopError('Invalid purchase request ID');
     const figureId = input.figureId;
     const id = createHash('sha256').update(`${playerId}:${input.idempotencyKey}`).digest('hex');
-    return this.lock(id, async () => {
+    return this.lock(id, async commit => {
       const existing = await this.read(id, playerId, false);
       if (existing) {
         if (existing.order.buyer !== buyer || existing.order.figureId !== figureId) throw new ShopError('Purchase request already used', 409);
@@ -67,14 +69,14 @@ export class ShopService {
       const bucket = `${this.prefix}:shop:rate:${playerId}:${Math.floor(Date.now() / 60_000)}`;
       const count = Number(await this.redis.eval("local n = redis.call('INCR', KEYS[1]); if n == 1 then redis.call('EXPIRE', KEYS[1], 120) end; return n", { keys: [bucket], arguments: [] }));
       if (count > 8) throw new ShopError('Too many mint requests. Wait a minute and try again.', 429);
-      const prepared = await this.chain.prepare(figureId, buyer, price, tokenPayment);
+      const prepared = await this.chain.prepare(figureId, buyer, price, tokenPayment, input.paymentMode as 'sol' | undefined);
       const order: MintOrder = {
         id, figureId, buyer, ...prepared, cluster: this.config.cluster, priceLamports: price,
         ...(tokenPayment ? { tokenPayment: { ...tokenPayment } } : {}),
         treasury: this.config.treasury!, collection: this.config.collection!, createdAt: Date.now(),
         status: 'prepared', signature: null, error: null,
       };
-      await this.write({ playerId, order });
+      await commit({ playerId, order });
       return order;
     });
   }
@@ -136,12 +138,12 @@ export class ShopService {
     await this.redis.set(`${this.prefix}:shop:order:${stored.order.id}`, JSON.stringify(stored), { EX: retention });
   }
 
-  private async lock<T>(id: string, operation: () => Promise<T>): Promise<T> {
+  private async lock<T>(id: string, operation: (commit: (stored: StoredOrder) => Promise<void>) => Promise<T>): Promise<T> {
     if (!/^[a-f0-9]{64}$/.test(id)) throw new ShopError('Purchase not found', 404);
     const key = `${this.prefix}:shop:lock:${id}`;
     const token = randomUUID();
     if (!await this.redis.set(key, token, { NX: true, EX: 120 })) throw new ShopError('Purchase is updating. Try again in a moment.', 409);
-    try { return await operation(); } finally {
+    try { return await operation(stored => writePreparedOrder(this.redis, key, token, `${this.prefix}:shop:order:${id}`, JSON.stringify(stored), retention)); } finally {
       await this.redis.eval("if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0", { keys: [key], arguments: [token] });
     }
   }

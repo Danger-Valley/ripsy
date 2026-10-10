@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { isFigureId, isTerminalMint, parseMintOrder, type FigureId, type MintOrder, type SeekerChallenge, type SeekerProof, type ShopCatalog } from '@rps/core/shop';
-import { ShopClient } from './shop-client';
+import { isFigureId, isTerminalMint, parseMintOrder, type TokenShortfall, type FigureId, type MintOrder, type SeekerChallenge, type SeekerProof, type ShopCatalog } from '@rps/core/shop';
+import { ShopClient, ShopRequestError } from './shop-client';
 
 export interface PurchaseIntent {
+  paymentMode?: 'sol';
   key: string;
   figureId: FigureId;
   buyer: string;
@@ -19,6 +20,7 @@ export function parsePurchaseIntent(raw: string): PurchaseIntent {
   if (!value || typeof value.key !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(value.key)
     || !isFigureId(value.figureId) || typeof value.buyer !== 'string'
     || (value.signed !== undefined && (typeof value.signed !== 'string' || value.signed.length > 1644))
+    || (value.paymentMode !== undefined && value.paymentMode !== 'sol')
     || (value.signingStarted !== undefined && typeof value.signingStarted !== 'boolean')) throw new Error('Could not restore your purchase. Contact support before starting another mint.');
   if (value.order) value.order = parseMintOrder(value.order);
   if (value.order && (value.order.buyer !== value.buyer || value.order.figureId !== value.figureId)) throw new Error('Invalid saved purchase');
@@ -31,6 +33,9 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
   const [intent, setIntent] = useState<PurchaseIntent | null>(null);
   const intentRef = useRef<PurchaseIntent | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fundingRequired, setFundingRequired] = useState<TokenShortfall | null>(null);
+  const fundingRef = useRef<TokenShortfall | null>(null);
+  const preparationBlocked = useRef(false);
   const [busy, setBusy] = useState(false);
   const [restored, setRestored] = useState(false);
   const activeOperation = useRef(false);
@@ -59,14 +64,21 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     if (activeOperation.current || !sessionToken || !restored) return;
     activeOperation.current = true;
     if (!background) { setBusy(true); setError(null); }
-    try { await operation(); } catch (cause) { setError(message(cause)); }
+    try { await operation(); if (!background || !preparationBlocked.current) { setFundingRequired(null); fundingRef.current = null; preparationBlocked.current = false; } }
+    catch (cause) {
+      const recovery = cause instanceof ShopRequestError ? cause.recovery : null;
+      fundingRef.current = recovery; setFundingRequired(recovery);
+      preparationBlocked.current = cause instanceof ShopRequestError && !intentRef.current?.order;
+      setError(message(cause));
+    }
     finally { activeOperation.current = false; setBusy(false); }
   }, [sessionToken, restored]);
 
   const checkStatus = useCallback((background = false) => run(async () => {
     const current = intentRef.current;
     if (!current) return;
-    const order = current.order ? await client.get(current.order.id) : await client.create(current.figureId, current.buyer, current.key);
+    if (background && preparationBlocked.current) return;
+    const order = current.order ? await client.get(current.order.id) : await client.create(current.figureId, current.buyer, current.key, current.paymentMode);
     const latest = current.signed && !isTerminalMint(order) ? await client.submit(order.id, current.signed) : order;
     await persist({ ...current, order: latest, ...(isTerminalMint(latest) ? { signed: undefined } : {}) });
   }, background), [client, persist, run]);
@@ -107,6 +119,15 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     await persist({ ...signing, signed, order: submitted });
   }), [client, persist, run]);
 
+  const buyWithSol = useCallback(() => run(async () => {
+    const saved = intentRef.current;
+    if (!saved || saved.order || saved.signingStarted || saved.signed || !fundingRef.current || saved.paymentMode) throw new Error('Check your saved purchase first.');
+    const pending: PurchaseIntent = { ...saved, paymentMode: 'sol' };
+    // Persist before HTTP. A lost response must recover this exact request.
+    await persist(pending);
+    await persist({ ...pending, order: await client.create(pending.figureId, pending.buyer, pending.key, 'sol') });
+  }), [client, persist, run]);
+
   const dismiss = useCallback(() => run(async () => {
     const current = intentRef.current;
     if (current?.signingStarted && (!current.order || !isTerminalMint(current.order))) throw new Error('Wait for confirmation or expiry before starting another purchase.');
@@ -117,7 +138,9 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     await client.clearWallet();
   }), [client, run]);
 
-  return { catalog, order: intent?.order ?? null, hasPurchase: Boolean(intent), signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, prepare, confirm, dismiss, checkStatus, loadCatalog, clearWallet };
+  return { catalog, order: intent?.order ?? null, hasPurchase: Boolean(intent), purchaseBuyer: intent?.buyer ?? null,
+    fundingRequired: !intent?.order && !intent?.signingStarted && !intent?.paymentMode ? fundingRequired : null, buyWithSol,
+    signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, prepare, confirm, dismiss, checkStatus, loadCatalog, clearWallet };
 }
 
 function message(cause: unknown) { return cause instanceof Error ? cause.message : 'Could not complete this request. Try again.'; }

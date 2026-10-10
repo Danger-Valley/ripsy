@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import {
   figurePrice,
   figureStoreMessage,
+  formatSol,
+  solFundingNotice,
   solanaExplorer,
 } from '@rps/core/shop';
 import { isTerminalPack, packPrice } from '@rps/core/packs';
@@ -189,10 +191,13 @@ export function ShopPackPurchase({
           ? 'This purchase did not complete. No figure was purchased.'
           : order
           ? 'Review your pack. One fighter is selected with the chances below.'
-          : pack.error && !pack.hasPurchase
+          : pack.fundingRequired
+          ? `You can use SOL to cover the missing ${pack.fundingRequired.symbol}. Review the SOL total before approval.`
+          : pack.error
           ? 'No payment has been approved. Close this popup and try again.'
           : 'Preparing your pack… Retry to recover this same request if the connection was interrupted.'}
       </Text>
+      {pack.fundingRequired && <ToyHomeButton tone="yellow" busy={pack.busy} disabled={blocked || pack.busy || address !== pack.purchaseBuyer} onPress={() => pack.buyWithSol()}>Buy with SOL</ToyHomeButton>}
       {order && (
         <>
           {order.status === 'confirmed' && order.result && (
@@ -211,9 +216,9 @@ export function ShopPackPurchase({
           {order.status === 'prepared' && (
             <>
               <Text style={styles.name}>
-                {packPrice(order.payment)} +{' '}
-                {figurePrice(order.networkFeeLamports, 'mainnet-beta')}
+                {order.solFunding ? `${formatSol(order.solFunding.inputLamports)} + ${formatSol(order.networkFeeLamports)} fees` : `${packPrice(order.payment)} + ${figurePrice(order.networkFeeLamports, 'mainnet-beta')}`}
               </Text>
+              {order.solFunding && <><Text style={styles.name}>Estimated total: {formatSol((BigInt(order.solFunding.inputLamports) + BigInt(order.networkFeeLamports)).toString())}</Text><Text style={styles.copy}>Pack price: {packPrice(order.payment)}</Text><Text style={styles.copy}>{solFundingNotice(order.solFunding)}</Text></>}
               <Text style={styles.copy}>
                 {order.drops
                   .map(

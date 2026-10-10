@@ -19,6 +19,7 @@ import {
   createIdempotentAssociatedToken,
   mplToolbox,
   setComputeUnitLimit,
+  setComputeUnitPrice,
 } from "@metaplex-foundation/mpl-toolbox";
 import { MPL_CORE_PROGRAM_ID } from "@metaplex-foundation/mpl-core";
 import { FIGURES } from "./figure-registry.js";
@@ -37,7 +38,8 @@ import {
   decodeReceipt,
   discriminator,
 } from "./pack-codec.js";
-import { SHOP_TOKEN_PROGRAM } from "./shop-token-payment.js";
+import { SHOP_TOKEN_PROGRAM, shopTokenBalance, requireTokenBalance } from "./shop-token-payment.js";
+import { prepareSolFunding, verifySolFundingSimulation } from './shop-sol-funding.js';
 import { createShopChain } from "./shop-chain.js";
 import type { ShopConfig } from "./shop-config.js";
 import { ShopError } from "./shop-error.js";
@@ -81,7 +83,8 @@ export interface PackChain {
   catalog(): Promise<PackCatalog>;
   prepare(
     buyer: string,
-    nonce: Uint8Array
+    nonce: Uint8Array,
+    paymentMode?: 'sol'
   ): Promise<
     Omit<
       PackOrder,
@@ -208,7 +211,7 @@ export function createPackChain(
   }
   return {
     catalog,
-    async prepare(buyerAddress, nonce) {
+    async prepare(buyerAddress, nonce, paymentMode) {
       const c = await catalog();
       if (!c.available)
         throw new ShopError("Packs are not available yet.", 503);
@@ -253,15 +256,22 @@ export function createPackChain(
         // Old program ignores this extra account; upgraded program requires it.
         meta((await packPricing(umi, e.key, e.e.price)).key, 0),
       ];
+      const tokenBalance = await shopTokenBalance(umi, buyer, c.payment);
+      const protectedAccounts = [String(umi.identity.publicKey), config.collection!, config.treasury!, key, asset, e.key, root, escrow[0], identity];
+      let funding = paymentMode ? await prepareSolFunding(umi, buyer, c.payment, tokenBalance.amount, config.jupiterApiKey, protectedAccounts) : null;
+      if (!funding) requireTokenBalance(c.payment, tokenBalance.amount);
       const [blockhash, balance] = await Promise.all([
         umi.rpc.getLatestBlockhash(),
         umi.rpc.getBalance(buyer.publicKey),
       ]);
-      const transaction = await transactionBuilder()
+      const compose = () => transactionBuilder()
         .setVersion(0)
         .setFeePayer(buyer)
         .setBlockhash(blockhash)
-        .add(setComputeUnitLimit(umi, { units: 600_000 }))
+        .setAddressLookupTables(funding?.lookups ?? [])
+        .add(setComputeUnitLimit(umi, { units: funding ? 1_400_000 : 600_000 }))
+        .add(funding ? setComputeUnitPrice(umi, { microLamports: 10_000 }) : transactionBuilder())
+        .add(funding?.before ?? transactionBuilder())
         .add({
           instruction: umiInstruction({
             programAddress: address(PACK_PROGRAM_ID),
@@ -270,23 +280,38 @@ export function createPackChain(
           }),
           signers: [buyer],
           bytesCreatedOnChain: 0,
-        })
-        .buildAndSign(umi);
+        }).add(funding?.after ?? transactionBuilder());
+      let builder = compose();
+      for (const maxAccounts of [16, 12] as const) {
+        if (!funding || builder.fitsInOneTransaction(umi)) break;
+        funding = await prepareSolFunding(umi, buyer, c.payment, tokenBalance.amount, config.jupiterApiKey, protectedAccounts, fetch, maxAccounts);
+        builder = compose();
+      }
+      if (!builder.fitsInOneTransaction(umi)) throw new ShopError('This exchange cannot fit with the purchase. Add SKR to your account instead.');
+      // Compact-route retries happen before the final expiry/balance snapshot.
+      const expiry = funding ? await umi.rpc.getLatestBlockhash() : blockhash;
+      const currentBalance = funding ? await umi.rpc.getBalance(buyer.publicKey) : balance;
+      if (funding && currentBalance.basisPoints < BigInt(funding.receipt.inputLamports)) throw new ShopError('Not enough SOL to cover this purchase and additional fees.');
+      builder = builder.setBlockhash(expiry);
+      const transaction = await builder.buildAndSign(umi);
       const simulation = await umi.rpc.simulateTransaction(transaction, {
         verifySignatures: false,
-        accounts: [buyer.publicKey],
+        accounts: [buyer.publicKey, ...(funding ? [publicKey(funding.outputAccount), publicKey(funding.wrappedAccount)] : [])],
       });
       if (simulation.err)
         throw new ShopError(
-          "Could not prepare this pack. Check your SKR balance and SOL for additional fees. No payment was sent."
+          funding ? "Could not prepare this SOL purchase. Check your SOL balance and try again. No payment was sent." : "Could not prepare this pack. Check your SKR balance and SOL for additional fees. No payment was sent."
         );
+      if (funding) verifySolFundingSimulation(funding, c.payment, buyerAddress, simulation);
       const remaining = simulation.accounts?.[0]?.lamports;
       if (
         remaining === undefined ||
         !Number.isSafeInteger(remaining) ||
-        balance.basisPoints < BigInt(remaining)
+        currentBalance.basisPoints < BigInt(remaining)
       )
         throw new Error("Cannot estimate pack fees");
+      const fee = currentBalance.basisPoints - BigInt(remaining) - BigInt(funding?.receipt.inputLamports ?? '0');
+      if (fee < 0n || (funding && fee > 100_000_000n)) throw new ShopError('Could not verify the additional purchase fees. No payment was sent.');
       return {
         buyer: buyerAddress,
         cluster: "mainnet-beta",
@@ -299,10 +324,9 @@ export function createPackChain(
         version: c.version,
         payment: c.payment,
         drops: c.drops,
-        networkFeeLamports: (
-          balance.basisPoints - BigInt(remaining)
-        ).toString(),
-        lastValidBlockHeight: blockhash.lastValidBlockHeight,
+        networkFeeLamports: fee.toString(),
+        ...(funding ? { solFunding: funding.receipt } : {}),
+        lastValidBlockHeight: expiry.lastValidBlockHeight,
       };
     },
     validateSigned(order, signed) {

@@ -2,16 +2,17 @@ import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { createNoopSigner, generateSigner, keypairIdentity, lamports, publicKey, transactionBuilder, type Umi } from '@metaplex-foundation/umi';
 import { base58 } from '@metaplex-foundation/umi/serializers';
 import { createV1, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
-import { mplToolbox, transferSol } from '@metaplex-foundation/mpl-toolbox';
+import { mplToolbox, transferSol, setComputeUnitLimit, setComputeUnitPrice } from '@metaplex-foundation/mpl-toolbox';
 import { type FigureId, type MintOrder, type TokenPayment } from '@rps/core/shop';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 import type { ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
-import { shopTokenPayment } from './shop-token-payment.js';
+import { shopTokenBalance, shopTokenPayment } from './shop-token-payment.js';
+import { prepareSolFunding, verifySolFundingSimulation } from './shop-sol-funding.js';
 
-export type ChainMint = Pick<MintOrder, 'asset' | 'transaction' | 'lastValidBlockHeight' | 'networkFeeLamports'>;
+export type ChainMint = Pick<MintOrder, 'asset' | 'transaction' | 'lastValidBlockHeight' | 'networkFeeLamports' | 'solFunding'>;
 export interface ShopChain {
-  prepare(figureId: FigureId, buyer: string, price: string, payment?: TokenPayment): Promise<ChainMint>;
+  prepare(figureId: FigureId, buyer: string, price: string, payment?: TokenPayment, paymentMode?: 'sol'): Promise<ChainMint>;
   validateSigned(order: Pick<MintOrder, 'transaction' | 'buyer'>, signed: string): string;
   send(signed: string): Promise<void>;
   status(order: MintOrder): Promise<'pending' | 'confirmed' | 'failed' | 'expired'>;
@@ -32,7 +33,7 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
     catch { throw new ShopError('Invalid transaction'); }
   };
   return {
-    async prepare(figureId, buyerAddress, price, paymentQuote) {
+    async prepare(figureId, buyerAddress, price, paymentQuote, paymentMode) {
       if (!config.enabled || !config.collection || !config.treasury) throw new Error('Minting is not available yet');
       const buyer = createNoopSigner(publicKey(buyerAddress));
       const tokenPayment = paymentQuote ?? FIGURE_TOKEN_PAYMENTS[figureId];
@@ -52,30 +53,50 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
       if (collection.updateAuthority !== umi.identity.publicKey) throw new Error('Invalid shop collection authority');
       const figure = FIGURES.find(candidate => candidate.id === figureId)!;
       const asset = generateSigner(umi);
+      if (paymentMode && !tokenPayment) throw new ShopError('Buy with SOL is only available for token-priced figures.');
+      const tokenBalance = paymentMode && tokenPayment ? (await shopTokenBalance(umi, buyer, tokenPayment)).amount : 0n;
+      const protectedAccounts = [String(umi.identity.publicKey), config.collection, config.treasury, String(asset.publicKey)];
+      let funding = paymentMode && tokenPayment ? await prepareSolFunding(umi, buyer, tokenPayment,
+        tokenBalance, config.jupiterApiKey, protectedAccounts) : null;
       const payment = tokenPayment
-        ? await shopTokenPayment(umi, buyer, config.treasury, tokenPayment)
+        ? await shopTokenPayment(umi, buyer, config.treasury, tokenPayment, Boolean(funding))
         : transferSol(umi, { source: buyer, destination: publicKey(config.treasury), amount: lamports(BigInt(price)) });
-      const transaction = await transactionBuilder()
+      const compose = () => transactionBuilder()
         .setVersion(0).setFeePayer(buyer).setBlockhash(blockhash)
+        .setAddressLookupTables(funding?.lookups ?? [])
+        .add(funding ? setComputeUnitLimit(umi, { units: 1_400_000 }).add(setComputeUnitPrice(umi, { microLamports: 10_000 })) : transactionBuilder())
+        .add(funding?.before ?? transactionBuilder())
         .add(payment)
         .add(createV1(umi, {
           asset, payer: buyer, owner: buyer.publicKey, authority: umi.identity,
           collection: collection.publicKey, name: figure.name,
           uri: `${config.publicOrigin}/figures/${figureId}.json`,
-        }))
-        .buildAndSign(umi);
-      const simulation = await umi.rpc.simulateTransaction(transaction, { verifySignatures: false, accounts: [buyer.publicKey] });
+        })).add(funding?.after ?? transactionBuilder());
+      let builder = compose();
+      for (const maxAccounts of [16, 12] as const) {
+        if (!funding || builder.fitsInOneTransaction(umi)) break;
+        funding = await prepareSolFunding(umi, buyer, tokenPayment!, tokenBalance, config.jupiterApiKey, protectedAccounts, fetch, maxAccounts);
+        builder = compose();
+      }
+      if (!builder.fitsInOneTransaction(umi)) throw new ShopError('This exchange cannot fit with the purchase. Add the required tokens to your account instead.');
+      const expiry = funding ? await umi.rpc.getLatestBlockhash() : blockhash;
+      const currentBalance = funding ? await umi.rpc.getBalance(buyer.publicKey) : balance;
+      builder = builder.setBlockhash(expiry);
+      const transaction = await builder.buildAndSign(umi);
+      const simulation = await umi.rpc.simulateTransaction(transaction, { verifySignatures: false, accounts: [buyer.publicKey, ...(funding ? [publicKey(funding.outputAccount), publicKey(funding.wrappedAccount)] : [])] });
       if (simulation.err) {
-        if (balance.basisPoints < BigInt(price) + 10_000_000n) throw new ShopError(tokenPayment ? 'Add SOL for the additional fees, then try again.' : 'Add SOL to your wallet for the figure and network fees, then try again.');
+        if (currentBalance.basisPoints < BigInt(price) + BigInt(funding?.receipt.inputLamports ?? '0') + 10_000_000n) throw new ShopError(funding ? 'Not enough SOL to cover this purchase and additional fees.' : tokenPayment ? 'Add SOL for the additional fees, then try again.' : 'Add SOL to your wallet for the figure and network fees, then try again.');
         throw new ShopError('The mint could not be simulated. No payment was sent. Try again later.', 503);
       }
+      if (funding) verifySolFundingSimulation(funding, tokenPayment!, buyerAddress, simulation);
       const remaining = simulation.accounts?.[0]?.lamports;
       if (remaining === undefined || !Number.isSafeInteger(remaining)) throw new Error('Unable to estimate mint fees');
-      const fee = balance.basisPoints - BigInt(remaining) - BigInt(price);
+      const fee = currentBalance.basisPoints - BigInt(remaining) - BigInt(price) - BigInt(funding?.receipt.inputLamports ?? '0');
       if (fee < 0n) throw new Error('Unable to estimate mint fees');
+      if (funding && fee > 100_000_000n) throw new ShopError('Additional fees exceed the SOL purchase limit. No payment was sent.');
       return {
         asset: String(asset.publicKey), transaction: Buffer.from(umi.transactions.serialize(transaction)).toString('base64'),
-        lastValidBlockHeight: blockhash.lastValidBlockHeight, networkFeeLamports: fee.toString(),
+        lastValidBlockHeight: expiry.lastValidBlockHeight, networkFeeLamports: fee.toString(), ...(funding ? { solFunding: funding.receipt } : {}),
       };
     },
     validateSigned(order, encoded) {

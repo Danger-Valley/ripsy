@@ -1,10 +1,10 @@
 import React from 'react';
 import Renderer from 'react-test-renderer';
 import { useShop, parsePurchaseIntent, type PurchaseStorage } from '@rps/game-client/use-shop';
-import { ShopClient } from '@rps/game-client/shop';
+import { ShopClient, ShopRequestError } from '@rps/game-client/shop';
 import type { MintOrder } from '@rps/core/shop';
 
-jest.mock('@rps/game-client/shop', () => ({ ShopClient: jest.fn() }));
+jest.mock('@rps/game-client/shop', () => ({ ...jest.requireActual('@rps/game-client/shop'), ShopClient: jest.fn() }));
 // use-shop imports its sibling directly; both resolve to this same module.
 const prepared: MintOrder = {
   id: 'a'.repeat(64), figureId: 'fig1', buyer: '11111111111111111111111111111111',
@@ -71,7 +71,7 @@ test('reuses persisted idempotency key when the prepare response was lost', asyn
   saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer });
   await mount();
   await Renderer.act(() => shop.checkStatus());
-  expect(api.create).toHaveBeenCalledWith('fig1', prepared.buyer, 'purchase-request-12345');
+  expect(api.create).toHaveBeenCalledWith('fig1', prepared.buyer, 'purchase-request-12345', undefined);
 });
 
 test('corrupt recovery storage blocks new purchases instead of silently dropping the pending order', async () => {
@@ -108,4 +108,41 @@ test('disconnect clears the authenticated inventory wallet binding', async () =>
   await mount();
   await Renderer.act(() => shop.clearWallet());
   expect(api.clearWallet).toHaveBeenCalledTimes(1);
+});
+
+const recovery = { code: 'INSUFFICIENT_PURCHASE_TOKEN' as const, mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', required: '1000000', balance: '0' };
+test('SOL recovery reuses the saved key, pauses blocked preparation polling and still requires explicit approval', async () => {
+  await mount();
+  api.create.mockRejectedValueOnce(new ShopRequestError('Not enough JUP', recovery));
+  await Renderer.act(() => shop.prepare('jup', prepared.buyer));
+  const key = JSON.parse(saved!).key;
+  expect(shop.fundingRequired).toEqual(recovery);
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); });
+  expect(api.create).toHaveBeenCalledTimes(1);
+  expect(shop.fundingRequired).toEqual(recovery);
+  api.create.mockImplementationOnce(async (_figure, _buyer, _key, mode) => {
+    expect(JSON.parse(saved!).paymentMode).toBe('sol'); expect(mode).toBe('sol');
+    return { ...prepared, figureId: 'jup' };
+  });
+  await Renderer.act(async () => { await Promise.all([shop.buyWithSol(), shop.buyWithSol()]); });
+  expect(api.create).toHaveBeenLastCalledWith('jup', prepared.buyer, key, 'sol');
+  expect(api.create).toHaveBeenCalledTimes(2);
+  expect(api.submit).not.toHaveBeenCalled();
+  expect(shop.fundingRequired).toBeNull();
+  await Renderer.act(() => shop.buyWithSol());
+  expect(api.create).toHaveBeenCalledTimes(2); // Cannot mutate a prepared order.
+});
+test('a lost SOL prepare response is recovered using the same durable payment mode, not another swap', async () => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'jup', buyer: prepared.buyer, paymentMode: 'sol' });
+  api.create.mockResolvedValue({ ...prepared, figureId: 'jup' });
+  await mount(); await Renderer.act(() => shop.checkStatus());
+  expect(api.create).toHaveBeenCalledWith('jup', prepared.buyer, 'purchase-request-12345', 'sol');
+  expect(api.submit).not.toHaveBeenCalled();
+});
+test('a generic insufficient-looking message never authorizes SOL recovery', async () => {
+  await mount(); api.create.mockRejectedValueOnce(new Error('Not enough JUP'));
+  await Renderer.act(() => shop.prepare('jup', prepared.buyer));
+  expect(shop.fundingRequired).toBeNull();
+  await Renderer.act(() => shop.buyWithSol()); expect(api.create).toHaveBeenCalledTimes(1);
+  expect(() => parsePurchaseIntent(JSON.stringify({ key: 'purchase-request-12345', figureId: 'jup', buyer: prepared.buyer, paymentMode: 'arbitrary' }))).toThrow();
 });

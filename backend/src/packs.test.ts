@@ -15,6 +15,7 @@ import { PackService } from "./pack-service.js";
 import { createPackChain, type PackChain } from "./pack-chain.js";
 import { loadShopConfig } from "./shop-config.js";
 import type { ShopRedis } from "./shop-service.js";
+import { ShopError } from './shop-error.js';
 
 const buyer = "11111111111111111111111111111111";
 const prepared: PackOrder = {
@@ -55,6 +56,11 @@ class MemoryRedis implements ShopRedis {
   }
   async eval(script: string, o: { keys: string[]; arguments: string[] }) {
     const key = o.keys[0]!;
+    if (script.includes('PREPARED_ORDER_FENCE')) {
+      if (this.data.get(key) !== o.arguments[0] || this.data.has(o.keys[1]!)) return 0;
+      this.data.set(o.keys[1]!, o.arguments[1]!);
+      this.due.set(o.arguments[4]!, Number(o.arguments[3])); return 1;
+    }
     if (script.includes("INCR")) {
       const n = Number(this.data.get(key) ?? 0) + 1;
       this.data.set(key, String(n));
@@ -147,6 +153,39 @@ function fixture() {
   };
 }
 const input = { buyer, idempotencyKey: "pack-purchase-request-12345" };
+test('an expired quote lease cannot replace the winning pack receipt or return obsolete bytes', async () => {
+  const f = fixture(), original = f.chain.prepare;
+  let first = true;
+  f.chain.prepare = async (...args) => {
+    if (first) {
+      first = false;
+      f.redis.data.delete([...f.redis.data.keys()].find(k => k.includes(':lock:'))!);
+      await f.replica.create('player', { ...input, paymentMode: 'sol' });
+    }
+    return original(...args);
+  };
+  await assert.rejects(f.service.create('player', input), /updating/);
+  const saved = await f.replica.create('player', input);
+  assert.equal(saved.status, 'prepared'); assert.equal(f.prepares(), 2);
+  assert.equal(f.redis.due.size, 1); assert.deepEqual(f.sent, []);
+});
+test('SOL pack recovery cannot override price/odds and keeps the same prepared receipt on retries', async () => {
+  const f = fixture(), original = f.chain.prepare;
+  const calls: unknown[][] = [];
+  f.chain.prepare = async (...args) => {
+    calls.push(args);
+    if (!args[2]) throw new ShopError('Insufficient tokens', 409, { code: 'INSUFFICIENT_PURCHASE_TOKEN', mint: PACK_PAYMENT.mint, symbol: 'SKR', required: PACK_PAYMENT.amount, balance: '0' });
+    return original(...args);
+  };
+  await assert.rejects(f.service.create('player', input), /Insufficient/);
+  assert.equal([...f.redis.data.keys()].some(k => k.includes(':order:')), false);
+  const order = await f.replica.create('player', { ...input, paymentMode: 'sol', amount: '1', drops: [] });
+  assert.equal(calls[1]![0], buyer); assert.equal(calls[1]![2], 'sol');
+  assert.deepEqual(order.payment, PACK_PAYMENT); assert.deepEqual(order.drops, INITIAL_PACK.drops);
+  assert.deepEqual(await f.service.create('player', input), order);
+  assert.equal(calls.length, 2); assert.deepEqual(f.sent, []);
+  await assert.rejects(f.service.create('player', { ...input, paymentMode: 'arbitrary' }), /Invalid payment method/);
+});
 test('ORE edition has Jup/BONK/ORE 40/40/20 at the unchanged SKR price; old orders remain pinned', () => {
   const config = JSON.parse(readFileSync(new URL('../../onchain/pack-config.json', import.meta.url), 'utf8'));
   const catalog = parsePackCatalog({ ...INITIAL_PACK, version: config.version,

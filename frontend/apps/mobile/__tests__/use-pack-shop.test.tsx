@@ -1,10 +1,10 @@
 import React from 'react';
 import Renderer from 'react-test-renderer';
 import { usePackShop, parsePackIntent } from '@rps/game-client/use-pack-shop';
-import { ShopClient } from '@rps/game-client/shop';
+import { ShopClient, ShopRequestError } from '@rps/game-client/shop';
 import { INITIAL_PACK, PACK_PAYMENT, type PackOrder } from '@rps/core/packs';
 import type { PurchaseStorage } from '@rps/game-client/use-shop';
-jest.mock('@rps/game-client/shop', () => ({ ShopClient: jest.fn() }));
+jest.mock('@rps/game-client/shop', () => ({ ...jest.requireActual('@rps/game-client/shop'), ShopClient: jest.fn() }));
 const buyer = '11111111111111111111111111111111';
 const order: PackOrder = {
   id: 'a'.repeat(64),
@@ -145,7 +145,7 @@ test('missing prepare response reuses the persisted idempotency key', async () =
   saved = JSON.stringify({ key: 'pack-request-1234567', buyer });
   await mount();
   await Renderer.act(() => pack.checkStatus());
-  expect(api.createPack).toHaveBeenCalledWith(buyer, 'pack-request-1234567');
+  expect(api.createPack).toHaveBeenCalledWith(buyer, 'pack-request-1234567', undefined);
 });
 test('corrupt or mismatched recovery data blocks additional payments', async () => {
   saved = '{broken';
@@ -165,4 +165,27 @@ test('corrupt or mismatched recovery data blocks additional payments', async () 
       }),
     ),
   ).toThrow();
+});
+
+test('insufficient SKR offers SOL recovery with the SAME saved request, and never auto-approves or re-rolls', async () => {
+  await mount();
+  const recovery = { code: 'INSUFFICIENT_PURCHASE_TOKEN' as const, mint: PACK_PAYMENT.mint, symbol: 'SKR', required: PACK_PAYMENT.amount, balance: '0' };
+  api.createPack.mockRejectedValueOnce(new ShopRequestError('Not enough SKR', recovery));
+  await Renderer.act(() => pack.prepare(buyer)); const key = JSON.parse(saved!).key;
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); });
+  expect(pack.fundingRequired).toEqual(recovery); expect(api.createPack).toHaveBeenCalledTimes(1);
+  await Renderer.act(async () => { await Promise.all([pack.buyWithSol(), pack.buyWithSol()]); });
+  expect(api.createPack).toHaveBeenLastCalledWith(buyer, key, 'sol');
+  expect(JSON.parse(saved!).paymentMode).toBe('sol'); expect(api.createPack).toHaveBeenCalledTimes(2);
+  expect(api.submitPack).not.toHaveBeenCalled(); expect(pack.fundingRequired).toBeNull();
+  await Renderer.act(() => pack.buyWithSol()); expect(api.createPack).toHaveBeenCalledTimes(2);
+});
+test('pack SOL recovery mode survives restart; generic errors do not offer a swap', async () => {
+  saved = JSON.stringify({ key: 'pack-request-1234567', buyer, paymentMode: 'sol' });
+  await mount(); await Renderer.act(() => pack.checkStatus());
+  expect(api.createPack).toHaveBeenCalledWith(buyer, 'pack-request-1234567', 'sol');
+  await Renderer.act(() => pack.dismiss());
+  api.createPack.mockRejectedValueOnce(new Error('Not enough SKR'));
+  await Renderer.act(() => pack.prepare(buyer)); expect(pack.fundingRequired).toBeNull();
+  expect(() => parsePackIntent(JSON.stringify({ key: 'pack-request-1234567', buyer, paymentMode: 'other' }))).toThrow();
 });

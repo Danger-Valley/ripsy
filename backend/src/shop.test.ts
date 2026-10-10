@@ -17,6 +17,10 @@ class MemoryRedis implements ShopRedis {
   }
   async eval(script: string, options: { keys: string[]; arguments: string[] }) {
     const key = options.keys[0]!;
+    if (script.includes('PREPARED_ORDER_FENCE')) {
+      if (this.data.get(key) !== options.arguments[0] || this.data.has(options.keys[1]!)) return 0;
+      this.data.set(options.keys[1]!, options.arguments[1]!); return 1;
+    }
     if (script.includes('INCR')) { const value = Number(this.data.get(key) ?? 0) + 1; this.data.set(key, String(value)); return value; }
     if (this.data.get(key) === options.arguments[0]) this.data.delete(key);
     return 1;
@@ -46,6 +50,7 @@ test('shop is disabled by default; no invented prices and no signing secrets in 
   assert.deepEqual(catalog.figures[0]!.tokenPayment, FIGURE_TOKEN_PAYMENTS.fig2);
   assert.deepEqual(catalog.figures.map(figure => figure.id), ['fig2', 'bonk', 'jup', 'ore']);
   assert.ok(!JSON.stringify(catalog).includes('not-public'));
+  assert.ok(!JSON.stringify(shopCatalog(loadShopConfig({ JUPITER_API_KEY: 'server-only-test-key' }))).includes('server-only-test-key'));
   assert.throws(() => loadShopConfig({ SHOP_ENABLED: 'true' }), /incomplete/);
   for (const price of ['10000000', '0', '-1', '0.1', '1e9']) assert.equal(loadShopConfig({ SHOP_FIG2_PRICE_LAMPORTS: price }).prices.fig2, null);
   assert.equal(formatSol('1'), '0.000000001 SOL');
@@ -62,6 +67,24 @@ test('prices are server owned and idempotency survives switching replicas', asyn
   assert.deepEqual(first.tokenPayment, FIGURE_TOKEN_PAYMENTS.fig2);
   assert.equal(f.prepares(), 1);
   await assert.rejects(() => f.replica.create('player', { ...input, buyer: 'SysvarC1ock11111111111111111111111111111111' }), /already used/);
+});
+
+test('SOL recovery forwards only the payment mode and preserves prepared orders on retry', async () => {
+  const f = fixture(), original = f.chain.prepare;
+  const calls: unknown[][] = [];
+  f.chain.prepare = async (...args) => {
+    calls.push(args);
+    if (!args[4]) throw new ShopError('Insufficient tokens', 409, { code: 'INSUFFICIENT_PURCHASE_TOKEN', ...FIGURE_TOKEN_PAYMENTS.fig2!, required: FIGURE_TOKEN_PAYMENTS.fig2!.amount, balance: '0' });
+    return original(...args);
+  };
+  await assert.rejects(f.service.create('player', input), /Insufficient/);
+  assert.equal([...f.redis.data.keys()].some(k => k.includes(':order:')), false);
+  const order = await f.replica.create('player', { ...input, paymentMode: 'sol', mint: buyer, amount: '1', slippageBps: 9999 });
+  assert.deepEqual(calls[1], ['fig2', buyer, '0', FIGURE_TOKEN_PAYMENTS.fig2, 'sol']);
+  assert.deepEqual(await f.service.create('player', input), order);
+  assert.equal(calls.length, 2);
+  assert.equal(f.sends(), 0);
+  await assert.rejects(f.service.create('player', { ...input, paymentMode: 'arbitrary' }), /Invalid payment method/);
 });
 
 test('legacy SOL Seeker purchases recover their exact original quote/bytes after the SKR switch', async () => {
@@ -102,6 +125,24 @@ test('two replicas cannot simultaneously construct the same purchase', async () 
   assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
   assert.equal(f.prepares(), 1);
   assert.ok(await f.replica.create('player', input));
+});
+
+test('a late quote after lease expiry cannot overwrite or return an obsolete purchase', async () => {
+  const f = fixture(), original = f.chain.prepare;
+  let first = true;
+  f.chain.prepare = async (...args) => {
+    if (first) {
+      first = false;
+      const lock = [...f.redis.data.keys()].find(k => k.includes(':lock:'))!;
+      f.redis.data.delete(lock); // Simulate expiry while an RPC/quote was slow.
+      await f.replica.create('player', { ...input, paymentMode: 'sol' });
+    }
+    return original(...args);
+  };
+  await assert.rejects(f.service.create('player', input), /updating/);
+  const saved = await f.replica.create('player', input);
+  assert.equal(saved.status, 'prepared'); assert.equal(f.prepares(), 2);
+  assert.equal(f.sends(), 0);
 });
 
 test('order scope, input validation and rate limiting cannot be bypassed by a price override', async () => {

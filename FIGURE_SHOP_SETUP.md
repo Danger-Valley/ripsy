@@ -24,6 +24,41 @@ copy can occupy only one Army slot.
   cannot save a number as SKR. Existing purchases retain their captured currency,
   amount and signed message for recovery, including legacy devnet receipts.
 
+### Buy with SOL (2026-10-10)
+
+- A typed `INSUFFICIENT_PURCHASE_TOKEN` response offers **Buy with SOL** for any
+  registered classic-SPL payment currency, including SKR packs. Do not infer this
+  action from error text, invalid/frozen accounts or failed network requests.
+- Set `JUPITER_API_KEY` on Railway only. Nothing new is needed on Vercel or in
+  native build env. Missing/invalid key or unavailable routes fail without sending
+  payment. Jupiter V2 `/build` is ExactIn-only: integer rate discovery sizes SOL
+  against the token shortfall and conservative minimum output, at 0.5% slippage
+  with 0.2% sizing headroom. A small excess token balance stays with the buyer.
+- Locally constructed WSOL/ATA setup, the validated Jupiter router, exact checked
+  token payment and Core creation (or existing `buy_pack`) share ONE v0 transaction.
+  Never split it into a paid swap followed by a separate purchase. A failed
+  transaction rolls back swap/payment, but its network fee may still be charged.
+  Seeker eligibility, pack VRF/claim flow and captured receipt odds/prices remain
+  unchanged. Already-owned tokens pay their part of the price.
+- The review displays original token price, SOL input, separate estimated fees,
+  SOL total, slippage and possible leftover tokens. Tapping Buy with SOL prepares
+  only; explicit purchase approval and wallet signing are still required.
+- Limits: 10 SOL input, 0.1 SOL additional fees, 20 requested route accounts, 1,232 total
+  bytes, maximum 1.4M compute units, 10,000 micro-lamports/CU. No integrator fee or
+  tip. Oversized routes are re-quoted with 16 then 12 requested accounts, before
+  any order is stored/signed. Complex/oversized routes fail safely with a manual token-funding alternative.
+  Existing WSOL and unrelated buyer-owned token accounts cannot be drained/closed.
+- Persist `paymentMode: "sol"` BEFORE HTTP and retain the original idempotency key.
+  A prepared/signed/submitted order is immutable, not re-quoted; restart/lost reply
+  recovers identical bytes. Definitive failed preparations pause automatic retries
+  until user action. Old receipts need no migration. New native binaries are
+  required to display the recovery button; installed older binaries retain their
+  existing token-only behavior. Physical-device approval and paid E2E testing
+  must still be performed by the buyer.
+- Prepared-order persistence checks the Redis lease token and absence of an
+  existing order in the same atomic write. A slow quote whose lease expired cannot
+  overwrite a winning receipt or return obsolete partially signed bytes.
+
 ### BONK and Jup rollout (2026-10-06)
 
 - BONK costs 6,900,000 BONK, mint `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`.

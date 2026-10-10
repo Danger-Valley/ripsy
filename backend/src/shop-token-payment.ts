@@ -6,7 +6,7 @@ import { ShopError } from './shop-error.js';
 
 export const SHOP_TOKEN_PROGRAM = publicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
-export async function shopTokenPayment(umi: Umi, buyer: Signer, treasury: string, payment: TokenPayment) {
+export async function shopTokenBalance(umi: Umi, buyer: Signer, payment: TokenPayment) {
   const mint = publicKey(payment.mint);
   const mintAccount = await fetchMint(umi, mint);
   // Catalog currencies use classic SPL Token. Never
@@ -15,12 +15,22 @@ export async function shopTokenPayment(umi: Umi, buyer: Signer, treasury: string
     throw new ShopError('The payment currency could not be verified. No payment was sent.', 503);
   }
   const source = findAssociatedTokenPda(umi, { owner: buyer.publicKey, mint, tokenProgramId: SHOP_TOKEN_PROGRAM });
-  const destination = findAssociatedTokenPda(umi, { owner: publicKey(treasury), mint, tokenProgramId: SHOP_TOKEN_PROGRAM });
   const account = await safeFetchToken(umi, source);
-  if (!account || account.amount < BigInt(payment.amount)) throw new ShopError(`Not enough ${payment.symbol} to complete this purchase.`);
-  if (account.header.owner !== SHOP_TOKEN_PROGRAM || account.owner !== buyer.publicKey || account.mint !== mint || account.state !== TokenState.Initialized) {
+  if (account && (account.header.owner !== SHOP_TOKEN_PROGRAM || account.owner !== buyer.publicKey || account.mint !== mint || account.state !== TokenState.Initialized)) {
     throw new ShopError('The payment account is not available. No payment was sent.');
   }
+  return { source, amount: account?.amount ?? 0n };
+}
+export function requireTokenBalance(payment: TokenPayment, balance: bigint) {
+  if (balance < BigInt(payment.amount)) throw new ShopError(`Not enough ${payment.symbol} to complete this purchase.`, 400, {
+    code: 'INSUFFICIENT_PURCHASE_TOKEN', mint: payment.mint, symbol: payment.symbol, required: payment.amount, balance: balance.toString(),
+  });
+}
+export async function shopTokenPayment(umi: Umi, buyer: Signer, treasury: string, payment: TokenPayment, funded = false) {
+  const mint = publicKey(payment.mint);
+  const { source, amount } = await shopTokenBalance(umi, buyer, payment);
+  if (!funded) requireTokenBalance(payment, amount);
+  const destination = findAssociatedTokenPda(umi, { owner: publicKey(treasury), mint, tokenProgramId: SHOP_TOKEN_PROGRAM });
   return createIdempotentAssociatedToken(umi, { payer: buyer, ata: destination, owner: publicKey(treasury), mint, tokenProgram: SHOP_TOKEN_PROGRAM })
     .add(transferTokensChecked(umi, { source, mint, destination, authority: buyer, amount: BigInt(payment.amount), decimals: payment.decimals }));
 }

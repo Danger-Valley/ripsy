@@ -5,7 +5,7 @@ import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { packPurchaseStorage } from '../storage/pack-purchase';
 import { packPurchaseTitle, ShopPack, ShopPackPurchase } from '../components/shop-pack';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, isTerminalMint, solanaExplorer, type ShopFigure } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, formatSol, solFundingNotice, isTerminalMint, solanaExplorer, type ShopFigure } from '@rps/core/shop';
 import { isTerminalPack } from '@rps/core/packs';
 import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
@@ -196,10 +196,12 @@ export function ShopScreen({ navigation, route }: Props) {
           <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={figurePortrait(order.figureId, definitions)} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}</Text></View>
           <View style={styles.breakdown}>
             <ReceiptRow label="Figure price" value={figurePaymentPrice(order, order.cluster)} />
+            {order.solFunding && <ReceiptRow label="Pay with SOL" value={formatSol(order.solFunding.inputLamports)} />}
             <ReceiptRow label="Estimated additional fees" value={figurePrice(order.networkFeeLamports, order.cluster)} />
             <View style={styles.divider} />
             <ReceiptRow label="Estimated total" value={figurePurchaseTotal(order)} total />
           </View>
+          {order.solFunding && <Text style={styles.copy}>{solFundingNotice(order.solFunding)}</Text>}
           {order.cluster === 'devnet' && <Text style={styles.copy}>Test purchase only. No real payment.</Text>}
           <Text style={styles.copy}>Sold by RIPSY · One figure for your collection</Text>
           <ToyHomeButton compact tone="white" onPress={() => setPaymentDetailsOpen(value => !value)}>{paymentDetailsOpen ? 'Hide payment details' : 'Payment details'}</ToyHomeButton>
@@ -208,7 +210,8 @@ export function ShopScreen({ navigation, route }: Props) {
           {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner} onPress={() => { if (orderSigner) run(() => shop.confirm(orderSigner)); }}>{shop.signingStarted ? 'Retry purchase approval' : 'Confirm purchase'}</ToyHomeButton>}
           {order.status === 'confirmed' && <ToyHomeButton tone="yellow" onPress={() => openArmy(order.asset)}>Add to your army</ToyHomeButton>}
           {paymentDetailsOpen && order.signature && <ToyHomeButton compact tone="white" onPress={() => run(() => Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)))}>View payment record ↗</ToyHomeButton>}
-        </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{error && !shop.hasPurchase ? 'No payment has been approved. Close this popup and try again.' : 'Preparing your purchase… Retry to recover this same request if the connection was interrupted.'}</Text>}
+        </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{shop.fundingRequired ? `You can use SOL to cover the missing ${shop.fundingRequired.symbol}. Review the SOL total before approval.` : error ? 'No payment has been approved. Check purchase status or cancel and try again.' : 'Preparing your purchase... Retry to recover this same request if the connection was interrupted.'}</Text>}
+        {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={shop.busy || address !== shop.purchaseBuyer} onPress={() => run(() => shop.buyWithSol())}>Buy with SOL</ToyHomeButton>}
         {shop.hasPurchase && (!canClose || !order || Boolean(error)) && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.checkStatus())}>Check purchase status</ToyHomeButton>}
         {shop.hasPurchase && canClose && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.dismiss())}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</ToyHomeButton>}
         {shop.hasPurchase && <Text style={styles.note}>Closing this popup keeps your purchase saved.</Text>}

@@ -185,7 +185,7 @@ const server = createServer(async (request, response) => {
       response.writeHead(404).end(JSON.stringify({ error: 'Shop endpoint not found' }));
     } catch (error) {
       const status = error instanceof BodyTooLargeError ? 413 : error instanceof AuthenticationError ? 401 : error instanceof ShopError ? error.status : 503;
-      response.writeHead(status).end(JSON.stringify({ error: error instanceof ShopError ? error.message : status === 503 ? 'The shop is temporarily unavailable. Try again shortly.' : error instanceof Error ? error.message : 'Invalid request' }));
+      response.writeHead(status).end(JSON.stringify({ error: error instanceof ShopError ? error.message : status === 503 ? 'The shop is temporarily unavailable. Try again shortly.' : error instanceof Error ? error.message : 'Invalid request', ...(error instanceof ShopError && error.recovery ? { recovery: error.recovery } : {}) }));
     }
     return;
   }

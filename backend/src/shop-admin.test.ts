@@ -28,6 +28,10 @@ class MemoryRedis implements ShopRedis {
   }
   async eval(script: string, { keys, arguments: args }: { keys: string[]; arguments: string[] }) {
     const key = keys[0]!;
+    if (script.includes('PREPARED_ORDER_FENCE')) {
+      if (this.data.get(key) !== args[0] || this.data.has(keys[1]!)) return 0;
+      this.data.set(keys[1]!, args[1]!); return 1;
+    }
     if (script.includes('INCR')) { const n = Number(this.data.get(key) ?? 0) + 1; this.data.set(key, String(n)); return n; }
     if (script.includes('shop-price-cas')) {
       const revision = JSON.parse(this.data.get(key) ?? '{"revision":0}').revision;

@@ -13,6 +13,7 @@ export interface ShopConfig {
   publicOrigin: string;
   solanaMobileStoreUrl: string;
   prices: Record<string, string | null>;
+  jupiterApiKey?: string;
 }
 
 export function loadShopConfig(env: NodeJS.ProcessEnv): ShopConfig {
@@ -37,6 +38,7 @@ export function loadShopConfig(env: NodeJS.ProcessEnv): ShopConfig {
     rpcUrl: env.SHOP_SOLANA_RPC_URL ?? 'https://api.devnet.solana.com',
     seekerRpcUrl: env.SOLANA_RPC_URL ?? (cluster === 'mainnet-beta' && env.SHOP_SOLANA_RPC_URL ? env.SHOP_SOLANA_RPC_URL : 'https://api.mainnet-beta.solana.com'),
     authoritySecret: env.SHOP_MINT_AUTHORITY_SECRET,
+    jupiterApiKey: env.JUPITER_API_KEY?.trim() || undefined,
   };
 }
 

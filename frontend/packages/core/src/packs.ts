@@ -1,6 +1,8 @@
 import {
   isFigureId,
   figurePaymentPrice,
+  validateSolFunding,
+  type SolFunding,
   type FigureId,
   type TokenPayment,
 } from "@rps/core/shop";
@@ -43,6 +45,7 @@ export type PackStatus =
   | "failed"
   | "expired";
 export interface PackOrder {
+  solFunding?: SolFunding;
   id: string;
   buyer: string;
   cluster: "mainnet-beta";
@@ -153,5 +156,6 @@ export function parsePackOrder(value: unknown): PackOrder {
       : o.result !== null || o.randomness !== null
   )
     throw new Error("Invalid pack result");
+  validateSolFunding(o.solFunding, o.payment);
   return o;
 }

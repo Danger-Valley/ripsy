@@ -5,10 +5,12 @@ import {
   type PackCatalog,
   type PackOrder,
 } from "@rps/core/packs";
-import { ShopClient } from "./shop-client";
+import { ShopClient, ShopRequestError } from "./shop-client";
+import type { TokenShortfall } from '@rps/core/shop';
 import type { PurchaseStorage } from "./use-shop";
 
 export interface PackIntent {
+  paymentMode?: 'sol';
   key: string;
   buyer: string;
   order?: PackOrder;
@@ -19,6 +21,7 @@ export function parsePackIntent(raw: string): PackIntent {
   const v = JSON.parse(raw) as PackIntent;
   if (
     !v ||
+    (v.paymentMode !== undefined && v.paymentMode !== 'sol') ||
     !/^[A-Za-z0-9_-]{16,80}$/.test(v.key) ||
     !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v.buyer) ||
     (v.signingStarted !== undefined && typeof v.signingStarted !== "boolean") ||
@@ -55,6 +58,9 @@ export function usePackShop(
   const [restored, setRestored] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fundingRequired, setFundingRequired] = useState<TokenShortfall | null>(null);
+  const fundingRef = useRef<TokenShortfall | null>(null);
+  const preparationBlocked = useRef(false);
   const persist = useCallback(
     async (value: PackIntent | null) => {
       await storage.save(value ? JSON.stringify(value) : null);
@@ -103,7 +109,11 @@ export function usePackShop(
       }
       try {
         await fn();
+        if (!background || !preparationBlocked.current) { fundingRef.current = null; setFundingRequired(null); preparationBlocked.current = false; }
       } catch (cause) {
+        const recovery = cause instanceof ShopRequestError ? cause.recovery : null;
+        fundingRef.current = recovery; setFundingRequired(recovery);
+        preparationBlocked.current = cause instanceof ShopRequestError && !current.current?.order;
         setError(message(cause));
       } finally {
         operation.current = false;
@@ -117,9 +127,10 @@ export function usePackShop(
       run(async () => {
         const saved = current.current;
         if (!saved) return;
+        if (background && preparationBlocked.current) return;
         const order = saved.order
           ? await client.getPack(saved.order.id)
-          : await client.createPack(saved.buyer, saved.key);
+          : await client.createPack(saved.buyer, saved.key, saved.paymentMode);
         const latest =
           saved.signed && ["prepared", "submitted"].includes(order.status)
             ? await client.submitPack(order.id, saved.signed)
@@ -202,6 +213,13 @@ export function usePackShop(
       }),
     [persist, run]
   );
+  const buyWithSol = useCallback(() => run(async () => {
+    const saved = current.current;
+    if (!saved || saved.order || saved.signingStarted || saved.signed || !fundingRef.current || saved.paymentMode) throw new Error('Check your saved pack first.');
+    const pending: PackIntent = { ...saved, paymentMode: 'sol' };
+    await persist(pending);
+    await persist({ ...pending, order: await client.createPack(pending.buyer, pending.key, 'sol') });
+  }), [client, persist, run]);
   return {
     catalog,
     order: intent?.order ?? null,
@@ -210,6 +228,9 @@ export function usePackShop(
     ready: restored && Boolean(token),
     busy,
     error,
+    purchaseBuyer: intent?.buyer ?? null,
+    fundingRequired: !intent?.order && !intent?.signingStarted && !intent?.paymentMode ? fundingRequired : null,
+    buyWithSol,
     prepare,
     confirm,
     dismiss,

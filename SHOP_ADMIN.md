@@ -98,6 +98,17 @@ history. No real paid transaction or physical wallet test was performed.
 Do not roll back to a currency-blind pricing backend with purchases open: it
 cannot interpret newly stored SKR overrides safely.
 
+Seeker SKR deployment: `4a7e6f6` is live on Railway
+(`02d6f361-c301-4f34-a89c-c80c28d91a8b`, SUCCESS) and Vercel
+(`ripsy-psnd00qic-danger-valley.vercel.app`, READY, `www.ripsy.fun` alias).
+The upload manifest excludes backend/native/env/private-key files. Live admin
+bundles include expected-currency saves and original-currency audit display.
+Live catalog and customer/admin-boundary checks pass: fig2 is 1,000,000 SKR
+units, Seeker-exclusive, with SOL product price zero. Other active prices remain
+690,000,000 BONK / 1,000,000 JUP / 1,000,000,000 ORE base units. Pack edition 2
+remains 1,099 SKR, Jup/BONK/ORE 40/40/20. No paid transaction, admin price save,
+pack publication or mainnet program upgrade was sent during verification.
+
 `ed4d652` is deployed to Railway (`a4406f47-01d7-4533-8aea-fd6a5bbe43b4`,
 SUCCESS) and Vercel (`ripsy-8c07lpy49-danger-valley.vercel.app`, production READY
 and aliased to `www.ripsy.fun`). The verified upload excludes backend/native/

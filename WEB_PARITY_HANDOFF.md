@@ -623,6 +623,8 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 
 ## Change ledger
 
+Approved mainnet price/storage activation evidence and runner: commit `47a23a4be007dba4c31a086b3b5b4c748b5a5c11` (2026-10-10). A Git push records this completed onchain action; it is not the upgrade mechanism and does not imply a native release.
+
 This ledger summarizes the recent work that established the native reference. Consult `git show <commit>` for exact diffs.
 
 - 2026-10-10 - user-approved price/storage mainnet upgrade finalized at slot 455263846, signature `5s8q81s6q7L5kwPrfyyrSKkGUXFxRHguDJczBFgKr6M3rRz8H3VmGQzDiwbf4GWQWRKA4PF4s1T8bUWhhADp2i2z`. Exact 483,280-byte target hash and same authority verified; Config and both editions are byte-identical. Snapshot had zero mainnet receipt accounts; synthetic old paid receipt compatibility passes in an actual local old-to-new upgrade. Eight Rust, three Loader ABI and 31 focused backend pack tests plus backend TypeScript pass. Signed mainnet extension/upgrade simulations verified expected code before each broadcast; finalized transaction balances prove full 2.455941241 SOL buffer refund and 0.173207680 SOL rent growth. Net wallet reduction was 0.175751993 SOL. New unsigned price-only simulation returns 25 bytes, live admin/API checks pass; price/odds/pause remain edition 2 / 1,099 SKR / 40/40/20 / enabled. No paid purchase, new edition, price save, authority change, native release or real VRF/Core end-to-end validation was performed. Existing web/native contract already supports the new code; no client deployment was performed. Evidence: `onchain/price-upgrade-deployment.json`, `onchain/price-upgrade-report.html`.

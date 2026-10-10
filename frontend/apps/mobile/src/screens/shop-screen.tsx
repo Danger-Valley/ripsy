@@ -71,6 +71,9 @@ export function ShopScreen({ navigation, route }: Props) {
   const [code, setCode] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [connectingWallet, setConnectingWallet] = useState(false);
+  const connectionInFlight = useRef(false);
+  const walletBusy = connectingWallet || wallet.status === 'loading' || wallet.status === 'connecting' || wallet.status === 'disconnecting';
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   useEffect(() => { setPaymentDetailsOpen(false); }, [order?.id]);
   useEffect(() => {
@@ -85,6 +88,19 @@ export function ShopScreen({ navigation, route }: Props) {
   const run = (task: () => Promise<unknown>) => {
     setActionError(null);
     task().catch(cause => setActionError(cause instanceof Error ? cause.message : 'Please try again.'));
+  };
+  const requestAccount = () => {
+    // Disconnected Seeker shoppers go directly to MWA, not an account chooser.
+    // Connecting never prepares or approves a purchase automatically.
+    if (!wallet.isSupported || address) { setWalletOpen(true); return; }
+    if (connectionInFlight.current || walletBusy || privy.busy) return;
+    connectionInFlight.current = true;
+    setConnectingWallet(true);
+    setWalletKind('external');
+    run(async () => {
+      try { await wallet.connect(); }
+      finally { connectionInFlight.current = false; setConnectingWallet(false); }
+    });
   };
   const disconnectWallet = async (kind: 'external' | 'privy') => {
     if (purchaseBlocked || purchaseBusy || !pack.ready) return;
@@ -105,8 +121,8 @@ export function ShopScreen({ navigation, route }: Props) {
       });
       return;
     }
-    if (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || purchaseBusy || purchaseBlocked) return;
-    if (!address) { setWalletOpen(true); return; }
+    if (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || purchaseBusy || purchaseBlocked || (wallet.isSupported && walletBusy)) return;
+    if (!address) { requestAccount(); return; }
     setPurchasePopup('figure');
     run(() => shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined));
   };
@@ -124,16 +140,16 @@ export function ShopScreen({ navigation, route }: Props) {
       <ScrollView testID="shop-scroll" keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
         <Text style={styles.subtitle}>Pick your next fighter!</Text>
         {shop.catalog?.cluster === 'devnet' && <View style={[styles.networkBadge, styles.testNetwork]}><Text style={styles.network}>TEST MODE · NO REAL PURCHASES</Text></View>}
-        <Pressable accessibilityRole="button" accessibilityLabel={wallet.isSupported ? 'Choose purchase wallet' : address ? 'Manage account' : 'Register'} onPress={() => setWalletOpen(true)} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={wallet.isSupported ? address ? 'Choose purchase wallet' : 'Connect your wallet' : address ? 'Manage account' : 'Register'} accessibilityState={{ disabled: wallet.isSupported && walletBusy, busy: wallet.isSupported && walletBusy }} disabled={wallet.isSupported && walletBusy} onPress={requestAccount} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>
           <View style={styles.walletIcon}><Text style={styles.walletSymbol}>◎</Text></View>
           <View style={styles.grow}><Text style={styles.walletTitle}>{address ? walletKind === 'privy' ? 'Your account' : 'Seeker wallet connected' : wallet.isSupported ? 'Connect your wallet' : 'Register'}</Text><Text style={styles.walletCaption}>{address ? (walletKind === 'privy' ? 'Signed in with email · tap to manage' : 'Ready to buy figures · tap to manage') : wallet.isSupported ? 'Use your Seeker wallet to buy figures' : 'Sign in with email'}</Text></View>
-          <Text style={styles.chevron}>›</Text>
+          {wallet.isSupported && walletBusy ? <ActivityIndicator accessibilityLabel="Connecting wallet" color={colors.accentShadow} /> : <Text style={styles.chevron}>›</Text>}
         </Pressable>
         {error && !shop.hasPurchase && purchasePopup !== 'figure' && <ToyHomePanel style={styles.errorPanel}><StatusBanner message={figureStoreMessage(error)} tone="error" /><ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.loadCatalog())}>Try again</ToyHomeButton></ToyHomePanel>}
 
-        <ShopPack pack={pack} address={address} blocked={shop.hasPurchase || purchaseBusy} onBuy={() => {
-          if (!shop.ready || !pack.ready || purchaseBlocked || purchaseBusy) return;
-          if (!address) { setWalletOpen(true); return; }
+        <ShopPack pack={pack} address={address} walletSupported={wallet.isSupported} accountBusy={wallet.isSupported && walletBusy} blocked={shop.hasPurchase || purchaseBusy} onBuy={() => {
+          if (!shop.ready || !pack.ready || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)) return;
+          if (!address) { requestAccount(); return; }
           setPurchasePopup('pack');
           run(() => pack.prepare(address));
         }} purchaseVisible={purchasePopup === 'pack' && !walletOpen}
@@ -155,7 +171,7 @@ export function ShopScreen({ navigation, route }: Props) {
             <View style={styles.figureHeading}><Text accessibilityRole="header" style={styles.figureName}>{figure.name}</Text>{!needsSolanaMobile(figure) && <View style={styles.priceTag}><Text style={styles.price}>{figure.priceLamports ? figurePaymentPrice(figure, shop.catalog!.cluster) : 'Not available'}</Text></View>}</View>
             <Text style={styles.copy}>{figure.description}</Text>
             {figure.seekerExclusive && <Text style={styles.restriction}>Only available on Seeker.</Text>}
-            <ToyHomeButton tone="yellow" busy={!needsSolanaMobile(figure) && shop.busy && !shop.hasPurchase} disabled={!needsSolanaMobile(figure) && (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || purchaseBlocked || purchaseBusy)} accessibilityLabel={needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : 'Buy ' + figure.name} accessibilityHint={needsSolanaMobile(figure) ? 'Opens the Solana Mobile store in your browser' : undefined} onPress={() => reviewFigure(figure)}>
+            <ToyHomeButton tone="yellow" busy={!needsSolanaMobile(figure) && ((shop.busy && !shop.hasPurchase) || (wallet.isSupported && walletBusy))} disabled={!needsSolanaMobile(figure) && (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy))} accessibilityLabel={needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : 'Buy ' + figure.name} accessibilityHint={needsSolanaMobile(figure) ? 'Opens the Solana Mobile store in your browser' : undefined} onPress={() => reviewFigure(figure)}>
               {needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : !figure.available || !figure.priceLamports ? 'Purchase unavailable' : address ? 'Buy figure' : wallet.isSupported ? 'Connect your wallet' : 'Register'}
             </ToyHomeButton>
             <Text style={styles.note}>{needsSolanaMobile(figure) ? 'Explore Solana Mobile in your browser' : 'Review the total before you buy'}</Text>
@@ -188,7 +204,7 @@ export function ShopScreen({ navigation, route }: Props) {
           <Text style={styles.copy}>Sold by RIPSY · One figure for your collection</Text>
           <ToyHomeButton compact tone="white" onPress={() => setPaymentDetailsOpen(value => !value)}>{paymentDetailsOpen ? 'Hide payment details' : 'Payment details'}</ToyHomeButton>
           {paymentDetailsOpen && <><Text style={styles.label}>PURCHASE ACCOUNT</Text><Text selectable style={styles.address}>{order.buyer}</Text><Text style={styles.label}>SELLER ACCOUNT</Text><Text selectable style={styles.address}>{order.treasury}</Text></>}
-          {order.status === 'prepared' && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" onPress={() => setWalletOpen(true)}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
+          {order.status === 'prepared' && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" busy={wallet.isSupported && walletBusy} onPress={requestAccount}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
           {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner} onPress={() => { if (orderSigner) run(() => shop.confirm(orderSigner)); }}>{shop.signingStarted ? 'Retry purchase approval' : 'Confirm purchase'}</ToyHomeButton>}
           {order.status === 'confirmed' && <ToyHomeButton tone="yellow" onPress={() => openArmy(order.asset)}>Add to your army</ToyHomeButton>}
           {paymentDetailsOpen && order.signature && <ToyHomeButton compact tone="white" onPress={() => run(() => Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)))}>View payment record ↗</ToyHomeButton>}
@@ -200,8 +216,8 @@ export function ShopScreen({ navigation, route }: Props) {
       {purchasePopup === 'pack' && !walletOpen && <ShopPackPurchase pack={pack} address={address} blocked={shop.hasPurchase || purchaseBusy}
         onConfirm={() => {
           const signer = pack.order?.buyer === privy.address ? privy.signShopTransaction : wallet.isSupported && pack.order?.buyer === wallet.address ? signShopTransaction : null;
-          if (signer) run(() => pack.confirm(signer)); else setWalletOpen(true);
-        }} onArmy={openArmy} onAccount={() => setWalletOpen(true)} />}
+          if (signer) run(() => pack.confirm(signer)); else requestAccount();
+        }} onArmy={openArmy} onAccount={requestAccount} />}
       {walletOpen && <>
               <Text style={styles.copy}>{wallet.isSupported ? 'Choose your purchase account. You approve every purchase.' : 'Sign in with email to keep your collection in RIPSY.'}</Text>
               {wallet.isSupported && figures.some(figure => figure.seekerExclusive) && <View style={styles.seekerNotice}><Text style={styles.restriction}>Seeker fighter is Seeker exclusive.</Text><Text style={styles.smallCopy}>Connect your Seeker wallet to check availability.</Text></View>}

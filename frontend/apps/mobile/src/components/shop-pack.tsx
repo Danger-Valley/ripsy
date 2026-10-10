@@ -21,6 +21,8 @@ import { figurePortrait, useFigureCatalog } from '../figures/catalog';
 export function ShopPack({
   pack,
   address,
+  walletSupported = false,
+  accountBusy = false,
   blocked,
   onBuy,
   purchaseVisible,
@@ -28,6 +30,8 @@ export function ShopPack({
 }: {
   pack: ReturnType<typeof usePackShop>;
   address: string | null;
+  walletSupported?: boolean;
+  accountBusy?: boolean;
   blocked: boolean;
   onBuy(): void;
   purchaseVisible: boolean;
@@ -72,8 +76,9 @@ export function ShopPack({
           {!pack.hasPurchase && (
             <ToyHomeButton
               tone="yellow"
+              busy={accountBusy}
               disabled={
-                !catalog.available || !pack.ready || blocked || pack.busy
+                !catalog.available || !pack.ready || blocked || pack.busy || accountBusy
               }
               onPress={onBuy}
               accessibilityLabel="Buy fighter pack"
@@ -82,7 +87,7 @@ export function ShopPack({
                 ? 'Packs coming soon'
                 : address
                 ? `Buy pack - ${packPrice(catalog.payment)}`
-                : 'Register to buy a pack'}
+                : walletSupported ? 'Connect your wallet' : 'Register to buy a pack'}
             </ToyHomeButton>
           )}
           <Text style={styles.note}>

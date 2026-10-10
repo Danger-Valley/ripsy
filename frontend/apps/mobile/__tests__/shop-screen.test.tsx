@@ -128,12 +128,14 @@ test('Register navigation opens email sign-in without a second tap', async () =>
   expect(sendCode).not.toHaveBeenCalled();
 });
 
-test('Seeker keeps wallet connection and optional email sign-in', async () => {
+test('Seeker connects directly without an account chooser or email form', async () => {
   external(null); await mount();
   expect(text('Connect your wallet')).toBe(true);
-  await press('Choose purchase wallet');
-  expect(button('Connect your wallet')).toBeDefined();
-  expect(button('Send sign-in code')).toBeDefined();
+  await press('Connect your wallet');
+  expect(connect).toHaveBeenCalledTimes(1);
+  expect(visibleModals()).toHaveLength(0);
+  expect(button('Send sign-in code')).toBeUndefined();
+  expect(tree.root.findAllByType(TextInput)).toHaveLength(0);
   expect(tree.root.findAllByType(Text).some(node => /privy/i.test(String(node.props.children)))).toBe(false);
 });
 
@@ -238,8 +240,41 @@ test('browser opening failure is visible and the exclusive button can retry', as
   expect(shop.prepare).not.toHaveBeenCalled();
 });
 test('disconnected Seeker shoppers can connect without preparing a purchase', async () => {
-  external(null); await mount(); await press('Choose purchase wallet'); await press('Connect your wallet');
+  external(null); await mount(); await press('Connect your wallet');
   expect(connect).toHaveBeenCalledTimes(1); expect(shop.prepare).not.toHaveBeenCalled();
+});
+test.each(['Buy Seeker fighter', 'Buy fighter pack'])('%s connects directly on Seeker and still needs explicit purchase review afterwards', async label => {
+  external(null); setPack({ catalog: { ...INITIAL_PACK, available: true } }); await mount();
+  await press(label);
+  expect(connect).toHaveBeenCalledTimes(1); expect(visibleModals()).toHaveLength(0);
+  expect(text('Your purchase account')).toBe(false); expect(button('Send sign-in code')).toBeUndefined();
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(pack.prepare).not.toHaveBeenCalled();
+  external(); await updateScreen(); await press(label);
+  if (label === 'Buy Seeker fighter') expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet);
+  else expect(pack.prepare).toHaveBeenCalledWith(buyer);
+  expect(shop.confirm).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
+});
+test('direct Seeker connection deduplicates taps, shows progress and allows retry after failure', async () => {
+  external(null); let reject!: (error: Error) => void;
+  connect.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
+  await mount(); const trigger = button('Connect your wallet');
+  await Renderer.act(async () => { trigger.props.onPress(); trigger.props.onPress(); });
+  expect(connect).toHaveBeenCalledTimes(1); expect(visibleModals()).toHaveLength(0);
+  expect(button('Connect your wallet').props.disabled).toBe(true);
+  expect(button('Buy Seeker fighter').props.busy).toBe(true);
+  await Renderer.act(async () => reject(new Error('Wallet connection cancelled. Please try again.')));
+  expect(text('Connection cancelled.')).toBe(true);
+  expect(button('Connect your wallet').props.disabled).toBe(false);
+  await press('Connect your wallet'); expect(connect).toHaveBeenCalledTimes(2);
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(pack.prepare).not.toHaveBeenCalled();
+});
+test('Seeker pack recovery connects directly and keeps the exact saved purchase', async () => {
+  external(null); setPack({ hasPurchase: true, signingStarted: true, order: packOrder });
+  await mount(); const host = purchaseModal('pack'); await press('Sign in to purchase account');
+  expect(connect).toHaveBeenCalledTimes(1); expect(purchaseModal('pack')).toBe(host);
+  expect(button('Send sign-in code')).toBeUndefined(); expect(pack.prepare).not.toHaveBeenCalled();
+  external(); await updateScreen(); await press('Approve pack purchase');
+  expect(pack.confirm).toHaveBeenCalledWith(signShopTransaction); expect(pack.dismiss).not.toHaveBeenCalled();
 });
 test('review shows price, fees, exact total and addresses before explicit approval', async () => {
   external(); setShop({ hasPurchase: true, order }); await mount();
@@ -256,8 +291,8 @@ test('restored signing intent cannot be canceled or replaced; reconnect remains 
   external(null); setShop({ hasPurchase: true, signingStarted: true, order }); await mount();
   expect(button('Cancel purchase')).toBeUndefined(); expect(button('Check purchase status')).toBeDefined();
   expect(button('Retry purchase approval').props.disabled).toBe(true);
-  await press('Reconnect wallet'); expect(button('Connect your wallet').props.disabled).toBe(false);
-  await press('Connect your wallet'); expect(connect).toHaveBeenCalledTimes(1);
+  await press('Reconnect wallet'); expect(connect).toHaveBeenCalledTimes(1);
+  expect(button('Send sign-in code')).toBeUndefined(); expect(purchaseModal('figure')).toBeDefined();
   expect(button('Buy Seeker fighter').props.disabled).toBe(true);
 });
 test('confirmed mint opens Army with the exact new Core asset id', async () => {
@@ -509,7 +544,7 @@ test('a different connected wallet cannot sign an existing order', async () => {
 test.each([false, true])('store and email registration use figure/account language without crypto explanations (Seeker: %s)', async seeker => {
   if (seeker) external(null);
   await mount();
-  await press(seeker ? 'Choose purchase wallet' : 'Register');
+  await press(seeker ? 'Connect your wallet' : 'Register');
   const copy = tree.root.findAllByType(Text).flatMap(node => [node.props.children].flat(Infinity)).filter(value => typeof value === 'string').join(' ');
   expect(copy).not.toMatch(/\bmint(?:s|ing)?\b|\bNFTs?\b|metaplex|\bcore\b|self[- ]custodial|embedded|genesis token|mainnet|blockchain|network fees/i);
   if (!seeker) {

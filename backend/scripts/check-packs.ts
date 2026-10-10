@@ -9,6 +9,7 @@ import { FIGURES } from '../src/figure-registry.js';
 import { decodeConfig, decodeEdition } from '../src/pack-codec.js';
 import { loadShopConfig } from '../src/shop-config.js';
 import { verifyPackFigureResources } from '../src/pack-metadata.js';
+import { packPricing } from '../src/pack-pricing.js';
 
 async function main() {
   const config = loadShopConfig(process.env);
@@ -36,6 +37,7 @@ async function main() {
   if (editionAccount.exists && String(editionAccount.owner) !== PACK_PROGRAM_ID)
     throw new Error('Invalid edition owner');
   const edition = editionAccount.exists ? decodeEdition(editionAccount.data) : null;
+  const pricing = edition ? await packPricing(umi, editionAddress, edition.price, 'finalized') : null;
   const accounts = await umi.rpc.call('getMultipleAccounts', [[
     'Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz',
     'Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh',
@@ -68,6 +70,7 @@ async function main() {
     treasury: config.treasury, mintAuthority, mintAuthoritySol: Number(authorityBalance.basisPoints) / 1e9,
     configAddress: root, config: current, editionAddress,
     edition: edition ? { ...edition, price: edition.price.toString() } : null,
+    currentPricing: pricing ? { account: pricing.key, price: pricing.price.toString(), revision: pricing.revision.toString() } : null,
     vrfExecutable: accounts.value[0]?.executable === true,
     vrfQueueValid: accounts.value[1]?.owner === 'Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz',
     localBackendPackEnabled: process.env.PACK_ENABLED === 'true', resources,

@@ -22,6 +22,7 @@ const figures = [
 const payment = { mint: 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3', symbol: 'SKR', decimals: 6, amount: '1099000000' };
 const snapshot = { cluster: 'mainnet-beta', prices: { revision: 0, figures, audit: [] }, pack: { name: 'Fighter pack', available: true, version: 2, payment, drops: [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }] }, packError: null };
 let job = null; let signedCount = 0; let saveCount = 0; let expire = false;
+snapshot.packPriceRevision = '0';
 let ratesFailed = false; let rateCalls = 0;
 const rateValues = { SOL: 110, BONK: 0.0000033, JUP: 0.36, ORE: 107, SKR: 0.016 };
 const api = createServer(async (request, response) => {
@@ -53,15 +54,19 @@ const api = createServer(async (request, response) => {
     }
     snapshot.prices.revision++; return send(snapshot.prices);
   }
-  if (path === '/shop/admin/publications') {
+  if (path === '/shop/admin/publications' || path === '/shop/admin/pack-price') {
+    const priceOnly = path.endsWith('/pack-price');
+    if (priceOnly) { assert.equal(body.expectedRevision, snapshot.packPriceRevision); assert.equal(body.expectedPrice, snapshot.pack.payment.amount); }
     const [w, d = ''] = body.price.split('.');
     job = { id: 'b'.repeat(64), buyer: admin, cluster: 'mainnet-beta', transaction: 'AQ==', edition: '43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ',
-      catalog: { ...snapshot.pack, version: body.expectedVersion + 1, payment: { ...payment, amount: (BigInt(w) * 1000000n + BigInt(d.padEnd(6, '0') || '0')).toString() }, drops: body.drops },
-      status: 'prepared', createdAt: Date.now(), signature: null, lastValidBlockHeight: 100, networkFeeLamports: '46299040' };
+      kind: priceOnly ? 'price' : 'edition',
+      ...(priceOnly ? { priceUpdate: { account: admin, expectedPrice: body.expectedPrice, expectedRevision: body.expectedRevision, revision: '1' } } : {}),
+      catalog: { ...snapshot.pack, version: body.expectedVersion + (priceOnly ? 0 : 1), payment: { ...payment, amount: (BigInt(w) * 1000000n + BigInt(d.padEnd(6, '0') || '0')).toString() }, drops: priceOnly ? snapshot.pack.drops : body.drops },
+      status: 'prepared', createdAt: Date.now(), signature: null, lastValidBlockHeight: 100, networkFeeLamports: priceOnly ? '1069880' : '2103040' };
     return send(job);
   }
   if (path.endsWith('/submit')) { signedCount++; job.status = 'submitted'; job.signature = '1'.repeat(64); return send(job); }
-  if (path.includes('/publications/')) { job.status = 'confirmed'; snapshot.pack = job.catalog; return send(job); }
+  if (path.includes('/publications/')) { job.status = 'confirmed'; snapshot.pack = job.catalog; snapshot.packPriceRevision = job.kind === 'price' ? '1' : '0'; return send(job); }
   send({ error: 'Not found' }, 404);
 });
 await new Promise(resolve => api.listen(0, '127.0.0.1', resolve));
@@ -127,13 +132,24 @@ try {
   await page.getByRole('button', { name: 'Review price changes', exact: true }).click();
   assert.equal(saveCount, 0); await page.getByRole('button', { name: 'Save live prices', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Figure prices saved' }).waitFor(); assert.equal(saveCount, 1);
+  await page.locator('#pack-price').fill('10'); await page.locator('#chance-ore').fill('invalid');
+  await page.getByRole('button', { name: 'Review & simulate price update', exact: true }).click();
+  const priceSign = page.getByRole('button', { name: 'Sign & update pack price', exact: true }); await priceSign.waitFor();
+  assert.equal(await priceSign.isDisabled(), true); assert.equal(signedCount, 0); assert.equal(job.catalog.version, 2);
+  assert.deepEqual(job.catalog.drops, snapshot.pack.drops);
+  await page.getByRole('checkbox').check(); await priceSign.click();
+  await page.getByRole('heading', { name: 'Price update: submitted', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Check publication status', exact: true }).click();
+  await page.getByRole('heading', { name: 'Price update: confirmed', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Load current settings', exact: true }).click();
+  assert.equal(snapshot.pack.version, 2); assert.equal(snapshot.pack.payment.amount, '10000000');
   await page.locator('#pack-price').fill('1100'); await page.locator('#chance-ore').fill('21');
   assert.equal(await page.getByRole('button', { name: 'Review & simulate next edition', exact: true }).isDisabled(), true);
-  await page.locator('#chance-ore').fill('20'); await page.getByRole('button', { name: 'Review & simulate next edition', exact: true }).click();
+  await page.locator('#chance-bonk').fill('39'); await page.getByRole('button', { name: 'Review & simulate next edition', exact: true }).click();
   const publish = page.getByRole('button', { name: 'Sign & publish edition 3', exact: true }); await publish.waitFor();
-  assert.equal(await publish.isDisabled(), true); assert.equal(signedCount, 0);
+  assert.equal(await publish.isDisabled(), true); assert.equal(signedCount, 1); assert.equal(job.catalog.payment.amount, '10000000');
   await page.getByRole('checkbox').check(); await publish.click();
-  await page.getByRole('heading', { name: 'Edition 3: submitted', exact: true }).waitFor(); assert.equal(signedCount, 1);
+  await page.getByRole('heading', { name: 'Edition 3: submitted', exact: true }).waitFor(); assert.equal(signedCount, 2);
   assert.equal(await page.locator('#pack-price').isDisabled(), true);
   await page.getByRole('button', { name: 'Check publication status', exact: true }).click();
   await page.getByRole('heading', { name: 'Edition 3: confirmed', exact: true }).waitFor();

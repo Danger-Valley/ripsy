@@ -28,7 +28,9 @@ try {
   const catalog = await response.json();
   assert.equal(catalog.available, expectEnabled, 'Catalog does not match the requested activation state');
   assert.equal(catalog.version, expectedEdition.version);
-  assert.equal(catalog.payment.amount, expectedEdition.priceBaseUnits);
+  assert.match(catalog.payment.amount, /^[1-9]\d{0,15}$/);
+  const expectedPrice = process.argv.find(a => a.startsWith('--price='))?.slice(8);
+  if (expectedPrice) assert.equal(catalog.payment.amount, expectedPrice);
   assert.equal(catalog.payment.mint, 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3');
   assert.deepEqual(catalog.drops, expectedEdition.drops);
   // Enabled mode is strictly read-only apart from the diagnostic session.
@@ -65,7 +67,7 @@ try {
   assert.deepEqual(dynamic.figures.map(f => f.id), manifest.figures.filter(f => f.purchasable).map(f => f.id));
   for (const drop of catalog.drops) assert.ok(manifest.figures.some(f => f.id === drop.figureId), 'Published pack model must have resources');
   console.log(JSON.stringify({ healthy: true, authenticationRequired: true,
-    packPurchasesBlocked: !catalog.available, priceAndWeightsMatch: true, legacyCatalogCompatible: true,
+    packPurchasesBlocked: !catalog.available, priceBaseUnits: catalog.payment.amount, weightsMatch: true, legacyCatalogCompatible: true,
     paidTransactionCreated: false }));
 } catch (error) {
   console.error(JSON.stringify({ failedStage: stage, errorType: error?.name,

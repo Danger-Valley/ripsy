@@ -98,6 +98,50 @@ pub mod ripsy_packs {
         Ok(())
     }
 
+    /// Prices are separate from immutable reward tables. Receipts snapshot payment.
+    pub fn initialize_edition_price(
+        ctx: Context<InitializeEditionPrice>,
+        version: u32,
+        expected_price: u64,
+        price: u64,
+    ) -> Result<()> {
+        require!(
+            ctx.accounts.config.version == version
+                && ctx.accounts.edition.version == version
+                && ctx.accounts.edition.price == expected_price
+                && price > 0,
+            PackError::StaleQuote
+        );
+        ctx.accounts.edition_price.set_inner(EditionPrice {
+            price,
+            revision: 1,
+            bump: ctx.bumps.edition_price,
+        });
+        Ok(())
+    }
+
+    pub fn set_edition_price(
+        ctx: Context<SetEditionPrice>,
+        version: u32,
+        expected_revision: u64,
+        expected_price: u64,
+        price: u64,
+    ) -> Result<()> {
+        require!(
+            ctx.accounts.config.version == version
+                && ctx.accounts.edition.version == version
+                && ctx.accounts.edition_price.revision == expected_revision
+                && ctx.accounts.edition_price.price == expected_price
+                && price > 0,
+            PackError::StaleQuote
+        );
+        ctx.accounts.edition_price.revision = expected_revision
+            .checked_add(1)
+            .ok_or(PackError::InvalidConfig)?;
+        ctx.accounts.edition_price.price = price;
+        Ok(())
+    }
+
     /// One signed purchase creates one durable entitlement and one VRF request.
     /// There is no SGT, hardware check, re-roll, request replacement or close.
     pub fn buy_pack(
@@ -110,7 +154,11 @@ pub mod ripsy_packs {
         require!(
             ctx.accounts.edition.version == expected_version
                 && ctx.accounts.config.version == expected_version
-                && ctx.accounts.edition.price == expected_price,
+                && purchase_price(
+                    &ctx.accounts.edition_price.to_account_info(),
+                    ctx.accounts.edition.price,
+                    ctx.bumps.edition_price
+                )? == expected_price,
             PackError::StaleQuote
         );
         require!(
@@ -306,15 +354,37 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 #[derive(Accounts)]
-#[instruction(version: u32)]
+#[instruction(version: u32, price: u64, drops: Vec<Drop>)]
 pub struct PublishEdition<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
     #[account(mut, seeds = [b"config"], bump = config.bump, has_one = admin)]
     pub config: Account<'info, Config>,
-    #[account(init, payer = admin, space = 8 + Edition::INIT_SPACE, seeds = [b"edition".as_ref(), version.to_le_bytes().as_ref()], bump)]
+    #[account(init, payer = admin, space = edition_space(&drops)?, seeds = [b"edition".as_ref(), version.to_le_bytes().as_ref()], bump)]
     pub edition: Account<'info, Edition>,
     pub system_program: Program<'info, System>,
+}
+#[derive(Accounts)]
+pub struct InitializeEditionPrice<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    #[account(seeds = [b"config"], bump = config.bump, has_one = admin)]
+    pub config: Account<'info, Config>,
+    #[account(seeds = [b"edition", &edition.version.to_le_bytes()], bump = edition.bump)]
+    pub edition: Account<'info, Edition>,
+    #[account(init, payer = admin, space = 8 + EditionPrice::INIT_SPACE, seeds = [b"price", edition.key().as_ref()], bump)]
+    pub edition_price: Account<'info, EditionPrice>,
+    pub system_program: Program<'info, System>,
+}
+#[derive(Accounts)]
+pub struct SetEditionPrice<'info> {
+    pub admin: Signer<'info>,
+    #[account(seeds = [b"config"], bump = config.bump, has_one = admin)]
+    pub config: Account<'info, Config>,
+    #[account(seeds = [b"edition", &edition.version.to_le_bytes()], bump = edition.bump)]
+    pub edition: Account<'info, Edition>,
+    #[account(mut, seeds = [b"price", edition.key().as_ref()], bump = edition_price.bump)]
+    pub edition_price: Account<'info, EditionPrice>,
 }
 #[derive(Accounts)]
 pub struct Admin<'info> {
@@ -330,9 +400,9 @@ pub struct BuyPack<'info> {
     #[account(seeds = [b"config"], bump = config.bump)]
     pub config: Account<'info, Config>,
     #[account(seeds = [b"edition", &edition.version.to_le_bytes()], bump = edition.bump)]
-    pub edition: Account<'info, Edition>,
+    pub edition: Box<Account<'info, Edition>>,
     #[account(init, payer = buyer, space = 8 + Receipt::INIT_SPACE, seeds = [b"pack", buyer.key().as_ref(), &nonce], bump)]
-    pub receipt: Account<'info, Receipt>,
+    pub receipt: Box<Account<'info, Receipt>>,
     #[account(address = SKR_MINT, constraint = skr_mint.decimals == 6)]
     pub skr_mint: Account<'info, Mint>,
     #[account(mut, associated_token::mint = skr_mint, associated_token::authority = buyer)]
@@ -354,6 +424,10 @@ pub struct BuyPack<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+    /// CHECK: Always required, canonical PDA. Absent means original edition price;
+    /// present must be our validated EditionPrice. Omitting it cannot bypass pricing.
+    #[account(seeds = [b"price", edition.key().as_ref()], bump)]
+    pub edition_price: UncheckedAccount<'info>,
 }
 #[derive(Accounts)]
 pub struct ResolvePack<'info> {
@@ -442,6 +516,44 @@ pub struct Receipt {
     pub state: u8,
     pub drop_index: u8,
     pub bump: u8,
+}
+#[account]
+#[derive(InitSpace)]
+pub struct EditionPrice {
+    pub price: u64,
+    pub revision: u64,
+    pub bump: u8,
+}
+
+pub fn purchase_price(account: &AccountInfo, original: u64, bump: u8) -> Result<u64> {
+    if account.owner == &anchor_lang::system_program::ID && account.data_is_empty() {
+        return Ok(original);
+    }
+    require!(
+        account.owner == &ID && account.data_len() == 8 + EditionPrice::INIT_SPACE,
+        PackError::InvalidConfig
+    );
+    let data = account.try_borrow_data()?;
+    let price = EditionPrice::try_deserialize(&mut data.as_ref())?;
+    require!(
+        price.price > 0 && price.revision > 0 && price.bump == bump,
+        PackError::InvalidConfig
+    );
+    Ok(price.price)
+}
+
+/// Borsh byte lengths, not character counts or capacity for hypothetical rewards.
+pub fn edition_space(drops: &[Drop]) -> Result<usize> {
+    validate_drops(drops)?;
+    Ok(8 + 4
+        + 8
+        + 32 * 3
+        + 4
+        + 1
+        + drops
+            .iter()
+            .map(|d| 1 + 4 + 4 + d.name.len() + 4 + d.uri.len())
+            .sum::<usize>())
 }
 #[event]
 pub struct PackPurchased {
@@ -558,6 +670,92 @@ mod tests {
     fn exact_price_and_weights() {
         assert_eq!(INITIAL_PRICE, 1099 * 1_000_000);
         assert!(validate_drops(&drops()).is_ok());
+    }
+    #[test]
+    fn compact_editions_keep_legacy_serialization() {
+        let mut d = drops();
+        d[0].weight = 400_000;
+        d[1].weight = 400_000;
+        d.push(Drop {
+            variant: 5,
+            weight: 200_000,
+            name: "ORE".into(),
+            uri: "https://www.ripsy.fun/figures/ore.json".into(),
+        });
+        let e = Edition {
+            version: 2,
+            price: INITIAL_PRICE,
+            treasury: Pubkey::new_unique(),
+            collection: Pubkey::new_unique(),
+            mint_authority: Pubkey::new_unique(),
+            drops: d.clone(),
+            bump: 255,
+        };
+        let mut wire = Vec::new();
+        e.try_serialize(&mut wire).unwrap();
+        assert_eq!(edition_space(&d).unwrap(), wire.len());
+        assert_eq!(wire.len(), 285);
+        assert_eq!(8 + Edition::INIT_SPACE, 8985);
+        let mut old = wire.clone();
+        old.resize(8 + Edition::INIT_SPACE, 0);
+        for bytes in [&wire, &old] {
+            let decoded = Edition::try_deserialize(&mut bytes.as_slice()).unwrap();
+            assert_eq!(decoded.price, INITIAL_PRICE);
+            assert_eq!(decoded.drops.len(), 3);
+            assert_eq!(decoded.drops[2].weight, 200_000);
+        }
+        d[0].name = "é".repeat(32); // 64 bytes, not 32 characters.
+        assert_eq!(edition_space(&d).unwrap(), 285 + 61);
+        d[0].name.push('é');
+        assert!(edition_space(&d).is_err());
+    }
+    #[test]
+    fn pricing_is_separate_and_fails_closed() {
+        let key = Pubkey::new_unique();
+        let mut lamports = 1;
+        let mut empty = [];
+        let system = anchor_lang::system_program::ID;
+        let a = AccountInfo::new(
+            &key,
+            false,
+            false,
+            &mut lamports,
+            &mut empty,
+            &system,
+            false,
+            0,
+        );
+        assert_eq!(
+            purchase_price(&a, INITIAL_PRICE, 254).unwrap(),
+            INITIAL_PRICE
+        );
+        let mut bytes = Vec::new();
+        EditionPrice {
+            price: 10_000_000,
+            revision: 1,
+            bump: 254,
+        }
+        .try_serialize(&mut bytes)
+        .unwrap();
+        let a = AccountInfo::new(&key, false, false, &mut lamports, &mut bytes, &ID, false, 0);
+        assert_eq!(purchase_price(&a, INITIAL_PRICE, 254).unwrap(), 10_000_000);
+        assert!(purchase_price(&a, INITIAL_PRICE, 253).is_err());
+        drop(a);
+        bytes[8..16].fill(0);
+        let a = AccountInfo::new(&key, false, false, &mut lamports, &mut bytes, &ID, false, 0);
+        assert!(purchase_price(&a, INITIAL_PRICE, 254).is_err());
+        drop(a);
+        let a = AccountInfo::new(
+            &key,
+            false,
+            false,
+            &mut lamports,
+            &mut bytes,
+            &system,
+            false,
+            0,
+        );
+        assert!(purchase_price(&a, INITIAL_PRICE, 254).is_err());
     }
     #[test]
     fn half_open_intervals() {

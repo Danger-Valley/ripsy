@@ -117,8 +117,9 @@ export function ShopAdminContent() {
   }, [session, wallet.address, wallet.isConnected]);
   const edits = changedPrices(data?.prices.figures ?? [], prices);
   const dirty = Object.keys(edits.prices).length > 0 || Object.keys(edits.errors).length > 0;
-  const packDirty = Boolean(data?.pack && (packPrice !== unitsToDecimal(data.pack.payment.amount, 6)
-    || data.prices.figures.filter(f => f.packEligible).some(f => chances[f.id] !== unitsToDecimal(String(data.pack!.drops.find(d => d.figureId === f.id)?.weight ?? 0), 4))));
+  const priceDirty = Boolean(data?.pack && packPrice !== unitsToDecimal(data.pack.payment.amount, 6));
+  const chancesDirty = Boolean(data?.pack && data.prices.figures.filter(f => f.packEligible).some(f => chances[f.id] !== unitsToDecimal(String(data.pack!.drops.find(d => d.figureId === f.id)?.weight ?? 0), 4)));
+  const packDirty = priceDirty || chancesDirty;
   useEffect(() => {
     if (!dirty && !packDirty && !pending(job)) return;
     const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -145,15 +146,18 @@ export function ShopAdminContent() {
     const next = await protectedRequest<AdminPrices>('prices', 'PUT', { revision: data!.prices.revision, prices: edits.prices });
     setData(previous => previous ? { ...previous, prices: next } : null); applyPrices(next); setNotice('Figure prices saved. New purchases use these prices; existing requests keep their original quote.');
   });
-  const prepare = () => perform('Verifying resources and simulating...', async () => {
-    const drops = data!.prices.figures.filter(f => f.packEligible).map(f => ({ figureId: f.id, weight: chanceWeight(chances[f.id] ?? '0') })).filter(d => d.weight > 0);
-    if (!drops.length || drops.reduce((sum, d) => sum + d.weight, 0) !== 1_000_000) throw new Error('Pack chances must total exactly 100%.');
-    decimalToUnits(packPrice, 6, 9_999_999_999_999_999n);
-    const payload = { expectedVersion: data!.pack!.version, price: packPrice, drops };
+  const prepare = (kind: 'edition' | 'price' = 'edition') => perform('Verifying and simulating...', async () => {
+    const drops = kind === 'edition' ? data!.prices.figures.filter(f => f.packEligible).map(f => ({ figureId: f.id, weight: chanceWeight(chances[f.id] ?? '0') })).filter(d => d.weight > 0) : [];
+    if (kind === 'edition' && (!drops.length || drops.reduce((sum, d) => sum + d.weight, 0) !== 1_000_000)) throw new Error('Pack chances must total exactly 100%.');
+    const price = kind === 'price' ? packPrice : unitsToDecimal(data!.pack!.payment.amount, 6);
+    decimalToUnits(price, 6, 9_999_999_999_999_999n);
+    const payload = kind === 'price'
+      ? { expectedVersion: data!.pack!.version, expectedPrice: data!.pack!.payment.amount, expectedRevision: data!.packPriceRevision ?? '0', price }
+      : { expectedVersion: data!.pack!.version, price, drops };
     const serialized = JSON.stringify(payload);
     if (!prepareRef.current || prepareRef.current.payload !== serialized) prepareRef.current = { id: crypto.randomUUID(), payload: serialized };
-    const next = await protectedRequest<AdminPublication>('publications', 'POST', { ...payload, requestId: prepareRef.current.id });
-    rememberJob(next); setNotice('Simulation passed. Review the exact edition below before signing.');
+    const next = await protectedRequest<AdminPublication>(kind === 'price' ? 'pack-price' : 'publications', 'POST', { ...payload, requestId: prepareRef.current.id });
+    rememberJob(next); setNotice('Simulation passed. Review the update below before signing.');
   });
   const sign = () => perform('Waiting for publication signature...', async () => {
     if (!job || !confirmedReview || job.status !== 'prepared') return;
@@ -162,14 +166,14 @@ export function ShopAdminContent() {
     setJob({ ...job, status: 'submitted' });
     const next = await protectedRequest<AdminPublication>(`publications/${job.id}/submit`, 'POST', { transaction: signed });
     rememberJob(next);
-    if (next.status === 'confirmed') { await load(false); setNotice(`Edition ${next.catalog.version} published. Previously bought packs keep their original odds.`); }
-    else setNotice('Publication submitted. Check status before starting another edition.');
+    if (next.status === 'confirmed') { await load(false); setNotice(next.kind === 'price' ? 'Pack price updated without a new edition. Paid packs keep their price and chances.' : `Edition ${next.catalog.version} published. Paid packs keep their price and chances.`); }
+    else setNotice('Update submitted. Check status before starting another update.');
   });
   const check = () => perform('Checking publication...', async () => {
     const id = job?.id ?? recoverId;
     if (!id) return;
     const next = await protectedRequest<AdminPublication>(`publications/${id}`); rememberJob(next);
-    if (next.status === 'confirmed') { await load(false); setNotice(`Edition ${next.catalog.version} is confirmed.`); }
+    if (next.status === 'confirmed') { await load(false); setNotice(next.kind === 'price' ? 'Price update is confirmed.' : `Edition ${next.catalog.version} is confirmed.`); }
   });
   let total: number | null = 0;
   try { total = Object.values(chances).reduce((sum, value) => sum + chanceWeight(value), 0); } catch { total = null; }
@@ -212,25 +216,32 @@ export function ShopAdminContent() {
         </section>
         <section className={styles.card} aria-labelledby="pack-title"><h2 id="pack-title">Fighter pack</h2>
           {!data.pack ? <><p role="alert">{data.packError}</p><button disabled={disabled} onClick={() => void perform('Loading active edition...', () => load(false))}>Retry pack state</button></> : <>
-            <p><span className={styles.badge}>Active edition {data.pack.version}</span> {data.pack.available ? 'Purchases open' : 'Purchases paused'}</p><p>Current price: <strong>{unitsToDecimal(data.pack.payment.amount, 6)} SKR</strong><span className={styles.usd}> {usd(unitsToDecimal(data.pack.payment.amount, 6), data.pack.payment.mint, 6)}</span>. Previous editions cannot be edited.</p>
+            <p><span className={styles.badge}>Active edition {data.pack.version}</span> {data.pack.available ? 'Purchases open' : 'Purchases paused'}</p><p>Current price: <strong>{unitsToDecimal(data.pack.payment.amount, 6)} SKR</strong><span className={styles.usd}> {usd(unitsToDecimal(data.pack.payment.amount, 6), data.pack.payment.mint, 6)}</span>. Paid packs keep their original price and chances.</p>
+            <form onSubmit={event => { event.preventDefault(); void prepare('price'); }}>
+              <fieldset disabled={disabled || pending(job)}><legend>Change pack price</legend>
+                <label htmlFor="pack-price">Pack price (SKR)</label><input id="pack-price" type="text" inputMode="decimal" value={packPrice} onChange={event => setPackPrice(event.target.value)} aria-describedby="usd-pack pack-price-help" /><small id="usd-pack" data-testid="usd-pack" className={styles.usd}>{usd(packPrice, data.pack.payment.mint, 6)}</small><small id="pack-price-help">Up to 6 decimal places. New purchases only. No new edition or changes to odds.</small>
+                <button className={styles.primary} type="submit" disabled={!priceDirty}>Review & simulate price update</button>
+              </fieldset>
+            </form><p>Wallet signature required. The first change creates one small price account; later changes pay only the transaction fee.</p>
             <form onSubmit={event => { event.preventDefault(); void prepare(); }}>
               <fieldset disabled={disabled || pending(job)}><legend>Next edition {data.pack.version + 1}</legend>
-                <label htmlFor="pack-price">Pack price (SKR)</label><input id="pack-price" type="text" inputMode="decimal" value={packPrice} onChange={event => setPackPrice(event.target.value)} aria-describedby="usd-pack pack-price-help" /><small id="usd-pack" data-testid="usd-pack" className={styles.usd}>{usd(packPrice, data.pack.payment.mint, 6)}</small><small id="pack-price-help">Up to 6 decimal places. Payment stays in SKR.</small>
+                <p>New chances start at the current live price: {unitsToDecimal(data.pack.payment.amount, 6)} SKR. Price edits above are separate.</p>
                 <h3>Drop probabilities</h3><p>Use 0 to exclude a figure. Total must be exactly 100%.</p>
                 {data.prices.figures.filter(f => f.packEligible).map(f => <div className={styles.chance} key={f.id}><label htmlFor={`chance-${f.id}`}>{f.name}</label><div><input id={`chance-${f.id}`} type="text" inputMode="decimal" value={chances[f.id] ?? '0'} onChange={event => setChances(c => ({ ...c, [f.id]: event.target.value }))} /><span>%</span></div></div>)}
                 <p className={styles.total} aria-live="polite">Total: {total === null ? 'Invalid probability' : `${unitsToDecimal(String(total), 4)}%`}</p>
-                <button className={styles.primary} type="submit" disabled={total !== 1_000_000 || !packDirty}>Review & simulate next edition</button>
+                <button className={styles.primary} type="submit" disabled={total !== 1_000_000 || !chancesDirty}>Review & simulate next edition</button>
               </fieldset>
             </form><p>Simulation does not publish anything. The admin pays the network fee and edition account rent in SOL. Paused purchases stay paused.</p>
           </>}
           {recoverId && !job && <button disabled={disabled} onClick={() => void check()}>Recover pending publication</button>}
-          {job && <div className={styles.review} aria-label="Publication review"><h3>Edition {job.catalog.version}: {job.status}</h3><p><strong>{unitsToDecimal(job.catalog.payment.amount, 6)} SKR</strong> per pack <span className={styles.usd}>{usd(unitsToDecimal(job.catalog.payment.amount, 6), job.catalog.payment.mint, 6)}</span></p><ul>{job.catalog.drops.map(d => <li key={d.figureId}>{data.prices.figures.find(f => f.id === d.figureId)?.name ?? d.figureId}: <strong>{unitsToDecimal(String(d.weight), 4)}%</strong></li>)}</ul>
-            <p>Estimated publication cost: <strong>{unitsToDecimal(job.networkFeeLamports, 9)} SOL</strong> (fee + account rent)</p>
+          {job && <div className={styles.review} aria-label="Publication review"><h3>{job.kind === 'price' ? 'Price update' : `Edition ${job.catalog.version}`}: {job.status}</h3><p><strong>{unitsToDecimal(job.catalog.payment.amount, 6)} SKR</strong> per pack <span className={styles.usd}>{usd(unitsToDecimal(job.catalog.payment.amount, 6), job.catalog.payment.mint, 6)}</span></p><ul>{job.catalog.drops.map(d => <li key={d.figureId}>{data.prices.figures.find(f => f.id === d.figureId)?.name ?? d.figureId}: <strong>{unitsToDecimal(String(d.weight), 4)}%</strong></li>)}</ul>
+            <p>Estimated {job.kind === 'price' ? 'update' : 'publication'} cost: <strong>{unitsToDecimal(job.networkFeeLamports, 9)} SOL</strong> ({job.kind === 'price' && job.priceUpdate?.expectedRevision !== '0' ? 'transaction fee only' : 'fee + account rent'})</p>
             <small className={styles.usd}>{usd(unitsToDecimal(job.networkFeeLamports, 9), null, 9)}</small>
-            <p>This calls the RIPSY Packs program on Solana mainnet and creates an immutable edition account.</p>
+            <p>{job.kind === 'price' ? 'This updates the price for future purchases on Solana mainnet. The edition, chances and paid packs are unchanged.' : 'This calls the RIPSY Packs program on Solana mainnet and creates an immutable edition account sized for these rewards only.'}</p>
             <details><summary>On-chain details</summary><p>Solana mainnet</p><AdminAddress value={job.buyer} label="Administrator" /><AdminAddress value={job.edition} label="Edition account" /><AdminAddress value={PACK_PROGRAM_ID} label="RIPSY Packs program" /><p>Request: <span className={styles.address}>{job.id}</span></p></details>
+            {job.kind === 'price' && job.priceUpdate && <details><summary>Price change details</summary><p>{unitsToDecimal(job.priceUpdate.expectedPrice, 6)} SKR to {unitsToDecimal(job.catalog.payment.amount, 6)} SKR. Revision {job.priceUpdate.expectedRevision} to {job.priceUpdate.revision}.</p><AdminAddress value={job.priceUpdate.account} label="Price account" /></details>}
             {job.signature && <p><a href={`https://solscan.io/tx/${job.signature}`} target="_blank" rel="noreferrer">View publication transaction</a></p>}
-            {job.status === 'prepared' && <><label className={styles.checkbox}><input type="checkbox" checked={confirmedReview} onChange={event => setConfirmedReview(event.target.checked)} disabled={disabled} />I checked the price and odds. Publish this immutable edition on mainnet.</label><button className={styles.primary} disabled={disabled || !confirmedReview} onClick={() => void sign()}>Sign & publish edition {job.catalog.version}</button></>}
+            {job.status === 'prepared' && <><label className={styles.checkbox}><input type="checkbox" checked={confirmedReview} onChange={event => setConfirmedReview(event.target.checked)} disabled={disabled} />{job.kind === 'price' ? 'I checked the new price. Apply it to future purchases only.' : 'I checked the price and odds. Publish this immutable edition on mainnet.'}</label><button className={styles.primary} disabled={disabled || !confirmedReview} onClick={() => void sign()}>{job.kind === 'price' ? 'Sign & update pack price' : `Sign & publish edition ${job.catalog.version}`}</button></>}
             {pending(job) ? <button disabled={disabled} onClick={() => void check()}>Check publication status</button> : <button disabled={disabled} onClick={() => void perform('Loading published settings...', async () => { await load(true); setJob(null); prepareRef.current = null; })}>Load current settings</button>}
             {job.status === 'prepared' && <button disabled={disabled} onClick={() => { setJob(null); prepareRef.current = null; setConfirmedReview(false); try { localStorage.removeItem(JOB_KEY); } catch {} setRecoverId(null); }}>Discard unsigned review</button>}
             {job.status === 'submitted' && <p>Do not create another publication. Status checks recover the same signed transaction after connection errors.</p>}

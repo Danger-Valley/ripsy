@@ -13,6 +13,41 @@ import { loadShopConfig } from './shop-config.js';
 import { FIGURES } from './figure-registry.js';
 
 const input = { expectedVersion: 2, price: '1099', drops: [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }] };
+test('pack price initialization/update have exact CAS inputs, one admin signature and no edition allocation or odds mutation', async () => {
+  const f = await fixture(); const drops = (await f.chain.catalog()).drops;
+  f.umi.rpc.simulateTransaction = (async () => ({ err: null, accounts: [{ lamports: 98930120 }], logs: [] })) as unknown as RpcInterface['simulateTransaction'];
+  const first = await f.chain.preparePrice({ expectedVersion: 2, expectedPrice: '1099000000', expectedRevision: '0', price: '10' });
+  const tx = f.umi.transactions.deserialize(Buffer.from(first.transaction, 'base64')); const ix = tx.message.instructions[0]!;
+  assert.deepEqual([...ix.data.subarray(0, 8)], [...discriminator('global', 'initialize_edition_price')]);
+  assert.equal(Buffer.from(ix.data).readUInt32LE(8), 2); assert.equal(Buffer.from(ix.data).readBigUInt64LE(12), 1099000000n);
+  assert.equal(Buffer.from(ix.data).readBigUInt64LE(20), 10000000n);
+  assert.equal(tx.message.accounts[ix.accountIndexes[2]!], f.oldEdition); assert.equal(tx.message.accounts[ix.accountIndexes[3]!], f.pricingKey);
+  assert.equal(tx.message.header.numRequiredSignatures, 1); assert.ok(!tx.message.accounts.includes(f.nextEdition));
+  assert.deepEqual(first.catalog.drops, drops); assert.equal(first.catalog.version, 2); assert.equal(first.networkFeeLamports, '1069880');
+  f.setPrice(10_000_000n);
+  assert.equal((await f.chain.catalog()).payment.amount, '10000000'); assert.equal((await f.chain.catalog()).priceRevision, '1');
+  await assert.rejects(() => f.chain.preparePrice({ expectedVersion: 2, expectedPrice: '1099000000', expectedRevision: '0', price: '1' }), /price or edition changed/);
+  f.umi.rpc.simulateTransaction = (async () => ({ err: null, accounts: [{ lamports: 99995000 }], logs: [] })) as unknown as RpcInterface['simulateTransaction'];
+  const next = await f.chain.preparePrice({ expectedVersion: 2, expectedPrice: '10000000', expectedRevision: '1', price: '12.345678' });
+  const update = f.umi.transactions.deserialize(Buffer.from(next.transaction, 'base64')).message.instructions[0]!;
+  assert.deepEqual([...update.data.subarray(0, 8)], [...discriminator('global', 'set_edition_price')]);
+  assert.equal(Buffer.from(update.data).readBigUInt64LE(12), 1n); assert.equal(Buffer.from(update.data).readBigUInt64LE(20), 10000000n);
+  assert.equal(Buffer.from(update.data).readBigUInt64LE(28), 12345678n); assert.equal(next.networkFeeLamports, '5000');
+  await assert.rejects(() => f.chain.prepare(f.catalog), /price changed/);
+});
+test('price update recovery requires exact finalized transaction proof even after later price changes', async () => {
+  const f = await fixture();
+  const prepared = await f.chain.preparePrice({ expectedVersion: 2, expectedPrice: '1099000000', expectedRevision: '0', price: '10' });
+  const job: AdminPublication = { ...prepared, kind: 'price', id: 'a'.repeat(64), buyer: f.admin.publicKey, cluster: 'mainnet-beta', createdAt: 1, status: 'prepared', signature: null };
+  f.setHeight(101); assert.equal(await f.chain.status(job), 'expired');
+  f.setPrice(12_000_000n, 2n);
+  assert.equal(await f.chain.status(job), 'superseded');
+  f.umi.rpc.call = (async method => method === 'getBlockHeight' ? 101 : [{ signature: '1'.repeat(64) }]) as RpcInterface['call'];
+  f.umi.rpc.getTransaction = (async () => ({ serializedMessage: f.umi.transactions.deserialize(Buffer.from(job.transaction, 'base64')).serializedMessage, meta: { err: null } })) as unknown as RpcInterface['getTransaction'];
+  assert.equal(await f.chain.status(job), 'confirmed');
+  f.umi.rpc.getTransaction = async () => null;
+  await assert.rejects(() => f.chain.status(job), /reconciliation/);
+});
 async function fixture() {
   const umi = createUmi('http://localhost:8899'); const admin = generateSigner(umi); const authority = generateSigner(umi);
   const collection = generateSigner(umi).publicKey; const treasury = generateSigner(umi).publicKey;
@@ -21,6 +56,8 @@ async function fixture() {
   const utf = (s: string) => new TextEncoder().encode(s);
   const root = await pda([utf('config')]); const n = Buffer.alloc(4); n.writeUInt32LE(2);
   const oldEdition = await pda([utf('edition'), n]); const m = Buffer.alloc(4); m.writeUInt32LE(3); const nextEdition = await pda([utf('edition'), m]);
+  const [pricingKey, pricingBump] = await getProgramDerivedAddress({ programAddress: address(PACK_PROGRAM_ID), seeds: [utf('price'), addressBytes(address(oldEdition))] });
+  let price: bigint | null = null; let revision = 0n;
   const rootData = Buffer.concat([discriminator('account', 'Config'), ...[admin.publicKey, treasury, collection, authority.publicKey].map(v => addressBytes(address(v))), n, Buffer.from([0, 255])]);
   const editionData = (version: number) => {
     const wire = publishEditionData(version, 1099000000n, input.drops.map(d => { const f = FIGURES.find(f => f.id === d.figureId)!; return { variant: f.variant, weight: d.weight, name: f.name, uri: `${config.publicOrigin}/figures/${f.id}.json` }; }));
@@ -29,6 +66,11 @@ async function fixture() {
   let published = false; let wrongOwner = false; let wrongAdmin = false; let height = 90; let currentVersion = 2; let genesis = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
   const collectionData = getCollectionV1AccountDataSerializer().serialize({ key: Key.CollectionV1, updateAuthority: authority.publicKey, name: 'RIPSY', uri: config.publicOrigin, numMinted: 0, currentSize: 0 });
   umi.rpc.getAccount = async key => {
+    if (key === publicKey(pricingKey)) {
+      if (price === null) return { exists: false, publicKey: key };
+      const values = Buffer.alloc(17); values.writeBigUInt64LE(price); values.writeBigUInt64LE(revision, 8); values[16] = pricingBump;
+      return { exists: true, publicKey: key, owner: publicKey(PACK_PROGRAM_ID), executable: false, lamports: lamports(1064880n), data: Buffer.concat([discriminator('account', 'EditionPrice'), values]) };
+    }
     if (key === nextEdition && !published) return { exists: false, publicKey: key };
     const currentRoot = Buffer.from(rootData); currentRoot.writeUInt32LE(currentVersion, 136); if (wrongAdmin) currentRoot.set(addressBytes(address(treasury)), 8);
     return { exists: true, publicKey: key, owner: key === collection ? MPL_CORE_PROGRAM_ID : wrongOwner ? MPL_CORE_PROGRAM_ID : publicKey(PACK_PROGRAM_ID),
@@ -47,6 +89,7 @@ async function fixture() {
   const catalog = parseAdminPackDraft(input);
   const makeJob = async (): Promise<AdminPublication> => ({ ...await chain.prepare(catalog), id: 'a'.repeat(64), buyer: admin.publicKey, cluster: 'mainnet-beta', catalog, status: 'prepared', signature: null, createdAt: 1 });
   return { umi, chain, admin, authority, collection, config, catalog, makeJob, verified, nextEdition, editionData,
+    pricingKey, oldEdition, setPrice(value: bigint | null, rev = 1n) { price = value; revision = rev; },
     setPublished(v: boolean) { published = v; }, setVersion(v: number) { currentVersion = v; }, setHeight(v: number) { height = v; }, setOwner(v: boolean) { wrongOwner = v; }, setAdmin(v: boolean) { wrongAdmin = v; }, setGenesis(v: string) { genesis = v; }, verify };
 }
 test('publication wire uses only admin signature, exact next edition/price/weights and no private authority signature', async () => {

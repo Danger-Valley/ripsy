@@ -51,6 +51,8 @@ async function fixture(catalog: PackCatalog = INITIAL_PACK) {
   version.writeUInt32LE(catalog.version);
   const root = await pda([utf("config")]),
     edition = await pda([utf("edition"), version]);
+  const [pricingKey, pricingBump] = await getProgramDerivedAddress({ programAddress: address(PACK_PROGRAM_ID), seeds: [utf('price'), addressBytes(address(edition))] });
+  let price: bigint | null = null;
   const rootData = Buffer.concat([
     discriminator("account", "Config"),
     ...[authority.publicKey, treasury, collection, authority.publicKey].map(
@@ -82,7 +84,13 @@ async function fixture(catalog: PackCatalog = INITIAL_PACK) {
     Buffer.from([255]),
   ]);
   let receiptData: Uint8Array | null = null;
-  umi.rpc.getAccount = async (key) =>
+  umi.rpc.getAccount = async (key) => {
+    if (key === publicKey(pricingKey)) {
+      if (price === null) return { exists: false, publicKey: key };
+      const values = Buffer.alloc(17); values.writeBigUInt64LE(price); values.writeBigUInt64LE(1n, 8); values[16] = pricingBump;
+      return { exists: true, publicKey: key, owner: publicKey(PACK_PROGRAM_ID), executable: false, lamports: lamports(1064880n), data: Buffer.concat([discriminator('account', 'EditionPrice'), values]) };
+    }
+    return (
     key === publicKey(PACK_PROGRAM_ID) ||
     key === publicKey(root) ||
     key === publicKey(edition) ||
@@ -100,7 +108,8 @@ async function fixture(catalog: PackCatalog = INITIAL_PACK) {
               ? editionData
               : receiptData ?? new Uint8Array(),
         }
-      : { exists: false, publicKey: key };
+      : { exists: false, publicKey: key });
+  };
   umi.rpc.getLatestBlockhash = async () => ({
     blockhash: publicKey("11111111111111111111111111111111"),
     lastValidBlockHeight: 100,
@@ -137,6 +146,7 @@ async function fixture(catalog: PackCatalog = INITIAL_PACK) {
     treasury,
     chain,
     order,
+    pricingKey, setPrice(value: bigint) { price = value; },
     setReceipt(state: number, index = 0) {
       const price = Buffer.alloc(8);
       price.writeBigUInt64LE(BigInt(PACK_PAYMENT.amount));
@@ -153,6 +163,21 @@ async function fixture(catalog: PackCatalog = INITIAL_PACK) {
     },
   };
 }
+test('mutable price affects new purchases only; paid receipt status and claim retain the exact old payment and odds', async () => {
+  const f = await fixture(); const original = structuredClone(f.order);
+  f.setPrice(10_000_000n);
+  assert.equal((await f.chain.catalog()).payment.amount, '10000000');
+  assert.equal((await f.chain.catalog()).version, original.version);
+  const fresh = await f.chain.prepare(f.buyer.publicKey, new Uint8Array(32).fill(9));
+  assert.equal(fresh.payment.amount, '10000000');
+  assert.deepEqual(fresh.drops, original.drops);
+  f.setReceipt(1, 1);
+  assert.equal((await f.chain.status(original)).result, 'bonk');
+  await f.chain.prepareClaim(original);
+  f.setPrice(1_000_000n); f.setReceipt(2, 1);
+  assert.equal((await f.chain.status(original)).status, 'confirmed');
+  assert.deepEqual(f.order, original);
+});
 test("pack purchase wire has a single buyer signer, pinned SKR/VRF and exact price; no Seeker accounts", async () => {
   const f = await fixture();
   parsePackOrder(f.order);
@@ -165,6 +190,7 @@ test("pack purchase wire has a single buyer signer, pinned SKR/VRF and exact pri
   assert.equal(tx.message.accounts[ix.programIndex], PACK_PROGRAM_ID);
   assert.equal(Buffer.from(ix.data).readBigUInt64LE(44), 1099000000n);
   assert.equal(tx.message.accounts[ix.accountIndexes[4]!], PACK_PAYMENT.mint);
+  assert.equal(tx.message.accounts[ix.accountIndexes[14]!], f.pricingKey);
   assert.equal(
     tx.message.accounts[ix.accountIndexes[10]!],
     "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"

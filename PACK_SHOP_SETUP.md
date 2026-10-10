@@ -73,6 +73,8 @@ The 8,985-byte edition required 46,294,040 lamports rent plus a 5,000-lamport tr
 
 Edit `onchain/pack-config.json`, increase `version` by exactly one, and publish a **new** edition. Weights are integers totaling `1000000` (`500000` = 50%, `10000` = 1%). `priceBaseUnits` is an exact SKR integer, never a floating-point number. Initial version 1 is locked to the approved 1,099 SKR / 50-50 specification.
 
+Price-only updates no longer require a new edition after the prepared program upgrade. Use the admin's independent price form; exact current pricing comes from the edition's price PDA, with original edition price as the legacy fallback. Receipt payment and edition odds remain immutable per purchase. New editions allocate actual serialized reward bytes only; existing large editions are not resized. See `SHOP_ADMIN.md` and `onchain/PRICE_UPGRADE.md` for rollout, cost and recovery. The program upgrade is pending explicit mainnet approval/funding, not performed by a Git/backend/web deployment.
+
 The admin CLI uses an explicit keypair path and simulates by default. Run from the repository root:
 
 ```sh

@@ -41,6 +41,7 @@ import { SHOP_TOKEN_PROGRAM } from "./shop-token-payment.js";
 import { createShopChain } from "./shop-chain.js";
 import type { ShopConfig } from "./shop-config.js";
 import { ShopError } from "./shop-error.js";
+import { packPricing } from "./pack-pricing.js";
 
 const SYSTEM = "11111111111111111111111111111111";
 const VRF = "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz";
@@ -163,12 +164,13 @@ export function createPackChain(
     )
       throw new ShopError("Pack program is not available.", 503);
     const c = decodeConfig(root);
-    const { e } = await edition(c.version);
+    const { key, e } = await edition(c.version);
+    const pricing = await packPricing(umi, key, e.price);
     return parsePackCatalog({
       name: "Fighter pack",
       available: !c.paused,
       version: e.version,
-      payment: { ...PACK_PAYMENT, amount: e.price.toString() },
+      payment: { ...PACK_PAYMENT, amount: pricing.price.toString() },
       drops: e.drops.map((d) => {
         const figure = FIGURES.find(
           (f) => f.variant === d.variant && !f.seekerExclusive && f.purchasable
@@ -248,6 +250,8 @@ export function createPackChain(
         meta(SHOP_TOKEN_PROGRAM, 0),
         meta("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL", 0),
         meta(SYSTEM, 0),
+        // Old program ignores this extra account; upgraded program requires it.
+        meta((await packPricing(umi, e.key, e.e.price)).key, 0),
       ];
       const [blockhash, balance] = await Promise.all([
         umi.rpc.getLatestBlockhash(),

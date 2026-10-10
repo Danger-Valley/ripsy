@@ -5,9 +5,10 @@ import { createNoopSigner, publicKey, transactionBuilder, type Umi } from '@meta
 import { base58 } from '@metaplex-foundation/umi/serializers';
 import { fetchCollection } from '@metaplex-foundation/mpl-core';
 import { PACK_PAYMENT, PACK_PROGRAM_ID, parsePackCatalog, type PackCatalog } from '@rps/core/packs';
-import { decimalToUnits, type AdminPublication } from '@rps/core/shop-admin';
+import { decimalToUnits, type AdminPublication, type AdminPackPriceDraft } from '@rps/core/shop-admin';
 import { FIGURES } from './figure-registry.js';
-import { decodeConfig, decodeEdition, publishEditionData } from './pack-codec.js';
+import { decodeConfig, decodeEdition, publishEditionData, editionPriceData } from './pack-codec.js';
+import { packPricing } from './pack-pricing.js';
 import { verifyPackFigureResources } from './pack-metadata.js';
 import type { ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
@@ -22,8 +23,9 @@ export function parseAdminPackDraft(input: Record<string, unknown>): PackCatalog
   } catch (error) { throw new ShopError((error as Error).message); }
 }
 export interface PackAdminChain {
-  catalog(): Promise<PackCatalog>;
+  catalog(): Promise<PackCatalog & { priceRevision?: string }>;
   prepare(catalog: PackCatalog): Promise<Pick<AdminPublication, 'edition' | 'transaction' | 'lastValidBlockHeight' | 'networkFeeLamports'>>;
+  preparePrice(draft: AdminPackPriceDraft): Promise<Pick<AdminPublication, 'edition' | 'catalog' | 'transaction' | 'lastValidBlockHeight' | 'networkFeeLamports' | 'priceUpdate'>>;
   validateSigned(job: AdminPublication, signed: string): string;
   send(signed: string): Promise<void>;
   status(job: AdminPublication): Promise<AdminPublication['status']>;
@@ -71,15 +73,56 @@ export function createPackAdminChain(config: ShopConfig, adminAddress: string | 
     if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || encoded.length > 1644) throw new ShopError('Invalid publication transaction.');
     try { return umi.transactions.deserialize(Buffer.from(encoded, 'base64')); } catch { throw new ShopError('Invalid publication transaction.'); }
   };
+  async function live() {
+    const c = await root(); const key = await editionKey(c.version);
+    const e = decodeEdition(await account(key));
+    if (e.version !== c.version) throw new ShopError('Invalid active edition.', 503);
+    const pricing = await packPricing(umi, key, e.price);
+    const catalog = table(e, c.paused);
+    catalog.payment = { ...catalog.payment, amount: pricing.price.toString() };
+    return { c, key, pricing, catalog };
+  }
   return {
     async catalog() {
-      const c = await root(); const e = decodeEdition(await account(await editionKey(c.version)));
-      if (e.version !== c.version) throw new ShopError('Invalid active edition.', 503);
-      return table(e, c.paused);
+      const current = await live();
+      return { ...current.catalog, priceRevision: current.pricing.revision.toString() };
+    },
+    async preparePrice(draft) {
+      const current = await live();
+      const price = decimalToUnits(draft.price, 6, 9_999_999_999_999_999n);
+      if (draft.expectedVersion !== current.c.version || draft.expectedPrice !== current.pricing.price.toString()
+        || draft.expectedRevision !== current.pricing.revision.toString()) throw new ShopError('Pack price or edition changed. Reload before changing it.', 409);
+      if (price === draft.expectedPrice) throw new ShopError('The pack already has this price.');
+      const admin = createNoopSigner(publicKey(adminAddress!));
+      const keys = [
+        { pubkey: admin.publicKey, isSigner: true, isWritable: true },
+        { pubkey: await pda([utf('config')]), isSigner: false, isWritable: false },
+        { pubkey: current.key, isSigner: false, isWritable: false },
+        { pubkey: publicKey(current.pricing.key), isSigner: false, isWritable: true },
+        ...(current.pricing.revision === 0n ? [{ pubkey: publicKey('11111111111111111111111111111111'), isSigner: false, isWritable: false }] : []),
+      ];
+      const [blockhash, balance] = await Promise.all([umi.rpc.getLatestBlockhash(), umi.rpc.getBalance(admin.publicKey)]);
+      const tx = await transactionBuilder().setVersion(0).setFeePayer(admin).setBlockhash(blockhash).add({ instruction: {
+        programId: publicKey(PACK_PROGRAM_ID), keys,
+        data: editionPriceData(current.c.version, current.pricing.revision, current.pricing.price, BigInt(price)),
+      }, signers: [admin], bytesCreatedOnChain: 0 }).buildAndSign(umi);
+      const simulation = await umi.rpc.simulateTransaction(tx, { verifySignatures: false, accounts: [admin.publicKey] });
+      if (simulation.err) throw new ShopError('Price update simulation failed. The pack program must be upgraded and the admin needs SOL. Nothing was submitted.', 409);
+      const remaining = simulation.accounts?.[0]?.lamports;
+      if (remaining === undefined || !Number.isSafeInteger(remaining) || balance.basisPoints < BigInt(remaining)) throw new ShopError('Could not estimate price update cost.', 503);
+      return { edition: String(current.key), catalog: { ...current.catalog, payment: { ...current.catalog.payment, amount: price } },
+        priceUpdate: { account: current.pricing.key, expectedPrice: draft.expectedPrice, expectedRevision: draft.expectedRevision,
+          revision: (current.pricing.revision + 1n).toString() },
+        transaction: Buffer.from(umi.transactions.serialize(tx)).toString('base64'), lastValidBlockHeight: blockhash.lastValidBlockHeight,
+        networkFeeLamports: (balance.basisPoints - BigInt(remaining)).toString() };
     },
     async prepare(catalog) {
       const c = await root();
       if (catalog.version !== c.version + 1) throw new ShopError('The active edition changed. Reload before publishing.', 409);
+      const currentKey = await editionKey(c.version);
+      const current = decodeEdition(await account(currentKey));
+      const price = await packPricing(umi, currentKey, current.price);
+      if (catalog.payment.amount !== price.price.toString()) throw new ShopError('Pack price changed. Reload it before publishing new chances.', 409);
       for (const drop of catalog.drops) {
         const f = FIGURES.find(f => f.id === drop.figureId && f.purchasable && !f.seekerExclusive);
         if (!f) throw new ShopError('Pack contains an unsupported figure.');
@@ -125,6 +168,21 @@ export function createPackAdminChain(config: ShopConfig, adminAddress: string | 
       }
       const height = await umi.rpc.call<number>('getBlockHeight', [{ commitment: 'finalized' }]);
       if (height <= job.lastValidBlockHeight) return job.signature ? 'submitted' : 'prepared';
+      if (job.kind === 'price') {
+        if (!job.priceUpdate) throw new ShopError('Invalid price update request.', 503);
+        // Exact transaction proof survives further price changes and missing wallet replies.
+        const history = await umi.rpc.call<Array<{ signature: string }>>('getSignaturesForAddress', [job.priceUpdate.account, { commitment: 'finalized', limit: 10 }]);
+        const expected = decode(job.transaction);
+        for (const entry of history) {
+          const tx = await umi.rpc.getTransaction(base58.serialize(entry.signature), { commitment: 'finalized' });
+          if (!tx) throw new ShopError('Price update requires reconciliation. Check again.', 503);
+          if (Buffer.from(tx.serializedMessage).equals(Buffer.from(expected.serializedMessage))) return tx.meta.err ? 'failed' : 'confirmed';
+        }
+        if (history.length === 10) throw new ShopError('Price update history requires reconciliation. Do not sign a replacement.', 503);
+        const e = decodeEdition(await account(job.edition, 'finalized'));
+        const p = await packPricing(umi, job.edition, e.price, 'finalized');
+        return p.revision.toString() !== job.priceUpdate.expectedRevision ? 'superseded' : 'expired';
+      }
       // Recover a wallet that broadcast but failed to return the signature.
       const a = await umi.rpc.getAccount(publicKey(job.edition), { commitment: 'finalized' });
       if (!a.exists) {

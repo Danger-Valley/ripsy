@@ -57,6 +57,13 @@ function fixture() {
       assert.equal(catalog.version, activeVersion + 1); prepares++;
       return { edition: other.publicKey, transaction: 'unsigned', lastValidBlockHeight: 100, networkFeeLamports: '46299040' };
     },
+    async preparePrice(d) {
+      prepares++;
+      return { edition: other.publicKey, catalog: { ...INITIAL_PACK, version: activeVersion, available: true, drops: draft.drops,
+        payment: { ...PACK_PAYMENT, amount: decimalToUnits(d.price, 6) } }, transaction: 'unsigned', lastValidBlockHeight: 100,
+        networkFeeLamports: '1069880', priceUpdate: { account: other.publicKey, expectedPrice: d.expectedPrice,
+          expectedRevision: d.expectedRevision, revision: (BigInt(d.expectedRevision) + 1n).toString() } };
+    },
     validateSigned(_job, signed) { if (signed !== 'signed') throw new ShopError('Invalid signature'); return '1'.repeat(64); },
     async send(signed) { sends++; assert.equal(signed, 'signed'); },
     async status(job) { return state === 'prepared' && job.signature ? 'submitted' : state; },
@@ -73,6 +80,17 @@ test('operator amounts are exact base units, including ORE precision and u64 lim
   assert.equal(unitsToDecimal('25000000000', 11), '0.25');
   assert.equal(decimalToUnits('18446744073709551615', 0), '18446744073709551615');
   for (const bad of ['0', '-1', 'NaN', '1e3', '1,099', '', '0.0000001', '18446744073709551616']) assert.throws(() => decimalToUnits(bad, 6));
+});
+test('price-only jobs keep the edition/odds, deduplicate across replicas and reject request ID reuse', async () => {
+  const f = fixture(); const input = { requestId: 'pack-price-request-1234', expectedVersion: 2, expectedPrice: '1099000000', expectedRevision: '0', price: '10' };
+  const job = await f.service.prepare(admin.publicKey, input, 'price');
+  assert.equal(job.kind, 'price'); assert.equal(job.catalog.version, 2); assert.equal(job.catalog.payment.amount, '10000000');
+  assert.deepEqual(job.catalog.drops, draft.drops); assert.equal(f.sends(), 0);
+  assert.deepEqual(await f.replica.prepare(admin.publicKey, input, 'price'), job); assert.equal(f.prepares(), 1);
+  await assert.rejects(() => f.replica.prepare(admin.publicKey, { ...input, expectedRevision: '1' }, 'price'), /already used/);
+  await assert.rejects(() => f.replica.prepare(admin.publicKey, { ...draft, requestId: input.requestId }), /already used/);
+  f.setState('confirmed'); assert.equal((await f.replica.get(admin.publicKey, job.id)).status, 'confirmed');
+  assert.equal(f.prepares(), 1);
 });
 test('admin is disabled without an explicit allowlist and rejects customer tokens', async () => {
   const f = fixture(); const disabled = new ShopAdminAuth(f.redis, config.publicOrigin, undefined);
@@ -194,6 +212,7 @@ test('real admin HTTP boundary requires wallet proof, not customer bearer tokens
   assert.equal((await request('prices', 'player-session', 'PUT', { revision: 0, prices: { jup: '1' } })).status, 401);
   assert.equal((await request('usd-rates', 'player-session')).status, 401);
   assert.equal((await request('publications', 'player-session', 'POST', { ...draft, requestId: 'publication-request-1234' })).status, 401);
+  assert.equal((await request('pack-price', 'player-session', 'POST', {})).status, 401);
   const challenge = await (await request('challenge', 'player-session', 'POST')).json();
   const message = createSignInMessage({ ...challenge, address: admin.publicKey });
   const verified = await request('verify', 'player-session', 'POST', { address: admin.publicKey, nonce: challenge.nonce, signedMessage: [...message], signature: [...await admin.signMessage(message)] });

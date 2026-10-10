@@ -39,14 +39,26 @@ Verification: 134 backend tests, 24 web tests, backend/web/mobile TypeScript and
 
 ## Pack price and probabilities
 
-The active on-chain edition is authoritative. Edit the next edition's SKR price and percentages. Use `0` to exclude an eligible reward; positive probabilities support four decimal places and must total exactly `100%`. Free, Seeker-exclusive, unregistered and duplicate figures are not permitted. Newly registered unrestricted figures automatically appear in this form after backend deployment.
+The active on-chain edition fixes the reward table. Its separate canonical price PDA controls **future purchases**, without publishing another edition. Purchased receipts keep their exact paid SKR amount and immutable edition reference; VRF resolution and delivery never consult the current price.
+
+### Price only
+
+Use **Change pack price**, then **Review & simulate price update** and **Sign & update pack price**. This requires an explicit administrative transaction signature, not a figure-price Redis save. The first change for an edition creates one 25-byte price account; subsequent changes update it in place and need only the transaction fee. The draft/current/review price still shows display-only USD.
+
+Preparation pins the active edition, previous price and price revision. The program rejects stale/replayed price changes. Signed bytes are persisted before broadcasting; the existing request ID/status flow recovers an exact finalized transaction even if further price changes have happened. Invalid probability edits do not prevent an independent price update. No admin private key or new environment variable is needed.
+
+This requires the prepared pack-program upgrade described in `onchain/PRICE_UPGRADE.md`. Before that upgrade, simulation refuses the unsupported instruction and nothing is signed or submitted. API/web source deployment alone does not upgrade mainnet.
+
+### New probabilities
+
+Edit the next edition's percentages. Its starting price is the current **live** pack price, not an unsaved price draft. Use `0` to exclude an eligible reward; positive probabilities support four decimal places and must total exactly `100%`. Free, Seeker-exclusive, unregistered and duplicate figures are not permitted. Newly registered unrestricted figures automatically appear in this form after backend deployment.
 
 1. Choose **Review & simulate next edition**. The backend verifies mainnet/program/admin/store authorities, the sequential edition number, live metadata and exact approved PNG bytes. It builds an unsigned transaction and simulates the publication. No transaction is broadcast.
-2. Review the immutable price, drop table, program, edition account and estimated SOL cost (network fee plus edition-account rent). Account rent is not the pack purchase price.
+2. Review the starting price, immutable drop table, program, edition account and estimated SOL cost (network fee plus edition-account rent). After the program upgrade, account space uses the actual reward/name/URI byte lengths only, not 32 hypothetical rewards. Account rent is not the pack purchase price.
 3. Tick the explicit confirmation, then choose **Sign & publish edition N**. The browser wallet signs as the administrator. The backend accepts only the exact prepared message and valid admin signature, persists the signed bytes before sending them through its private RPC, and tracks confirmation.
 4. If delivery is ambiguous, choose **Check publication status**. A reload remembers only the public request ID; sign in to recover that same request. Do not create another edition while a submitted request is unresolved. Retries broadcast identical bytes only.
 
-Existing editions and previously purchased pack odds never change. Rollback requires publishing a **new** edition with the desired prior price/table. This screen does not initialize/upgrade the program, change authorities or pause/unpause sales. Paused sales stay paused after publication. Editing local `onchain/pack-config.json` does not change chain state; that file documents an earlier approved edition and fixed-config checks need a new expected file after an admin publication.
+Existing edition tables and purchased pack prices/odds never change. Price rollback is another reviewed price update; odds rollback requires a **new** edition. This screen does not initialize/upgrade the program, change authorities or pause/unpause sales. Paused sales stay paused after publication. Editing local `onchain/pack-config.json` does not change chain state; that file documents an earlier approved edition. `check-pack-api.mjs --enabled` checks its expected edition/weights and validates the live price; use optional `--price=10000000` to assert a specific current price in base units.
 
 An expired/failed/superseded request must be reconciled against the current edition before preparing a replacement. A wallet that broadcast without returning a signature can be recovered after finalized blockhash expiry by exact edition data. More rewards may hit Solana's 1,232-byte transaction limit before the program's 32-reward maximum; the API rejects oversized transactions rather than changing the table. A future program upgrade/compact metadata design is separate work.
 
@@ -57,6 +69,7 @@ An expired/failed/superseded request must be reconciled against the current edit
 - Admin-authenticated `GET /shop/admin/settings`, `PUT /shop/admin/prices`, `DELETE /shop/admin/session`.
 - Admin-authenticated `GET /shop/admin/usd-rates`: display-only reference rates and expiry; never changes stored prices or chain editions.
 - Admin-authenticated `POST /shop/admin/publications`, `GET /shop/admin/publications/:id`, `POST /shop/admin/publications/:id/submit`.
+- Admin-authenticated `POST /shop/admin/pack-price`: `{ requestId, expectedVersion, expectedPrice, expectedRevision, price }`, where expected price/revision are base-unit/integer strings and price is a decimal SKR string. Returns a durable `kind: "price"` job, using the same status/submission routes. Settings include `packPriceRevision`; missing revision on legacy responses means `"0"`.
 - Existing CORS/body limits/no-store/error handling apply. No private keys or RPC credentials appear in admin responses.
 
 ## Verification

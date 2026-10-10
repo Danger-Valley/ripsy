@@ -60,6 +60,16 @@ const receipt = getStructDecoder([
   ["dropIndex", getU8Decoder()],
   ["bump", getU8Decoder()],
 ]);
+const editionPrice = getStructDecoder([
+  ["price", getU64Decoder()], ["revision", getU64Decoder()], ["bump", getU8Decoder()],
+]);
+export function decodeEditionPrice(bytes: Uint8Array) {
+  check("EditionPrice", bytes);
+  if (bytes.length !== 25) throw new Error("Invalid pack price account");
+  const p = editionPrice.decode(bytes.subarray(8));
+  if (p.price <= 0n || p.revision <= 0n) throw new Error("Invalid pack price account");
+  return p;
+}
 export function decodeConfig(bytes: Uint8Array) {
   check("Config", bytes);
   return config.decode(bytes.subarray(8));
@@ -117,6 +127,14 @@ export function publishEditionData(
     discriminator("global", "publish_edition"),
     Uint8Array.from(editionEncoder.encode({ version, price, drops })),
   ]);
+}
+export function editionPriceData(version: number, revision: bigint, expected: bigint, price: bigint) {
+  const args = Buffer.alloc(revision === 0n ? 20 : 28);
+  args.writeUInt32LE(version);
+  if (revision > 0n) args.writeBigUInt64LE(revision, 4);
+  const offset = revision === 0n ? 4 : 12;
+  args.writeBigUInt64LE(expected, offset); args.writeBigUInt64LE(price, offset + 8);
+  return Buffer.concat([discriminator("global", revision === 0n ? "initialize_edition_price" : "set_edition_price"), args]);
 }
 export const addressBytes = (
   value: Parameters<ReturnType<typeof getAddressEncoder>["encode"]>[0]

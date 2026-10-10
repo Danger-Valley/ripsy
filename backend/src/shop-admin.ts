@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { AdminPublication, AdminSnapshot } from '@rps/core/shop-admin';
+import { decimalToUnits, type AdminPublication, type AdminSnapshot, type AdminPackPriceDraft } from '@rps/core/shop-admin';
 import type { ShopRedis } from './shop-service.js';
 import type { ShopConfig } from './shop-config.js';
 import type { ShopPricingService } from './shop-pricing.js';
@@ -16,23 +16,37 @@ export class ShopAdminService {
   async snapshot(): Promise<AdminSnapshot> {
     let pack: AdminSnapshot['pack'] = null; let packError: string | null = null;
     try { pack = await this.chain.catalog(); } catch (error) { packError = error instanceof ShopError ? error.message : 'Pack state is temporarily unavailable. Retry before editing.'; }
-    return { cluster: this.config.cluster, prices: await this.prices.get(), pack, packError };
+    return { cluster: this.config.cluster, prices: await this.prices.get(), pack, packError,
+      packPriceRevision: (pack as { priceRevision?: string } | null)?.priceRevision ?? '0' };
   }
-  async prepare(admin: string, input: Record<string, unknown>) {
+  async prepare(admin: string, input: Record<string, unknown>, kind: 'edition' | 'price' = 'edition') {
     if (typeof input.requestId !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(input.requestId)) throw new ShopError('Invalid publication request ID.');
-    const catalog = parseAdminPackDraft(input);
+    let draft: AdminPackPriceDraft | null = null;
+    if (kind === 'price') {
+      if (!Number.isSafeInteger(input.expectedVersion) || Number(input.expectedVersion) < 1 || Number(input.expectedVersion) > 0xffffffff
+        || typeof input.expectedPrice !== 'string' || !/^[1-9]\d{0,15}$/.test(input.expectedPrice)
+        || typeof input.expectedRevision !== 'string' || !/^(0|[1-9]\d{0,19})$/.test(input.expectedRevision)
+        || BigInt(input.expectedRevision) >= 18_446_744_073_709_551_615n || typeof input.price !== 'string') throw new ShopError('Invalid pack price update.');
+      draft = { expectedVersion: Number(input.expectedVersion), expectedPrice: input.expectedPrice, expectedRevision: input.expectedRevision, price: input.price };
+      try { decimalToUnits(draft.price, 6, 9_999_999_999_999_999n); }
+      catch (error) { throw new ShopError((error as Error).message); }
+    }
+    const catalog = kind === 'edition' ? parseAdminPackDraft(input) : null;
     const id = createHash('sha256').update(`${admin}:${input.requestId}`).digest('hex');
     return this.lock(id, async () => {
       const raw = await this.redis.get(this.key(id));
       if (raw) {
         const saved = JSON.parse(raw) as Stored;
-        if (saved.job.buyer !== admin || JSON.stringify(saved.job.catalog) !== JSON.stringify(catalog)) throw new ShopError('Request already used for another edition.', 409);
+        if (saved.job.buyer !== admin || (saved.job.kind ?? 'edition') !== kind
+          || (catalog ? JSON.stringify(saved.job.catalog) !== JSON.stringify(catalog)
+            : saved.job.priceUpdate?.expectedPrice !== draft!.expectedPrice || saved.job.priceUpdate?.expectedRevision !== draft!.expectedRevision
+              || saved.job.catalog.version !== draft!.expectedVersion || saved.job.catalog.payment.amount !== decimalToUnits(draft!.price, 6, 9_999_999_999_999_999n))) throw new ShopError('Request already used for another update.', 409);
         return this.refresh(saved);
       }
       const count = Number(await this.redis.eval("local n = redis.call('INCR', KEYS[1]); if n == 1 then redis.call('EXPIRE', KEYS[1], 120) end; return n", { keys: [`${this.prefix}:shop:admin:publish-rate:${Math.floor(Date.now() / 60000)}`], arguments: [] }));
       if (count > 6) throw new ShopError('Too many publication requests. Wait a minute.', 429);
-      const prepared = await this.chain.prepare(catalog);
-      const job: AdminPublication = { ...prepared, id, buyer: admin, cluster: 'mainnet-beta', catalog, createdAt: Date.now(), status: 'prepared', signature: null };
+      const prepared = catalog ? { ...await this.chain.prepare(catalog), catalog } : await this.chain.preparePrice(draft!);
+      const job: AdminPublication = { ...prepared, kind, id, buyer: admin, cluster: 'mainnet-beta', createdAt: Date.now(), status: 'prepared', signature: null };
       await this.write({ job }); return job;
     });
   }

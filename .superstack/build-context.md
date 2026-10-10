@@ -86,3 +86,13 @@ release preflight pass. Live figure/catalog/update endpoints were verified
 read-only; all three update minimums remain zero. No backend deployment,
 paid transaction or physical-device verification occurred during this release.
 Evidence: `files/releases/1.0.0-57.md`.
+
+## Pack price/storage upgrade preparation (2026-10-10)
+
+Source now supports independently mutable edition prices and exact-size new
+reward tables. Historical Config/Edition/Receipt layouts, receipt prices and
+VRF/claim rules are unchanged. The production program hash above is still live;
+the new binary has not been uploaded to mainnet. Local actual SBF upgrade and
+regressions pass. Activation requires explicit upgrade approval and sufficient
+temporary upload funding. See `onchain/PRICE_UPGRADE.md`; no production price,
+edition, authority or purchase was changed during preparation.

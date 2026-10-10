@@ -224,6 +224,7 @@ test("Anchor generated IDL matches program, instructions and classic SKR account
       "token_program",
       "associated_token_program",
       "system_program",
+      "edition_price",
     ]
   );
   assert.equal(buy.accounts[4].address, PACK_PAYMENT.mint);

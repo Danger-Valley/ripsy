@@ -25,15 +25,20 @@ export interface AdminPrices {
   audit: Array<{ at: number; address: string; revision: number; changes: Record<string, { before: string | null; after: string }> }>;
 }
 export interface AdminPackDraft { expectedVersion: number; price: string; drops: PackDrop[] }
+export interface AdminPackPriceDraft { expectedVersion: number; expectedPrice: string; expectedRevision: string; price: string }
 export interface AdminPublication {
   id: string; buyer: string; cluster: 'mainnet-beta'; transaction: string;
   edition: string; catalog: PackCatalog; lastValidBlockHeight: number;
   networkFeeLamports: string; createdAt: number;
   status: 'prepared' | 'submitted' | 'confirmed' | 'failed' | 'expired' | 'superseded';
   signature: string | null;
+  /** Missing kind denotes an existing edition publication, for durable recovery. */
+  kind?: 'edition' | 'price';
+  priceUpdate?: { account: string; expectedPrice: string; expectedRevision: string; revision: string };
 }
 export interface AdminSnapshot {
   cluster: ShopCluster; prices: AdminPrices; pack: PackCatalog | null; packError: string | null;
+  packPriceRevision?: string;
 }
 /** Display-only mainnet reference prices. Never used to build a payment. */
 export interface AdminUsdRates {

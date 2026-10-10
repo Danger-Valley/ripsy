@@ -16,6 +16,8 @@ import {
   decodeEdition,
   discriminator,
   publishEditionData,
+  editionPriceData,
+  decodeEditionPrice,
 } from "../../backend/src/pack-codec.js";
 const port =
   process.argv.find((arg) => arg.startsWith("--port="))?.slice(7) ?? "19999";
@@ -29,6 +31,32 @@ umi.use(
     )
   )
 );
+async function checkPricing() {
+  const before = await umi.rpc.getAccount(edition); assert.ok(before.exists);
+  const [priceKey, priceBump] = await getProgramDerivedAddress({ programAddress: address(PACK_PROGRAM_ID), seeds: [utf('price'), addressBytes(address(edition))] });
+  const priceAccounts = [key(umi.identity.publicKey, true, true), key(root), key(edition), key(priceKey, true)];
+  await send(editionPriceData(1, 0n, BigInt(PACK_PAYMENT.amount), 10_000_000n), [...priceAccounts, key('11111111111111111111111111111111')]);
+  const price = await umi.rpc.getAccount(publicKey(priceKey)); assert.ok(price.exists); assert.equal(price.data.length, 25);
+  assert.deepEqual(decodeEditionPrice(price.data), { price: 10_000_000n, revision: 1n, bump: priceBump });
+  await assert.rejects(() => send(editionPriceData(1, 0n, BigInt(PACK_PAYMENT.amount), 10_000_000n), [...priceAccounts, key('11111111111111111111111111111111')]));
+  await assert.rejects(() => send(editionPriceData(1, 2n, 10_000_000n, 12_000_000n), priceAccounts), /StaleQuote|0x1773/);
+  await assert.rejects(() => send(editionPriceData(1, 1n, 9_000_000n, 12_000_000n), priceAccounts), /StaleQuote|0x1773/);
+  await assert.rejects(() => send(editionPriceData(1, 1n, 10_000_000n, 0n), priceAccounts), /StaleQuote|0x1773/);
+  await send(editionPriceData(1, 1n, 10_000_000n, 12_000_000n), priceAccounts);
+  const updated = await umi.rpc.getAccount(publicKey(priceKey)); assert.ok(updated.exists);
+  assert.equal(decodeEditionPrice(updated.data).revision, 2n);
+  assert.equal(decodeEditionPrice(updated.data).price, 12_000_000n);
+  const after = await umi.rpc.getAccount(edition); assert.ok(after.exists); assert.deepEqual(after.data, before.data);
+  const oldReceipt = await umi.rpc.getAccount(receipt); assert.ok(oldReceipt.exists);
+  const paid = Buffer.from(oldReceipt.data); assert.equal(paid.readBigUInt64LE(168), BigInt(PACK_PAYMENT.amount));
+  const v2 = Buffer.alloc(4); v2.writeUInt32LE(2); const edition2 = await pda([utf('edition'), v2]);
+  const d2 = drops.map(d => ({ ...d, weight: 400000 })); d2.push({ variant: 5, weight: 200000, name: 'ORE', uri: 'https://www.ripsy.fun/figures/ore.json' });
+  await send(publishEditionData(2, 12_000_000n, d2), [key(umi.identity.publicKey, true, true), key(root, true), key(edition2, true), key('11111111111111111111111111111111')]);
+  const compact = await umi.rpc.getAccount(edition2); assert.ok(compact.exists); assert.equal(compact.data.length, 285);
+  assert.equal(decodeEdition(compact.data).price, 12_000_000n);
+  await assert.rejects(() => send(editionPriceData(1, 2n, 12_000_000n, 13_000_000n), priceAccounts), /StaleQuote|0x1773/);
+  console.log('Local upgrade pricing passed: old edition/receipt untouched; 25-byte price PDA, CAS/replay/zero/stale-edition rejection, 285-byte three-drop edition. No mainnet transactions.');
+}
 const utf = (s: string) => new TextEncoder().encode(s);
 const pda = async (seeds: Uint8Array[]) =>
   publicKey(
@@ -148,3 +176,4 @@ await assert.rejects(
 console.log(
   "Local SBF smoke passed: upgrade-authority initialization, immutable 50/50 edition, pause/unpause, rejection of forged VRF caller. No mainnet transactions."
 );
+if (process.argv.includes('--pricing')) await checkPricing();

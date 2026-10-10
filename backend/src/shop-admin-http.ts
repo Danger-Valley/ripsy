@@ -24,6 +24,7 @@ export async function handleShopAdmin(request: IncomingMessage, response: Server
   if (request.method === 'GET' && path === '/shop/admin/settings') { await sendJson(response, 200, d.service.snapshot()); return; }
   if (request.method === 'PUT' && path === '/shop/admin/prices') { await sendJson(response, 200, d.prices.save(admin, await d.readBody(request))); return; }
   if (request.method === 'POST' && path === '/shop/admin/publications') { await sendJson(response, 201, d.service.prepare(admin, await d.readBody(request))); return; }
+  if (request.method === 'POST' && path === '/shop/admin/pack-price') { await sendJson(response, 201, d.service.prepare(admin, await d.readBody(request), 'price')); return; }
   const publication = /^\/shop\/admin\/publications\/([a-f0-9]{64})(\/submit)?$/.exec(path);
   if (publication && request.method === 'GET' && !publication[2]) { await sendJson(response, 200, d.service.get(admin, publication[1]!)); return; }
   if (publication && request.method === 'POST' && publication[2]) { const body = await d.readBody(request); await sendJson(response, 200, d.service.submit(admin, publication[1]!, body.transaction)); return; }

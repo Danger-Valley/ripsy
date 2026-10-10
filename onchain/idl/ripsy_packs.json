@@ -323,6 +323,30 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "edition_price",
+          "docs": [
+            "present must be our validated EditionPrice. Omitting it cannot bypass pricing."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "edition"
+              }
+            ]
+          }
         }
       ],
       "args": [
@@ -710,6 +734,114 @@
       ]
     },
     {
+      "name": "initialize_edition_price",
+      "docs": [
+        "Prices are separate from immutable reward tables. Receipts snapshot payment."
+      ],
+      "discriminator": [
+        87,
+        123,
+        49,
+        189,
+        164,
+        217,
+        99,
+        206
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "edition",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  100,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "edition.version",
+                "account": "Edition"
+              }
+            ]
+          }
+        },
+        {
+          "name": "edition_price",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "edition"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "expected_price",
+          "type": "u64"
+        },
+        {
+          "name": "price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "publish_edition",
       "docs": [
         "Editions are append-only. Old receipts retain their exact price and drops."
@@ -877,6 +1009,110 @@
       ]
     },
     {
+      "name": "set_edition_price",
+      "discriminator": [
+        7,
+        32,
+        99,
+        235,
+        204,
+        47,
+        65,
+        42
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "edition",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  100,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "edition.version",
+                "account": "Edition"
+              }
+            ]
+          }
+        },
+        {
+          "name": "edition_price",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "edition"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "expected_revision",
+          "type": "u64"
+        },
+        {
+          "name": "expected_price",
+          "type": "u64"
+        },
+        {
+          "name": "price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "set_paused",
       "discriminator": [
         91,
@@ -949,6 +1185,19 @@
         99,
         235,
         167
+      ]
+    },
+    {
+      "name": "EditionPrice",
+      "discriminator": [
+        192,
+        252,
+        83,
+        60,
+        2,
+        42,
+        51,
+        129
       ]
     },
     {
@@ -1143,6 +1392,26 @@
                 }
               }
             }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EditionPrice",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "revision",
+            "type": "u64"
           },
           {
             "name": "bump",

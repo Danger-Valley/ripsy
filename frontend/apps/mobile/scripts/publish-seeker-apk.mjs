@@ -48,7 +48,7 @@ if (existingAsset) {
 }
 
 const apk = await readFile(apkPath);
-const uploadUrl = `https://uploads.github.com/repos/${repository}/releases/${release.id}/assets?name=${encodeURIComponent(assetName)}&label=${encodeURIComponent(`RIPSY ${versionName} (${versionCode}) — Seeker APK`)}`;
+const uploadUrl = `https://uploads.github.com/repos/${repository}/releases/${release.id}/assets?name=${encodeURIComponent(assetName)}&label=${encodeURIComponent(`RIPSY ${versionName} (${versionCode}) - Seeker APK`)}`;
 const uploadedAsset = await githubRequest(uploadUrl, {
   method: 'POST',
   body: apk,

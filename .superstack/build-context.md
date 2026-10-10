@@ -44,7 +44,7 @@ build_status:
   web_metadata_deployed: true
   backend_pack_routes_deployed: true
   native_pack_release_uploaded: true
-  native_release_build: 57
+  native_release_build: 58
   native_ore_release_uploaded: true
   native_dynamic_figures_release_uploaded: true
   native_update_gate_release_uploaded: true
@@ -88,6 +88,16 @@ release preflight pass. Live figure/catalog/update endpoints were verified
 read-only; all three update minimums remain zero. No backend deployment,
 paid transaction or physical-device verification occurred during this release.
 Evidence: `files/releases/1.0.0-57.md`.
+
+Native 1.0.0 (58), uploaded 2026-10-10, includes the proportional Android
+splash, restored-receipt popup fix, direct Seeker wallet connection and SOL
+shortfall purchase recovery. Android APK is published and independently
+download/hash verified. iOS archive/upload/export succeeded; Apple's processing
+confirmation is pending. All 522 mobile tests, mobile TypeScript, three new
+release-catalog validator tests and both-platform preflight pass. Both packages
+include five digest-verified Rive models and no matches for five configured
+private env values. No physical/paid purchase validation or web deployment was
+performed. See `files/releases/1.0.0-58.md`.
 
 ## Pack price/storage upgrade preparation (2026-10-10)
 

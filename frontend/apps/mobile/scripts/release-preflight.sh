@@ -139,24 +139,10 @@ check_shop() {
     fail "Production figure shop catalog is unavailable"
     return
   fi
-  if SHOP_CATALOG_RESPONSE="${response}" node -e '
-    const catalog = JSON.parse(process.env.SHOP_CATALOG_RESPONSE || "{}");
-    const figures = Array.isArray(catalog.figures) ? catalog.figures : [];
-    const fig2 = figures.find(figure => figure?.id === "fig2");
-    const fig1 = figures.find(figure => figure?.id === "fig1");
-    const ready = catalog.cluster === "mainnet-beta"
-      && typeof catalog.collection === "string"
-      && typeof catalog.treasury === "string"
-      && fig1 === undefined
-      && fig2?.available === true
-      && fig2?.seekerExclusive === true
-      && /^[1-9][0-9]*$/.test(fig2?.priceLamports || "")
-      && typeof fig2?.imageUrl === "string";
-    process.exit(ready ? 0 : 1);
-  '; then
+  if SHOP_CATALOG_RESPONSE="${response}" node "${script_directory}/check-shop-release-catalog.mjs" --check; then
     pass "Mainnet Core figure shop catalog"
   else
-    fail "Mainnet shop must expose only purchasable fig2 with price, collection and treasury"
+    fail "Mainnet shop must expose exclusive fig2 with valid SKR payment, collection and treasury"
   fi
 }
 

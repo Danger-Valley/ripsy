@@ -78,6 +78,19 @@ Backend unit/integration tests cover nonce/session/role isolation, wrong wallets
 
 Run `npm run test:backend`, `npm run test -w @rps/web`, all app typechecks and `npm run build -w @rps/web`. Optional isolated browser check: `node scripts/test-shop-admin-browser.mjs --playwright=/absolute/path/to/playwright/index.mjs`. It uses a temporary API, test-only wallet and isolated Chromium, never real keys, production prices or Solana RPC. No live wallet sign-in or paid/mainnet publication is implied by these tests.
 
+## Price/storage source deployment, 2026-10-10
+
+`ed4d652` is deployed to Railway (`a4406f47-01d7-4533-8aea-fd6a5bbe43b4`,
+SUCCESS) and Vercel (`ripsy-8c07lpy49-danger-valley.vercel.app`, production READY
+and aliased to `www.ripsy.fun`). The verified upload excludes backend/native/
+environment/private-key files. The live bundles include the independent price
+review/signature form. Live API checks, including customer rejection on the new
+price route, pass; current pack price/version/chances remain 1,099 SKR / 2 /
+40% Jup, 40% BONK, 20% ORE. No admin signature, paid transaction, price change,
+edition publication or mainnet program upgrade was sent. The form cannot prepare
+a signable price update until the separately approved/funded program upgrade.
+See `onchain/PRICE_UPGRADE.md` for compatibility, costs and rollout.
+
 ## Production readiness, 2026-10-09
 
 Implementation commit `f4724b7d1f8d779af0e89800b79d842c74aa680c` is deployed successfully to Railway (`545348d2-c78a-4e6a-8d7b-4ab874ebe377`) and Vercel (`ripsy-482m9jj3r-danger-valley.vercel.app`, production READY). Railway and the ignored local `.env` contain only the selected **public** admin address as the new setting. No frontend/native secret was added.

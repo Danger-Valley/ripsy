@@ -96,3 +96,7 @@ the new binary has not been uploaded to mainnet. Local actual SBF upgrade and
 regressions pass. Activation requires explicit upgrade approval and sufficient
 temporary upload funding. See `onchain/PRICE_UPGRADE.md`; no production price,
 edition, authority or purchase was changed during preparation.
+
+Source `ed4d652` is now deployed to Railway and Vercel; live access-control,
+price-only admin bundle and unchanged edition-2 catalog checks pass. This does
+not activate the mainnet program upgrade or allow the new price instruction yet.

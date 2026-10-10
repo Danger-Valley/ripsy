@@ -14,7 +14,7 @@ try {
   const headers = { authorization: `Bearer ${session.token}`, 'content-type': 'application/json', origin: 'https://www.ripsy.fun' };
   stage = 'customer-is-not-admin'; assert.equal((await get('/shop/admin/settings', { headers })).status, 401);
   // Invalid empty bodies cannot mutate anything, even if an auth regression exists.
-  for (const [path, method] of [['/shop/admin/prices', 'PUT'], ['/shop/admin/publications', 'POST']]) assert.equal((await get(path, { method, headers, body: '{}' })).status, 401);
+  for (const [path, method] of [['/shop/admin/prices', 'PUT'], ['/shop/admin/publications', 'POST'], ['/shop/admin/pack-price', 'POST']]) assert.equal((await get(path, { method, headers, body: '{}' })).status, 401);
   stage = 'cors'; assert.equal((await get('/shop/admin/config', { headers: { origin: 'https://not-ripsy.invalid' } })).status, 403);
   stage = 'catalog'; const catalog = await (await get('/shop/catalog?catalogVersion=4')).json();
   assert.deepEqual(catalog.figures.map(f => f.id), ['fig2', 'bonk', 'jup', 'ore']);

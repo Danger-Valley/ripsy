@@ -41,9 +41,24 @@
   purchase test, physical-device test or completed project security audit is
   claimed. Existing Next/shell-quote advisories remain separate follow-up work.
 
+## Source deployment verified, 2026-10-10
+
+Implementation `ed4d6525baad5879acc419137586cf09979aaaf1` is SUCCESS on Railway
+(`a4406f47-01d7-4533-8aea-fd6a5bbe43b4`). Vercel production is READY at
+`ripsy-8c07lpy49-danger-valley.vercel.app`, aliased to `www.ripsy.fun`; it was
+deployed separately after the Git-triggered web deployment did not start.
+The actual upload manifest passed: 159 web source/assets, backend/native/env/
+private keys excluded. Public admin bundles contain the price-only review and
+signature workflow. Live checks verify healthy Redis, configured admin, customer
+token rejection including `/shop/admin/pack-price`, exact CORS and unchanged
+edition 2 at 1,099 SKR with Jup/BONK/ORE 40/40/20. Only anonymous diagnostic
+sessions were created. No paid transaction, price update, new edition or program
+upgrade was submitted. Price-only simulation remains unavailable until upgrade.
+
 ## Mainnet read-only cost snapshot
 
-Checked 2026-10-10 11:17 UTC. Re-run before spending:
+Checked 2026-10-10 11:17 UTC and again at 11:29 UTC with identical results.
+Re-run before spending:
 
 ```sh
 node --env-file=.env onchain/scripts/check-price-upgrade.mjs

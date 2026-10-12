@@ -34,7 +34,9 @@ export function ShopScreen({ navigation, route }: Props) {
   const privy = usePrivyWallet();
   const shop = useShop(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken, shopPurchaseStorage);
   const pack = usePackShop(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken, packPurchaseStorage);
-  const purchaseBlocked = shop.hasPurchase || pack.hasPurchase;
+  const activeFigurePurchase = shop.hasPurchase && (!shop.order || !isTerminalMint(shop.order));
+  const activePackPurchase = pack.hasPurchase && (!pack.order || !isTerminalPack(pack.order));
+  const purchaseBlocked = activeFigurePurchase || activePackPurchase;
   const [directSigning, setDirectSigning] = useState(false);
   const directSigningRef = useRef(false);
   const mounted = useRef(true);
@@ -56,7 +58,7 @@ export function ShopScreen({ navigation, route }: Props) {
   const [purchasePopup, setPurchasePopup] = useState<'figure' | 'pack' | null>(null);
   const seenPurchases = useRef({ figure: false, pack: false });
   // Recover unfinished intents once. A saved terminal receipt is history, not
-  // a new purchase: keep it available through View purchase without opening it.
+  // a new purchase. Only unfinished payments need an explicit recovery action.
   // Status updates never reopen a manually hidden popup or discard recovery data.
   useEffect(() => {
     const previous = seenPurchases.current;
@@ -168,15 +170,14 @@ export function ShopScreen({ navigation, route }: Props) {
         {error && !shop.hasPurchase && purchasePopup !== 'figure' && <ToyHomePanel style={styles.errorPanel}><StatusBanner message={figureStoreMessage(error)} tone="error" /><ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.loadCatalog())}>Try again</ToyHomeButton></ToyHomePanel>}
         {directSigning && <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel="Opening purchase in wallet" color={colors.accentShadow} />}
 
-        <ShopPack pack={pack} address={address} walletSupported={wallet.isSupported} accountBusy={wallet.isSupported && walletBusy} blocked={shop.hasPurchase || purchaseBusy} onBuy={() => {
+        <ShopPack pack={pack} address={address} walletSupported={wallet.isSupported} accountBusy={wallet.isSupported && walletBusy} blocked={activeFigurePurchase || purchaseBusy} onBuy={() => {
           if (!shop.ready || !pack.ready || directSigningRef.current || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)) return;
           if (!address) { requestAccount(); return; }
           setPurchasePopup('pack');
           buyAndSign(() => pack.prepare(address, signPurchase));
-        }} purchaseVisible={purchasePopup === 'pack' && !walletOpen}
-          onOpenPurchase={() => { setWalletOpen(false); setPurchasePopup('pack'); }} />
+        }} purchaseVisible={purchasePopup === 'pack' && !walletOpen} />
 
-        {shop.hasPurchase && <ToyHomeButton tone="white" accessibilityLabel="View figure purchase" onPress={() => { setWalletOpen(false); setPurchasePopup('figure'); }}>View purchase</ToyHomeButton>}
+        {purchaseBlocked && <ToyHomePanel><Text style={styles.copy}>Finish your current purchase before buying another fighter.</Text><ToyHomeButton tone="white" disabled={purchaseBusy} onPress={() => { setWalletOpen(false); setPurchasePopup(activeFigurePurchase ? 'figure' : 'pack'); }}>Continue purchase</ToyHomeButton></ToyHomePanel>}
 
         {!shop.catalog && !error && <ToyHomePanel style={styles.skeleton}><View accessibilityLabel="Loading figures" accessibilityRole="progressbar" style={styles.skeletonArt} /><View style={styles.skeletonLine} /><View style={styles.skeletonPrice} /><View style={styles.skeletonButton} /><Text style={styles.note}>Unpacking the figure shop…</Text></ToyHomePanel>}
         {shop.catalog && figures.length === 0 && <ToyHomePanel style={styles.empty}><Image source={homeArt.shop} style={styles.emptyChest} /><Text style={styles.sectionTitle}>New fighters on the way</Text><Text style={styles.copy}>The shelves are empty for now. Your free army is always ready.</Text><ToyHomeButton compact onPress={() => openArmy()}>Open your army</ToyHomeButton></ToyHomePanel>}
@@ -236,7 +237,7 @@ export function ShopScreen({ navigation, route }: Props) {
         {shop.hasPurchase && canClose && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.dismiss())}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</ToyHomeButton>}
         {shop.hasPurchase && <Text style={styles.note}>Closing this popup keeps your purchase saved.</Text>}
       </>}
-      {purchasePopup === 'pack' && !walletOpen && <ShopPackPurchase pack={pack} address={address} blocked={shop.hasPurchase || purchaseBusy}
+      {purchasePopup === 'pack' && !walletOpen && <ShopPackPurchase pack={pack} address={address} blocked={activeFigurePurchase || purchaseBusy}
         onConfirm={() => {
           const signer = pack.order?.buyer === privy.address ? privy.signShopTransaction : wallet.isSupported && pack.order?.buyer === wallet.address ? signShopTransaction : null;
           if (signer) buyAndSign(() => pack.confirm(signer)); else requestAccount();

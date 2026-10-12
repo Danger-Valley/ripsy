@@ -25,7 +25,6 @@ export function ShopPack({
   blocked,
   onBuy,
   purchaseVisible,
-  onOpenPurchase,
 }: {
   pack: ReturnType<typeof usePackShop>;
   address: string | null;
@@ -34,9 +33,9 @@ export function ShopPack({
   blocked: boolean;
   onBuy(): void;
   purchaseVisible: boolean;
-  onOpenPurchase(): void;
 }) {
   const catalog = pack.catalog;
+  const activePurchase = pack.hasPurchase && (!pack.order || !isTerminalPack(pack.order));
   const definitions = useFigureCatalog();
   return (
     <ToyHomePanel style={styles.card}>
@@ -72,7 +71,7 @@ export function ShopPack({
               </View>
             ))}
           </View>
-          {!pack.hasPurchase && (
+          {!activePurchase && (
             <ToyHomeButton
               tone="yellow"
               busy={accountBusy}
@@ -94,16 +93,7 @@ export function ShopPack({
           </Text>
         </>
       )}
-      {pack.hasPurchase && (
-        <ToyHomeButton
-          tone="white"
-          accessibilityLabel="View pack purchase"
-          onPress={onOpenPurchase}
-        >
-          View pack purchase
-        </ToyHomeButton>
-      )}
-      {!catalog && !pack.hasPurchase && (
+      {!catalog && !activePurchase && (
         <ToyHomeButton compact tone="white" onPress={() => pack.loadCatalog()}>
           Check pack availability
         </ToyHomeButton>

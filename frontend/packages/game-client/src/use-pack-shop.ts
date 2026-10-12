@@ -172,7 +172,13 @@ export function usePackShop(
   const prepare = useCallback(
     (buyer: string, sign?: (order: PackOrder) => Promise<string>) =>
       run(async () => {
-        if (current.current) throw new Error("Finish your current pack first.");
+        const previous = current.current;
+        if (previous) {
+          if (!previous.order || !isTerminalPack(previous.order)) throw new Error("Finish your current pack first.");
+          const latest = await client.getPack(previous.order.id);
+          await persist({ ...previous, order: latest });
+          if (!isTerminalPack(latest)) throw new Error("Finish your current pack first.");
+        }
         const saved: PackIntent = {
           buyer,
           key: `${Date.now().toString(36)}-${Math.random()

@@ -92,6 +92,56 @@ test('persists intent before prepare and approval before opening any signer, on 
   await Renderer.act(() => pack.dismiss());
   expect(pack.hasPurchase).toBe(true);
 });
+
+test.each(['confirmed', 'failed', 'expired'] as const)('new pack replaces a %s receipt only after backend verification', async status => {
+  const oldKey = 'pack-request-1234567';
+  saved = JSON.stringify({ key: oldKey, buyer, order: { ...order, status, result: status === 'confirmed' ? 'jup' : null, randomness: status === 'confirmed' ? 'f'.repeat(64) : null }, signingStarted: true });
+  api.getPack.mockImplementationOnce(async () => {
+    expect(JSON.parse(saved!).key).toBe(oldKey);
+    expect(api.createPack).not.toHaveBeenCalled();
+    return { ...order, status, result: status === 'confirmed' ? 'jup' : null, randomness: status === 'confirmed' ? 'f'.repeat(64) : null };
+  });
+  api.createPack.mockResolvedValueOnce({ ...order, id: 'b'.repeat(64) });
+  await mount();
+  await Renderer.act(async () => { await Promise.all([pack.prepare(buyer), pack.prepare(buyer)]); });
+  expect(api.getPack).toHaveBeenCalledTimes(1);
+  expect(api.getPack).toHaveBeenCalledWith(order.id);
+  expect(api.createPack).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(saved!).key).not.toBe(oldKey);
+  expect(pack.order?.id).toBe('b'.repeat(64));
+});
+
+test.each(['submitted', 'waiting-result', 'ready-to-claim', 'network-error'] as const)('cached final pack does not permit another payment on %s', async condition => {
+  const oldKey = 'pack-request-1234567';
+  saved = JSON.stringify({ key: oldKey, buyer, order: { ...order, status: 'confirmed', result: 'jup', randomness: 'f'.repeat(64) }, signingStarted: true });
+  if (condition === 'network-error') api.getPack.mockRejectedValueOnce(new Error('Offline'));
+  else api.getPack.mockResolvedValueOnce({ ...order, status: condition });
+  await mount(); const sign = jest.fn();
+  await Renderer.act(() => pack.prepare(buyer, sign));
+  expect(api.createPack).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
+  expect(JSON.parse(saved!).key).toBe(oldKey);
+  expect(pack.order?.status).toBe(condition === 'network-error' ? 'confirmed' : condition);
+  expect(pack.error).toBeTruthy();
+});
+
+test('a storage failure keeps the final pack receipt and prevents a new payment', async () => {
+  const oldKey = 'pack-request-1234567';
+  const completed = { ...order, status: 'confirmed', result: 'jup', randomness: 'f'.repeat(64) };
+  saved = JSON.stringify({ key: oldKey, buyer, order: completed });
+  api.getPack.mockResolvedValueOnce(completed);
+  await mount();
+  const save = jest.spyOn(storage, 'save').mockImplementation(async value => {
+    if (value && JSON.parse(value).key !== oldKey) throw new Error('Storage unavailable');
+    saved = value;
+  });
+  try {
+    const sign = jest.fn();
+    await Renderer.act(() => pack.prepare(buyer, sign));
+    expect(JSON.parse(saved!).key).toBe(oldKey);
+    expect(pack.order?.status).toBe('confirmed');
+    expect(api.createPack).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
+  } finally { save.mockRestore(); }
+});
 test('double tap and rejected approval never create a new random request', async () => {
   await mount();
   await Renderer.act(async () => {

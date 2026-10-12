@@ -135,6 +135,19 @@ bounds. Keep original assets, logo proportions, safe-area overlays and startup
 timing; iOS storyboard and Android OS icon splash unchanged. Not yet included
 in uploaded build 59; native visual verification remains pending.
 
+Native receipt recovery follow-up (2026-10-12): remove View purchase/history
+buttons from the shop. Terminal saved figure/pack receipts no longer disable
+new Buy buttons or disconnect. Only unfinished/missing-order intents block
+new purchases and expose Continue purchase; closing still only hides their
+popup. New explicit purchases verify the previous terminal order with the
+backend under the existing prepare/sign lock before replacing its durable
+intent. Network failures, active server status and storage failures preserve
+recovery and prevent a new charge. Fresh completion/reward popups remain.
+All 556 mobile tests (48 suites), mobile/web TypeScript, 25 web tests and focused
+native ESLint pass. Web still uses hasPurchase/inline review and needs a future
+presentation port; shared hook safety is updated. No release upload or physical
+paid transaction verification performed; uploaded build 59 is unchanged.
+
 ## Pack price/storage upgrade preparation (2026-10-10)
 
 Source now supports independently mutable edition prices and exact-size new

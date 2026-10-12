@@ -33,6 +33,55 @@ beforeEach(() => {
 });
 afterEach(async () => { if (tree) await Renderer.act(async () => tree.unmount()); jest.useRealTimers(); });
 
+test.each(['confirmed', 'failed', 'expired'] as const)('new purchase replaces a %s receipt only after backend verification', async status => {
+  const oldKey = 'purchase-request-12345';
+  saved = JSON.stringify({ key: oldKey, figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status }, signingStarted: true });
+  api.get.mockImplementationOnce(async () => {
+    expect(JSON.parse(saved!).key).toBe(oldKey);
+    expect(api.create).not.toHaveBeenCalled();
+    return { ...prepared, status };
+  });
+  api.create.mockResolvedValueOnce({ ...prepared, id: 'b'.repeat(64) });
+  await mount();
+  await Renderer.act(async () => { await Promise.all([shop.prepare('fig1', prepared.buyer), shop.prepare('fig1', prepared.buyer)]); });
+  expect(api.get).toHaveBeenCalledTimes(1);
+  expect(api.get).toHaveBeenCalledWith(prepared.id);
+  expect(api.create).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(saved!).key).not.toBe(oldKey);
+  expect(shop.order?.id).toBe('b'.repeat(64));
+});
+
+test.each(['active', 'network-error'] as const)('cached final receipt does not permit another payment on %s', async condition => {
+  const oldKey = 'purchase-request-12345';
+  saved = JSON.stringify({ key: oldKey, figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status: 'confirmed' }, signingStarted: true });
+  if (condition === 'active') api.get.mockResolvedValueOnce({ ...prepared, status: 'submitted' });
+  else api.get.mockRejectedValueOnce(new Error('Offline'));
+  await mount(); const sign = jest.fn();
+  await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign));
+  expect(api.create).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
+  expect(JSON.parse(saved!).key).toBe(oldKey);
+  expect(shop.order?.status).toBe(condition === 'active' ? 'submitted' : 'confirmed');
+  expect(shop.error).toBeTruthy();
+});
+
+test('a storage failure keeps the final receipt and prevents a new figure charge', async () => {
+  const oldKey = 'purchase-request-12345';
+  saved = JSON.stringify({ key: oldKey, figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status: 'confirmed' } });
+  api.get.mockResolvedValueOnce({ ...prepared, status: 'confirmed' });
+  await mount();
+  const save = jest.spyOn(storage, 'save').mockImplementation(async value => {
+    if (value && JSON.parse(value).key !== oldKey) throw new Error('Storage unavailable');
+    saved = value;
+  });
+  try {
+    const sign = jest.fn();
+    await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign));
+    expect(JSON.parse(saved!).key).toBe(oldKey);
+    expect(shop.order?.status).toBe('confirmed');
+    expect(api.create).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
+  } finally { save.mockRestore(); }
+});
+
 test('persists request before create and signing intent before opening wallet', async () => {
   await mount();
   api.create.mockImplementationOnce(async () => { expect(JSON.parse(saved!).figureId).toBe('fig1'); return prepared; });

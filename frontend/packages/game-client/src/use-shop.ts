@@ -107,7 +107,14 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
   }, [client, persist]);
 
   const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>, sign?: (order: MintOrder) => Promise<string>) => run(async () => {
-    if (intentRef.current) throw new Error('Finish or close your current purchase first.');
+    const previous = intentRef.current;
+    if (previous) {
+      if (!previous.order || !isTerminalMint(previous.order)) throw new Error('Finish or close your current purchase first.');
+      // Keep the old receipt until the backend confirms it cannot still charge.
+      const latest = await client.get(previous.order.id);
+      await persist({ ...previous, order: latest });
+      if (!isTerminalMint(latest)) throw new Error('Finish or close your current purchase first.');
+    }
     if (figureId === 'fig2' && !proveSeeker) throw new Error('Seeker fighter can only be minted to a verified Solana Seeker wallet.');
     if (proveSeeker) {
       const challenge = await client.seekerChallenge();

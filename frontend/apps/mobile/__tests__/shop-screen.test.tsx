@@ -94,10 +94,12 @@ test.each(['ios', 'android'] as const)('ORE pack shows all three chances and its
   await mount();
   for (const label of ['Jup', 'BONK', 'ORE', '40% chance', '20% chance']) expect(text(label)).toBe(true);
   setPack({ catalog: { ...INITIAL_PACK, available: true, version: 2, drops }, hasPurchase: true,
+    order: { ...packOrder, version: 2, drops, status: 'submitted' } });
+  await updateScreen();
+  setPack({ catalog: { ...INITIAL_PACK, available: true, version: 2, drops }, hasPurchase: true,
     order: { ...packOrder, version: 2, drops, status: 'confirmed', result: 'ore' } });
   await updateScreen();
-  expect(visibleModals()).toHaveLength(0);
-  await press('View pack purchase');
+  expect(visibleModals()).toHaveLength(1);
   const modal = purchaseModal('pack');
   expect(modal.findAllByType(Text).some(node => node.props.children === 'ORE')).toBe(true);
   expect(button('Done')).toBeDefined();
@@ -375,10 +377,9 @@ test('restored signing intent cannot be canceled or replaced; reconnect remains 
   expect(button('Buy Seeker fighter').props.disabled).toBe(true);
 });
 test('confirmed mint opens Army with the exact new Core asset id', async () => {
-  setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status: 'confirmed', signature: 'sig' } });
+  setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status: 'submitted' } });
   await mount();
-  expect(visibleModals()).toHaveLength(0);
-  await press('View figure purchase');
+  setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status: 'confirmed', signature: 'sig' } }); await updateScreen();
   expect(button('Done')).toBeDefined(); expect(button('Continue in wallet')).toBeUndefined();
   await press('Add to your army');
   expect(navigate).toHaveBeenCalledWith('Army', { expectedAssetId: order.asset });
@@ -415,12 +416,9 @@ test.each(['confirmed', 'failed', 'expired'] as const)('restored terminal figure
   // Durable storage resolves asynchronously after the shop has mounted.
   setShop(saved); await updateScreen();
   expect(visibleModals()).toHaveLength(0);
-  expect(button('View figure purchase')).toBeDefined();
-  expect(button('Buy Seeker fighter').props.disabled).toBe(true);
-  await press('View figure purchase');
-  expect(purchaseModal('figure')).toBeDefined();
-  expect(button('Done')).toBeDefined();
-  await press('Close figure purchase popup');
+  expect(button('Continue purchase')).toBeUndefined();
+  expect(button('View figure purchase')).toBeUndefined();
+  expect(button('Buy Seeker fighter').props.disabled).toBe(false);
   setShop({ ...saved, order: { ...saved.order } }); await updateScreen();
   expect(visibleModals()).toHaveLength(0);
   await Renderer.act(() => tree.unmount());
@@ -431,16 +429,16 @@ test.each(['confirmed', 'failed', 'expired'] as const)('restored terminal figure
   expect(shop.confirm).not.toHaveBeenCalled();
 });
 
-test.each(['confirmed', 'failed', 'expired'] as const)('restored terminal pack %s stays closed and its receipt remains available', async status => {
+test.each(['confirmed', 'failed', 'expired'] as const)('restored terminal pack %s stays closed and no longer blocks Buy', async status => {
+  external(); setPack({ catalog: { ...INITIAL_PACK, available: true } });
   await mount();
-  const saved = { hasPurchase: true, signingStarted: true, order: { ...packOrder, status, result: status === 'confirmed' ? 'bonk' : null } };
+  const saved = { catalog: { ...INITIAL_PACK, available: true }, hasPurchase: true, signingStarted: true, order: { ...packOrder, status, result: status === 'confirmed' ? 'bonk' : null } };
   setPack(saved); await updateScreen();
   expect(visibleModals()).toHaveLength(0);
-  expect(button('View pack purchase')).toBeDefined();
-  await press('View pack purchase');
-  expect(purchaseModal('pack')).toBeDefined();
-  expect(button('Done')).toBeDefined();
-  await press('Close pack purchase popup');
+  expect(button('Continue purchase')).toBeUndefined();
+  expect(button('View pack purchase')).toBeUndefined();
+  expect(button('Buy fighter pack').props.disabled).toBe(false);
+  expect(button('Buy Seeker fighter').props.disabled).toBe(false);
   await Renderer.act(() => tree.unmount()); await mount();
   expect(visibleModals()).toHaveLength(0);
   expect(pack.dismiss).not.toHaveBeenCalled();
@@ -471,23 +469,24 @@ test('a completed figure receipt does not hide restored pack recovery', async ()
   await mount();
   expect(visibleModals()).toHaveLength(1);
   expect(purchaseModal('pack')).toBeDefined();
-  expect(button('View figure purchase')).toBeDefined();
+  expect(button('Continue purchase')).toBeDefined();
 });
 
 test('closing figure processing never cancels, re-signs, or reopens on background status changes', async () => {
   external(); setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status: 'submitted' } });
+  setPack({ catalog: { ...INITIAL_PACK, available: true } });
   await mount();
   await Renderer.act(() => purchaseModal('figure').props.onRequestClose());
   expect(visibleModals()).toHaveLength(0);
-  expect(button('View figure purchase')).toBeDefined();
+  expect(button('Continue purchase')).toBeDefined();
   expect(button('Cancel purchase')).toBeUndefined();
   expect(button('Buy Seeker fighter').props.disabled).toBe(true);
   expect(button('Buy fighter pack').props.disabled).toBe(true);
   setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status: 'confirmed' } }); await updateScreen();
   expect(visibleModals()).toHaveLength(0);
-  await press('View figure purchase');
-  expect(purchaseModal('figure')).toBeDefined();
-  expect(text('Purchase complete. Your figure is in your collection.')).toBe(true);
+  expect(button('Continue purchase')).toBeUndefined();
+  expect(button('Buy Seeker fighter').props.disabled).toBe(false);
+  expect(button('Buy fighter pack').props.disabled).toBe(false);
   expect(shop.dismiss).not.toHaveBeenCalled(); expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
 });
 
@@ -499,7 +498,7 @@ test('figure preparation failure can retry the saved request inside the popup wi
   expect(shop.checkStatus).toHaveBeenCalledTimes(1);
   expect(shop.prepare).not.toHaveBeenCalled();
   await press('Close figure purchase popup');
-  await press('View figure purchase');
+  await press('Continue purchase');
   expect(shop.dismiss).not.toHaveBeenCalled();
 });
 
@@ -517,12 +516,12 @@ test('reconnecting a figure signer replaces the purchase popup with one account 
 });
 
 test('explicitly dismissing a completed figure closes its popup after durable state clears', async () => {
-  setShop({ hasPurchase: true, order: { ...order, status: 'confirmed' } });
-  await mount(); await press('View figure purchase'); await press('Done');
+  setShop({ hasPurchase: true, order: { ...order, status: 'submitted' } });
+  await mount(); setShop({ hasPurchase: true, order: { ...order, status: 'confirmed' } }); await updateScreen(); await press('Done');
   expect(shop.dismiss).toHaveBeenCalledTimes(1);
   setShop({ hasPurchase: false, order: null }); await updateScreen();
   expect(visibleModals()).toHaveLength(0);
-  expect(button('View figure purchase')).toBeUndefined();
+  expect(button('Continue purchase')).toBeUndefined();
 });
 
 test('new pack buy hides the quote popup until signing completes', async () => {
@@ -536,7 +535,7 @@ test('new pack buy hides the quote popup until signing completes', async () => {
   await Renderer.act(async () => finish());
   setPack({ hasPurchase: true, order: { ...packOrder, status: 'submitted' } }); await updateScreen();
   expect(purchaseModal('pack')).toBeDefined();
-  expect(button('View pack purchase')).toBeDefined();
+  expect(button('Continue purchase')).toBeDefined();
   expect(pack.confirm).not.toHaveBeenCalled();
 });
 
@@ -558,7 +557,7 @@ test('closing and reopening a paid pack preserves its result and cannot create a
   expect(button('Buy Seeker fighter').props.disabled).toBe(true);
   setPack({ hasPurchase: true, signingStarted: true, order: { ...packOrder, status: 'ready-to-claim', result: 'bonk' } }); await updateScreen();
   expect(visibleModals()).toHaveLength(0);
-  await press('View pack purchase');
+  await press('Continue purchase');
   await press('Check pack status');
   expect(pack.checkStatus).toHaveBeenCalledTimes(1);
   expect(button('Cancel pack purchase')).toBeUndefined();
@@ -587,10 +586,9 @@ test('pack preparation errors and status retries remain inside the popup', async
 });
 
 test('confirmed pack opens Army with the exact awarded asset and hides its popup', async () => {
-  setPack({ hasPurchase: true, signingStarted: true, order: { ...packOrder, status: 'confirmed', result: 'bonk' } });
+  setPack({ hasPurchase: true, signingStarted: true, order: { ...packOrder, status: 'waiting-result' } });
   await mount();
-  expect(visibleModals()).toHaveLength(0);
-  await press('View pack purchase');
+  setPack({ hasPurchase: true, signingStarted: true, order: { ...packOrder, status: 'confirmed', result: 'bonk' } }); await updateScreen();
   expect(button('Done')).toBeDefined();
   await press('Add to your army');
   expect(navigate).toHaveBeenCalledWith('Army', { expectedAssetId: packOrder.asset });
@@ -599,9 +597,9 @@ test('confirmed pack opens Army with the exact awarded asset and hides its popup
 });
 
 test('pack record browser failures are visible in the popup and can retry', async () => {
-  setPack({ hasPurchase: true, order: { ...packOrder, status: 'confirmed', result: 'jup' } });
+  setPack({ hasPurchase: true, order: { ...packOrder, status: 'waiting-result' } });
   jest.mocked(Linking.openURL).mockRejectedValueOnce(new Error('No handler'));
-  await mount(); await press('View pack purchase'); await press('View pack record');
+  await mount(); setPack({ hasPurchase: true, order: { ...packOrder, status: 'confirmed', result: 'jup' } }); await updateScreen(); await press('View pack record');
   expect(purchaseModal('pack').findAllByType(Text).some(node => node.props.children === 'Could not open the pack record. Please try again.')).toBe(true);
   await press('View pack record');
   expect(text('Could not open the pack record. Please try again.')).toBe(false);
@@ -611,12 +609,15 @@ test('pack record browser failures are visible in the popup and can retry', asyn
 test('if both durable purchase records restore, only one popup is presented at a time', async () => {
   setShop({ hasPurchase: true, order }); setPack({ hasPurchase: true, order: packOrder });
   await mount(); expect(visibleModals()).toHaveLength(1); expect(purchaseModal('figure')).toBeDefined();
-  await press('Close figure purchase popup'); await press('View pack purchase');
+  await press('Close figure purchase popup');
+  setShop({ hasPurchase: true, order: { ...order, status: 'confirmed' } }); await updateScreen();
+  await press('Continue purchase');
   expect(visibleModals()).toHaveLength(1); expect(purchaseModal('pack')).toBeDefined();
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(pack.prepare).not.toHaveBeenCalled();
 });
 test.each(['submitted', 'failed', 'expired'] as const)('purchase %s has an honest recovery state and cannot approve again', async status => {
-  setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status } }); await mount();
-  if (status !== 'submitted') await press('View figure purchase');
+  setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status: 'submitted' } }); await mount();
+  setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status } }); await updateScreen();
   expect(button('Continue in wallet')).toBeUndefined(); expect(button('Continue in wallet')).toBeUndefined();
   if (status === 'submitted') { expect(button('Done')).toBeUndefined(); await press('Check purchase status'); expect(shop.checkStatus).toHaveBeenCalledTimes(1); }
   else { expect(button('Done')).toBeDefined(); expect(text(status === 'failed' ? 'PURCHASE FAILED' : 'PURCHASE EXPIRED')).toBe(true); }
@@ -711,8 +712,9 @@ test.each(['unavailable', 'missing-price', 'restoring', 'busy', 'pending-figure'
 });
 
 test('technical purchase errors become actionable purchase messages, not raw payment terminology', async () => {
+  setShop({ hasPurchase: true, order: { ...order, status: 'submitted' } }); await mount();
   setShop({ hasPurchase: true, order: { ...order, status: 'failed', error: 'Metaplex Core mint transaction simulation failed' }, error: 'Minting is not available yet.' });
-  await mount(); await press('View figure purchase');
+  await updateScreen();
   expect(text('Purchases are not available yet.')).toBe(true);
   expect(text('The purchase failed. Check its status before trying again.')).toBe(true);
   expect(text('Metaplex Core mint transaction simulation failed')).toBe(false);

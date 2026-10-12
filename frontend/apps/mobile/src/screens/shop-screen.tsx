@@ -25,6 +25,12 @@ import type { RootStackParamList } from '../navigation';
 const scenery = require('../assets/ui/battle-playground.png');
 const showcase = require('../assets/ui/toy-box-home-arena.png');
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
+type HandoffStage = 'preparing' | 'opening-wallet' | 'sending';
+const handoffTitles: Record<HandoffStage, string> = {
+  preparing: 'Preparing purchase',
+  'opening-wallet': 'Opening your wallet',
+  sending: 'Sending purchase',
+};
 
 export function ShopScreen({ navigation, route }: Props) {
   const definitions = useFigureCatalog();
@@ -38,7 +44,10 @@ export function ShopScreen({ navigation, route }: Props) {
   const activePackPurchase = pack.hasPurchase && (!pack.order || !isTerminalPack(pack.order));
   const purchaseBlocked = activeFigurePurchase || activePackPurchase;
   const [directSigning, setDirectSigning] = useState(false);
+  const [handoffStage, setHandoffStage] = useState<HandoffStage>('preparing');
+  const [payingWithSol, setPayingWithSol] = useState(false);
   const directSigningRef = useRef(false);
+  const dismissedHandoff = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const purchaseBusy = shop.busy || pack.busy || directSigning;
@@ -85,8 +94,12 @@ export function ShopScreen({ navigation, route }: Props) {
   selectedSigner.current = { address, sign: wallet.isSupported ? signShopTransaction : privy.signShopTransaction };
   const signPurchase = async (purchase: PurchaseTransaction) => {
     if (!mounted.current || navigation.isFocused?.() === false || (AppState.currentState && AppState.currentState !== 'active')) throw new Error('Return to the shop to continue this saved purchase.');
+    if (dismissedHandoff.current) throw new Error('Purchase paused. Use Continue purchase to approve it.');
     if (selectedSigner.current.address !== purchase.buyer) throw new Error('Reconnect the account selected for this saved purchase.');
-    return selectedSigner.current.sign(purchase);
+    if (directSigningRef.current) setHandoffStage('opening-wallet');
+    const signed = await selectedSigner.current.sign(purchase);
+    if (mounted.current && directSigningRef.current) setHandoffStage('sending');
+    return signed;
   };
   const orderSigner = order?.buyer === address ? selectedSigner.current.sign : null;
   const canClose = !shop.signingStarted || Boolean(order && isTerminalMint(order));
@@ -96,9 +109,12 @@ export function ShopScreen({ navigation, route }: Props) {
     setActionError(null);
     task().catch(cause => { if (mounted.current) setActionError(cause instanceof Error ? cause.message : 'Please try again.'); });
   };
-  const buyAndSign = (task: () => Promise<unknown>) => {
+  const buyAndSign = (task: () => Promise<unknown>, withSol = false) => {
     if (directSigningRef.current) return;
     directSigningRef.current = true;
+    dismissedHandoff.current = false;
+    setHandoffStage('preparing');
+    setPayingWithSol(withSol);
     setDirectSigning(true);
     run(async () => {
       try { await task(); }
@@ -144,6 +160,12 @@ export function ShopScreen({ navigation, route }: Props) {
   };
   const openArmy = (expectedAssetId?: string) => { setWalletOpen(false); setPurchasePopup(null); navigation.navigate('Army', expectedAssetId ? { expectedAssetId } : undefined); };
   const figurePurchaseTitle = order?.status === 'confirmed' ? 'Welcome to your army!' : order?.status === 'failed' || order?.status === 'expired' ? 'Purchase not completed' : order?.status === 'submitted' ? 'Processing purchase' : order ? 'Continue your purchase' : error && !shop.busy ? 'Purchase needs attention' : 'Preparing purchase';
+  const handoffTitle = handoffStage === 'opening-wallet' && !wallet.isSupported ? 'Approving purchase' : handoffTitles[handoffStage];
+  const handoffCopy = handoffStage === 'preparing'
+    ? `${payingWithSol ? 'Preparing your SOL payment.' : 'Checking your purchase.'} ${wallet.isSupported ? 'Your wallet will open for approval.' : 'Please wait while we prepare your purchase.'}`
+    : handoffStage === 'opening-wallet'
+    ? wallet.isSupported ? 'Review and approve the purchase in your wallet.' : 'Approving your purchase - please wait.'
+    : 'Approval received. Sending your purchase - please wait.';
 
   return (
     <View style={styles.screen}>
@@ -162,7 +184,6 @@ export function ShopScreen({ navigation, route }: Props) {
           {wallet.isSupported && walletBusy ? <ActivityIndicator accessibilityLabel="Connecting wallet" color={colors.accentShadow} /> : <Text style={styles.chevron}>›</Text>}
         </Pressable>
         {error && !shop.hasPurchase && purchasePopup !== 'figure' && <ToyHomePanel style={styles.errorPanel}><StatusBanner message={figureStoreMessage(error)} tone="error" /><ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.loadCatalog())}>Try again</ToyHomeButton></ToyHomePanel>}
-        {directSigning && <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel="Opening purchase in wallet" color={colors.accentShadow} />}
 
         <ShopPack pack={pack} address={address} walletSupported={wallet.isSupported} accountBusy={wallet.isSupported && walletBusy} blocked={activeFigurePurchase || purchaseBusy} onBuy={() => {
           if (!shop.ready || !pack.ready || directSigningRef.current || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)) return;
@@ -194,14 +215,20 @@ export function ShopScreen({ navigation, route }: Props) {
         </ToyHomePanel>)}
         <Text style={styles.footerNote}>Each figure can fill one army slot. Your fighters’ look changes, not their weapons.</Text>
       </ScrollView>
-      <ToyDialog visible={walletOpen || (purchasePopup !== null && !directSigning)}
-        title={walletOpen ? wallet.isSupported ? 'Your purchase account' : privy.address ? 'Your account' : 'Sign in with email' : purchasePopup === 'pack' ? packPurchaseTitle(pack) : figurePurchaseTitle}
+      <ToyDialog visible={walletOpen || purchasePopup !== null}
+        title={walletOpen ? wallet.isSupported ? 'Your purchase account' : privy.address ? 'Your account' : 'Sign in with email' : directSigning ? handoffTitle : purchasePopup === 'pack' ? packPurchaseTitle(pack) : figurePurchaseTitle}
         icon={homeArt.shop} keyboard={walletOpen}
-        contentKey={walletOpen ? 'account' : purchasePopup === 'pack' ? `pack:${pack.order?.status ?? 'preparing'}` : `figure:${order?.status ?? 'preparing'}`}
-        onClose={() => { if (walletOpen) setWalletOpen(false); else setPurchasePopup(null); }}
+        contentKey={walletOpen ? 'account' : directSigning ? 'purchase-handoff' : purchasePopup === 'pack' ? `pack:${pack.order?.status ?? 'preparing'}` : `figure:${order?.status ?? 'preparing'}`}
+        onClose={() => { if (walletOpen) setWalletOpen(false); else { if (directSigningRef.current) dismissedHandoff.current = true; setPurchasePopup(null); } }}
         closeLabel={walletOpen ? 'Close shop account' : purchasePopup === 'pack' ? 'Close pack purchase popup' : 'Close figure purchase popup'}
         testID={walletOpen || purchasePopup === null ? 'shop-wallet-dialog' : purchasePopup === 'pack' ? 'pack-purchase-dialog' : 'figure-purchase-dialog'}>
-      {purchasePopup === 'figure' && !walletOpen && <>
+      {directSigning && !walletOpen && <View testID="purchase-handoff" style={styles.handoff}>
+        <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel={handoffTitle} color={colors.accentShadow} size="large" />
+        <PurchaseProgress status={handoffStage} />
+        <Text accessibilityLiveRegion="polite" style={styles.copy}>{handoffCopy}</Text>
+        <Text style={styles.handoffNote}>Please wait. You don't need to tap Buy again.</Text>
+      </View>}
+      {purchasePopup === 'figure' && !walletOpen && !directSigning && <>
         {error && <StatusBanner message={figureStoreMessage(error)} tone="error" />}
         {((shop.busy && !order) || order?.status === 'submitted') && !error && <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel={order ? 'Processing purchase' : 'Preparing purchase'} color={colors.accentShadow} size="large" />}
         {order ? <>
@@ -222,20 +249,20 @@ export function ShopScreen({ navigation, route }: Props) {
           <ToyHomeButton compact tone="white" onPress={() => setPaymentDetailsOpen(value => !value)}>{paymentDetailsOpen ? 'Hide payment details' : 'Payment details'}</ToyHomeButton>
           {paymentDetailsOpen && <><Text style={styles.label}>PURCHASE ACCOUNT</Text><Text selectable style={styles.address}>{order.buyer}</Text><Text style={styles.label}>SELLER ACCOUNT</Text><Text selectable style={styles.address}>{order.treasury}</Text></>}
           {order.status === 'prepared' && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" busy={wallet.isSupported && walletBusy} onPress={requestAccount}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
-          {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner || shop.busy} onPress={() => { if (orderSigner) buyAndSign(() => shop.confirm(orderSigner)); }}>Continue in wallet</ToyHomeButton>}
+          {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner || shop.busy} onPress={() => { if (orderSigner) buyAndSign(() => shop.confirm(signPurchase)); }}>Continue in wallet</ToyHomeButton>}
           {order.status === 'confirmed' && <ToyHomeButton tone="yellow" onPress={() => openArmy(order.asset)}>Add to your army</ToyHomeButton>}
           {paymentDetailsOpen && order.signature && <ToyHomeButton compact tone="white" onPress={() => run(() => Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)))}>View payment record ↗</ToyHomeButton>}
         </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{shop.fundingRequired ? `You can use SOL to cover the missing ${shop.fundingRequired.symbol}. Approve the purchase in your wallet.` : error ? 'No payment has been approved. Check purchase status or cancel and try again.' : 'Preparing your purchase... Retry to recover this same request if the connection was interrupted.'}</Text>}
-        {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={purchaseBusy || address !== shop.purchaseBuyer} onPress={() => buyAndSign(() => shop.buyWithSol(signPurchase))}>Buy with SOL</ToyHomeButton>}
+        {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={purchaseBusy || address !== shop.purchaseBuyer} onPress={() => buyAndSign(() => shop.buyWithSol(signPurchase), true)}>Buy with SOL</ToyHomeButton>}
         {shop.hasPurchase && (!canClose || !order || Boolean(error)) && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.checkStatus())}>Check purchase status</ToyHomeButton>}
         {shop.hasPurchase && canClose && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.dismiss())}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</ToyHomeButton>}
         {shop.hasPurchase && (!order || !isTerminalMint(order)) && <Text style={styles.note}>Closing this popup keeps your purchase saved.</Text>}
       </>}
-      {purchasePopup === 'pack' && !walletOpen && <ShopPackPurchase pack={pack} address={address} blocked={activeFigurePurchase || purchaseBusy}
+      {purchasePopup === 'pack' && !walletOpen && !directSigning && <ShopPackPurchase pack={pack} address={address} blocked={activeFigurePurchase || purchaseBusy}
         onConfirm={() => {
           const signer = pack.order?.buyer === address ? selectedSigner.current.sign : null;
-          if (signer) buyAndSign(() => pack.confirm(signer)); else requestAccount();
-        }} onBuyWithSol={() => buyAndSign(() => pack.buyWithSol(signPurchase))} onArmy={openArmy} onAccount={requestAccount} />}
+          if (signer) buyAndSign(() => pack.confirm(signPurchase)); else requestAccount();
+        }} onBuyWithSol={() => buyAndSign(() => pack.buyWithSol(signPurchase), true)} onArmy={openArmy} onAccount={requestAccount} />}
       {walletOpen && <>
               <Text style={styles.copy}>{wallet.isSupported ? 'Use your Seeker wallet. You approve every purchase.' : 'Sign in with email to keep your collection in RIPSY.'}</Text>
               {wallet.isSupported && figures.some(figure => figure.seekerExclusive) && <View style={styles.seekerNotice}><Text style={styles.restriction}>Seeker fighter is Seeker exclusive.</Text><Text style={styles.smallCopy}>Connect your Seeker wallet to check availability.</Text></View>}
@@ -270,9 +297,10 @@ function ReceiptRow({ label, value, total }: { label: string; value: string; tot
   return <View style={styles.receiptRow}><Text style={[styles.receiptLabel, total && styles.total]}>{label}</Text><Text style={[styles.receiptValue, total && styles.total]}>{value}</Text></View>;
 }
 function PurchaseProgress({ status }: { status: string }) {
-  const completed = status === 'confirmed' ? 3 : status === 'submitted' ? 2 : 0;
+  const completed = status === 'confirmed' ? 3 : ['submitted', 'sending'].includes(status) ? 2 : status === 'opening-wallet' ? 1 : 0;
+  const current = ['preparing', 'prepared'].includes(status) ? 0 : status === 'opening-wallet' ? 1 : ['sending', 'submitted'].includes(status) ? 2 : null;
   return <View accessibilityLabel={'Purchase status ' + status} style={styles.progressRow}>
-    {['PREPARE', 'SIGN', 'COMPLETE'].map((label, index) => <View key={label} style={styles.progressItem}><View style={[styles.progressDot, index < completed && styles.progressComplete, status === 'prepared' && index === 0 && styles.progressCurrent]}><Text style={styles.progressNumber}>{index < completed ? '✓' : index + 1}</Text></View><Text style={styles.progressLabel}>{label}</Text></View>)}
+    {['PREPARE', 'APPROVE', 'COMPLETE'].map((label, index) => <View key={label} style={styles.progressItem}><View style={[styles.progressDot, index < completed && styles.progressComplete, current === index && styles.progressCurrent]}><Text style={styles.progressNumber}>{index < completed ? '✓' : index + 1}</Text></View><Text style={styles.progressLabel}>{label}</Text></View>)}
   </View>;
 }
 
@@ -310,6 +338,8 @@ const styles = StyleSheet.create({
   priceTag: { borderRadius: 12, backgroundColor: colors.rewardHighlight, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   price: { color: colors.ink, fontFamily: homeFont, fontSize: 21, fontVariant: ['tabular-nums'] },
   copy: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  handoff: { gap: spacing.lg },
+  handoffNote: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   restriction: { color: colors.ink, fontSize: 12, lineHeight: 18, fontWeight: '800' },
   note: { color: colors.textMuted, fontSize: 11, lineHeight: 17, textAlign: 'center' },
   footerNote: { color: colors.ink, backgroundColor: colors.kitPanel, borderRadius: 16, padding: spacing.md, fontSize: 11, lineHeight: 17, textAlign: 'center' },

@@ -53,6 +53,17 @@ function button(label: string) {
 async function press(label: string) { await Renderer.act(async () => { await button(label).props.onPress(); }); }
 function slot(index: number) { return tree.root.findAll(node => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith(`Army slot ${index},`) && typeof node.props.onPress === 'function')[0]; }
 
+test('All figures omits the free-starter promotion without replacing it with an empty hint', async () => {
+  await mount();
+  await press('All figures');
+  const labels = tree.root.findAllByType(Text).map(node => node.props.children);
+  expect(labels).not.toContain('RIPSY 001 is free. Discover more fighters in the shop.');
+  expect(labels).not.toContain('Each collectible fills one slot. Free fighters fill the rest.');
+  expect(button('Use free RIPSY 001')).toBeDefined();
+  await press('My collection');
+  expect(tree.root.findAllByType(Text).map(node => node.props.children)).toContain('Each collectible fills one slot. Free fighters fill the rest.');
+});
+
 test('shows all fourteen free fighters before verification, with no expected-auth error', async () => {
   await mount();
   for (let index = 1; index <= FIGURE_SLOTS; index++) expect(slot(index).props.accessibilityLabel).toContain('free RIPSY 001');

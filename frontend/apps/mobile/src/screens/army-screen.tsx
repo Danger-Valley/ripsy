@@ -207,7 +207,7 @@ export function ArmyScreen({ navigation, route }: Props) {
             ))}
             {tab === 'all' && definitions.filter(figure => figure.purchasable).map(figure => <FigureCard width={figureCardWidth} key={figure.id} name={figure.name} image={figurePortrait(figure.id, definitions)} badge={figure.seekerExclusive ? 'SEEKER' : 'COLLECTIBLE'} caption={inventory ? `${inventory.assets.filter(asset => asset.figureId === figure.id).length} in your collection` : 'Collect it in the shop'} button="Visit shop" tone="coral" onPress={openShop} />)}
           </ScrollView>
-          <Text style={styles.collectionHint}>{tab === 'owned' ? 'Each collectible fills one slot. Free fighters fill the rest.' : 'RIPSY 001 is free. Discover more fighters in the shop.'}</Text>
+          {tab === 'owned' && <Text style={styles.collectionHint}>Each collectible fills one slot. Free fighters fill the rest.</Text>}
         </ToyHomePanel>
 
         <ArmyControl focusRadius={18} accessibilityRole="button" accessibilityLabel={inventory ? 'Manage collection' : address ? 'Load your collection' : external.isSupported ? 'Connect your wallet' : 'Register'} onPress={() => { if (!external.isSupported && !address && !inventory) register(); else setWalletOpen(true); }} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>

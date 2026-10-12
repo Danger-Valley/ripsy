@@ -22,7 +22,7 @@ test.each([
   [360, 960, 40, 48, 1.6],
   [800, 360, 24, 24, 1],
   [800, 1280, 24, 24, 1.8],
-])('Android aspect-fits the complete illustration to the full viewport at %sx%s', async (width, height, top, bottom, fontScale) => {
+])('Android aspect-fills an explicitly viewport-sized image at %sx%s', async (width, height, top, bottom, fontScale) => {
   jest.replaceProperty(Platform, 'OS', 'android');
   jest.spyOn(native, 'useWindowDimensions').mockReturnValue({ width, height, scale: 3, fontScale });
   jest.mocked(useSafeAreaInsets).mockReturnValue({ top, bottom, left: 0, right: 0 });
@@ -30,25 +30,22 @@ test.each([
   await Renderer.act(async () => { tree = Renderer.create(<StartupSplash />); });
   const background = tree.root.findAllByType(Image).find(image => image.props.accessible === false)!;
   const imageView = StyleSheet.flatten(background.props.style);
-  expect(background.props.resizeMode).toBe('contain');
-  expect(imageView).toEqual(StyleSheet.flatten(StyleSheet.absoluteFill));
-  // Native contain preserves the asset ratio and fills at least one axis.
-  const fittedWidth = Math.min(width, height * 0.5);
-  const fittedHeight = fittedWidth / 0.5;
-  const artwork = { width: fittedWidth, height: fittedHeight, left: (width - fittedWidth) / 2, top: (height - fittedHeight) / 2 };
+  expect(background.props.resizeMode).toBe('cover');
+  expect(imageView).toEqual({ position: 'absolute', left: 0, top: 0, width, height });
+  // Both explicit dimensions override RN's default 887x1774 asset bounds.
+  expect(StyleSheet.flatten([{ width: 887, height: 1774 }, background.props.style])).toEqual(imageView);
   const logo = tree.root.findAllByType(Image).find(image => image.props.accessibilityLabel === 'RIPSY')!;
   const brand = StyleSheet.flatten(logo.props.style);
   expect(logo.props.resizeMode).toBe('contain');
   expect(brand.width / brand.height).toBe(2.5);
-  expect(brand.left).toBeGreaterThanOrEqual(artwork.left);
-  expect(brand.left + brand.width).toBeLessThanOrEqual(artwork.left + artwork.width);
-  expect(brand.top).toBeGreaterThanOrEqual(artwork.top);
+  expect(brand.left).toBeCloseTo((width - brand.width) / 2);
+  expect(brand.left + brand.width).toBeLessThanOrEqual(width);
   expect(brand.top).toBeGreaterThanOrEqual(top + 16);
-  expect(brand.top + brand.height).toBeLessThanOrEqual(artwork.top + artwork.height * 0.4);
+  expect(brand.top + brand.height).toBeLessThanOrEqual(height * 0.5);
   expect(StyleSheet.flatten(tree.root.findByProps({ testID: 'startup-loading' }).props.style).bottom).toBe(bottom + 32);
 });
 
-test('Android uses actual root layout and replacement artwork proportions, not screen dimensions', async () => {
+test('Android uses measured root bounds, not source pixels or cached window dimensions', async () => {
   jest.replaceProperty(Platform, 'OS', 'android');
   jest.spyOn(native, 'useWindowDimensions').mockReturnValue({ width: 412, height: 915, scale: 3, fontScale: 1 });
   jest.mocked(useSafeAreaInsets).mockReturnValue({ top: 24, bottom: 24, left: 20, right: 16 });
@@ -58,11 +55,10 @@ test('Android uses actual root layout and replacement artwork proportions, not s
     nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 720 } },
   }));
   const frame = StyleSheet.flatten(tree.root.findAllByType(Image)[0].props.style);
-  expect(frame).toEqual(StyleSheet.flatten(StyleSheet.absoluteFill));
+  expect(frame).toEqual({ position: 'absolute', left: 0, top: 0, width: 360, height: 720 });
   const brand = StyleSheet.flatten(tree.root.findAllByType(Image)[1].props.style);
   expect(brand.width).toBeCloseTo(360 * 0.78);
-  // The 2:3 artwork fits at 360x540, centered in the measured 360x720 view.
-  expect(brand.top).toBeCloseTo(90 + 540 * 0.25 - brand.height / 2);
+  expect(brand.top).toBeCloseTo(720 * 0.25 - brand.height / 2);
   await Renderer.act(() => tree.root.findByProps({ testID: 'startup-splash' }).props.onLayout({
     nativeEvent: { layout: { x: 0, y: 0, width: 0, height: 0 } },
   }));
@@ -72,6 +68,8 @@ test('Android uses actual root layout and replacement artwork proportions, not s
   await Renderer.act(() => tree.update(<StartupSplash />));
   expect(StyleSheet.flatten(tree.root.findAllByType(Image)[0].props.style)).toEqual(frame);
   expect(tree.root.findByProps({ testID: 'startup-loading' }).props.onLayout).toBeUndefined();
+  await Renderer.act(() => tree.root.findByProps({ testID: 'startup-splash' }).props.onLayout({ nativeEvent: { layout: { width: 720, height: 360 } } }));
+  expect(StyleSheet.flatten(tree.root.findAllByType(Image)[0].props.style)).toEqual({ position: 'absolute', left: 0, top: 0, width: 720, height: 360 });
 });
 
 test.each([
@@ -87,6 +85,7 @@ test.each([
   const background = images.find(image => image.props.accessible === false)!;
   expect(background.props.source).toBe(require('../src/assets/ui/splash-playground-v1.png'));
   expect(background.props.resizeMode).toBe('cover');
+  expect(StyleSheet.flatten(background.props.style)).toEqual({ position: 'absolute', left: 0, top: 0, width, height });
   expect(background.props.accessibilityElementsHidden).toBe(true);
   const logo = images.find(image => image.props.accessibilityLabel === 'RIPSY')!;
   expect(logo.props.source).toBe(homeArt.logo);
@@ -98,6 +97,30 @@ test.each([
   expect(StyleSheet.flatten(loading.parent!.props.style).bottom).toBe(bottom + 32);
   expect(loading.props.accessibilityRole).toBe('progressbar');
   expect(tree.root.findByType(Text).props.children).toBe('Opening the toy box…');
+});
+
+test.each(['android', 'ios'] as const)('real %s Image wrapper cannot retain oversized intrinsic splash bounds', async os => {
+  jest.replaceProperty(Platform, 'OS', os);
+  jest.spyOn(native, 'useWindowDimensions').mockReturnValue({ width: 360, height: 800, scale: 3, fontScale: 1 });
+  await Renderer.act(async () => { tree = Renderer.create(<StartupSplash />); });
+  const props = tree.root.findAllByType(Image)[0].props;
+  // Exercise RN's real wrapper, not the preset Image mock which skipped its
+  // intrinsic-size prefix and allowed the previous regression to pass.
+  const NativeImage = jest.requireActual(`react-native/Libraries/Image/Image.${os}`).default;
+  let imageTree!: Renderer.ReactTestRenderer;
+  try {
+    const source = { uri: 'asset:///splash.png', width: 887, height: 1774 };
+    const imageHost = () => imageTree.root.findAll(node => typeof node.type === 'string' && Array.isArray(node.props.source) && node.props.source[0]?.uri === source.uri)[0];
+    await Renderer.act(async () => { imageTree = Renderer.create(<NativeImage {...props} source={source} style={StyleSheet.absoluteFill} />); });
+    const oldBounds = StyleSheet.flatten(imageHost().props.style);
+    expect(oldBounds.width).toBe(887); expect(oldBounds.height).toBe(1774);
+    await Renderer.act(() => imageTree.update(<NativeImage {...props} source={source} />));
+    const host = imageHost();
+    expect(host).toBeDefined();
+    const frame = StyleSheet.flatten(host.props.style);
+    expect(frame.width).toBe(360); expect(frame.height).toBe(800);
+    expect(host.props.resizeMode).toBe('cover');
+  } finally { if (imageTree) await Renderer.act(() => imageTree.unmount()); }
 });
 
 test('waits for both local images to settle, including failures, exactly once', async () => {

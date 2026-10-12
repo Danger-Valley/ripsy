@@ -127,6 +127,14 @@ no matches for five private env values. No physical/paid test or web deployment
 performed. Earlier pending-release notes describe source preparation only.
 See `files/releases/1.0.0-59.md`.
 
+Splash correction after build 59 (2026-10-12): user now requests aspect fill.
+Both RN platforms use cover and explicit measured-root width/height to override
+the Image wrapper's intrinsic asset-size prefix. Real Android/iOS wrapper tests
+reproduce the old absoluteFill-only 887x1774 props and verify corrected 360x800
+bounds. Keep original assets, logo proportions, safe-area overlays and startup
+timing; iOS storyboard and Android OS icon splash unchanged. Not yet included
+in uploaded build 59; native visual verification remains pending.
+
 ## Pack price/storage upgrade preparation (2026-10-10)
 
 Source now supports independently mutable edition prices and exact-size new

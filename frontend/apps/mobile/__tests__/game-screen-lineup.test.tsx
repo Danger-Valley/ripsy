@@ -6,6 +6,7 @@ import * as Keychain from 'react-native-keychain';
 import { Choice, FigureVariant, FinishReason, HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
 import { ShopClient } from '@rps/game-client/shop';
 import { GameBoard } from '../src/components/game-board';
+import { RiveGamePiece } from '../src/components/rive-game-piece';
 import { VictoryFireworks } from '../src/components/victory-fireworks';
 import { BattleResultPanel, WeaponChoiceModal } from '../src/components/battle-panels';
 import { StatusBanner } from '../src/components/status-banner';
@@ -196,6 +197,10 @@ test('offline computer battle skips waiting and starts after the local lineup is
 
   expect(renderer.root.findAll(node => node.props.accessibilityHint === 'Opens the system share sheet')).toHaveLength(0);
   expect(renderer.root.find(node => node.props.testID === 'lineup-controls')).toBeDefined();
+  const initialBoard = renderer.root.findByType(GameBoard);
+  expect(initialBoard.props.state.owners.filter((owner: Owner) => owner === Owner.P1)).toHaveLength(14);
+  expect(initialBoard.props.showOpponentFormation).toBe(true);
+  expect(initialBoard.findAllByType(RiveGamePiece).filter(piece => !piece.props.isMine)).toHaveLength(14);
   const save = renderer.root.find(node => node.props.accessibilityHint === 'Saves your current hidden lineup');
 
   await ReactTestRenderer.act(async () => {

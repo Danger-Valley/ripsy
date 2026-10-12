@@ -458,6 +458,30 @@ test('starts an opponent preview after a one-time random delay', async () => {
   expect(mockRiveViewRef.play).toHaveBeenCalledTimes(1);
 });
 
+test('shows the opponent before Save lineup even when the accessibility query never resolves', async () => {
+  jest.useFakeTimers();
+  jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockImplementation(() => new Promise(() => undefined));
+  jest.spyOn(Math, 'random').mockReturnValue(0.5);
+
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <RiveGamePiece file={mockRiveFile} isMine={false} piece={Piece.Empty} size={80} staggerStart />,
+    );
+  });
+  expect(renderer.root.findAllByType('RiveView' as never)).toHaveLength(0);
+
+  await ReactTestRenderer.act(async () => {
+    jest.advanceTimersByTime(230);
+    await Promise.resolve();
+  });
+
+  expect(renderer.root.findAllByType('RiveView' as never)).toHaveLength(1);
+  expect(mockRiveViewRef.play).toHaveBeenCalledTimes(1);
+  expect(StyleSheet.flatten(renderer.root.findByType('RiveView' as never).props.style).opacity).toBeUndefined();
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('does not reset the Android front state machine for opponent figures', async () => {
   await ReactTestRenderer.act(async () => {
     ReactTestRenderer.create(

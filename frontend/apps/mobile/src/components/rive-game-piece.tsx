@@ -92,19 +92,26 @@ const ConfiguredRiveGamePiece = memo(function RivePieceController({ actionTrigge
     if (shouldMountRive) return;
 
     let cancelled = false;
-    let mountTimer: ReturnType<typeof setTimeout> | undefined;
+    // Never wait for the native accessibility query before scheduling the
+    // opponent formation. On some devices that promise can stay unresolved
+    // until the next screen update, leaving every opponent invisible until
+    // Save lineup changes staggerStart.
+    const mountTimer = setTimeout(() => {
+      if (!cancelled) setShouldMountRive(true);
+    }, initialDelayMs);
 
     AccessibilityInfo.isReduceMotionEnabled()
-      .catch(() => false)
       .then(reduceMotion => {
-        if (cancelled) return;
-        if (reduceMotion) setShouldMountRive(true);
-        else mountTimer = setTimeout(() => setShouldMountRive(true), initialDelayMs);
-      });
+        if (!cancelled && reduceMotion) {
+          clearTimeout(mountTimer);
+          setShouldMountRive(true);
+        }
+      })
+      .catch(() => undefined);
 
     return () => {
       cancelled = true;
-      if (mountTimer) clearTimeout(mountTimer);
+      clearTimeout(mountTimer);
     };
   }, [initialDelayMs, shouldMountRive, staggerStart]);
 

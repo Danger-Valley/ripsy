@@ -215,6 +215,18 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 ### Board and lineup
 
+- Native opponent formation startup (2026-10-12): computer games already
+  submit the computer's 14-piece lineup before the player's Save lineup, and
+  `gameView` exposes their occupied cells and figure variants while keeping
+  weapons hidden. The native Rive board now starts each stagger timer
+  independently of `AccessibilityInfo.isReduceMotionEnabled()`: a delayed or
+  unresolved native accessibility query can no longer leave the opponent row
+  invisible until Save lineup. A positive reduce-motion response still mounts
+  immediately. Save does not create or reveal opponent pieces. The inspected
+  browser `RpsFigure` uses a synchronous media query and schedules its own
+  timer already, so no web behavior changed. Native regression tests cover an
+  unresolved query and 14 opponents present before Save; physical Android and
+  iOS visual validation remains pending.
 - Board size is 7 × 7 (`WIDTH = 7`, `HEIGHT = 7`).
 - Each player submits exactly 14 pieces in their two starting rows:
   - 4 Rock

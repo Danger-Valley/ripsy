@@ -20,8 +20,7 @@ export default function LandingPage() {
         <a className={styles.logo} href="/" aria-label="RIPSY home">RIPSY</a>
         <div className={styles.navLinks}>
           <a href="#how-it-works">How it works</a>
-          <a href="/download">Download</a>
-          <a className={styles.navCta} href="/app">Play now</a>
+          <a className={styles.navCta} href="/download">Download</a>
         </div>
       </nav>
 
@@ -31,10 +30,9 @@ export default function LandingPage() {
           <h1>Outthink.<br />Outplay.<br /><span>Capture the flag.</span></h1>
           <p className={styles.lede}>RIPSY turns the world’s simplest battle into a hidden-army strategy game. Build your lineup, challenge a friend, and make every move count.</p>
           <div className={styles.actions}>
-            <a className={styles.primaryAction} href="/app">Play RIPSY</a>
-            <a className={styles.secondaryAction} href="/download">Get the Android app</a>
+            <a className={styles.primaryAction} href="/download">Get the Android app</a>
           </div>
-          <p className={styles.note}>Free to play · No download required on web</p>
+          <p className={styles.note}>Free to play on Android · Web version coming later</p>
         </div>
 
         <div className={styles.heroArt} aria-label="Two RIPSY fighters facing off on the game board">
@@ -80,7 +78,7 @@ export default function LandingPage() {
           <p className={styles.eyebrow}>YOUR ARMY IS WAITING</p>
           <h2>Ready to steal that flag?</h2>
         </div>
-        <a className={styles.primaryAction} href="/app">Enter the playground</a>
+        <a className={styles.primaryAction} href="/download">Get the Android app</a>
       </section>
 
       <footer className={styles.footer}>

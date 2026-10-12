@@ -111,6 +111,54 @@ test('disconnect clears the authenticated inventory wallet binding', async () =>
 });
 
 const recovery = { code: 'INSUFFICIENT_PURCHASE_TOKEN' as const, mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', required: '1000000', balance: '0' };
+test('direct buy persists signing before wallet and keeps preparation/signing under one lock', async () => {
+  await mount(); let release!: (value: string) => void;
+  const sign = jest.fn(() => {
+    expect(JSON.parse(saved!).signingStarted).toBe(true);
+    expect(JSON.parse(saved!).order.id).toBe(prepared.id);
+    return new Promise<string>(resolve => { release = resolve; });
+  });
+  let purchase!: Promise<void>;
+  await Renderer.act(async () => { purchase = shop.prepare('fig1', prepared.buyer, undefined, sign); });
+  expect(sign).toHaveBeenCalledWith(prepared); expect(shop.busy).toBe(true);
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); await shop.prepare('fig1', prepared.buyer, undefined, sign); await shop.confirm(sign); });
+  expect(api.create).toHaveBeenCalledTimes(1); expect(api.get).toHaveBeenCalledTimes(1); expect(sign).toHaveBeenCalledTimes(1);
+  await Renderer.act(async () => { release('signed'); await purchase; });
+  expect(api.submit).toHaveBeenCalledWith(prepared.id, 'signed'); expect(shop.order?.status).toBe('submitted');
+});
+test('direct SOL recovery signs only after an explicit SOL click and retains the same key', async () => {
+  await mount(); const sign = jest.fn().mockResolvedValue('signed');
+  api.create.mockRejectedValueOnce(new ShopRequestError('Not enough JUP', recovery));
+  await Renderer.act(() => shop.prepare('jup', prepared.buyer, undefined, sign));
+  const key = JSON.parse(saved!).key; expect(sign).not.toHaveBeenCalled(); expect(shop.fundingRequired).toEqual(recovery);
+  await Renderer.act(() => shop.buyWithSol(sign));
+  expect(api.create).toHaveBeenLastCalledWith('jup', prepared.buyer, key, 'sol');
+  expect(JSON.parse(saved!).paymentMode).toBe('sol'); expect(sign).toHaveBeenCalledTimes(1); expect(api.submit).toHaveBeenCalledTimes(1);
+});
+test('rejected direct buy retains the order and never automatically reopens the signer', async () => {
+  await mount(); const sign = jest.fn().mockRejectedValue(new Error('User rejected'));
+  await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign)); const key = JSON.parse(saved!).key;
+  expect(shop.error).toBe('User rejected'); expect(api.submit).not.toHaveBeenCalled();
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); });
+  expect(sign).toHaveBeenCalledTimes(1); expect(api.create).toHaveBeenCalledTimes(1);
+  sign.mockResolvedValueOnce('signed'); await Renderer.act(() => shop.confirm(sign));
+  expect(JSON.parse(saved!).key).toBe(key); expect(api.submit).toHaveBeenCalledWith(prepared.id, 'signed');
+});
+test('expired order after direct prepare never reaches the wallet', async () => {
+  await mount(); const sign = jest.fn(); api.get.mockResolvedValueOnce({ ...prepared, status: 'expired' });
+  await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign));
+  expect(sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled(); expect(shop.order?.status).toBe('expired');
+});
+test('lost responses recover without auto-signing and reuse already-signed bytes', async () => {
+  await mount(); const sign = jest.fn().mockResolvedValue('signed');
+  api.create.mockRejectedValueOnce(new Error('Network interrupted'));
+  await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign)); const key = JSON.parse(saved!).key;
+  await Renderer.act(() => shop.checkStatus());
+  expect(api.create).toHaveBeenLastCalledWith('fig1', prepared.buyer, key, undefined); expect(sign).not.toHaveBeenCalled();
+  api.submit.mockRejectedValueOnce(new Error('Lost submit reply')); await Renderer.act(() => shop.confirm(sign));
+  expect(JSON.parse(saved!).signed).toBe('signed'); await Renderer.act(() => shop.confirm(sign));
+  expect(sign).toHaveBeenCalledTimes(1); expect(api.submit).toHaveBeenLastCalledWith(prepared.id, 'signed');
+});
 test('SOL recovery reuses the saved key, pauses blocked preparation polling and still requires explicit approval', async () => {
   await mount();
   api.create.mockRejectedValueOnce(new ShopRequestError('Not enough JUP', recovery));

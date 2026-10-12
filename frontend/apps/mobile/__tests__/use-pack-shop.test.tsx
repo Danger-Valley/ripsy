@@ -167,6 +167,54 @@ test('corrupt or mismatched recovery data blocks additional payments', async () 
   ).toThrow();
 });
 
+test('direct pack buy persists signing before wallet and holds its lock through app switching', async () => {
+  await mount(); let release!: (value: string) => void;
+  const sign = jest.fn(() => {
+    expect(JSON.parse(saved!).signingStarted).toBe(true);
+    return new Promise<string>(resolve => { release = resolve; });
+  });
+  let purchase!: Promise<void>;
+  await Renderer.act(async () => { purchase = pack.prepare(buyer, sign); });
+  expect(sign).toHaveBeenCalledWith(order); expect(pack.busy).toBe(true);
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); await pack.prepare(buyer, sign); await pack.confirm(sign); });
+  expect(sign).toHaveBeenCalledTimes(1); expect(api.createPack).toHaveBeenCalledTimes(1); expect(api.getPack).toHaveBeenCalledTimes(1);
+  await Renderer.act(async () => { release('AQ=='); await purchase; });
+  expect(api.submitPack).toHaveBeenCalledWith(order.id, 'AQ=='); expect(pack.order?.status).toBe('submitted');
+});
+test('direct SOL pack buy preserves its saved request and signs after the explicit SOL click', async () => {
+  await mount(); const sign = jest.fn().mockResolvedValue('AQ==');
+  const recovery = { code: 'INSUFFICIENT_PURCHASE_TOKEN' as const, mint: PACK_PAYMENT.mint, symbol: 'SKR', required: PACK_PAYMENT.amount, balance: '0' };
+  api.createPack.mockRejectedValueOnce(new ShopRequestError('Not enough SKR', recovery));
+  await Renderer.act(() => pack.prepare(buyer, sign)); const key = JSON.parse(saved!).key; expect(sign).not.toHaveBeenCalled();
+  await Renderer.act(() => pack.buyWithSol(sign));
+  expect(api.createPack).toHaveBeenLastCalledWith(buyer, key, 'sol');
+  expect(sign).toHaveBeenCalledTimes(1); expect(sign).toHaveBeenCalledWith(order);
+  expect(pack.order?.drops).toEqual(order.drops); expect(api.submitPack).toHaveBeenCalledWith(order.id, 'AQ==');
+});
+test('direct pack signing rejection never reopens the signer or re-rolls the pack', async () => {
+  await mount(); const sign = jest.fn().mockRejectedValue(new Error('User rejected'));
+  await Renderer.act(() => pack.prepare(buyer, sign)); const key = JSON.parse(saved!).key;
+  expect(pack.error).toBe('User rejected'); expect(api.submitPack).not.toHaveBeenCalled();
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); });
+  expect(sign).toHaveBeenCalledTimes(1); expect(api.createPack).toHaveBeenCalledTimes(1);
+  sign.mockResolvedValueOnce('AQ=='); await Renderer.act(() => pack.confirm(sign));
+  expect(JSON.parse(saved!).key).toBe(key); expect(api.submitPack).toHaveBeenCalledWith(order.id, 'AQ==');
+});
+test('a finished pack returned by the final status check never opens signing', async () => {
+  await mount(); const sign = jest.fn(); api.getPack.mockResolvedValueOnce({ ...order, status: 'confirmed', result: 'jup' });
+  await Renderer.act(() => pack.prepare(buyer, sign));
+  expect(sign).not.toHaveBeenCalled(); expect(api.submitPack).not.toHaveBeenCalled(); expect(pack.order?.status).toBe('confirmed');
+});
+test('lost pack responses recover without auto-signing and reuse already-signed bytes', async () => {
+  await mount(); const sign = jest.fn().mockResolvedValue('AQ==');
+  api.createPack.mockRejectedValueOnce(new Error('Network interrupted'));
+  await Renderer.act(() => pack.prepare(buyer, sign)); const key = JSON.parse(saved!).key;
+  await Renderer.act(() => pack.checkStatus());
+  expect(api.createPack).toHaveBeenLastCalledWith(buyer, key, undefined); expect(sign).not.toHaveBeenCalled();
+  api.submitPack.mockRejectedValueOnce(new Error('Lost submit reply')); await Renderer.act(() => pack.confirm(sign));
+  await Renderer.act(() => pack.confirm(sign));
+  expect(sign).toHaveBeenCalledTimes(1); expect(api.submitPack).toHaveBeenLastCalledWith(order.id, 'AQ==');
+});
 test('insufficient SKR offers SOL recovery with the SAME saved request, and never auto-approves or re-rolls', async () => {
   await mount();
   const recovery = { code: 'INSUFFICIENT_PURCHASE_TOKEN' as const, mint: PACK_PAYMENT.mint, symbol: 'SKR', required: PACK_PAYMENT.amount, balance: '0' };

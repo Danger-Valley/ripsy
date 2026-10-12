@@ -158,8 +158,19 @@ export function usePackShop(
     }, 4000);
     return () => clearInterval(timer);
   }, [checkStatus, intent, restored, token]);
+  const signPrepared = useCallback(async (sign: (order: PackOrder) => Promise<string>) => {
+    const saved = current.current;
+    if (!saved?.order) throw new Error("Check your saved pack first.");
+    const order = await client.getPack(saved.order.id);
+    if (order.status !== "prepared") { await persist({ ...saved, order }); return; }
+    const signing = { ...saved, order, signingStarted: true };
+    await persist(signing);
+    const signed = saved.signed ?? await sign(order);
+    await persist({ ...signing, signed });
+    await persist({ ...signing, signed, order: await client.submitPack(order.id, signed) });
+  }, [client, persist]);
   const prepare = useCallback(
-    (buyer: string) =>
+    (buyer: string, sign?: (order: PackOrder) => Promise<string>) =>
       run(async () => {
         if (current.current) throw new Error("Finish your current pack first.");
         const saved: PackIntent = {
@@ -173,30 +184,14 @@ export function usePackShop(
           ...saved,
           order: await client.createPack(buyer, saved.key),
         });
+        if (sign) await signPrepared(sign);
       }),
-    [client, persist, run]
+    [client, persist, run, signPrepared]
   );
   const confirm = useCallback(
     (sign: (order: PackOrder) => Promise<string>) =>
-      run(async () => {
-        const saved = current.current;
-        if (!saved?.order) throw new Error("Check your saved pack first.");
-        const order = await client.getPack(saved.order.id);
-        if (order.status !== "prepared") {
-          await persist({ ...saved, order });
-          return;
-        }
-        const signing = { ...saved, order, signingStarted: true };
-        await persist(signing);
-        const signed = await sign(order);
-        await persist({ ...signing, signed });
-        await persist({
-          ...signing,
-          signed,
-          order: await client.submitPack(order.id, signed),
-        });
-      }),
-    [client, persist, run]
+      run(() => signPrepared(sign)),
+    [run, signPrepared]
   );
   const dismiss = useCallback(
     () =>
@@ -213,13 +208,14 @@ export function usePackShop(
       }),
     [persist, run]
   );
-  const buyWithSol = useCallback(() => run(async () => {
+  const buyWithSol = useCallback((sign?: (order: PackOrder) => Promise<string>) => run(async () => {
     const saved = current.current;
     if (!saved || saved.order || saved.signingStarted || saved.signed || !fundingRef.current || saved.paymentMode) throw new Error('Check your saved pack first.');
     const pending: PackIntent = { ...saved, paymentMode: 'sol' };
     await persist(pending);
     await persist({ ...pending, order: await client.createPack(pending.buyer, pending.key, 'sol') });
-  }), [client, persist, run]);
+    if (sign) await signPrepared(sign);
+  }), [client, persist, run, signPrepared]);
   return {
     catalog,
     order: intent?.order ?? null,

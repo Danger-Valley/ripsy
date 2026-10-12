@@ -1,10 +1,7 @@
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import {
-  figurePrice,
   figureStoreMessage,
-  formatSol,
-  solFundingNotice,
   solanaExplorer,
 } from '@rps/core/shop';
 import { isTerminalPack, packPrice } from '@rps/core/packs';
@@ -93,8 +90,7 @@ export function ShopPack({
             </ToyHomeButton>
           )}
           <Text style={styles.note}>
-            {packPrice(catalog.payment)} + additional fees. Review the total
-            before approval.
+            {packPrice(catalog.payment)} + additional fees. Approve when prompted.
           </Text>
         </>
       )}
@@ -129,7 +125,7 @@ export function packPurchaseTitle(pack: ReturnType<typeof usePackShop>) {
     : order?.status === 'failed' || order?.status === 'expired'
     ? 'Purchase not completed'
     : order
-    ? 'Review your pack'
+    ? 'Continue your pack purchase'
     : pack.error && !pack.busy
     ? 'Pack needs attention'
     : 'Preparing pack';
@@ -141,6 +137,7 @@ export function ShopPackPurchase({
   address,
   blocked,
   onConfirm,
+  onBuyWithSol,
   onArmy,
   onAccount,
 }: {
@@ -148,6 +145,7 @@ export function ShopPackPurchase({
   address: string | null;
   blocked: boolean;
   onConfirm(): void;
+  onBuyWithSol(): void;
   onArmy(asset: string): void;
   onAccount(): void;
 }) {
@@ -190,14 +188,14 @@ export function ShopPackPurchase({
           : order?.status === 'failed' || order?.status === 'expired'
           ? 'This purchase did not complete. No figure was purchased.'
           : order
-          ? 'Review your pack. One fighter is selected with the chances below.'
+          ? 'Continue in your wallet to approve this saved pack.'
           : pack.fundingRequired
-          ? `You can use SOL to cover the missing ${pack.fundingRequired.symbol}. Review the SOL total before approval.`
+          ? `You can use SOL to cover the missing ${pack.fundingRequired.symbol}. Approve the purchase in your wallet.`
           : pack.error
           ? 'No payment has been approved. Close this popup and try again.'
           : 'Preparing your pack… Retry to recover this same request if the connection was interrupted.'}
       </Text>
-      {pack.fundingRequired && <ToyHomeButton tone="yellow" busy={pack.busy} disabled={blocked || pack.busy || address !== pack.purchaseBuyer} onPress={() => pack.buyWithSol()}>Buy with SOL</ToyHomeButton>}
+      {pack.fundingRequired && <ToyHomeButton tone="yellow" busy={pack.busy} disabled={blocked || pack.busy || address !== pack.purchaseBuyer} onPress={onBuyWithSol}>Buy with SOL</ToyHomeButton>}
       {order && (
         <>
           {order.status === 'confirmed' && order.result && (
@@ -215,31 +213,13 @@ export function ShopPackPurchase({
           )}
           {order.status === 'prepared' && (
             <>
-              <Text style={styles.name}>
-                {order.solFunding ? `${formatSol(order.solFunding.inputLamports)} + ${formatSol(order.networkFeeLamports)} fees` : `${packPrice(order.payment)} + ${figurePrice(order.networkFeeLamports, 'mainnet-beta')}`}
-              </Text>
-              {order.solFunding && <><Text style={styles.name}>Estimated total: {formatSol((BigInt(order.solFunding.inputLamports) + BigInt(order.networkFeeLamports)).toString())}</Text><Text style={styles.copy}>Pack price: {packPrice(order.payment)}</Text><Text style={styles.copy}>{solFundingNotice(order.solFunding)}</Text></>}
-              <Text style={styles.copy}>
-                {order.drops
-                  .map(
-                    d =>
-                      `${definitions.find(f => f.id === d.figureId)?.name ?? d.figureId} ${
-                        d.weight / 10_000
-                      }%`,
-                  )
-                  .join(' · ')}
-              </Text>
-              <Text style={styles.note}>
-                Additional fees are estimated and separate from the price. The
-                pack opens automatically after approval.
-              </Text>
               <ToyHomeButton
                 tone="yellow"
                 busy={pack.busy}
                 disabled={blocked || pack.busy || address !== order.buyer}
                 onPress={onConfirm}
               >
-                Approve pack purchase
+                Continue in wallet
               </ToyHomeButton>
               {address !== order.buyer && (
                 <>

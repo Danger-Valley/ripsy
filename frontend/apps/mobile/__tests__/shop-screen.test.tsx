@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Linking, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import Renderer from 'react-test-renderer';
 import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
@@ -32,7 +32,9 @@ const verifyCode = jest.fn();
 const navigate = jest.fn();
 const goBack = jest.fn();
 let tree: Renderer.ReactTestRenderer;
+const appStateDescriptor = Object.getOwnPropertyDescriptor(AppState, 'currentState');
 beforeEach(() => {
+  Object.defineProperty(AppState, 'currentState', { configurable: true, writable: true, value: 'active' });
   jest.clearAllMocks();
   for (const action of [pack.prepare, pack.confirm, pack.dismiss, pack.checkStatus, pack.loadCatalog]) action.mockResolvedValue(undefined);
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
@@ -43,7 +45,7 @@ beforeEach(() => {
   jest.mocked(useSolanaWallet).mockReturnValue({ address: null, label: null, status: 'disconnected', error: null, isSupported: false, connect, disconnect });
   jest.mocked(usePrivyWallet).mockReturnValue({ configured: true, address: null, error: null, activity: 'idle', status: 'unauthenticated', busy: false, codeSent: false, sendCode, verifyCode, disconnect, signShopTransaction: jest.fn() } as unknown as ReturnType<typeof usePrivyWallet>);
 });
-afterEach(async () => { if (tree) await Renderer.act(() => tree.unmount()); jest.restoreAllMocks(); });
+afterEach(async () => { if (tree) await Renderer.act(() => tree.unmount()); jest.restoreAllMocks(); if (appStateDescriptor) Object.defineProperty(AppState, 'currentState', appStateDescriptor); });
 async function mount(params?: { signIn: boolean }) { await Renderer.act(async () => { tree = Renderer.create(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params } as never} />); }); }
 function button(label: string) { return tree.root.findAll(node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0]; }
 async function press(label: string) { await Renderer.act(async () => { await button(label).props.onPress(); }); }
@@ -59,23 +61,29 @@ function purchaseModal(id: 'figure' | 'pack') {
 async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />)); }
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
 
-test('insufficient tokens offer Buy with SOL in the existing popup, without opening a wallet or auto-approving', async () => {
-  const buyWithSol = jest.fn().mockResolvedValue(undefined);
+test('figure Buy with SOL goes directly to wallet signing without another quote confirmation', async () => {
+  const buyWithSol = jest.fn(async sign => { await sign(order); });
+  jest.mocked(signShopTransaction).mockResolvedValueOnce('AQ==');
   external();
   setShop({ hasPurchase: true, purchaseBuyer: buyer, error: 'Not enough ORE', fundingRequired: { symbol: 'ORE' }, buyWithSol });
   await mount(); purchaseModal('figure');
   expect(button('Buy with SOL')).toBeDefined();
   await press('Buy with SOL');
-  expect(buyWithSol).toHaveBeenCalledTimes(1); expect(shop.confirm).not.toHaveBeenCalled(); expect(connect).not.toHaveBeenCalled();
+  expect(buyWithSol).toHaveBeenCalledWith(expect.any(Function));
+  expect(signShopTransaction).toHaveBeenCalledWith(order);
+  expect(shop.confirm).not.toHaveBeenCalled(); expect(connect).not.toHaveBeenCalled();
   setShop({ hasPurchase: true, purchaseBuyer: buyer, error: 'Not enough ORE', fundingRequired: { symbol: 'ORE' }, buyWithSol, busy: true });
   await updateScreen(); expect(button('Buy with SOL').props.disabled).toBe(true);
 });
 
-test('pack missing SKR uses SOL recovery in its popup, not a new pack purchase', async () => {
-  const buyWithSol = jest.fn().mockResolvedValue(undefined);
+test('pack Buy with SOL directly signs the saved pack, not a new purchase', async () => {
+  const buyWithSol = jest.fn(async sign => { await sign(packOrder); });
+  jest.mocked(signShopTransaction).mockResolvedValueOnce('AQ==');
   external(); setPack({ hasPurchase: true, purchaseBuyer: buyer, fundingRequired: { symbol: 'SKR' }, error: 'Not enough SKR', buyWithSol });
   await mount(); purchaseModal('pack'); await press('Buy with SOL');
-  expect(buyWithSol).toHaveBeenCalledTimes(1); expect(pack.prepare).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
+  expect(buyWithSol).toHaveBeenCalledWith(expect.any(Function));
+  expect(signShopTransaction).toHaveBeenCalledWith(packOrder);
+  expect(pack.prepare).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
 });
 const packOrder = { ...order, payment: PACK_PAYMENT, drops: INITIAL_PACK.drops, receipt: order.asset, edition: order.asset, version: 1, result: null, randomness: null };
 
@@ -106,18 +114,18 @@ test.each(['ios','android'] as const)('packs offer the same SKR price and 50/50 
   await Renderer.act(()=>tree.update(<ShopScreen navigation={{navigate,goBack} as never} route={{params:undefined} as never}/>));
   await press('Back to figures');
   expect(visibleModals()).toHaveLength(1);
-  await press('Approve pack purchase');expect(pack.confirm).toHaveBeenCalledWith(signer);
+  await press('Continue in wallet');expect(pack.confirm).toHaveBeenCalledWith(signer);
 });
 
-test.each(['bonk', 'jup', 'ore'] as const)('%s review shows token price plus separate SOL fees, with no Seeker exclusivity proof', async id => {
+test.each(['bonk', 'jup', 'ore'] as const)('%s submitted receipt shows token price plus separate SOL fees, without Seeker proof', async id => {
   external();
   const figure: ShopFigure = { ...fig2, ...FIGURES.find(f => f.id === id)!, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] };
   setShop({ catalog: { ...shop.catalog, figures: [figure] } });
   await mount();
   expect(text(figurePaymentPrice(figure, 'mainnet-beta'))).toBe(true);
   await press(`Buy ${figure.name}`);
-  expect(shop.prepare).toHaveBeenCalledWith(id, buyer, undefined);
-  setShop({ hasPurchase: true, order: { ...order, figureId: id, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] } });
+  expect(shop.prepare).toHaveBeenCalledWith(id, buyer, undefined, expect.any(Function));
+  setShop({ hasPurchase: true, order: { ...order, status: 'submitted', figureId: id, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] } });
   await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />));
   expect(text(`${figurePaymentPrice(figure, 'mainnet-beta')} + 0.001005 SOL`)).toBe(true);
   expect(text('0 SOL')).toBe(false);
@@ -173,7 +181,7 @@ test('a saved email-wallet purchase still requires explicit approval with its ex
   setShop({ hasPurchase: true, order });
   await mount();
   expect(shop.confirm).not.toHaveBeenCalled();
-  await press('Confirm purchase');
+  await press('Continue in wallet');
   expect(shop.confirm).toHaveBeenCalledWith(sign);
   expect(connect).not.toHaveBeenCalled();
 });
@@ -198,26 +206,65 @@ test('Solana Mobile Exclusive on iOS opens the store browser, never a wallet mod
   expect(tree.root.findByType(Modal).props.visible).toBe(false);
   expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
 });
-test('Seeker wallet prepares with the existing proof function but does not sign automatically', async () => {
+test.each(['figure', 'pack'] as const)('new %s buy invokes wallet signing with no intermediate quote popup', async kind => {
+  external(); setPack({ catalog: { ...INITIAL_PACK, available: true } });
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  jest.mocked(signShopTransaction).mockImplementationOnce(async () => { expect(visibleModals()).toHaveLength(0); await wait; return 'AQ=='; });
+  if (kind === 'figure') shop.prepare.mockImplementationOnce(async (_id, _buyer, _proof, sign) => { await sign(order); });
+  else pack.prepare.mockImplementationOnce(async (_buyer, sign) => { await sign(packOrder); });
+  await mount(); await press(kind === 'figure' ? 'Buy Seeker fighter' : 'Buy fighter pack');
+  expect(signShopTransaction).toHaveBeenCalledWith(kind === 'figure' ? order : packOrder);
+  expect(visibleModals()).toHaveLength(0);
+  await Renderer.act(async () => finish());
+  expect(shop.confirm).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
+});
+test('email purchase goes directly to its own signer, never to the external wallet', async () => {
+  const sign = jest.fn().mockResolvedValue('AQ==');
+  jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: buyer, signShopTransaction: sign });
+  setShop({ catalog: { ...shop.catalog, figures: [{ ...fig2, id: 'jup', variant: 4, name: 'Jup', seekerExclusive: false }] } });
+  shop.prepare.mockImplementationOnce(async (_id, _buyer, _proof, signer) => { await signer({ ...order, figureId: 'jup' }); });
+  await mount(); await press('Buy Jup');
+  expect(sign).toHaveBeenCalledTimes(1); expect(signShopTransaction).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
+});
+test.each(['account-changed', 'background', 'unmounted'] as const)('delayed preparation does not open a wallet after %s', async reason => {
   external(); await mount(); await press('Buy Seeker fighter');
-  expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet);
+  const signer = shop.prepare.mock.calls[0]![3];
+  if (reason === 'account-changed') { external('other1111111111111111111111111111'); await updateScreen(); }
+  if (reason === 'background') jest.replaceProperty(AppState, 'currentState', 'background');
+  if (reason === 'unmounted') await Renderer.act(() => tree.unmount());
+  await expect(signer(order)).rejects.toThrow(reason === 'account-changed' ? 'Reconnect' : 'Return to the shop');
+  expect(signShopTransaction).not.toHaveBeenCalled();
+});
+test('simultaneous figure/pack taps cannot redirect the active purchase popup', async () => {
+  external(); setPack({ catalog: { ...INITIAL_PACK, available: true } });
+  let finish!: () => void;
+  shop.prepare.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  await mount(); const figure = button('Buy Seeker fighter'), packBuy = button('Buy fighter pack');
+  await Renderer.act(async () => { figure.props.onPress(); packBuy.props.onPress(); });
+  expect(shop.prepare).toHaveBeenCalledTimes(1); expect(pack.prepare).not.toHaveBeenCalled();
+  await Renderer.act(async () => finish()); expect(purchaseModal('figure')).toBeDefined();
+});
+test('Seeker buy supplies a signer after the existing eligibility proof', async () => {
+  external(); await mount(); await press('Buy Seeker fighter');
+  expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet, expect.any(Function));
   expect(shop.confirm).not.toHaveBeenCalled();
 });
-test('Seeker SKR catalog and new purchase review keep SOL fees separate; old SOL receipts retain their units', async () => {
+test('Seeker SKR catalog and submitted receipt keep SOL fees separate; old SOL receipts retain their units', async () => {
   external();
   const figure = { ...fig2, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 };
   const catalog = { ...shop.catalog, figures: [figure] };
   setShop({ catalog }); await mount();
   expect(text('1 SKR')).toBe(true);
   await press('Buy Seeker fighter');
-  expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet);
+  expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet, expect.any(Function));
   expect(shop.confirm).not.toHaveBeenCalled();
-  setShop({ catalog, hasPurchase: true, order: { ...order, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 } });
+  setShop({ catalog, hasPurchase: true, order: { ...order, status: 'submitted', priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 } });
   await updateScreen();
   let modal = purchaseModal('figure');
   expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR')).toBe(true);
   expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR + 0.001005 SOL')).toBe(true);
-  setShop({ catalog, hasPurchase: true, order }); await updateScreen();
+  setShop({ catalog, hasPurchase: true, order: { ...order, status: 'submitted' } }); await updateScreen();
   modal = purchaseModal('figure');
   expect(modal.findAllByType(Text).some(node => node.props.children === '0.01 SOL')).toBe(true);
   expect(modal.findAllByType(Text).some(node => node.props.children === '0.011005 SOL')).toBe(true);
@@ -269,8 +316,8 @@ test.each(['Buy Seeker fighter', 'Buy fighter pack'])('%s connects directly on S
   expect(text('Your purchase account')).toBe(false); expect(button('Send sign-in code')).toBeUndefined();
   expect(shop.prepare).not.toHaveBeenCalled(); expect(pack.prepare).not.toHaveBeenCalled();
   external(); await updateScreen(); await press(label);
-  if (label === 'Buy Seeker fighter') expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet);
-  else expect(pack.prepare).toHaveBeenCalledWith(buyer);
+  if (label === 'Buy Seeker fighter') expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet, expect.any(Function));
+  else expect(pack.prepare).toHaveBeenCalledWith(buyer, expect.any(Function));
   expect(shop.confirm).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
 });
 test('direct Seeker connection deduplicates taps, shows progress and allows retry after failure', async () => {
@@ -292,24 +339,24 @@ test('Seeker pack recovery connects directly and keeps the exact saved purchase'
   await mount(); const host = purchaseModal('pack'); await press('Sign in to purchase account');
   expect(connect).toHaveBeenCalledTimes(1); expect(purchaseModal('pack')).toBe(host);
   expect(button('Send sign-in code')).toBeUndefined(); expect(pack.prepare).not.toHaveBeenCalled();
-  external(); await updateScreen(); await press('Approve pack purchase');
+  external(); await updateScreen(); await press('Continue in wallet');
   expect(pack.confirm).toHaveBeenCalledWith(signShopTransaction); expect(pack.dismiss).not.toHaveBeenCalled();
 });
-test('review shows price, fees, exact total and addresses before explicit approval', async () => {
+test('restored prepared purchase offers wallet continuation without a second quote confirmation', async () => {
   external(); setShop({ hasPurchase: true, order }); await mount();
-  expect(text('0.001005 SOL')).toBe(true); expect(text('0.011005 SOL')).toBe(true);
+  expect(text('0.001005 SOL')).toBe(false); expect(text('0.011005 SOL')).toBe(false);
   expect(text(order.buyer)).toBe(false); expect(text(order.treasury)).toBe(false);
   await press('Payment details');
   expect(text(order.buyer)).toBe(true); expect(text(order.treasury)).toBe(true);
   // Native View cannot render literal JSX strings (including escaped newlines).
   expect(tree.root.findAllByType(View).flatMap(node => node.children.filter(child => typeof child === 'string'))).toEqual([]);
   expect(shop.confirm).not.toHaveBeenCalled();
-  await press('Confirm purchase'); expect(shop.confirm).toHaveBeenCalledWith(signShopTransaction);
+  await press('Continue in wallet'); expect(shop.confirm).toHaveBeenCalledWith(signShopTransaction);
 });
 test('restored signing intent cannot be canceled or replaced; reconnect remains available', async () => {
   external(null); setShop({ hasPurchase: true, signingStarted: true, order }); await mount();
   expect(button('Cancel purchase')).toBeUndefined(); expect(button('Check purchase status')).toBeDefined();
-  expect(button('Retry purchase approval').props.disabled).toBe(true);
+  expect(button('Continue in wallet').props.disabled).toBe(true);
   await press('Reconnect wallet'); expect(connect).toHaveBeenCalledTimes(1);
   expect(button('Send sign-in code')).toBeUndefined(); expect(purchaseModal('figure')).toBeDefined();
   expect(button('Buy Seeker fighter').props.disabled).toBe(true);
@@ -319,20 +366,24 @@ test('confirmed mint opens Army with the exact new Core asset id', async () => {
   await mount();
   expect(visibleModals()).toHaveLength(0);
   await press('View figure purchase');
-  expect(button('Done')).toBeDefined(); expect(button('Confirm purchase')).toBeUndefined();
+  expect(button('Done')).toBeDefined(); expect(button('Continue in wallet')).toBeUndefined();
   await press('Add to your army');
   expect(navigate).toHaveBeenCalledWith('Army', { expectedAssetId: order.asset });
   expect(visibleModals()).toHaveLength(0);
 });
 
-test('new figure preparation opens a popup immediately, not an inline receipt card', async () => {
-  external(); await mount();
-  await press('Buy Seeker fighter');
-  expect(purchaseModal('figure').findAllByType(Text).some(node => node.props.children === 'Preparing purchase')).toBe(true);
-  setShop({ hasPurchase: true, busy: true }); await updateScreen();
-  expect(purchaseModal('figure').findAllByType(ActivityIndicator)).toHaveLength(1);
-  expect(button('Check purchase status')).toBeDefined();
-  expect(button('Cancel purchase').props.disabled).toBe(true);
+test('new figure buy hides our popup through preparation/signing and deduplicates taps', async () => {
+  external(); let finish!: () => void;
+  shop.prepare.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  await mount(); const trigger = button('Buy Seeker fighter');
+  await Renderer.act(async () => { trigger.props.onPress(); trigger.props.onPress(); });
+  expect(shop.prepare).toHaveBeenCalledTimes(1);
+  setShop({ hasPurchase: true, busy: true, order }); await updateScreen();
+  expect(visibleModals()).toHaveLength(0);
+  expect(tree.root.findAllByProps({ accessibilityLabel: 'Opening purchase in wallet' }).length).toBeGreaterThan(0);
+  await Renderer.act(async () => finish());
+  setShop({ hasPurchase: true, order: { ...order, status: 'submitted' } }); await updateScreen();
+  expect(purchaseModal('figure')).toBeDefined();
   expect(shop.confirm).not.toHaveBeenCalled();
 });
 
@@ -340,7 +391,7 @@ test.each(['prepared', 'submitted'] as const)('restored unfinished figure %s app
   setShop({ hasPurchase: true, signingStarted: status !== 'prepared', order: { ...order, status } });
   await mount();
   expect(visibleModals()).toHaveLength(1);
-  expect(purchaseModal('figure').findAllByType(Text).some(node => node.props.children === (status === 'submitted' ? 'Processing purchase' : 'Review your purchase'))).toBe(true);
+  expect(purchaseModal('figure').findAllByType(Text).some(node => node.props.children === (status === 'submitted' ? 'Processing purchase' : 'Continue your purchase'))).toBe(true);
   expect(purchaseModal('figure').findAllByProps({ accessibilityLabel: `Purchase status ${status}` }).length).toBeGreaterThan(0);
 });
 
@@ -461,12 +512,17 @@ test('explicitly dismissing a completed figure closes its popup after durable st
   expect(button('View figure purchase')).toBeUndefined();
 });
 
-test('new pack preparation opens a popup before the backend order arrives', async () => {
+test('new pack buy hides the quote popup until signing completes', async () => {
+  let finish!: () => void;
+  pack.prepare.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
   external(); setPack({ catalog: { ...INITIAL_PACK, available: true } });
   await mount(); await press('Buy fighter pack');
+  expect(visibleModals()).toHaveLength(0);
+  setPack({ hasPurchase: true, busy: true, order: packOrder }); await updateScreen();
+  expect(visibleModals()).toHaveLength(0);
+  await Renderer.act(async () => finish());
+  setPack({ hasPurchase: true, order: { ...packOrder, status: 'submitted' } }); await updateScreen();
   expect(purchaseModal('pack')).toBeDefined();
-  setPack({ hasPurchase: true, busy: true }); await updateScreen();
-  expect(purchaseModal('pack').findAllByType(ActivityIndicator)).toHaveLength(1);
   expect(button('View pack purchase')).toBeDefined();
   expect(pack.confirm).not.toHaveBeenCalled();
 });
@@ -476,7 +532,7 @@ test.each(['prepared', 'submitted', 'waiting-result', 'ready-to-claim'] as const
   await mount();
   expect(visibleModals()).toHaveLength(1);
   expect(purchaseModal('pack')).toBeDefined();
-  expect(Boolean(button('Approve pack purchase'))).toBe(status === 'prepared');
+  expect(Boolean(button('Continue in wallet'))).toBe(status === 'prepared');
   expect(button('Done')).toBeUndefined();
   expect(purchaseModal('pack').findAllByType(ActivityIndicator).length > 0).toBe(['submitted', 'waiting-result', 'ready-to-claim'].includes(status));
 });
@@ -548,14 +604,14 @@ test('if both durable purchase records restore, only one popup is presented at a
 test.each(['submitted', 'failed', 'expired'] as const)('purchase %s has an honest recovery state and cannot approve again', async status => {
   setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status } }); await mount();
   if (status !== 'submitted') await press('View figure purchase');
-  expect(button('Confirm purchase')).toBeUndefined(); expect(button('Retry purchase approval')).toBeUndefined();
+  expect(button('Continue in wallet')).toBeUndefined(); expect(button('Continue in wallet')).toBeUndefined();
   if (status === 'submitted') { expect(button('Done')).toBeUndefined(); await press('Check purchase status'); expect(shop.checkStatus).toHaveBeenCalledTimes(1); }
   else { expect(button('Done')).toBeDefined(); expect(text(status === 'failed' ? 'PURCHASE FAILED' : 'PURCHASE EXPIRED')).toBe(true); }
   expect(shop.confirm).not.toHaveBeenCalled();
 });
 test('a different connected wallet cannot sign an existing order', async () => {
   external('other1111111111111111111111111111'); setShop({ hasPurchase: true, order }); await mount();
-  expect(button('Confirm purchase').props.disabled).toBe(true);
+  expect(button('Continue in wallet').props.disabled).toBe(true);
   await press('Payment details');
   expect(text(order.buyer)).toBe(true); expect(shop.confirm).not.toHaveBeenCalled();
 });
@@ -603,14 +659,14 @@ test.each([
   await mount();
   expect(text(figurePaymentPrice(figure, 'mainnet-beta'))).toBe(true);
   await press(`Buy ${figure.name}`);
-  expect(shop.prepare).toHaveBeenCalledWith(id, buyer, undefined);
+  expect(shop.prepare).toHaveBeenCalledWith(id, buyer, undefined, expect.any(Function));
   expect(shop.confirm).not.toHaveBeenCalled();
   expect(proveSeekerWallet).not.toHaveBeenCalled();
   const savedOrder = { ...order, figureId: id, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] };
   setShop({ catalog: { ...shop.catalog, figures: [figure] }, hasPurchase: true, order: savedOrder });
   await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />));
-  expect(text(`${figurePaymentPrice(figure, 'mainnet-beta')} + 0.001005 SOL`)).toBe(true);
-  await press('Confirm purchase');
+  expect(text(`${figurePaymentPrice(figure, 'mainnet-beta')} + 0.001005 SOL`)).toBe(false);
+  await press('Continue in wallet');
   expect(shop.confirm).toHaveBeenCalledWith(signer);
   expect(signShopTransaction).not.toHaveBeenCalled();
   expect(connect).not.toHaveBeenCalled();
@@ -623,7 +679,7 @@ test('a Seeker email account can buy a general figure without switching to the e
   await mount({ signIn: true });
   await press('Close shop account');
   await press('Buy Jup');
-  expect(shop.prepare).toHaveBeenCalledWith('jup', buyer, undefined);
+  expect(shop.prepare).toHaveBeenCalledWith('jup', buyer, undefined, expect.any(Function));
   expect(proveSeekerWallet).not.toHaveBeenCalled();
   expect(shop.confirm).not.toHaveBeenCalled();
 });
@@ -648,12 +704,12 @@ test('technical purchase errors become actionable purchase messages, not raw pay
   expect(text('The purchase failed. Check its status before trying again.')).toBe(true);
   expect(text('Metaplex Core mint transaction simulation failed')).toBe(false);
   expect(text('Purchase not completed')).toBe(true);
-  expect(button('Confirm purchase')).toBeUndefined();
+  expect(button('Continue in wallet')).toBeUndefined();
 });
 
 test('test-mode purchase amounts cannot be mistaken for a real charge', async () => {
   external();
-  setShop({ hasPurchase: true, order: { ...order, cluster: 'devnet' }, catalog: { ...shop.catalog, cluster: 'devnet' } });
+  setShop({ hasPurchase: true, order: { ...order, status: 'submitted', cluster: 'devnet' }, catalog: { ...shop.catalog, cluster: 'devnet' } });
   await mount();
   expect(text('TEST MODE · NO REAL PURCHASES')).toBe(true);
   expect(text('Test purchase only. No real payment.')).toBe(true);

@@ -99,6 +99,16 @@ include five digest-verified Rive models and no matches for five configured
 private env values. No physical/paid purchase validation or web deployment was
 performed. See `files/releases/1.0.0-58.md`.
 
+Native purchase UX follow-up (2026-10-12): figure/pack Buy and Buy with SOL now
+prepare and call the selected wallet signer without a second native quote
+confirmation. Durable recovery/polling never opens signing automatically, and
+saved prepared orders use an explicit Continue in wallet action. Both hooks
+retain one lock through prepare/sign/submit and reuse existing signed bytes on
+retry. All 539 mobile tests, native/web TypeScript and 25 web tests pass. Web's
+separate quote confirmation remains unchanged. Focused native ESLint and
+production Metro JavaScript bundles for iOS/Android also pass. This source change is not yet in
+the uploaded native build 58; physical/paid wallet verification remains pending.
+
 ## Pack price/storage upgrade preparation (2026-10-10)
 
 Source now supports independently mutable edition prices and exact-size new

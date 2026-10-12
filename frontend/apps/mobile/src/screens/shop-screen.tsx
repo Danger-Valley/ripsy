@@ -5,7 +5,7 @@ import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { packPurchaseStorage } from '../storage/pack-purchase';
 import { packPurchaseTitle, ShopPack, ShopPackPurchase } from '../components/shop-pack';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, formatSol, solFundingNotice, isTerminalMint, solanaExplorer, type ShopFigure } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, formatSol, solFundingNotice, isTerminalMint, solanaExplorer, type PurchaseTransaction, type ShopFigure } from '@rps/core/shop';
 import { isTerminalPack } from '@rps/core/packs';
 import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
@@ -35,7 +35,11 @@ export function ShopScreen({ navigation, route }: Props) {
   const shop = useShop(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken, shopPurchaseStorage);
   const pack = usePackShop(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken, packPurchaseStorage);
   const purchaseBlocked = shop.hasPurchase || pack.hasPurchase;
-  const purchaseBusy = shop.busy || pack.busy;
+  const [directSigning, setDirectSigning] = useState(false);
+  const directSigningRef = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const purchaseBusy = shop.busy || pack.busy || directSigning;
   const loadFigures = shop.loadCatalog, loadPack = pack.loadCatalog;
   useEffect(() => {
     const refresh = () => {
@@ -81,13 +85,29 @@ export function ShopScreen({ navigation, route }: Props) {
   }, [route.params?.signIn]);
   useEffect(() => { if (!wallet.isSupported) setWalletKind('privy'); }, [wallet.isSupported]);
   const address = walletKind === 'privy' || !wallet.isSupported ? privy.address : wallet.address;
+  const selectedSigner = useRef({ address, sign: walletKind === 'privy' || !wallet.isSupported ? privy.signShopTransaction : signShopTransaction });
+  selectedSigner.current = { address, sign: walletKind === 'privy' || !wallet.isSupported ? privy.signShopTransaction : signShopTransaction };
+  const signPurchase = async (purchase: PurchaseTransaction) => {
+    if (!mounted.current || navigation.isFocused?.() === false || (AppState.currentState && AppState.currentState !== 'active')) throw new Error('Return to the shop to continue this saved purchase.');
+    if (selectedSigner.current.address !== purchase.buyer) throw new Error('Reconnect the account selected for this saved purchase.');
+    return selectedSigner.current.sign(purchase);
+  };
   const orderSigner = order?.buyer === privy.address ? privy.signShopTransaction : wallet.isSupported && order?.buyer === wallet.address ? signShopTransaction : null;
   const canClose = !shop.signingStarted || Boolean(order && isTerminalMint(order));
   const error = actionError || shop.error || (wallet.isSupported ? wallet.error : null) || privy.error || sessionError;
   const figures = shop.catalog?.figures.filter(figure => figure.id !== 'fig1') ?? [];
   const run = (task: () => Promise<unknown>) => {
     setActionError(null);
-    task().catch(cause => setActionError(cause instanceof Error ? cause.message : 'Please try again.'));
+    task().catch(cause => { if (mounted.current) setActionError(cause instanceof Error ? cause.message : 'Please try again.'); });
+  };
+  const buyAndSign = (task: () => Promise<unknown>) => {
+    if (directSigningRef.current) return;
+    directSigningRef.current = true;
+    setDirectSigning(true);
+    run(async () => {
+      try { await task(); }
+      finally { directSigningRef.current = false; if (mounted.current) setDirectSigning(false); }
+    });
   };
   const requestAccount = () => {
     // Disconnected Seeker shoppers go directly to MWA, not an account chooser.
@@ -121,13 +141,13 @@ export function ShopScreen({ navigation, route }: Props) {
       });
       return;
     }
-    if (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || purchaseBusy || purchaseBlocked || (wallet.isSupported && walletBusy)) return;
+    if (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || directSigningRef.current || purchaseBusy || purchaseBlocked || (wallet.isSupported && walletBusy)) return;
     if (!address) { requestAccount(); return; }
     setPurchasePopup('figure');
-    run(() => shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined));
+    buyAndSign(() => shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined, signPurchase));
   };
   const openArmy = (expectedAssetId?: string) => { setWalletOpen(false); setPurchasePopup(null); navigation.navigate('Army', expectedAssetId ? { expectedAssetId } : undefined); };
-  const figurePurchaseTitle = order?.status === 'confirmed' ? 'Welcome to your army!' : order?.status === 'failed' || order?.status === 'expired' ? 'Purchase not completed' : order?.status === 'submitted' ? 'Processing purchase' : order ? 'Review your purchase' : error && !shop.busy ? 'Purchase needs attention' : 'Preparing purchase';
+  const figurePurchaseTitle = order?.status === 'confirmed' ? 'Welcome to your army!' : order?.status === 'failed' || order?.status === 'expired' ? 'Purchase not completed' : order?.status === 'submitted' ? 'Processing purchase' : order ? 'Continue your purchase' : error && !shop.busy ? 'Purchase needs attention' : 'Preparing purchase';
 
   return (
     <View style={styles.screen}>
@@ -146,12 +166,13 @@ export function ShopScreen({ navigation, route }: Props) {
           {wallet.isSupported && walletBusy ? <ActivityIndicator accessibilityLabel="Connecting wallet" color={colors.accentShadow} /> : <Text style={styles.chevron}>›</Text>}
         </Pressable>
         {error && !shop.hasPurchase && purchasePopup !== 'figure' && <ToyHomePanel style={styles.errorPanel}><StatusBanner message={figureStoreMessage(error)} tone="error" /><ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.loadCatalog())}>Try again</ToyHomeButton></ToyHomePanel>}
+        {directSigning && <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel="Opening purchase in wallet" color={colors.accentShadow} />}
 
         <ShopPack pack={pack} address={address} walletSupported={wallet.isSupported} accountBusy={wallet.isSupported && walletBusy} blocked={shop.hasPurchase || purchaseBusy} onBuy={() => {
-          if (!shop.ready || !pack.ready || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)) return;
+          if (!shop.ready || !pack.ready || directSigningRef.current || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)) return;
           if (!address) { requestAccount(); return; }
           setPurchasePopup('pack');
-          run(() => pack.prepare(address));
+          buyAndSign(() => pack.prepare(address, signPurchase));
         }} purchaseVisible={purchasePopup === 'pack' && !walletOpen}
           onOpenPurchase={() => { setWalletOpen(false); setPurchasePopup('pack'); }} />
 
@@ -174,12 +195,12 @@ export function ShopScreen({ navigation, route }: Props) {
             <ToyHomeButton tone="yellow" busy={!needsSolanaMobile(figure) && ((shop.busy && !shop.hasPurchase) || (wallet.isSupported && walletBusy))} disabled={!needsSolanaMobile(figure) && (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy))} accessibilityLabel={needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : 'Buy ' + figure.name} accessibilityHint={needsSolanaMobile(figure) ? 'Opens the Solana Mobile store in your browser' : undefined} onPress={() => reviewFigure(figure)}>
               {needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : !figure.available || !figure.priceLamports ? 'Purchase unavailable' : address ? 'Buy figure' : wallet.isSupported ? 'Connect your wallet' : 'Register'}
             </ToyHomeButton>
-            <Text style={styles.note}>{needsSolanaMobile(figure) ? 'Explore Solana Mobile in your browser' : 'Review the total before you buy'}</Text>
+            <Text style={styles.note}>{needsSolanaMobile(figure) ? 'Explore Solana Mobile in your browser' : wallet.isSupported ? 'Approve your purchase in your wallet' : 'Approve your purchase to continue'}</Text>
           </View>
         </ToyHomePanel>)}
         <Text style={styles.footerNote}>Each figure can fill one army slot. Your fighters’ look changes, not their weapons.</Text>
       </ScrollView>
-      <ToyDialog visible={walletOpen || purchasePopup !== null}
+      <ToyDialog visible={walletOpen || (purchasePopup !== null && !directSigning)}
         title={walletOpen ? wallet.isSupported ? 'Your purchase account' : privy.address ? 'Your account' : 'Sign in with email' : purchasePopup === 'pack' ? packPurchaseTitle(pack) : figurePurchaseTitle}
         icon={homeArt.shop} keyboard={walletOpen}
         contentKey={walletOpen ? 'account' : purchasePopup === 'pack' ? `pack:${pack.order?.status ?? 'preparing'}` : `figure:${order?.status ?? 'preparing'}`}
@@ -192,26 +213,26 @@ export function ShopScreen({ navigation, route }: Props) {
         {order ? <>
           <ToyBadge tone={order.status === 'confirmed' ? 'green' : order.status === 'failed' || order.status === 'expired' ? 'coral' : 'yellow'}>{order.status === 'confirmed' ? 'PURCHASE COMPLETE' : order.status === 'submitted' ? 'PROCESSING PURCHASE' : order.status === 'failed' ? 'PURCHASE FAILED' : order.status === 'expired' ? 'PURCHASE EXPIRED' : 'AWAITING YOUR APPROVAL'}</ToyBadge>
           <PurchaseProgress status={order.status} />
-          <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'confirmed' ? 'Purchase complete. Your figure is in your collection.' : order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Review the total below. Nothing is purchased until you approve.'}</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'confirmed' ? 'Purchase complete. Your figure is in your collection.' : order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Continue in your wallet to approve this saved purchase.'}</Text>
           <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={figurePortrait(order.figureId, definitions)} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}</Text></View>
-          <View style={styles.breakdown}>
+          {order.status !== 'prepared' && <View style={styles.breakdown}>
             <ReceiptRow label="Figure price" value={figurePaymentPrice(order, order.cluster)} />
             {order.solFunding && <ReceiptRow label="Pay with SOL" value={formatSol(order.solFunding.inputLamports)} />}
             <ReceiptRow label="Estimated additional fees" value={figurePrice(order.networkFeeLamports, order.cluster)} />
             <View style={styles.divider} />
             <ReceiptRow label="Estimated total" value={figurePurchaseTotal(order)} total />
-          </View>
-          {order.solFunding && <Text style={styles.copy}>{solFundingNotice(order.solFunding)}</Text>}
+          </View>}
+          {order.status !== 'prepared' && order.solFunding && <Text style={styles.copy}>{solFundingNotice(order.solFunding)}</Text>}
           {order.cluster === 'devnet' && <Text style={styles.copy}>Test purchase only. No real payment.</Text>}
           <Text style={styles.copy}>Sold by RIPSY · One figure for your collection</Text>
           <ToyHomeButton compact tone="white" onPress={() => setPaymentDetailsOpen(value => !value)}>{paymentDetailsOpen ? 'Hide payment details' : 'Payment details'}</ToyHomeButton>
           {paymentDetailsOpen && <><Text style={styles.label}>PURCHASE ACCOUNT</Text><Text selectable style={styles.address}>{order.buyer}</Text><Text style={styles.label}>SELLER ACCOUNT</Text><Text selectable style={styles.address}>{order.treasury}</Text></>}
           {order.status === 'prepared' && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" busy={wallet.isSupported && walletBusy} onPress={requestAccount}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
-          {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner} onPress={() => { if (orderSigner) run(() => shop.confirm(orderSigner)); }}>{shop.signingStarted ? 'Retry purchase approval' : 'Confirm purchase'}</ToyHomeButton>}
+          {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner || shop.busy} onPress={() => { if (orderSigner) buyAndSign(() => shop.confirm(orderSigner)); }}>Continue in wallet</ToyHomeButton>}
           {order.status === 'confirmed' && <ToyHomeButton tone="yellow" onPress={() => openArmy(order.asset)}>Add to your army</ToyHomeButton>}
           {paymentDetailsOpen && order.signature && <ToyHomeButton compact tone="white" onPress={() => run(() => Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)))}>View payment record ↗</ToyHomeButton>}
-        </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{shop.fundingRequired ? `You can use SOL to cover the missing ${shop.fundingRequired.symbol}. Review the SOL total before approval.` : error ? 'No payment has been approved. Check purchase status or cancel and try again.' : 'Preparing your purchase... Retry to recover this same request if the connection was interrupted.'}</Text>}
-        {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={shop.busy || address !== shop.purchaseBuyer} onPress={() => run(() => shop.buyWithSol())}>Buy with SOL</ToyHomeButton>}
+        </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{shop.fundingRequired ? `You can use SOL to cover the missing ${shop.fundingRequired.symbol}. Approve the purchase in your wallet.` : error ? 'No payment has been approved. Check purchase status or cancel and try again.' : 'Preparing your purchase... Retry to recover this same request if the connection was interrupted.'}</Text>}
+        {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={purchaseBusy || address !== shop.purchaseBuyer} onPress={() => buyAndSign(() => shop.buyWithSol(signPurchase))}>Buy with SOL</ToyHomeButton>}
         {shop.hasPurchase && (!canClose || !order || Boolean(error)) && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.checkStatus())}>Check purchase status</ToyHomeButton>}
         {shop.hasPurchase && canClose && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.dismiss())}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</ToyHomeButton>}
         {shop.hasPurchase && <Text style={styles.note}>Closing this popup keeps your purchase saved.</Text>}
@@ -219,8 +240,8 @@ export function ShopScreen({ navigation, route }: Props) {
       {purchasePopup === 'pack' && !walletOpen && <ShopPackPurchase pack={pack} address={address} blocked={shop.hasPurchase || purchaseBusy}
         onConfirm={() => {
           const signer = pack.order?.buyer === privy.address ? privy.signShopTransaction : wallet.isSupported && pack.order?.buyer === wallet.address ? signShopTransaction : null;
-          if (signer) run(() => pack.confirm(signer)); else requestAccount();
-        }} onArmy={openArmy} onAccount={requestAccount} />}
+          if (signer) buyAndSign(() => pack.confirm(signer)); else requestAccount();
+        }} onBuyWithSol={() => buyAndSign(() => pack.buyWithSol(signPurchase))} onArmy={openArmy} onAccount={requestAccount} />}
       {walletOpen && <>
               <Text style={styles.copy}>{wallet.isSupported ? 'Choose your purchase account. You approve every purchase.' : 'Sign in with email to keep your collection in RIPSY.'}</Text>
               {wallet.isSupported && figures.some(figure => figure.seekerExclusive) && <View style={styles.seekerNotice}><Text style={styles.restriction}>Seeker fighter is Seeker exclusive.</Text><Text style={styles.smallCopy}>Connect your Seeker wallet to check availability.</Text></View>}
@@ -259,7 +280,7 @@ function ReceiptRow({ label, value, total }: { label: string; value: string; tot
 function PurchaseProgress({ status }: { status: string }) {
   const completed = status === 'confirmed' ? 3 : status === 'submitted' ? 2 : 0;
   return <View accessibilityLabel={'Purchase status ' + status} style={styles.progressRow}>
-    {['REVIEW', 'APPROVE', 'COMPLETE'].map((label, index) => <View key={label} style={styles.progressItem}><View style={[styles.progressDot, index < completed && styles.progressComplete, status === 'prepared' && index === 0 && styles.progressCurrent]}><Text style={styles.progressNumber}>{index < completed ? '✓' : index + 1}</Text></View><Text style={styles.progressLabel}>{label}</Text></View>)}
+    {['PREPARE', 'SIGN', 'COMPLETE'].map((label, index) => <View key={label} style={styles.progressItem}><View style={[styles.progressDot, index < completed && styles.progressComplete, status === 'prepared' && index === 0 && styles.progressCurrent]}><Text style={styles.progressNumber}>{index < completed ? '✓' : index + 1}</Text></View><Text style={styles.progressLabel}>{label}</Text></View>)}
   </View>;
 }
 

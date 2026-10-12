@@ -90,7 +90,23 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     return () => clearInterval(timer);
   }, [checkStatus, intent, restored, sessionToken]);
 
-  const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>) => run(async () => {
+  // Only a foreground buy/continue action supplies a signer. Recovery and
+  // status polling never open the wallet, and the operation lock spans both
+  // preparation and signing so a background poll cannot steal the handoff.
+  const signPrepared = useCallback(async (sign: (order: MintOrder) => Promise<string>) => {
+    const pending = intentRef.current;
+    if (!pending?.order) throw new Error('Check your pending purchase status.');
+    const order = await client.get(pending.order.id);
+    if (order.status !== 'prepared') { await persist({ ...pending, order }); return; }
+    const signing = { ...pending, order, signingStarted: true };
+    await persist(signing);
+    const signed = pending.signed ?? await sign(order);
+    await persist({ ...signing, signed });
+    const submitted = await client.submit(order.id, signed);
+    await persist({ ...signing, signed, order: submitted });
+  }, [client, persist]);
+
+  const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>, sign?: (order: MintOrder) => Promise<string>) => run(async () => {
     if (intentRef.current) throw new Error('Finish or close your current purchase first.');
     if (figureId === 'fig2' && !proveSeeker) throw new Error('Seeker fighter can only be minted to a verified Solana Seeker wallet.');
     if (proveSeeker) {
@@ -102,31 +118,20 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     await persist(pending);
     const order = await client.create(figureId, buyer, pending.key);
     await persist({ ...pending, order });
-  }), [client, persist, run]);
+    if (sign) await signPrepared(sign);
+  }), [client, persist, run, signPrepared]);
 
-  const confirm = useCallback((sign: (order: MintOrder) => Promise<string>) => run(async () => {
-    const pending = intentRef.current;
-    if (!pending?.order) throw new Error('Check your pending purchase status.');
-    const order = await client.get(pending.order.id);
-    if (order.status !== 'prepared') { await persist({ ...pending, order }); return; }
-    // Record BEFORE opening another app. A interrupted wallet interaction must
-    // recover the existing order, never accidentally create another payment.
-    const signing = { ...pending, order, signingStarted: true };
-    await persist(signing);
-    const signed = await sign(order);
-    await persist({ ...signing, signed });
-    const submitted = await client.submit(order.id, signed);
-    await persist({ ...signing, signed, order: submitted });
-  }), [client, persist, run]);
+  const confirm = useCallback((sign: (order: MintOrder) => Promise<string>) => run(() => signPrepared(sign)), [run, signPrepared]);
 
-  const buyWithSol = useCallback(() => run(async () => {
+  const buyWithSol = useCallback((sign?: (order: MintOrder) => Promise<string>) => run(async () => {
     const saved = intentRef.current;
     if (!saved || saved.order || saved.signingStarted || saved.signed || !fundingRef.current || saved.paymentMode) throw new Error('Check your saved purchase first.');
     const pending: PurchaseIntent = { ...saved, paymentMode: 'sol' };
     // Persist before HTTP. A lost response must recover this exact request.
     await persist(pending);
     await persist({ ...pending, order: await client.create(pending.figureId, pending.buyer, pending.key, 'sol') });
-  }), [client, persist, run]);
+    if (sign) await signPrepared(sign);
+  }), [client, persist, run, signPrepared]);
 
   const dismiss = useCallback(() => run(async () => {
     const current = intentRef.current;

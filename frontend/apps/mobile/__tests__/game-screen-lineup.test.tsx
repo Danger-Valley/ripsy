@@ -4,6 +4,7 @@ import { Animated, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import * as Keychain from 'react-native-keychain';
 import { Choice, FigureVariant, FinishReason, HEIGHT, Owner, Phase, Piece, WIDTH, type GameState } from '@rps/core';
+import { ShopClient } from '@rps/game-client/shop';
 import { GameBoard } from '../src/components/game-board';
 import { VictoryFireworks } from '../src/components/victory-fireworks';
 import { BattleResultPanel, WeaponChoiceModal } from '../src/components/battle-panels';
@@ -37,6 +38,7 @@ const submitLineup = jest.fn<Promise<{ type: 'result'; requestId: string }>, [nu
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.spyOn(ShopClient.prototype, 'inventory').mockRejectedValue(new Error('Offline test fixture'));
   jest.mocked(usePlayerIdentity).mockReturnValue({
     playerId: 'alice',
     sessionToken: 'token',
@@ -85,6 +87,7 @@ beforeEach(() => {
     };
   });
 });
+afterEach(() => jest.restoreAllMocks());
 
 test('creator can shuffle, save, and see the lineup ready state before an opponent joins', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;

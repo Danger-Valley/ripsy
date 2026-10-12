@@ -41,7 +41,7 @@ export function ShopPack({
         </Text>
       </View>
       {pack.error && !pack.hasPurchase && !purchaseVisible && (
-        <StatusBanner message={figureStoreMessage(pack.error)} tone="error" />
+        <StatusBanner message={figureStoreMessage(pack.error)} tone={pack.fundingRequired ? 'warning' : 'error'} />
       )}
       {catalog && (
         <>
@@ -89,7 +89,7 @@ export function ShopPack({
         </>
       )}
       {!catalog && !activePurchase && (
-        <ToyHomeButton compact tone="white" onPress={() => pack.loadCatalog()}>
+        <ToyHomeButton compact tone="white" busy={accountBusy} disabled={accountBusy} onPress={() => { if (!accountBusy) pack.loadCatalog(); }}>
           Check pack availability
         </ToyHomeButton>
       )}
@@ -139,7 +139,7 @@ export function ShopPackPurchase({
   return (
     <>
       {pack.error && (
-        <StatusBanner message={figureStoreMessage(pack.error)} tone="error" />
+        <StatusBanner message={figureStoreMessage(pack.error)} tone={pack.fundingRequired ? 'warning' : 'error'} />
       )}
       {((pack.busy && !order) ||
         (order &&

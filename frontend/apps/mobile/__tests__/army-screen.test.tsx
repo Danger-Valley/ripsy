@@ -7,6 +7,7 @@ import { usePreventRemove } from '@react-navigation/native';
 import { ShopClient } from '@rps/game-client/shop';
 import { FIGURE_SLOTS, type FigureInventory } from '@rps/core/shop';
 import { ArmyScreen } from '../src/screens/army-screen';
+import { ToyHomeButton } from '../src/components/toy-home-controls';
 import { usePlayerIdentity } from '../src/hooks/use-player-identity';
 import { useSolanaWallet } from '../src/hooks/use-solana-wallet';
 import { usePrivyWallet } from '../src/hooks/use-privy-wallet';
@@ -177,11 +178,13 @@ test('equips a collectible in the selected slot and never duplicates that NFT', 
   await Renderer.act(() => slot(4).props.onPress());
   await press('Equip Seeker fighter aaaa…1111');
   expect(slot(4).props.accessibilityLabel).toContain('Seeker fighter');
+  expect(tree.root.findAllByType(ToyHomeButton).find(node => node.props.accessibilityLabel === 'Remove Seeker fighter aaaa…1111')?.props.tone).toBe('coral');
   const savedSlots = api.saveLoadout.mock.calls[0][0];
   expect(savedSlots[3]).toBe(asset);
   expect(savedSlots.filter((value: string | null) => value === asset)).toHaveLength(1);
   await press('Remove Seeker fighter aaaa…1111');
   expect(slot(4).props.accessibilityLabel).toContain('free RIPSY 001');
+  expect(tree.root.findAllByType(ToyHomeButton).find(node => node.props.accessibilityLabel === 'Equip Seeker fighter aaaa…1111')?.props.tone).toBe('blue');
 });
 
 test('free RIPSY 001 replaces only the chosen collectible slot', async () => {

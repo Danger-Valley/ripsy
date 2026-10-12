@@ -38,7 +38,19 @@ index c07af64..9d53392 100644
      } else {
        riveAnimationView?.alignment = config.alignment
        riveAnimationView?.fit = config.fit
-@@ -245,12 +246,29 @@ class RiveReactNativeView(context: ThemedReactContext) : FrameLayout(context) {
+@@ -220,2 +221,11 @@ class RiveReactNativeView(context: ThemedReactContext) : FrameLayout(context) {
+     val view = riveAnimationView ?: return
++    val requestedStateMachine = configuredStateMachineName
++    val activeStateMachine = view.controller.stateMachines.firstOrNull()?.name
++    if (requestedStateMachine != null && activeStateMachine != null && activeStateMachine != requestedStateMachine) {
++      // A cold Fabric view can first configure the artboard's default (Back)
++      // machine before the named Front prop arrives. Drop that stale instance
++      // instead of resuming it alongside the requested one.
++      view.reset()
++      initializePausedStateMachine()
++    }
+     val stateMachineToStart = stateMachineToStartExplicitly(view)
+@@ -245,12 +255,29 @@ class RiveReactNativeView(context: ThemedReactContext) : FrameLayout(context) {
  
    fun pause() = riveAnimationView?.pause()
  

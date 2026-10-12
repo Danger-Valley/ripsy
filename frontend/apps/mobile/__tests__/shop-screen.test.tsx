@@ -6,6 +6,7 @@ import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { INITIAL_PACK, PACK_PAYMENT } from '@rps/core/packs';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, type MintOrder, type ShopFigure } from '@rps/core/shop';
 import { ShopScreen } from '../src/screens/shop-screen';
+import { StatusBanner } from '../src/components/status-banner';
 import { usePlayerIdentity } from '../src/hooks/use-player-identity';
 import { useSolanaWallet } from '../src/hooks/use-solana-wallet';
 import { usePrivyWallet } from '../src/hooks/use-privy-wallet';
@@ -73,6 +74,79 @@ function expectSimplePurchase(id: 'figure' | 'pack') {
 async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />)); }
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
 
+test.each(['figure-recovery', 'pack-recovery', 'seeker-wallet', 'email-account', 'session'] as const)('shop entry explains %s loading, guards purchase taps and unlocks without auto-signing', async loading => {
+  external();
+  if (loading === 'figure-recovery') setShop({ ready: false });
+  if (loading === 'pack-recovery') setPack({ ready: false });
+  if (loading === 'seeker-wallet') jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), status: 'loading' });
+  if (loading === 'email-account') {
+    jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: false });
+    jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), activity: 'loading', busy: true });
+    setShop({ catalog: { ...shop.catalog, figures: [{ ...fig2, id: 'jup', name: 'Jup', seekerExclusive: false }] } });
+  }
+  if (loading === 'session') {
+    jest.mocked(usePlayerIdentity).mockReturnValue({ isReady: false, playerId: '', sessionToken: '', error: null });
+    setShop({ ready: false }); setPack({ ready: false });
+  }
+  await mount();
+  const shortcut = tree.root.findAllByProps({ testID: 'shop-account-shortcut' }).find(node => typeof node.props.onPress === 'function')!;
+  expect(shortcut.props.accessibilityState).toEqual({ busy: true, disabled: true });
+  expect(text('Preparing shop...')).toBe(true);
+  expect(text(loading === 'session' ? 'Getting your shop ready...' : loading.endsWith('recovery') ? 'Checking saved purchases...' : 'Restoring your account...')).toBe(true);
+  const buy = button(loading === 'email-account' ? 'Buy Jup' : 'Buy Seeker fighter');
+  expect(buy.props.disabled).toBe(true); expect(buy.props.busy).toBe(true);
+  await press('Preparing shop'); await press(loading === 'email-account' ? 'Buy Jup' : 'Buy Seeker fighter'); await press('Buy fighter pack');
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(pack.prepare).not.toHaveBeenCalled(); expect(connect).not.toHaveBeenCalled();
+  expect(visibleModals()).toHaveLength(0);
+  expect(button('Back from figure shop').props.disabled).toBeFalsy();
+  await press('Open your army'); expect(navigate).toHaveBeenCalledWith('Army', undefined);
+  external(); setShop({}); setPack({});
+  jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), activity: 'idle', busy: false });
+  jest.mocked(usePlayerIdentity).mockReturnValue({ isReady: true, playerId: 'player', sessionToken: 'token', error: null });
+  await updateScreen();
+  expect(text('Preparing shop...')).toBe(false); expect(button('Buy Seeker fighter').props.disabled).toBe(false);
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(pack.prepare).not.toHaveBeenCalled(); expect(signShopTransaction).not.toHaveBeenCalled();
+});
+
+test.each(['session', 'figure-recovery', 'pack-recovery'] as const)('shop entry %s failure shows recovery instead of an endless preparation spinner', async failure => {
+  external();
+  const error = 'Could not restore your purchase. Try again.';
+  if (failure === 'session') {
+    jest.mocked(usePlayerIdentity).mockReturnValue({ isReady: false, playerId: '', sessionToken: '', error });
+    setShop({ ready: false }); setPack({ ready: false });
+  }
+  if (failure === 'figure-recovery') setShop({ ready: false, error });
+  if (failure === 'pack-recovery') setPack({ ready: false, error });
+  await mount();
+  expect(text('Preparing shop...')).toBe(false);
+  expect(tree.root.findAllByProps({ accessibilityRole: 'alert' }).length).toBeGreaterThan(0);
+  expect(button('Buy Seeker fighter').props.disabled).toBe(true);
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(pack.prepare).not.toHaveBeenCalled();
+});
+
+test('normal catalog refresh and a saved purchase do not turn the account shortcut back into startup loading', async () => {
+  external(); setShop({ hasPurchase: true, busy: true, order }); await mount();
+  expect(text('Preparing shop...')).toBe(false);
+  expect(button('Choose purchase wallet')).toBeDefined();
+});
+
+test('saved purchase recovery waits for startup readiness instead of opening a silent wallet continuation', async () => {
+  external(); setShop({ hasPurchase: true, order }); setPack({ ready: false }); await mount();
+  expect(button('Continue purchase').props.accessibilityState.busy).toBe(true); expect(button('Continue purchase').props.disabled).toBe(true);
+  await press('Continue purchase'); expect(visibleModals()).toHaveLength(0);
+  expect(shop.confirm).not.toHaveBeenCalled();
+  setPack({}); await updateScreen(); await press('Continue purchase');
+  expect(purchaseModal('figure')).toBeDefined(); expect(shop.confirm).not.toHaveBeenCalled();
+});
+
+test('pack availability loading shows busy feedback and ignores taps until initialization completes', async () => {
+  external(); setShop({ ready: false }); setPack({ catalog: null }); await mount();
+  expect(button('Check pack availability').props.accessibilityState.busy).toBe(true); expect(button('Check pack availability').props.disabled).toBe(true);
+  await press('Check pack availability'); expect(pack.loadCatalog).not.toHaveBeenCalled();
+  setShop({}); await updateScreen(); await press('Check pack availability');
+  expect(pack.loadCatalog).toHaveBeenCalledTimes(1);
+});
+
 test('quantity selection changes the total and one explicit Buy passes the selected count', async () => {
   const figure = { ...fig2, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 };
   external(); setShop({ catalog: { ...shop.catalog, figures: [figure], maxFigureQuantity: 3 } }); await mount();
@@ -118,7 +192,19 @@ test.each(['figure', 'pack'] as const)('asynchronous restored %s shortfall never
   await press('Continue purchase');
   expect(purchaseModal(kind)).toBeDefined();
   expect(button('Buy with SOL')).toBeDefined();
+  expect(purchaseModal(kind).findByType(StatusBanner).props.tone).toBe('warning');
   expect(buyWithSol).not.toHaveBeenCalled(); expect(signShopTransaction).not.toHaveBeenCalled();
+});
+
+test.each(['ORE', 'BONK', 'JUP', 'SKR'])('%s shortfall uses a warning while an unrelated purchase failure remains an error', async symbol => {
+  external(); setShop({ hasPurchase: true, purchaseBuyer: buyer, error: `Not enough ${symbol}`, fundingRequired: { symbol } });
+  await mountRecovery();
+  expect(purchaseModal('figure').findByType(StatusBanner).props.tone).toBe('warning');
+  expect(button('Buy with SOL')).toBeDefined();
+  setShop({ hasPurchase: true, purchaseBuyer: buyer, error: 'Network unavailable', fundingRequired: null });
+  await updateScreen();
+  expect(purchaseModal('figure').findByType(StatusBanner).props.tone).toBe('error');
+  expect(button('Buy with SOL')).toBeUndefined();
 });
 
 test('figure Buy with SOL goes directly to wallet signing without another quote confirmation', async () => {

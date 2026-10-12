@@ -416,6 +416,22 @@ test('keeps an iOS opponent hidden until its empty weapon state is playing', asy
   expect(StyleSheet.flatten(renderer.root.findByType('RiveView' as never).props.style).opacity).toBeUndefined();
 });
 
+test('reapplies the hidden opponent weapon if cold playback replaces the initial input state', async () => {
+  let nativeWeapon: Piece = Piece.Scissors;
+  mockRiveViewRef.setNumberInputValue.mockImplementation((name: string, value: Piece) => {
+    if (name === 'Weapon') nativeWeapon = value;
+  });
+  mockRiveViewRef.play.mockImplementationOnce(async () => { nativeWeapon = Piece.Scissors; });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<RiveGamePiece file={mockRiveFile} isMine={false} piece={Piece.Empty} size={80} />);
+  });
+  expect(renderer.root.findByType('RiveView' as never).props.stateMachineName).toBe('State Machine Front');
+  expect(nativeWeapon).toBe(Piece.Empty);
+  expect(StyleSheet.flatten(renderer.root.findByType('RiveView' as never).props.style).opacity).toBeUndefined();
+  expect(mockRiveViewRef.reset).not.toHaveBeenCalled();
+});
+
 test('starts an opponent preview after a one-time random delay', async () => {
   jest.useFakeTimers();
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
@@ -585,7 +601,7 @@ test('reapplies the weapon when the Rive asset changes even if the piece type is
   expect(renderer.root.findByType('RiveView' as never).props.stateMachineName).toBe('State Machine Back');
   expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(2);
   expect(mockRiveViewRef.setNumberInputValue.mock.calls.filter(([name]) => name === 'Weapon')).toEqual([
-    ['Weapon', Piece.Paper], ['Weapon', Piece.Paper],
+    ['Weapon', Piece.Paper], ['Weapon', Piece.Paper], ['Weapon', Piece.Paper], ['Weapon', Piece.Paper],
   ]);
 });
 
@@ -630,7 +646,7 @@ test('serializes rapid shuffle resets so an old reset cannot overwrite the newes
   await ReactTestRenderer.act(async () => { finishOldReset(); });
   expect(mockRiveViewRef.reset).toHaveBeenCalledTimes(2);
   expect(mockRiveViewRef.setNumberInputValue.mock.calls.filter(([name]) => name === 'Weapon')).toEqual([
-    ['Weapon', Piece.Scissors],
+    ['Weapon', Piece.Scissors], ['Weapon', Piece.Scissors],
   ]);
   expect(onConfigured).toHaveBeenCalledTimes(1);
   expect(mockRiveViewRef.play).toHaveBeenCalledTimes(1);

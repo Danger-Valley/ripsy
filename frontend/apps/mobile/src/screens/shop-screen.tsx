@@ -185,7 +185,6 @@ export function ShopScreen({ navigation, route }: Props) {
             <Image pointerEvents="none" accessibilityElementsHidden source={showcase} style={styles.showcaseScenery} />
             <View pointerEvents="none" style={styles.plinthBase} /><View pointerEvents="none" style={styles.plinthTop} />
             <Image accessibilityLabel={figure.name + ' preview'} source={figurePortrait(figure.id, definitions, figure.imageUrl)} style={styles.figureImage} />
-            <View style={styles.edition}><Text style={styles.editionText}>FIG {String(figure.variant).padStart(2, '0')}</Text></View>
             {figure.seekerExclusive && <View style={styles.exclusive}><Text style={styles.exclusiveText}>SEEKER EXCLUSIVE</Text></View>}
           </View>
           <View style={styles.cardCopy}>
@@ -310,8 +309,6 @@ const styles = StyleSheet.create({
   // Native molded plinths reuse the shared Toy Box material/role colors.
   plinthBase: { position: 'absolute', bottom: 13, width: 180, height: 32, borderRadius: 90, backgroundColor: colors.accentShadow },
   plinthTop: { position: 'absolute', bottom: 23, width: 180, height: 25, borderRadius: 90, backgroundColor: colors.accent },
-  edition: { position: 'absolute', top: spacing.md, left: spacing.md, borderRadius: 10, backgroundColor: colors.kitPanel, padding: spacing.sm },
-  editionText: { color: colors.ink, fontSize: 11, fontWeight: '900' },
   exclusive: { position: 'absolute', top: spacing.md, right: spacing.md, borderRadius: 10, backgroundColor: colors.reward, padding: spacing.sm },
   exclusiveText: { color: colors.ink, fontSize: 10, fontWeight: '900' },
   cardCopy: { padding: spacing.lg, gap: spacing.md },

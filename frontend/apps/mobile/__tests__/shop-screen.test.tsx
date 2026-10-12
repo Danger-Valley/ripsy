@@ -199,6 +199,19 @@ test('shows the real catalog price without a free-starter promotion, wallet wall
   await press('Open your army');
   expect(navigate).toHaveBeenCalledWith('Army', undefined);
 });
+
+test('shop cards display fighter names without FIG/figure-number badges', async () => {
+  const figures = FIGURES.filter(f => f.id !== 'fig1').map(f => ({ ...fig2, ...f, priceLamports: '10000000', available: true }));
+  setShop({ catalog: { ...shop.catalog, figures } });
+  await mount();
+  const copy = tree.root.findAllByType(Text).flatMap(node => [node.props.children].flat(Infinity)).filter(value => typeof value === 'string').join(' ');
+  expect(copy).not.toMatch(/\b(?:FIG|Figure)\s+0?\d+\b/i);
+  for (const figure of figures) {
+    expect(tree.root.findAllByType(Text).some(node => node.props.accessibilityRole === 'header' && node.props.children === figure.name)).toBe(true);
+    expect(tree.root.findAllByProps({ accessibilityLabel: figure.name + ' preview' }).length).toBeGreaterThan(0);
+  }
+  expect(text('SEEKER EXCLUSIVE')).toBe(true);
+});
 test('Solana Mobile Exclusive on iOS opens the store browser, never a wallet modal or mint', async () => {
   await mount(); await press('Solana Mobile Exclusive');
   expect(text('Solana Mobile Exclusive')).toBe(true);

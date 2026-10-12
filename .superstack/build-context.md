@@ -200,3 +200,42 @@ and 0.173207680 SOL permanent rent growth. Remaining fee-wallet balance was
 2.971254085 SOL. Evidence: `onchain/price-upgrade-deployment.json` and
 `onchain/price-upgrade-report.html`. Real VRF/Core paid end-to-end and completed
 project-wide security audit remain unclaimed; old binary retained for rollback.
+
+## Pack signing diagnostic - 2026-10-12
+
+The user confirmed approval in Seeker's wallet, but reported no onchain
+transaction. Read-only Railway HTTP logs show successful preparation at
+13:35:47 UTC (POST /shop/packs/orders, 201), then three rejected signed submits
+at 13:36:10/14/18 UTC (400). Public order ID:
+cb8185998ca24b27d14a363922f0cc52b564d69c578161e9870086b772504850.
+First rejected request ID: 1Vbhxp0RQtS4haEK21mRUA.
+
+The first 400 response body is 79 bytes. With the deployed submit validation
+branches and the screenshot's generic error, this matches the JSON error
+"The wallet changed the purchase transaction. Nothing was submitted."
+This is an inference from response length/source, not an inspected response
+body or original/signed message comparison. Invalid encoding/signature branches
+have different response lengths/copy. PackService validates the message before
+storing signed bytes or calling send, explaining why this rejected request
+was not broadcast by the backend. The generic native display hides this cause.
+
+Read-only readiness verifies current 10-SKR pricing, enabled edition 2 and
+unchanged Jup/BONK/ORE 40/40/20. A finalized real v0 transaction roundtrips
+byte-for-byte through the mobile Kit decoder/encoder and retains a valid Umi
+signature. Four focused backend signing/transaction tests pass. These checks
+do not prove what the Seeker wallet changed in this user's transaction. Exact
+original and returned signed bytes are needed to distinguish fee/blockhash
+adjustments from other mutation; HTTP logs do not contain these payloads and
+no Android device is connected. Do not weaken immutable purchase verification
+or retry/reroll a potentially paid pack to diagnose this.
+
+```yaml
+debug:
+  last_debug_session: 2026-10-12
+  issues_resolved: []
+  pack_submit_issue_status: diagnosed-stage-message-mismatch-fix-pending
+```
+
+No application/backend code, release, deployment, payment, pack price/odds or
+customer order was changed by this diagnostic. The 10-SKR price operation is
+recorded separately in onchain/pack-price-2026-10-12.json.

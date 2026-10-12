@@ -33,53 +33,33 @@ beforeEach(() => {
 });
 afterEach(async () => { if (tree) await Renderer.act(async () => tree.unmount()); jest.useRealTimers(); });
 
-test.each(['confirmed', 'failed', 'expired'] as const)('new purchase replaces a %s receipt only after backend verification', async status => {
-  const oldKey = 'purchase-request-12345';
-  saved = JSON.stringify({ key: oldKey, figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status }, signingStarted: true });
-  api.get.mockImplementationOnce(async () => {
-    expect(JSON.parse(saved!).key).toBe(oldKey);
-    expect(api.create).not.toHaveBeenCalled();
-    return { ...prepared, status };
-  });
+test.each(['confirmed', 'failed', 'expired'] as const)('restored %s receipt is cleared and a new purchase starts cleanly', async status => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status }, signingStarted: true });
   api.create.mockResolvedValueOnce({ ...prepared, id: 'b'.repeat(64) });
   await mount();
+  expect(saved).toBeNull();
+  expect(shop.hasPurchase).toBe(false);
   await Renderer.act(async () => { await Promise.all([shop.prepare('fig1', prepared.buyer), shop.prepare('fig1', prepared.buyer)]); });
-  expect(api.get).toHaveBeenCalledTimes(1);
-  expect(api.get).toHaveBeenCalledWith(prepared.id);
+  expect(api.get).not.toHaveBeenCalled();
   expect(api.create).toHaveBeenCalledTimes(1);
-  expect(JSON.parse(saved!).key).not.toBe(oldKey);
   expect(shop.order?.id).toBe('b'.repeat(64));
 });
 
-test.each(['active', 'network-error'] as const)('cached final receipt does not permit another payment on %s', async condition => {
-  const oldKey = 'purchase-request-12345';
-  saved = JSON.stringify({ key: oldKey, figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status: 'confirmed' }, signingStarted: true });
-  if (condition === 'active') api.get.mockResolvedValueOnce({ ...prepared, status: 'submitted' });
-  else api.get.mockRejectedValueOnce(new Error('Offline'));
-  await mount(); const sign = jest.fn();
-  await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign));
-  expect(api.create).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
-  expect(JSON.parse(saved!).key).toBe(oldKey);
-  expect(shop.order?.status).toBe(condition === 'active' ? 'submitted' : 'confirmed');
-  expect(shop.error).toBeTruthy();
-});
-
-test('a storage failure keeps the final receipt and prevents a new figure charge', async () => {
-  const oldKey = 'purchase-request-12345';
-  saved = JSON.stringify({ key: oldKey, figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status: 'confirmed' } });
-  api.get.mockResolvedValueOnce({ ...prepared, status: 'confirmed' });
+test('a receipt that completes in this session is shown once but is not restored or rechecked', async () => {
   await mount();
-  const save = jest.spyOn(storage, 'save').mockImplementation(async value => {
-    if (value && JSON.parse(value).key !== oldKey) throw new Error('Storage unavailable');
-    saved = value;
-  });
-  try {
-    const sign = jest.fn();
-    await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign));
-    expect(JSON.parse(saved!).key).toBe(oldKey);
-    expect(shop.order?.status).toBe('confirmed');
-    expect(api.create).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
-  } finally { save.mockRestore(); }
+  await Renderer.act(() => shop.prepare('fig1', prepared.buyer));
+  api.get.mockResolvedValueOnce({ ...prepared, status: 'confirmed' });
+  await Renderer.act(() => shop.checkStatus());
+  expect(shop.order?.status).toBe('confirmed');
+  expect(shop.hasPurchase).toBe(true);
+  expect(saved).toBeNull();
+  await Renderer.act(() => shop.checkStatus());
+  expect(api.get).toHaveBeenCalledTimes(1);
+
+  api.create.mockResolvedValueOnce({ ...prepared, id: 'b'.repeat(64) });
+  await Renderer.act(() => shop.prepare('fig1', prepared.buyer));
+  expect(api.create).toHaveBeenCalledTimes(2);
+  expect(shop.order?.id).toBe('b'.repeat(64));
 });
 
 test('persists request before create and signing intent before opening wallet', async () => {
@@ -91,6 +71,7 @@ test('persists request before create and signing intent before opening wallet', 
   await Renderer.act(() => shop.confirm(sign));
   expect(sign).toHaveBeenCalledTimes(1);
   expect(shop.order?.status).toBe('confirmed');
+  expect(saved).toBeNull();
   await Renderer.act(() => shop.dismiss());
   expect(saved).toBeNull();
 });
@@ -116,11 +97,26 @@ test('restores signed bytes and resubmits the same transaction after a lost resp
   expect(api.create).not.toHaveBeenCalled();
 });
 
-test('reuses persisted idempotency key when the prepare response was lost', async () => {
-  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer });
+test.each([undefined, prepared])('discards a restored unsigned draft instead of retrying it on shop entry (%s)', async order => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order });
+  await mount();
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); await shop.checkStatus(); });
+  expect(saved).toBeNull(); expect(shop.hasPurchase).toBe(false); expect(shop.ready).toBe(true);
+  expect(api.create).not.toHaveBeenCalled(); expect(api.get).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test('keeps a restored wallet handoff even without saved signed bytes', async () => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true });
   await mount();
   await Renderer.act(() => shop.checkStatus());
-  expect(api.create).toHaveBeenCalledWith('fig1', prepared.buyer, 'purchase-request-12345', undefined);
+  expect(shop.hasPurchase).toBe(true); expect(saved).not.toBeNull();
+  expect(api.get).toHaveBeenCalledWith(prepared.id); expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+test('a submitted order is preserved even when an older record lacks signing markers', async () => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status: 'submitted', signature: '1'.repeat(64) } });
+  await mount();
+  expect(shop.order?.status).toBe('submitted'); expect(saved).not.toBeNull();
+  expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
 });
 
 test('corrupt recovery storage blocks new purchases instead of silently dropping the pending order', async () => {
@@ -160,6 +156,17 @@ test('disconnect clears the authenticated inventory wallet binding', async () =>
 });
 
 const recovery = { code: 'INSUFFICIENT_PURCHASE_TOKEN' as const, mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', required: '1000000', balance: '0' };
+test('an insufficient-token attempt does not return or retry when the shop reopens', async () => {
+  await mount();
+  api.create.mockRejectedValueOnce(new ShopRequestError('Not enough JUP', recovery));
+  await Renderer.act(() => shop.prepare('jup', prepared.buyer));
+  expect(shop.fundingRequired).toEqual(recovery);
+  await Renderer.act(() => tree.unmount());
+  await mount();
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); });
+  expect(saved).toBeNull(); expect(shop.hasPurchase).toBe(false); expect(shop.fundingRequired).toBeNull(); expect(shop.error).toBeNull();
+  expect(api.create).toHaveBeenCalledTimes(1); expect(api.submit).not.toHaveBeenCalled();
+});
 test('direct buy persists signing before wallet and keeps preparation/signing under one lock', async () => {
   await mount(); let release!: (value: string) => void;
   const sign = jest.fn(() => {
@@ -229,11 +236,11 @@ test('SOL recovery reuses the saved key, pauses blocked preparation polling and 
   await Renderer.act(() => shop.buyWithSol());
   expect(api.create).toHaveBeenCalledTimes(2); // Cannot mutate a prepared order.
 });
-test('a lost SOL prepare response is recovered using the same durable payment mode, not another swap', async () => {
+test('a restored SOL draft with no wallet handoff is discarded without creating a swap', async () => {
   saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'jup', buyer: prepared.buyer, paymentMode: 'sol' });
   api.create.mockResolvedValue({ ...prepared, figureId: 'jup' });
   await mount(); await Renderer.act(() => shop.checkStatus());
-  expect(api.create).toHaveBeenCalledWith('jup', prepared.buyer, 'purchase-request-12345', 'sol');
+  expect(saved).toBeNull(); expect(shop.hasPurchase).toBe(false); expect(api.create).not.toHaveBeenCalled();
   expect(api.submit).not.toHaveBeenCalled();
 });
 test('a generic insufficient-looking message never authorizes SOL recovery', async () => {

@@ -191,11 +191,12 @@ test('resolved result is delivered without paying or signing again, terminal pac
   await Renderer.act(() => pack.dismiss());
   expect(saved).toBeNull();
 });
-test('missing prepare response reuses the persisted idempotency key', async () => {
-  saved = JSON.stringify({ key: 'pack-request-1234567', buyer });
+test.each([undefined, order])('restored unsigned pack draft is discarded without preparing or paying (%s)', async pendingOrder => {
+  saved = JSON.stringify({ key: 'pack-request-1234567', buyer, order: pendingOrder });
   await mount();
-  await Renderer.act(() => pack.checkStatus());
-  expect(api.createPack).toHaveBeenCalledWith(buyer, 'pack-request-1234567', undefined);
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); await pack.checkStatus(); });
+  expect(saved).toBeNull(); expect(pack.hasPurchase).toBe(false); expect(pack.ready).toBe(true);
+  expect(api.createPack).not.toHaveBeenCalled(); expect(api.getPack).not.toHaveBeenCalled(); expect(api.submitPack).not.toHaveBeenCalled();
 });
 test('corrupt or mismatched recovery data blocks additional payments', async () => {
   saved = '{broken';
@@ -215,6 +216,12 @@ test('corrupt or mismatched recovery data blocks additional payments', async () 
       }),
     ),
   ).toThrow();
+});
+test.each(['submitted', 'waiting-result', 'ready-to-claim'] as const)('pack %s survives restore even without older signing markers', async status => {
+  saved = JSON.stringify({ key: 'pack-request-1234567', buyer, order: { ...order, status, signature: '1'.repeat(64), result: status === 'ready-to-claim' ? 'jup' : null, randomness: status === 'ready-to-claim' ? 'f'.repeat(64) : null } });
+  await mount();
+  expect(pack.order?.status).toBe(status); expect(saved).not.toBeNull();
+  expect(api.createPack).not.toHaveBeenCalled(); expect(api.submitPack).not.toHaveBeenCalled();
 });
 
 test('direct pack buy persists signing before wallet and holds its lock through app switching', async () => {
@@ -278,10 +285,22 @@ test('insufficient SKR offers SOL recovery with the SAME saved request, and neve
   expect(api.submitPack).not.toHaveBeenCalled(); expect(pack.fundingRequired).toBeNull();
   await Renderer.act(() => pack.buyWithSol()); expect(api.createPack).toHaveBeenCalledTimes(2);
 });
-test('pack SOL recovery mode survives restart; generic errors do not offer a swap', async () => {
+test('an insufficient-token pack attempt does not return or retry when the shop reopens', async () => {
+  await mount();
+  const recovery = { code: 'INSUFFICIENT_PURCHASE_TOKEN' as const, mint: PACK_PAYMENT.mint, symbol: 'SKR', required: PACK_PAYMENT.amount, balance: '0' };
+  api.createPack.mockRejectedValueOnce(new ShopRequestError('Not enough SKR', recovery));
+  await Renderer.act(() => pack.prepare(buyer));
+  expect(pack.fundingRequired).toEqual(recovery);
+  await Renderer.act(() => tree.unmount());
+  await mount();
+  await Renderer.act(async () => { jest.advanceTimersByTime(12000); });
+  expect(saved).toBeNull(); expect(pack.hasPurchase).toBe(false); expect(pack.fundingRequired).toBeNull(); expect(pack.error).toBeNull();
+  expect(api.createPack).toHaveBeenCalledTimes(1); expect(api.submitPack).not.toHaveBeenCalled();
+});
+test('unsigned SOL pack draft is discarded on restart; generic errors do not offer a swap', async () => {
   saved = JSON.stringify({ key: 'pack-request-1234567', buyer, paymentMode: 'sol' });
   await mount(); await Renderer.act(() => pack.checkStatus());
-  expect(api.createPack).toHaveBeenCalledWith(buyer, 'pack-request-1234567', 'sol');
+  expect(saved).toBeNull(); expect(pack.hasPurchase).toBe(false); expect(api.createPack).not.toHaveBeenCalled();
   await Renderer.act(() => pack.dismiss());
   api.createPack.mockRejectedValueOnce(new Error('Not enough SKR'));
   await Renderer.act(() => pack.prepare(buyer)); expect(pack.fundingRequired).toBeNull();

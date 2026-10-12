@@ -40,7 +40,10 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
   const [restored, setRestored] = useState(false);
   const activeOperation = useRef(false);
   const persist = useCallback(async (value: PurchaseIntent | null) => {
-    await storage.save(value ? JSON.stringify(value) : null);
+    // A terminal receipt is useful for the success/error UI in this session,
+    // but it is not recoverable work. Keeping it in durable storage makes the
+    // next Buy attempt query an old order before preparing a fresh purchase.
+    await storage.save(value?.order && isTerminalMint(value.order) ? null : value ? JSON.stringify(value) : null);
     intentRef.current = value;
     setIntent(value);
   }, [storage]);
@@ -52,9 +55,16 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
   useEffect(() => { void loadCatalog(); }, [loadCatalog]);
   useEffect(() => {
     let mounted = true;
-    storage.load().then(raw => {
+    storage.load().then(async raw => {
       if (!mounted) return;
-      const saved = raw ? parsePurchaseIntent(raw) : null;
+      let saved = raw ? parsePurchaseIntent(raw) : null;
+      // An unsigned draft cannot have paid. Only recover requests whose wallet
+      // handoff began; completed receipts and abandoned quotes start fresh.
+      if (saved && ((saved.order && isTerminalMint(saved.order)) || (!saved.signingStarted && !saved.signed && (!saved.order || saved.order.status === 'prepared')))) {
+        await storage.save(null);
+        saved = null;
+      }
+      if (!mounted) return;
       intentRef.current = saved; setIntent(saved); setRestored(true);
     }).catch(cause => { if (mounted) setError(message(cause)); });
     return () => { mounted = false; };
@@ -76,7 +86,7 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
 
   const checkStatus = useCallback((background = false) => run(async () => {
     const current = intentRef.current;
-    if (!current) return;
+    if (!current || (current.order && isTerminalMint(current.order))) return;
     if (background && preparationBlocked.current) return;
     const order = current.order ? await client.get(current.order.id) : await client.create(current.figureId, current.buyer, current.key, current.paymentMode);
     const latest = current.signed && !isTerminalMint(order) ? await client.submit(order.id, current.signed) : order;
@@ -110,10 +120,6 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     const previous = intentRef.current;
     if (previous) {
       if (!previous.order || !isTerminalMint(previous.order)) throw new Error('Finish or close your current purchase first.');
-      // Keep the old receipt until the backend confirms it cannot still charge.
-      const latest = await client.get(previous.order.id);
-      await persist({ ...previous, order: latest });
-      if (!isTerminalMint(latest)) throw new Error('Finish or close your current purchase first.');
     }
     if (figureId === 'fig2' && !proveSeeker) throw new Error('Seeker fighter can only be minted to a verified Solana Seeker wallet.');
     if (proveSeeker) {

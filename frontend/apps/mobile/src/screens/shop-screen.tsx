@@ -57,22 +57,17 @@ export function ShopScreen({ navigation, route }: Props) {
   const [walletOpen, setWalletOpen] = useState(Boolean(route.params?.signIn));
   const [purchasePopup, setPurchasePopup] = useState<'figure' | 'pack' | null>(null);
   const seenPurchases = useRef({ figure: false, pack: false });
-  // Recover unfinished intents once. A saved terminal receipt is history, not
-  // a new purchase. Only unfinished payments need an explicit recovery action.
-  // Status updates never reopen a manually hidden popup or discard recovery data.
+  // Opening the shop or recovering a saved payment never opens checkout.
+  // Buy and Continue purchase are the only entry points to purchase dialogs.
   useEffect(() => {
     const previous = seenPurchases.current;
-    const openFigure = shop.hasPurchase && !previous.figure && (!order || !isTerminalMint(order));
-    const openPack = pack.hasPurchase && !previous.pack && (!pack.order || !isTerminalPack(pack.order));
     seenPurchases.current = { figure: shop.hasPurchase, pack: pack.hasPurchase };
     setPurchasePopup(current => {
-      if (openFigure) return 'figure';
-      if (openPack) return 'pack';
       if (current === 'figure' && previous.figure && !shop.hasPurchase) return null;
       if (current === 'pack' && previous.pack && !pack.hasPurchase) return null;
       return current;
     });
-  }, [shop.hasPurchase, pack.hasPurchase, order, pack.order]);
+  }, [shop.hasPurchase, pack.hasPurchase]);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -234,7 +229,7 @@ export function ShopScreen({ navigation, route }: Props) {
         {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={purchaseBusy || address !== shop.purchaseBuyer} onPress={() => buyAndSign(() => shop.buyWithSol(signPurchase))}>Buy with SOL</ToyHomeButton>}
         {shop.hasPurchase && (!canClose || !order || Boolean(error)) && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.checkStatus())}>Check purchase status</ToyHomeButton>}
         {shop.hasPurchase && canClose && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.dismiss())}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</ToyHomeButton>}
-        {shop.hasPurchase && <Text style={styles.note}>Closing this popup keeps your purchase saved.</Text>}
+        {shop.hasPurchase && (!order || !isTerminalMint(order)) && <Text style={styles.note}>Closing this popup keeps your purchase saved.</Text>}
       </>}
       {purchasePopup === 'pack' && !walletOpen && <ShopPackPurchase pack={pack} address={address} blocked={activeFigurePurchase || purchaseBusy}
         onConfirm={() => {

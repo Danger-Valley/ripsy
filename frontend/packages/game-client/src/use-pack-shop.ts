@@ -85,9 +85,16 @@ export function usePackShop(
     let mounted = true;
     void storage
       .load()
-      .then((raw) => {
+      .then(async (raw) => {
         if (!mounted) return;
-        const saved = raw ? parsePackIntent(raw) : null;
+        let saved = raw ? parsePackIntent(raw) : null;
+        // No wallet handoff means this draft cannot have paid for a pack.
+        // Discard abandoned quotes instead of preparing them on shop entry.
+        if (saved && !saved.signingStarted && !saved.signed && (!saved.order || saved.order.status === 'prepared')) {
+          await storage.save(null);
+          saved = null;
+        }
+        if (!mounted) return;
         current.current = saved;
         setIntent(saved);
         setRestored(true);

@@ -27,9 +27,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Army'>;
 export function ArmyScreen({ navigation, route }: Props) {
   const definitions = useFigureCatalog();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const contentWidth = Math.min(width, 720);
-  const figureCardWidth = Math.min(190, Math.max(148, (contentWidth - 80) / 2));
+  // Match the collection panel's gutters/border; wider text gets fewer columns.
+  const collectionWidth = contentWidth - 28 - 2 * (spacing.md + 1.5);
+  const figureColumns = Math.max(1, Math.min(4, Math.floor((collectionWidth + spacing.md) / (140 * Math.max(1, fontScale) + spacing.md))));
+  const figureCardWidth = (collectionWidth - (figureColumns - 1) * spacing.md) / figureColumns;
   // Keep touch targets usable on narrow phones instead of squeezing seven slots.
   // Include ToyHomePanel's 1.5-point border so the last slot isn't clipped.
   const slotGridWidth = Math.max(7 * 44 + 6 * spacing.xs, contentWidth - 28 - 2 * (spacing.md + 1.5));
@@ -200,13 +203,13 @@ export function ArmyScreen({ navigation, route }: Props) {
               <Text style={[styles.tabText, tab === 'all' && styles.tabTextSelected]}>All figures</Text>
             </ArmyControl>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.figureList} accessibilityLabel="Available fighters">
+          <View testID="army-collection-grid" style={styles.figureGrid} accessibilityLabel="Available fighters">
             <FigureCard width={figureCardWidth} name={definitions.find(f => f.id === 'fig1')?.name ?? 'RIPSY 001'} image={figurePortrait('fig1', definitions)} badge="FREE" caption="Your free starter" button={selectedSlot === null ? 'Pick a slot' : 'Use fighter'} accessibilityLabel="Use free RIPSY 001" disabled={busy || selectedSlot === null} onPress={selectStarter} />
             {tab === 'owned' && inventory?.assets.map(asset => (
               <FigureCard width={figureCardWidth} key={asset.assetId} name={asset.name} image={figurePortrait(asset.figureId, definitions, asset.imageUrl)} badge={equipped.has(asset.assetId) ? 'IN ARMY' : 'OWNED'} caption="In your collection" selected={equipped.has(asset.assetId)} button={equipped.has(asset.assetId) ? 'Remove' : 'Select'} disabled={busy || (!equipped.has(asset.assetId) && allSlotsUsed && selectedSlot === null)} accessibilityLabel={`${equipped.has(asset.assetId) ? 'Remove' : 'Equip'} ${asset.name} ${short(asset.assetId)}`} onPress={() => toggleAsset(asset)} />
             ))}
             {tab === 'all' && definitions.filter(figure => figure.purchasable).map(figure => <FigureCard width={figureCardWidth} key={figure.id} name={figure.name} image={figurePortrait(figure.id, definitions)} badge={figure.seekerExclusive ? 'SEEKER' : 'COLLECTIBLE'} caption={inventory ? `${inventory.assets.filter(asset => asset.figureId === figure.id).length} in your collection` : 'Collect it in the shop'} button="Visit shop" tone="coral" onPress={openShop} />)}
-          </ScrollView>
+          </View>
           {tab === 'owned' && <Text style={styles.collectionHint}>Each collectible fills one slot. Free fighters fill the rest.</Text>}
         </ToyHomePanel>
 
@@ -250,13 +253,13 @@ function FigureCard({ width, name, image, badge, caption, button, selected, disa
   selected?: boolean; disabled?: boolean; tone?: 'blue' | 'coral'; accessibilityLabel?: string; onPress: () => void;
 }) {
   return (
-    <ToyHomePanel style={[styles.figureCard, { width }, selected && styles.figureCardSelected]}>
+    <ToyHomePanel testID="army-figure-card" style={[styles.figureCard, { width }, selected && styles.figureCardSelected]}>
       <View style={styles.figureWindow}>
         <View style={styles.figurePlinth} />
         <Image source={image} style={styles.figureImage} accessibilityLabel={name} />
       </View>
       <View style={[styles.figureBadge, selected && styles.figureBadgeSelected]}><Text style={[styles.figureBadgeText, selected && styles.figureBadgeTextSelected]}>{badge}</Text></View>
-      <Text numberOfLines={2} style={styles.figureName}>{name}</Text>
+      <Text style={styles.figureName}>{name}</Text>
       <Text style={styles.figureCaption}>{caption}</Text>
       <ToyHomeButton compact tone={tone} labelStyle={styles.figureButtonLabel} disabled={disabled} accessibilityLabel={accessibilityLabel ?? button} onPress={onPress}>{button}</ToyHomeButton>
     </ToyHomePanel>
@@ -306,7 +309,7 @@ const styles = StyleSheet.create({
   tabSelected: { backgroundColor: '#05B8E3', borderColor: '#7DEBFF', borderWidth: 1 },
   tabText: { color: colors.ink, fontFamily: homeFont, fontSize: 16, textAlign: 'center' },
   tabTextSelected: { color: colors.ink },
-  figureList: { gap: spacing.md, padding: spacing.xs, paddingBottom: spacing.sm, alignItems: 'stretch' },
+  figureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, alignItems: 'stretch' },
   figureCard: { padding: spacing.sm, gap: spacing.xs },
   figureCardSelected: { borderColor: colors.reward, borderWidth: 2.5 },
   figureWindow: { height: 114, backgroundColor: '#C9F2FA', borderRadius: 15, justifyContent: 'flex-end', alignItems: 'center', overflow: 'hidden' },

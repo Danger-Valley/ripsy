@@ -1,6 +1,6 @@
 import React from 'react';
 import * as Native from 'react-native';
-import { Image, Modal, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../src/theme';
 import Renderer from 'react-test-renderer';
 import { ShopClient } from '@rps/game-client/shop';
@@ -370,6 +370,53 @@ test.each([320, 375, 768, 1280])('slots and fighter cards retain usable sizes at
     expect(StyleSheet.flatten(card.props.style).fontSize).toBeGreaterThanOrEqual(12);
     expect(card.props.numberOfLines).toBeUndefined();
   } finally { windowMock.mockRestore(); }
+});
+
+test.each([[320, 1, 1], [360, 1, 2], [375, 1, 2], [768, 1, 4], [1280, 1, 4], [375, 2, 1], [768, 2, 2]])(
+  'fighter collection wraps into %i-point layout at font scale %i without horizontal or nested scrolling (%i columns)', async (width, fontScale, columns) => {
+    const windowMock = jest.spyOn(jest.requireActual<typeof Native>('react-native'), 'useWindowDimensions').mockReturnValue({ width, height: 844, scale: 3, fontScale });
+    try {
+      await mount(); await press('All figures');
+      const grid = tree.root.findAllByType(View).find(node => node.props.testID === 'army-collection-grid')!;
+      const gridStyle = StyleSheet.flatten(grid.props.style);
+      expect(gridStyle.flexDirection).toBe('row'); expect(gridStyle.flexWrap).toBe('wrap');
+      expect(grid.findAllByType(ScrollView)).toHaveLength(0);
+      expect(tree.root.findByProps({ testID: 'army-scroll' }).props.horizontal).not.toBe(true);
+      const cards = grid.findAllByType(View).filter(node => node.props.testID === 'army-figure-card');
+      const available = Math.min(width, 720) - 28 - 2 * (12 + 1.5);
+      const cardWidths = cards.map(node => StyleSheet.flatten(node.props.style).width);
+      expect(cardWidths).toHaveLength(5);
+      for (const cardWidth of cardWidths) {
+        expect(cardWidth).toBeGreaterThanOrEqual(140);
+        expect(cardWidth * columns + gridStyle.gap * (columns - 1)).toBeCloseTo(available);
+      }
+      for (const name of ['RIPSY 001', 'Seeker fighter', 'BONK', 'Jup', 'ORE']) {
+        const label = grid.findAllByType(Text).find(node => node.props.children === name)!;
+        expect(label).toBeDefined(); expect(label.props.numberOfLines).toBeUndefined();
+      }
+      expect(tree.root.findByProps({ testID: 'army-slots-scroll' }).props.horizontal).toBe(true);
+    } finally { windowMock.mockRestore(); }
+  },
+);
+
+test('owned collection shows every exact asset in a vertical grid and can equip a later-row fighter', async () => {
+  const assets: FigureInventory['assets'] = Array.from({ length: 12 }, (_, index) => ({ ...inventory.assets[0], assetId: `${String(index).padStart(4, '0')}1111111111111111111111111111`, name: `Fighter ${index + 1}` }));
+  api.inventory.mockResolvedValue({ ...inventory, assets });
+  api.saveLoadout.mockImplementation(async slots => ({ ...inventory, assets, slots }));
+  await mount();
+  const grid = tree.root.findAllByType(View).find(node => node.props.testID === 'army-collection-grid')!;
+  for (const owned of assets) expect(grid.findAllByType(Text).some(node => node.props.children === owned.name)).toBe(true);
+  expect(grid.findAllByType(ScrollView)).toHaveLength(0);
+  await Renderer.act(() => slot(14).props.onPress());
+  await press('Equip Fighter 12 0011…1111');
+  expect(slot(14).props.accessibilityLabel).toContain('Fighter 12');
+  await press('Save army');
+  const savedSlots = api.saveLoadout.mock.calls[0][0];
+  expect(savedSlots[13]).toBe(assets[11].assetId);
+  expect(savedSlots.filter(Boolean)).toEqual([assets[11].assetId]);
+  await press('All figures');
+  expect(button('Visit shop')).toBeDefined();
+  expect(button('Equip Fighter 12 0011…1111')).toBeUndefined();
 });
 
 test('figure badges are readable and no longer positioned over the artwork', async () => {

@@ -2,6 +2,14 @@
 
 Open `https://www.ripsy.fun/admin/shop` in a browser with a Wallet Standard Solana wallet. The configured administrator is `BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh`.
 
+## Current pack price - 2026-10-12
+
+At the user's explicit request, the live mainnet pack price changed from 1,099 SKR to **10 SKR** (10,000,000 base units), price revision 1. The existing administrative prepare/sign/submit/status API recorded the price-only operation. It finalized at slot 456045668; the public API independently returns the new price. Edition 2 remains byte-identical: Jup 40%, BONK 40%, ORE 20%. Individual figure prices are unchanged.
+
+The first 25-byte price account cost 777,240 lamports rent plus a 5,000-lamport transaction fee, total **0.00078224 SOL**. Later price changes update that account in place. No new edition, program upgrade, authority/pause change or customer purchase was sent. Only the admin and canonical price account were writable, so purchased receipts were not modified; existing purchased packs keep their captured price and odds. Native/web fetch the live price without a rebuild. Refresh/reopen the shop to fetch it.
+
+Public evidence: `onchain/pack-price-2026-10-12.json`. Earlier 1,099-SKR deployment/upgrade entries below describe their historical snapshots, not the current price. `onchain/pack-config.json` remains the immutable edition-2 publication baseline, not a runtime price override. The historical `verify-price-upgrade.ts` fixture pins an absent initial price account; it is not a current-state health check after this approved change. Use `node scripts/check-pack-api.mjs --enabled --price=10000000` to verify current catalog readiness.
+
 ## Setup
 
 - Railway backend: `SHOP_ADMIN_WALLET` is the **public** administrative address. Unset/empty disables admin access. It must match the deployed pack program administrator before pack editing works.

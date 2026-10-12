@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-10-12T12:24:20.294Z",
+  "cluster": "mainnet-beta",
+  "operation": "initialize_edition_price",
+  "status": "finalized",
+  "signature": "5rDaLNN6uEVsEEbiBpTLm7ViJXUvqgwDEZGa5unPBoUq6s1djnTHJMhr1XgJL9AvHt3eMoJT2QWGUQmxy1UEWMcQ",
+  "adminJobId": "ba50a26be7cbf1eaa749130cb3e8e997def5d8c5b56e9343ecf1d13a77648b12",
+  "slot": 456045668,
+  "admin": "BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh",
+  "program": "43FcaAGsYrqmviVpmChmCVsrqqqZzH3Usn6HEMztpdQJ",
+  "edition": "GXTL36kxVXCTH6pZcQWYQmPD6E1fcJSsCW4yJeokWXPT",
+  "editionVersion": 2,
+  "priceAccount": "6Pw2BSWhfpNE9sDrPbpwnUNVwp41YZfFd93b7AHifVVx",
+  "currency": "SKR",
+  "mint": "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3",
+  "decimals": 6,
+  "oldPriceBaseUnits": "1099000000",
+  "newPriceBaseUnits": "10000000",
+  "priceRevision": "1",
+  "priceAccountBytes": 25,
+  "priceAccountRentLamports": 777240,
+  "networkFeeLamports": 5000,
+  "adminNetCostLamports": 782240,
+  "rootBytesUnchanged": true,
+  "editionBytesUnchanged": true,
+  "editionSha256": "2ada0ef04ac2d85ba94aba12e85a44f39430ea7144bc1cd2135056bcda9f128e",
+  "drops": [
+    { "figureId": "jup", "weight": 400000 },
+    { "figureId": "bonk", "weight": 400000 },
+    { "figureId": "ore", "weight": 200000 }
+  ],
+  "writableAccounts": [
+    "BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh",
+    "6Pw2BSWhfpNE9sDrPbpwnUNVwp41YZfFd93b7AHifVVx"
+  ],
+  "figurePricesUnchanged": true,
+  "backendJobStatus": "confirmed",
+  "publicCatalogPriceBaseUnits": "10000000",
+  "customerPurchaseCreated": false,
+  "newEditionPublished": false,
+  "programUpgraded": false
+}

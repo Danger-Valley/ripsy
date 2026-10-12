@@ -1,5 +1,11 @@
 # Pack price/storage upgrade - mainnet activated 2026-10-10
 
+## Subsequent price change - 2026-10-12
+
+The approved price-only admin transaction now sets future edition-2 packs to **10 SKR**, revision 1. Config and edition bytes remain unchanged; Jup/BONK/ORE chances remain 40/40/20, and purchased receipt prices/odds are preserved. The 25-byte price account now exists. Total initial cost was 0.00078224 SOL (0.00077724 SOL rent + 0.000005 SOL fee), not another edition or upgrade. Finalized evidence: `pack-price-2026-10-12.json`; operator instructions: `../SHOP_ADMIN.md`.
+
+The activation checks and no-price-account capability simulation below describe the 2026-10-10 pre-price-change snapshot. The historical `verify-price-upgrade.ts` fixture deliberately asserts that snapshot and must not be used as today's price health check. Current read-only API check: `node scripts/check-pack-api.mjs --enabled --price=10000000`.
+
 ## Activation verified
 
 The user explicitly funded and approved this one-time upgrade. Finalized slot

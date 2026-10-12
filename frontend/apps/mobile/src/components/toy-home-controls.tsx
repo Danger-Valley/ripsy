@@ -88,9 +88,9 @@ export function ToyHomeButton({ children, onPress, tone = 'blue', icon, tile, sm
   );
 }
 
-export function ToyHomePanel({ children, style }: PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
+export function ToyHomePanel({ children, style, testID }: PropsWithChildren<{ style?: StyleProp<ViewStyle>; testID?: string }>) {
   return (
-    <View style={[styles.panel, style]}>
+    <View testID={testID} style={[styles.panel, style]}>
       <View pointerEvents="none" style={styles.panelFill}><ToyShine top="#FFFFFF" bottom="#EAF2EF" /></View>
       {children}
     </View>

@@ -99,6 +99,7 @@ Gradients are optional, never required. Native creates depth with stacked flat c
 - Native Home and Battle now use original generated Toy Box backdrops from `frontend/apps/mobile/src/assets/ui`. Home mascots are decorative artwork, not new playable/NFT variants. The current `battle-toy-frame-v2.png` has a centered **84%** playable square (`BOARD_PLAYABLE_RATIO = 0.84`); native checkerboard tiles, piece, touch, movement, combat and trap coordinates share that inset. Only the decorative frame image is clipped, never the figure layer.
 - Secondary UI uses `ToyDialog`, `ToySectionHeading`, `ToyBadge` and `ToyHomeButton`: cream scrollable safe-area cards, existing menu/weapon sprites, compact rounded headings, whole-card choices and explicit close/return actions. Auth remains keyboard-safe; required tie choices cannot dismiss. Busy buttons keep their labels and lock double submission. Status cards have uniform rounded silhouettes, not uneven top/bottom outlines. Focus is painted above the button face.
 - No extra entrance motion was added to these secondary dialogs. Preserve existing gameplay Rive timing and reduced-motion-aware lineup attention; do not restart combat while opening a picker.
+- Your Army's lineup now uses the same light collection card instead of a wooden tray. Neutral numbered slots use the shared muted collection surface; cyan and a navy outline mark selection. Keep the two rows of seven and existing portraits, without nested label panels or ornamental slot shadows.
 
 ## Tone and voice
 

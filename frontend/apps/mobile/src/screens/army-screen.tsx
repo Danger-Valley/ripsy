@@ -21,21 +21,18 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
 const scenery = require('../assets/ui/battle-playground.png');
-const woodTray = require('../assets/ui/army-wood-tray.png');
 const starterSlots = () => Array<string | null>(FIGURE_SLOTS).fill(null);
 type Props = NativeStackScreenProps<RootStackParamList, 'Army'>;
 
 export function ArmyScreen({ navigation, route }: Props) {
   const definitions = useFigureCatalog();
   const insets = useSafeAreaInsets();
-  const { width, fontScale } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, 720);
   const figureCardWidth = Math.min(190, Math.max(148, (contentWidth - 80) / 2));
-  // Keep copy inside the flat wood, including when the tray stretches for large text.
-  const trayPaddingHorizontal = Math.max(spacing.xl, Math.ceil((contentWidth - 28) * 0.06));
-  const trayPaddingVertical = Math.ceil(Math.max(spacing.xxl, (contentWidth - 28) * 0.08) * Math.max(1, fontScale));
   // Keep touch targets usable on narrow phones instead of squeezing seven slots.
-  const slotGridWidth = Math.max(7 * 44 + 6 * spacing.xs, contentWidth - 28 - 2 * trayPaddingHorizontal);
+  // Include ToyHomePanel's 1.5-point border so the last slot isn't clipped.
+  const slotGridWidth = Math.max(7 * 44 + 6 * spacing.xs, contentWidth - 28 - 2 * (spacing.md + 1.5));
   const { sessionToken, isReady } = usePlayerIdentity();
   const external = useSolanaWallet();
   const privy = usePrivyWallet(!external.isSupported);
@@ -157,14 +154,11 @@ export function ArmyScreen({ navigation, route }: Props) {
       </View>
       <ScrollView testID="army-scroll" contentContainerStyle={styles.content}>
         <Text style={styles.subtitle}>Choose your fighters</Text>
-        <View style={[styles.tray, { paddingHorizontal: trayPaddingHorizontal, paddingVertical: trayPaddingVertical }]} testID="army-tray">
-          <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.trayArt}>
-            <Image source={woodTray} resizeMode="stretch" style={styles.trayTexture} />
-          </View>
+        <ToyHomePanel style={styles.lineupPanel} testID="army-lineup-panel">
           <View testID="army-lineup-header" style={styles.lineupHeader}>
             <View style={styles.headerCopy}>
-              <Text accessibilityRole="header" style={styles.trayTitle}>Your lineup</Text>
-              <Text testID="army-lineup-count" style={styles.trayCaption}>{`${FIGURE_SLOTS - equipped.size} free · ${equipped.size} collectible${equipped.size === 1 ? '' : 's'}`}</Text>
+              <Text accessibilityRole="header" style={styles.lineupTitle}>Your lineup</Text>
+              <Text testID="army-lineup-count" style={styles.lineupCaption}>{`${FIGURE_SLOTS - equipped.size} free · ${equipped.size} collectible${equipped.size === 1 ? '' : 's'}`}</Text>
             </View>
             <ArmyControl accessibilityRole="button" accessibilityLabel="Reset all slots to free RIPSY 001" disabled={busy || equipped.size === 0} onPress={() => { setSlots(starterSlots()); setSaved(false); setSelectedSlot(null); }} style={({ pressed }) => [styles.reset, pressed && styles.pressed, (busy || equipped.size === 0) && styles.disabled]}>
               <Text style={styles.resetText}>Reset</Text>
@@ -186,7 +180,6 @@ export function ArmyScreen({ navigation, route }: Props) {
                     key={index}
                     onPress={() => setSelectedSlot(current => current === index ? null : index)}
                     style={({ pressed }) => [styles.slot, assetId && styles.slotCollectible, selectedSlot === index && styles.slotSelected, pressed && styles.pressed]}>
-                    <View pointerEvents="none" style={styles.slotPlinth} />
                     <Image pointerEvents="none" source={figurePortrait(inventory?.assets.find(asset => asset.assetId === assetId)?.figureId ?? 'fig1', definitions)} style={styles.slotImage} />
                     <Text pointerEvents="none" maxFontSizeMultiplier={1.3} style={styles.slotNumber}>{index + 1}</Text>
                   </ArmyControl>;
@@ -195,8 +188,8 @@ export function ArmyScreen({ navigation, route }: Props) {
             ))}
           </View>
           </ScrollView>
-          <Text testID="army-slot-hint" accessibilityLiveRegion="polite" style={[styles.trayHint, selectedSlot !== null && styles.trayHintSelected]}>{selectedSlot !== null ? `Choose a fighter for slot ${selectedSlot + 1}` : 'Tap a slot, then choose a fighter below'}</Text>
-        </View>
+          <Text testID="army-slot-hint" accessibilityLiveRegion="polite" style={[styles.lineupHint, selectedSlot !== null && styles.lineupHintSelected]}>{selectedSlot !== null ? `Choose a fighter for slot ${selectedSlot + 1}` : 'Tap a slot, then choose a fighter below'}</Text>
+        </ToyHomePanel>
 
         <ToyHomePanel style={styles.collectionPanel}>
           <View accessibilityRole="tablist" style={styles.tabs}>
@@ -288,29 +281,27 @@ const styles = StyleSheet.create({
   title: { flex: 1, color: colors.ink, fontFamily: homeFont, fontSize: 30, textAlign: 'center' },
   content: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 14, paddingBottom: 16, gap: 14 },
   subtitle: { color: colors.accentShadow, fontFamily: homeFont, fontSize: 18, textAlign: 'center', marginBottom: 4 },
-  tray: { overflow: 'hidden', borderRadius: 26, gap: spacing.md, backgroundColor: colors.surfaceStrong, shadowColor: colors.boardFrameShadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 5, elevation: 4 },
-  trayArt: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  trayTexture: { width: '100%', height: '100%' },
-  // Dark labels sit directly on the wood; tray insets keep them clear of the rim.
+  // Reuse the collection card, without a decorative frame or nested label panels.
+  lineupPanel: { padding: spacing.md, gap: spacing.md },
   lineupHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerCopy: { flex: 1, minWidth: 0, gap: spacing.xs },
-  trayTitle: { color: colors.ink, fontFamily: homeFont, fontSize: 20, lineHeight: 26 },
-  trayCaption: { color: colors.ink, fontSize: 13, lineHeight: 19, fontWeight: '600' },
-  reset: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: 12, backgroundColor: colors.kitPanelSoft, borderColor: colors.kitPanelBorder, borderWidth: 1 },
+  lineupTitle: { color: colors.ink, fontFamily: homeFont, fontSize: 20, lineHeight: 26 },
+  lineupCaption: { color: colors.textMuted, fontSize: 13, lineHeight: 19, fontWeight: '500' },
+  reset: { minHeight: 44, minWidth: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 12, backgroundColor: colors.collectionMuted },
   resetText: { color: colors.ink, fontFamily: homeFont, fontSize: 14 },
   slotGrid: { gap: spacing.sm },
   slotRow: { flexDirection: 'row', gap: spacing.xs },
-  slot: { flex: 1, minWidth: 44, aspectRatio: 0.64, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 10, borderWidth: 1.5, borderColor: '#C4A075', backgroundColor: 'rgba(112,77,28,0.13)' },
-  slotCollectible: { backgroundColor: '#D1EFF5', borderColor: '#62B2C1' },
-  slotSelected: { borderColor: '#F8B900', borderWidth: 2.5, backgroundColor: '#FFF2A1' },
+  slot: { flex: 1, minWidth: 44, minHeight: 60, aspectRatio: 0.74, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 10, borderWidth: 2, borderColor: 'transparent', backgroundColor: colors.collectionMuted },
+  slotCollectible: { backgroundColor: colors.surfaceHighlight },
+  // Keep border width constant so selection never shifts the portrait or number.
+  slotSelected: { borderColor: colors.ink, backgroundColor: colors.accentHighlight },
   // Existing Rive exports have generous transparent padding above each fighter.
-  slotImage: { position: 'absolute', bottom: 16, width: '185%', height: '130%', resizeMode: 'contain' },
-  slotPlinth: { position: 'absolute', bottom: 24, height: 6, width: '83%', backgroundColor: 'rgba(117,75,25,0.23)', borderRadius: 12 },
+  slotImage: { position: 'absolute', bottom: 18, width: '185%', height: '110%', resizeMode: 'contain' },
   slotNumber: { position: 'absolute', bottom: 4, color: colors.ink, fontSize: 12, lineHeight: 16, fontWeight: '800', textAlign: 'center', fontVariant: ['tabular-nums'] },
-  trayHint: { color: colors.ink, fontSize: 13, lineHeight: 19, fontWeight: '600', textAlign: 'center' },
-  trayHintSelected: { fontWeight: '800' },
+  lineupHint: { color: colors.textMuted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  lineupHintSelected: { color: colors.ink, fontWeight: '700' },
   collectionPanel: { padding: spacing.md, gap: spacing.md },
-  tabs: { flexDirection: 'row', backgroundColor: '#DCE9E8', borderRadius: 13, padding: 3, gap: 3 },
+  tabs: { flexDirection: 'row', backgroundColor: colors.collectionMuted, borderRadius: 13, padding: 3, gap: 3 },
   tab: { flex: 1, minHeight: 44, borderRadius: 11, justifyContent: 'center', paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
   tabSelected: { backgroundColor: '#05B8E3', borderColor: '#7DEBFF', borderWidth: 1 },
   tabText: { color: colors.ink, fontFamily: homeFont, fontSize: 16, textAlign: 'center' },

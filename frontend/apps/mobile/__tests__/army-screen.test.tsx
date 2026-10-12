@@ -1,6 +1,7 @@
 import React from 'react';
 import * as Native from 'react-native';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, StyleSheet, Text, View } from 'react-native';
+import { colors } from '../src/theme';
 import Renderer from 'react-test-renderer';
 import { ShopClient } from '@rps/game-client/shop';
 import { FIGURE_SLOTS, type FigureInventory } from '@rps/core/shop';
@@ -258,8 +259,11 @@ test('lineup labels explain the actual free and collectible split, not fake prog
   expect(tree.root.findByProps({ testID: 'army-lineup-count' }).props.children).toBe('13 free · 1 collectible');
 });
 
-test('tray labels and slot numbers sit directly on the wood without white panels', async () => {
+test('lineup uses the collection panel without wooden artwork or nested label backgrounds', async () => {
   await mount();
+  expect(tree.root.findAllByType(Image).some(node => node.props.source === require('../src/assets/ui/army-wood-tray.png'))).toBe(false);
+  const panel = tree.root.findAllByType(View).find(node => node.props.testID === 'army-lineup-panel')!;
+  expect(StyleSheet.flatten(panel.props.style).borderRadius).toBe(22);
   const header = tree.root.findByProps({ testID: 'army-lineup-header' });
   const hint = tree.root.findByProps({ testID: 'army-slot-hint' });
   expect(StyleSheet.flatten(header.props.style).backgroundColor).toBeUndefined();
@@ -278,17 +282,16 @@ test('tray labels and slot numbers sit directly on the wood without white panels
 });
 
 test.each([[320, 1], [375, 1], [768, 1], [1280, 1], [320, 2], [375, 2]])(
-  'wooden tray keeps inset, wrapping labels at width %i and font scale %i', async (width, fontScale) => {
+  'lightweight lineup keeps wrapping labels and usable slots at width %i and font scale %i', async (width, fontScale) => {
     const windowMock = jest.spyOn(jest.requireActual<typeof Native>('react-native'), 'useWindowDimensions').mockReturnValue({ width, height: 844, scale: 3, fontScale });
     try {
       await mount();
-      const tray = tree.root.findByProps({ testID: 'army-tray' });
-      const trayStyle = StyleSheet.flatten(tray.props.style);
-      expect(trayStyle.paddingHorizontal).toBeGreaterThanOrEqual(24);
-      expect(trayStyle.paddingVertical).toBeGreaterThanOrEqual(32 * fontScale);
+      const panel = tree.root.findAllByType(View).find(node => node.props.testID === 'army-lineup-panel')!;
+      const panelStyle = StyleSheet.flatten(panel.props.style);
+      expect(panelStyle.padding).toBe(12);
       const scroll = tree.root.findByProps({ testID: 'army-slots-scroll' });
       const gridStyle = StyleSheet.flatten(scroll.findAllByType(View).find(node => StyleSheet.flatten(node.props.style)?.width)?.props.style);
-      expect(gridStyle.width).toBe(Math.max(7 * 44 + 6 * 4, Math.min(width, 720) - 28 - 2 * trayStyle.paddingHorizontal));
+      expect(gridStyle.width).toBe(Math.max(7 * 44 + 6 * 4, Math.min(width, 720) - 28 - 2 * (panelStyle.padding + panelStyle.borderWidth)));
       for (const testID of ['army-lineup-count', 'army-slot-hint']) {
         const label = tree.root.findByProps({ testID });
         expect(label.props.numberOfLines).toBeUndefined();
@@ -300,6 +303,21 @@ test.each([[320, 1], [375, 1], [768, 1], [1280, 1], [320, 2], [375, 2]])(
     } finally { windowMock.mockRestore(); }
   },
 );
+
+test('cyan slot selection is visible without changing its dimensions and tapping again clears it', async () => {
+  await mount();
+  const normal = StyleSheet.flatten(slot(3).props.style({ pressed: false }));
+  expect(normal.backgroundColor).toBe(colors.collectionMuted);
+  await Renderer.act(() => slot(3).props.onPress());
+  const selected = StyleSheet.flatten(slot(3).props.style({ pressed: false }));
+  expect(selected.backgroundColor).toBe(colors.accentHighlight);
+  expect(selected.borderColor).toBe(colors.ink);
+  expect(selected.borderWidth).toBe(normal.borderWidth);
+  expect(selected.aspectRatio).toBe(normal.aspectRatio);
+  expect(slot(3).props.accessibilityState.selected).toBe(true);
+  await Renderer.act(() => slot(3).props.onPress());
+  expect(slot(3).props.accessibilityState.selected).toBe(false);
+});
 
 test('free card tells users to choose a slot before enabling the fighter action', async () => {
   await mount();

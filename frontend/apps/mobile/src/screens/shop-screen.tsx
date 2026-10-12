@@ -5,7 +5,7 @@ import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { packPurchaseStorage } from '../storage/pack-purchase';
 import { packPurchaseTitle, ShopPack, ShopPackPurchase } from '../components/shop-pack';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figurePurchaseTotal, figurePrice, figureStoreMessage, formatSol, solFundingNotice, isTerminalMint, solanaExplorer, type PurchaseTransaction, type ShopFigure } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figureStoreMessage, isTerminalMint, type PurchaseTransaction, type ShopFigure } from '@rps/core/shop';
 import { isTerminalPack } from '@rps/core/packs';
 import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
@@ -84,8 +84,6 @@ export function ShopScreen({ navigation, route }: Props) {
   const [connectingWallet, setConnectingWallet] = useState(false);
   const connectionInFlight = useRef(false);
   const walletBusy = connectingWallet || wallet.status === 'loading' || wallet.status === 'connecting' || wallet.status === 'disconnecting';
-  const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
-  useEffect(() => { setPaymentDetailsOpen(false); }, [order?.id]);
   useEffect(() => {
     if (route.params?.signIn) setWalletOpen(true);
   }, [route.params?.signIn]);
@@ -224,7 +222,6 @@ export function ShopScreen({ navigation, route }: Props) {
         testID={walletOpen || purchasePopup === null ? 'shop-wallet-dialog' : purchasePopup === 'pack' ? 'pack-purchase-dialog' : 'figure-purchase-dialog'}>
       {directSigning && !walletOpen && <View testID="purchase-handoff" style={styles.handoff}>
         <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel={handoffTitle} color={colors.accentShadow} size="large" />
-        <PurchaseProgress status={handoffStage} />
         <Text accessibilityLiveRegion="polite" style={styles.copy}>{handoffCopy}</Text>
         <Text style={styles.handoffNote}>Please wait. You don't need to tap Buy again.</Text>
       </View>}
@@ -232,26 +229,15 @@ export function ShopScreen({ navigation, route }: Props) {
         {error && <StatusBanner message={figureStoreMessage(error)} tone="error" />}
         {((shop.busy && !order) || order?.status === 'submitted') && !error && <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel={order ? 'Processing purchase' : 'Preparing purchase'} color={colors.accentShadow} size="large" />}
         {order ? <>
-          <ToyBadge tone={order.status === 'confirmed' ? 'green' : order.status === 'failed' || order.status === 'expired' ? 'coral' : 'yellow'}>{order.status === 'confirmed' ? 'PURCHASE COMPLETE' : order.status === 'submitted' ? 'PROCESSING PURCHASE' : order.status === 'failed' ? 'PURCHASE FAILED' : order.status === 'expired' ? 'PURCHASE EXPIRED' : 'AWAITING YOUR APPROVAL'}</ToyBadge>
-          <PurchaseProgress status={order.status} />
-          <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'confirmed' ? 'Purchase complete. Your figure is in your collection.' : order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Continue in your wallet to approve this saved purchase.'}</Text>
+          {order.status !== 'confirmed' && <>
+            <ToyBadge tone={order.status === 'failed' || order.status === 'expired' ? 'coral' : 'yellow'}>{order.status === 'submitted' ? 'PROCESSING PURCHASE' : order.status === 'failed' ? 'PURCHASE FAILED' : order.status === 'expired' ? 'PURCHASE EXPIRED' : 'AWAITING YOUR APPROVAL'}</ToyBadge>
+            <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Continue in your wallet to approve this saved purchase.'}</Text>
+          </>}
           <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={figurePortrait(order.figureId, definitions)} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}</Text></View>
-          {order.status !== 'prepared' && <View style={styles.breakdown}>
-            <ReceiptRow label="Figure price" value={figurePaymentPrice(order, order.cluster)} />
-            {order.solFunding && <ReceiptRow label="Pay with SOL" value={formatSol(order.solFunding.inputLamports)} />}
-            <ReceiptRow label="Estimated additional fees" value={figurePrice(order.networkFeeLamports, order.cluster)} />
-            <View style={styles.divider} />
-            <ReceiptRow label="Estimated total" value={figurePurchaseTotal(order)} total />
-          </View>}
-          {order.status !== 'prepared' && order.solFunding && <Text style={styles.copy}>{solFundingNotice(order.solFunding)}</Text>}
           {order.cluster === 'devnet' && <Text style={styles.copy}>Test purchase only. No real payment.</Text>}
-          <Text style={styles.copy}>Sold by RIPSY · One figure for your collection</Text>
-          <ToyHomeButton compact tone="white" onPress={() => setPaymentDetailsOpen(value => !value)}>{paymentDetailsOpen ? 'Hide payment details' : 'Payment details'}</ToyHomeButton>
-          {paymentDetailsOpen && <><Text style={styles.label}>PURCHASE ACCOUNT</Text><Text selectable style={styles.address}>{order.buyer}</Text><Text style={styles.label}>SELLER ACCOUNT</Text><Text selectable style={styles.address}>{order.treasury}</Text></>}
           {order.status === 'prepared' && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" busy={wallet.isSupported && walletBusy} onPress={requestAccount}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
           {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner || shop.busy} onPress={() => { if (orderSigner) buyAndSign(() => shop.confirm(signPurchase)); }}>Continue in wallet</ToyHomeButton>}
           {order.status === 'confirmed' && <ToyHomeButton tone="yellow" onPress={() => openArmy(order.asset)}>Add to your army</ToyHomeButton>}
-          {paymentDetailsOpen && order.signature && <ToyHomeButton compact tone="white" onPress={() => run(() => Linking.openURL(solanaExplorer('tx', order.signature!, order.cluster)))}>View payment record ↗</ToyHomeButton>}
         </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{shop.fundingRequired ? `You can use SOL to cover the missing ${shop.fundingRequired.symbol}. Approve the purchase in your wallet.` : error ? 'No payment has been approved. Check purchase status or cancel and try again.' : 'Preparing your purchase... Retry to recover this same request if the connection was interrupted.'}</Text>}
         {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={purchaseBusy || address !== shop.purchaseBuyer} onPress={() => buyAndSign(() => shop.buyWithSol(signPurchase), true)}>Buy with SOL</ToyHomeButton>}
         {shop.hasPurchase && (!canClose || !order || Boolean(error)) && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.checkStatus())}>Check purchase status</ToyHomeButton>}
@@ -293,16 +279,6 @@ export function ShopScreen({ navigation, route }: Props) {
 }
 
 function short(value: string) { return value.slice(0, 4) + '…' + value.slice(-4); }
-function ReceiptRow({ label, value, total }: { label: string; value: string; total?: boolean }) {
-  return <View style={styles.receiptRow}><Text style={[styles.receiptLabel, total && styles.total]}>{label}</Text><Text style={[styles.receiptValue, total && styles.total]}>{value}</Text></View>;
-}
-function PurchaseProgress({ status }: { status: string }) {
-  const completed = status === 'confirmed' ? 3 : ['submitted', 'sending'].includes(status) ? 2 : status === 'opening-wallet' ? 1 : 0;
-  const current = ['preparing', 'prepared'].includes(status) ? 0 : status === 'opening-wallet' ? 1 : ['sending', 'submitted'].includes(status) ? 2 : null;
-  return <View accessibilityLabel={'Purchase status ' + status} style={styles.progressRow}>
-    {['PREPARE', 'APPROVE', 'COMPLETE'].map((label, index) => <View key={label} style={styles.progressItem}><View style={[styles.progressDot, index < completed && styles.progressComplete, current === index && styles.progressCurrent]}><Text style={styles.progressNumber}>{index < completed ? '✓' : index + 1}</Text></View><Text style={styles.progressLabel}>{label}</Text></View>)}
-  </View>;
-}
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
@@ -347,21 +323,8 @@ const styles = StyleSheet.create({
   receiptFigure: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, overflow: 'hidden', height: 84 },
   receiptPortrait: { width: 84, height: 84, alignItems: 'center' },
   receiptImage: { position: 'absolute', bottom: 0, width: 140, height: 140, resizeMode: 'contain' },
-  breakdown: { padding: spacing.md, gap: spacing.sm, borderRadius: 15, backgroundColor: colors.kitPanelSoft },
-  receiptRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.sm },
-  receiptLabel: { color: colors.textMuted, fontSize: 12, flexShrink: 1 },
-  receiptValue: { color: colors.ink, fontWeight: '700', fontSize: 14, fontVariant: ['tabular-nums'] },
-  total: { color: colors.ink, fontFamily: homeFont, fontSize: 17 },
-  divider: { height: 1, backgroundColor: colors.kitPanelBorder },
   label: { color: colors.textMuted, fontWeight: '800', fontSize: 11 },
   address: { color: colors.ink, fontSize: 12, lineHeight: 19, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  progressRow: { flexDirection: 'row', backgroundColor: colors.kitPanelSoft, padding: spacing.md, borderRadius: 14, gap: spacing.sm },
-  progressItem: { flex: 1, alignItems: 'center', gap: spacing.xs },
-  progressDot: { width: 30, height: 30, borderRadius: 10, borderWidth: 1, borderColor: colors.kitPanelBorder, backgroundColor: colors.kitPanel, alignItems: 'center', justifyContent: 'center' },
-  progressComplete: { backgroundColor: colors.kitSuccessSoft, borderColor: colors.kitSuccessInk },
-  progressCurrent: { backgroundColor: colors.reward, borderColor: colors.rewardShadow },
-  progressNumber: { color: colors.ink, fontSize: 12, fontWeight: '800' },
-  progressLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '800' },
   skeleton: { gap: spacing.md },
   skeletonArt: { height: 220, borderRadius: 16, backgroundColor: colors.surfaceHighlight },
   skeletonLine: { width: '60%', height: 24, borderRadius: 10, backgroundColor: colors.surfaceStrong },

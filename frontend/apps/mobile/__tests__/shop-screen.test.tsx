@@ -65,6 +65,11 @@ function purchaseModal(id: 'figure' | 'pack') {
   expect(modal).toBeDefined();
   return modal!;
 }
+function expectSimplePurchase(id: 'figure' | 'pack') {
+  const labels = purchaseModal(id).findAllByType(Text).flatMap(node => [node.props.children].flat(Infinity)).filter(value => typeof value === 'string');
+  for (const label of ['PREPARE', 'SIGN', 'APPROVE', 'COMPLETE', 'PURCHASE COMPLETE']) expect(labels).not.toContain(label);
+  expect(labels.join(' ')).not.toMatch(/Purchase complete\.|Figure price|Pay with SOL|Estimated additional fees|Estimated total|SOL covers|Sold by RIPSY|Payment details|PURCHASE ACCOUNT|SELLER ACCOUNT|View payment record|View pack record/);
+}
 async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />)); }
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
 
@@ -128,6 +133,7 @@ test.each(['figure', 'pack'] as const)('%s Buy with SOL keeps one popup through 
   expect(text('Preparing purchase')).toBe(true);
   expect(text('Preparing your SOL payment. Your wallet will open for approval.')).toBe(true);
   expect(host.findAllByType(ActivityIndicator)).toHaveLength(1);
+  expectSimplePurchase(kind);
   expect(button('Buy with SOL')).toBeUndefined();
   expect(button('Confirm purchase')).toBeUndefined();
   expect(signShopTransaction).not.toHaveBeenCalled();
@@ -256,7 +262,7 @@ test.each(['ios','android'] as const)('packs offer the same SKR price and 50/50 
   await press('Continue in wallet'); expect(pack.confirm).toHaveBeenCalledWith(expect.any(Function)); expect(signer).toHaveBeenCalledWith(packOrder);
 });
 
-test.each(['bonk', 'jup', 'ore'] as const)('%s submitted receipt shows token price plus separate SOL fees, without Seeker proof', async id => {
+test.each(['bonk', 'jup', 'ore'] as const)('%s retains its catalog price without a submitted receipt breakdown or Seeker proof', async id => {
   external();
   const figure: ShopFigure = { ...fig2, ...FIGURES.find(f => f.id === id)!, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] };
   setShop({ catalog: { ...shop.catalog, figures: [figure] } });
@@ -266,7 +272,9 @@ test.each(['bonk', 'jup', 'ore'] as const)('%s submitted receipt shows token pri
   expect(shop.prepare).toHaveBeenCalledWith(id, buyer, undefined, expect.any(Function));
   setShop({ hasPurchase: true, order: { ...order, status: 'submitted', figureId: id, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS[id] } });
   await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />));
-  expect(text(`${figurePaymentPrice(figure, 'mainnet-beta')} + 0.001005 SOL`)).toBe(true);
+  expectSimplePurchase('figure');
+  expect(text(`${figurePaymentPrice(figure, 'mainnet-beta')} + 0.001005 SOL`)).toBe(false);
+  expect(text('Processing your purchase… You can leave and check back.')).toBe(true);
   expect(text('0 SOL')).toBe(false);
 });
 
@@ -407,7 +415,7 @@ test('Seeker buy supplies a signer after the existing eligibility proof', async 
   expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet, expect.any(Function));
   expect(shop.confirm).not.toHaveBeenCalled();
 });
-test('Seeker SKR catalog and submitted receipt keep SOL fees separate; old SOL receipts retain their units', async () => {
+test('Seeker catalog retains SKR pricing while current and legacy submitted receipts omit price details', async () => {
   external();
   const figure = { ...fig2, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 };
   const catalog = { ...shop.catalog, figures: [figure] };
@@ -419,12 +427,15 @@ test('Seeker SKR catalog and submitted receipt keep SOL fees separate; old SOL r
   setShop({ catalog, hasPurchase: true, order: { ...order, status: 'submitted', priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 } });
   await updateScreen();
   let modal = purchaseModal('figure');
-  expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR')).toBe(true);
-  expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR + 0.001005 SOL')).toBe(true);
+  expectSimplePurchase('figure');
+  expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR')).toBe(false);
+  expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR + 0.001005 SOL')).toBe(false);
+  expect(text('1 SKR')).toBe(true);
   setShop({ catalog, hasPurchase: true, order: { ...order, status: 'submitted' } }); await updateScreen();
   modal = purchaseModal('figure');
-  expect(modal.findAllByType(Text).some(node => node.props.children === '0.01 SOL')).toBe(true);
-  expect(modal.findAllByType(Text).some(node => node.props.children === '0.011005 SOL')).toBe(true);
+  expectSimplePurchase('figure');
+  expect(modal.findAllByType(Text).some(node => node.props.children === '0.01 SOL')).toBe(false);
+  expect(modal.findAllByType(Text).some(node => node.props.children === '0.011005 SOL')).toBe(false);
   expect(modal.findAllByType(Text).some(node => node.props.children === '1 SKR')).toBe(false);
 });
 test('an embedded wallet cannot bypass Seeker fighter Seeker eligibility', async () => {
@@ -503,8 +514,8 @@ test('restored prepared purchase offers wallet continuation without a second quo
   external(); setShop({ hasPurchase: true, order }); await mountRecovery();
   expect(text('0.001005 SOL')).toBe(false); expect(text('0.011005 SOL')).toBe(false);
   expect(text(order.buyer)).toBe(false); expect(text(order.treasury)).toBe(false);
-  await press('Payment details');
-  expect(text(order.buyer)).toBe(true); expect(text(order.treasury)).toBe(true);
+  expectSimplePurchase('figure');
+  expect(button('Payment details')).toBeUndefined();
   // Native View cannot render literal JSX strings (including escaped newlines).
   expect(tree.root.findAllByType(View).flatMap(node => node.children.filter(child => typeof child === 'string'))).toEqual([]);
   expect(shop.confirm).not.toHaveBeenCalled();
@@ -550,7 +561,9 @@ test.each(['prepared', 'submitted'] as const)('restored unfinished figure %s ope
   await mountRecovery();
   expect(visibleModals()).toHaveLength(1);
   expect(purchaseModal('figure').findAllByType(Text).some(node => node.props.children === (status === 'submitted' ? 'Processing purchase' : 'Continue your purchase'))).toBe(true);
-  expect(purchaseModal('figure').findAllByProps({ accessibilityLabel: `Purchase status ${status}` }).length).toBeGreaterThan(0);
+  expectSimplePurchase('figure');
+  if (status === 'submitted') expect(purchaseModal('figure').findAllByType(ActivityIndicator)).toHaveLength(1);
+  else expect(button('Continue in wallet')).toBeDefined();
 });
 
 test.each(['confirmed', 'failed', 'expired'] as const)('restored terminal figure %s stays closed, including after re-entering Shop', async status => {
@@ -595,8 +608,32 @@ test('an active figure purchase keeps its popup open when it completes', async (
   setShop({ hasPurchase: true, order }); await updateScreen();
   setShop({ hasPurchase: true, order: { ...order, status: 'confirmed' } }); await updateScreen();
   expect(purchaseModal('figure')).toBeDefined();
-  expect(text('Purchase complete. Your figure is in your collection.')).toBe(true);
+  expectSimplePurchase('figure');
+  expect(button('Add to your army')).toBeDefined(); expect(button('Done')).toBeDefined();
   expect(text('Closing this popup keeps your purchase saved.')).toBe(false);
+});
+
+test.each(['fig2', 'bonk', 'jup', 'ore'] as const)('%s bought with SOL has a compact reward without altering the stored payment', async id => {
+  external();
+  const payment = FIGURE_TOKEN_PAYMENTS[id];
+  if (!payment) throw new Error(`Missing token payment fixture for ${id}`);
+  const figure: ShopFigure = { ...fig2, ...FIGURES.find(f => f.id === id)!, priceLamports: '0', tokenPayment: payment };
+  const confirmed: MintOrder = Object.freeze({ ...order, status: 'confirmed', figureId: id, priceLamports: '0', tokenPayment: payment,
+    solFunding: Object.freeze({ inputLamports: '1052065', outputMint: payment.mint, shortfall: payment.amount, minimumOutput: payment.amount, expectedOutput: payment.amount, slippageBps: 50 }) });
+  const original = JSON.stringify(confirmed);
+  const catalog = { ...shop.catalog, figures: [figure] };
+  setShop({ catalog, hasPurchase: true, signingStarted: true, order: { ...confirmed, status: 'submitted' } });
+  await mountRecovery();
+  setShop({ catalog, hasPurchase: true, signingStarted: true, order: confirmed }); await updateScreen();
+  expectSimplePurchase('figure');
+  expect(purchaseModal('figure').findAllByType(Text).map(node => node.props.children)).toContain(figure.name);
+  expect(text(figurePaymentPrice(figure, 'mainnet-beta'))).toBe(true);
+  expect(button('Check purchase status')).toBeUndefined(); expect(button('Continue in wallet')).toBeUndefined();
+  expect(button('Done')).toBeDefined();
+  expect(JSON.stringify(confirmed)).toBe(original);
+  await press('Add to your army');
+  expect(navigate).toHaveBeenCalledWith('Army', { expectedAssetId: confirmed.asset });
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
 });
 
 test('an active pack keeps its reward popup open when it completes', async () => {
@@ -605,7 +642,9 @@ test('an active pack keeps its reward popup open when it completes', async () =>
   setPack({ hasPurchase: true, order: { ...packOrder, status: 'waiting-result' } }); await updateScreen();
   setPack({ hasPurchase: true, order: { ...packOrder, status: 'confirmed', result: 'bonk' } }); await updateScreen();
   expect(purchaseModal('pack')).toBeDefined();
-  expect(text('Purchase complete. Your fighter is ready for your army.')).toBe(true);
+  expectSimplePurchase('pack');
+  expect(text('BONK')).toBe(true);
+  expect(button('Add to your army')).toBeDefined(); expect(button('Done')).toBeDefined();
 });
 
 test('a completed figure receipt does not hide restored pack recovery', async () => {
@@ -744,13 +783,16 @@ test('confirmed pack opens Army with the exact awarded asset and hides its popup
   expect(pack.dismiss).not.toHaveBeenCalled();
 });
 
-test('pack record browser failures are visible in the popup and can retry', async () => {
+test('confirmed pack contains only its reward and actions, without technical records or unfinished recovery', async () => {
   setPack({ hasPurchase: true, order: { ...packOrder, status: 'waiting-result' } });
-  jest.mocked(Linking.openURL).mockRejectedValueOnce(new Error('No handler'));
-  await mountRecovery(); setPack({ hasPurchase: true, order: { ...packOrder, status: 'confirmed', result: 'jup' } }); await updateScreen(); await press('View pack record');
-  expect(purchaseModal('pack').findAllByType(Text).some(node => node.props.children === 'Could not open the pack record. Please try again.')).toBe(true);
-  await press('View pack record');
-  expect(text('Could not open the pack record. Please try again.')).toBe(false);
+  await mountRecovery(); setPack({ hasPurchase: true, order: { ...packOrder, status: 'confirmed', result: 'jup' } }); await updateScreen();
+  expectSimplePurchase('pack');
+  expect(text('Jup')).toBe(true);
+  expect(button('View pack record')).toBeUndefined(); expect(button('Check pack status')).toBeUndefined();
+  expect(text('Closing this popup keeps your pack purchase saved.')).toBe(false);
+  expect(button('Add to your army')).toBeDefined();
+  await press('Done'); expect(pack.dismiss).toHaveBeenCalledTimes(1);
+  expect(Linking.openURL).not.toHaveBeenCalled();
   expect(pack.prepare).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
 });
 
@@ -774,8 +816,8 @@ test.each(['submitted', 'failed', 'expired'] as const)('purchase %s has an hones
 test('a different connected wallet cannot sign an existing order', async () => {
   external('other1111111111111111111111111111'); setShop({ hasPurchase: true, order }); await mountRecovery();
   expect(button('Continue in wallet').props.disabled).toBe(true);
-  await press('Payment details');
-  expect(text(order.buyer)).toBe(true); expect(shop.confirm).not.toHaveBeenCalled();
+  expect(button('Payment details')).toBeUndefined(); expect(button('Reconnect wallet')).toBeDefined();
+  expect(text(order.buyer)).toBe(false); expect(shop.confirm).not.toHaveBeenCalled();
 });
 
 test.each([false, true])('store and email registration use figure/account language without crypto explanations (Seeker: %s)', async seeker => {
@@ -909,7 +951,8 @@ test('test-mode purchase amounts cannot be mistaken for a real charge', async ()
   await mountRecovery();
   expect(text('TEST MODE · NO REAL PURCHASES')).toBe(true);
   expect(text('Test purchase only. No real payment.')).toBe(true);
-  expect(text('0.011005 test credits')).toBe(true);
+  expectSimplePurchase('figure');
+  expect(text('0.011005 test credits')).toBe(false);
   expect(text('0.011005 SOL')).toBe(false);
 });
 test('unavailable catalog figure never invents a price or enables purchase', async () => {

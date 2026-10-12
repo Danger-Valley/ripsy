@@ -1,12 +1,7 @@
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
-import { useEffect, useState } from 'react';
-import {
-  figureStoreMessage,
-  solanaExplorer,
-} from '@rps/core/shop';
+import { figureStoreMessage } from '@rps/core/shop';
 import { isTerminalPack, packPrice } from '@rps/core/packs';
 import type { usePackShop } from '@rps/game-client/use-pack-shop';
-import { Linking } from 'react-native';
 import {
   homeArt,
   homeFont,
@@ -140,17 +135,12 @@ export function ShopPackPurchase({
   onAccount(): void;
 }) {
   const order = pack.order;
-  const [recordError, setRecordError] = useState<string | null>(null);
   const definitions = useFigureCatalog();
-  useEffect(() => {
-    setRecordError(null);
-  }, [order?.id]);
   return (
     <>
       {pack.error && (
         <StatusBanner message={figureStoreMessage(pack.error)} tone="error" />
       )}
-      {recordError && <StatusBanner message={recordError} tone="error" />}
       {((pack.busy && !order) ||
         (order &&
           ['submitted', 'waiting-result', 'ready-to-claim'].includes(
@@ -166,10 +156,8 @@ export function ShopPackPurchase({
             size="large"
           />
         )}
-      <Text accessibilityLiveRegion="polite" style={styles.copy}>
-        {order?.status === 'confirmed'
-          ? 'Purchase complete. Your fighter is ready for your army.'
-          : order?.status === 'waiting-result'
+      {order?.status !== 'confirmed' && <Text accessibilityLiveRegion="polite" style={styles.copy}>
+        {order?.status === 'waiting-result'
           ? 'Your purchase is saved. Waiting for the pack result. No need to buy again.'
           : order?.status === 'ready-to-claim'
           ? 'Your result is saved. Adding this fighter to your collection.'
@@ -184,7 +172,7 @@ export function ShopPackPurchase({
           : pack.error
           ? 'No payment has been approved. Close this popup and try again.'
           : 'Preparing your pack… Retry to recover this same request if the connection was interrupted.'}
-      </Text>
+      </Text>}
       {pack.fundingRequired && <ToyHomeButton tone="yellow" busy={pack.busy} disabled={blocked || pack.busy || address !== pack.purchaseBuyer} onPress={onBuyWithSol}>Buy with SOL</ToyHomeButton>}
       {order && (
         <>
@@ -228,27 +216,9 @@ export function ShopPackPurchase({
               Add to your army
             </ToyHomeButton>
           )}
-          {order.status === 'confirmed' && (
-            <ToyHomeButton
-              compact
-              tone="white"
-              onPress={() => {
-                setRecordError(null);
-                Linking.openURL(
-                  solanaExplorer('address', order.receipt, 'mainnet-beta'),
-                ).catch(() =>
-                  setRecordError(
-                    'Could not open the pack record. Please try again.',
-                  ),
-                );
-              }}
-            >
-              View pack record
-            </ToyHomeButton>
-          )}
         </>
       )}
-      {pack.hasPurchase && (
+      {pack.hasPurchase && order?.status !== 'confirmed' && (
         <ToyHomeButton
           compact
           tone="white"
@@ -269,7 +239,7 @@ export function ShopPackPurchase({
             {order && isTerminalPack(order) ? 'Done' : 'Cancel pack purchase'}
           </ToyHomeButton>
         )}
-      {pack.hasPurchase && (
+      {pack.hasPurchase && (!order || !isTerminalPack(order)) && (
         <Text style={styles.note}>
           Closing this popup keeps your pack purchase saved.
         </Text>

@@ -1,4 +1,4 @@
-import { parseFigureInventory, parseMintOrder, parseSeekerChallenge, parseShopCatalog, parseWalletChallenge, parseTokenShortfall, type TokenShortfall, type FigureId, type SeekerProof, type WalletProof } from '@rps/core/shop';
+import { figureOrderQuantity, validateFigureQuantity, parseFigureInventory, parseMintOrder, parseSeekerChallenge, parseShopCatalog, parseWalletChallenge, parseTokenShortfall, type TokenShortfall, type FigureId, type SeekerProof, type WalletProof } from '@rps/core/shop';
 import { parsePackCatalog, parsePackOrder } from '@rps/core/packs';
 import { parseFigureManifest } from '@rps/core/figure-manifest';
 
@@ -24,8 +24,11 @@ export class ShopClient {
   async saveLoadout(slots: Array<string | null>) {
     return parseFigureInventory(await this.request('/shop/loadout', { slots }, 'PUT'));
   }
-  async create(figureId: FigureId, buyer: string, idempotencyKey: string, paymentMode?: 'sol') {
-    return parseMintOrder(await this.request('/shop/orders', { figureId, buyer, idempotencyKey, ...(paymentMode ? { paymentMode } : {}) }));
+  async create(figureId: FigureId, buyer: string, idempotencyKey: string, paymentMode?: 'sol', quantity = 1) {
+    validateFigureQuantity(quantity);
+    const order = parseMintOrder(await this.request('/shop/orders', { figureId, buyer, idempotencyKey, ...(paymentMode ? { paymentMode } : {}), ...(quantity > 1 ? { quantity } : {}) }));
+    if (figureOrderQuantity(order) !== quantity) throw new Error('The shop did not prepare the selected number of figures. No approval was requested.');
+    return order;
   }
   async get(id: string) { return parseMintOrder(await this.request(`/shop/orders/${encodeURIComponent(id)}`)); }
   async submit(id: string, transaction: string) {

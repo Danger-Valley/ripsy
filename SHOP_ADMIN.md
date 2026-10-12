@@ -33,6 +33,28 @@ The backend converts decimal strings exactly to integer base units. Zero/negativ
 
 The public catalog and every **new** purchase fetch current pricing. The chain transfer and saved order use the same snapshot. Already-prepared purchases retain their original price and transaction. Rollback is another reviewed save, not a Redis reset or an environment variable change. Environment/registry prices remain defaults only where no admin override exists.
 
+## Figure purchase quantity
+
+Native and web cards offer a quantity picker before Buy. The server advertises
+`maxFigureQuantity: 3`; absent on an older backend means one only. Purchase
+requests may add integer `quantity` in `1..3` (omitted means one). The server
+multiplies its current unit-price snapshot using exact integer base units.
+Existing orders retain their captured total and quantity; retries and Buy with
+SOL reuse the same intent instead of making another charge.
+
+One transaction contains the total payment and a separate Core asset for every
+figure. Bulk receipts add `quantity` and a unique `assets` array while retaining
+the first `asset` for legacy recovery/Army navigation. All asset signatures are
+required. Nothing is split into separately paid transactions. Three direct
+token-priced figures fit the 1,232-byte limit for current models. SOL exchange
+route size can lower the practical limit: oversized compositions fail before
+wallet approval and ask for fewer figures or the actual payment tokens. Packs
+remain one pack per purchase; their prices, odds and VRF are unchanged.
+
+The compact native reward shows the count. Add to your army selects the first
+exact asset; all purchased figures appear through authoritative inventory.
+Changing the picker does not prepare, sign or submit a transaction.
+
 ## USD equivalents
 
 Figure prices (SOL, BONK, JUP, ORE and future registered payment tokens), pack SKR prices and publication cost show approximate USD equivalents beside the exact token amounts, including draft edits and confirmation reviews. This is **display-only**: editing/saving still uses exact token base units, not a USD target or automatic conversion. USD amounts exclude purchase fees; history does not pretend that today's exchange rate was the historical rate.

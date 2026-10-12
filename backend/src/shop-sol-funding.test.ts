@@ -49,8 +49,9 @@ function fixture() {
   return { umi, buyer, authority, payment, source, output, requests, prepare, token, fetcher, mutate(fn: typeof mutate) { mutate = fn; } };
 }
 
-test('full Core purchase composes exchange, exact token transfer and creation into one unsigned-buyer v0 message', async () => {
+for (const quantity of [1, 2, 3]) test(`SOL-funded quantity ${quantity} preserves one exact payment or rejects before signing when oversized`, async () => {
   const f = fixture(), collection = generateSigner(f.umi).publicKey, treasury = generateSigner(f.umi).publicKey;
+  const payment = { ...f.payment, amount: String(1000000 * quantity) };
   const oldFetch = globalThis.fetch;
   globalThis.fetch = f.fetcher;
   try {
@@ -68,21 +69,37 @@ test('full Core purchase composes exchange, exact token transfer and creation in
     f.umi.rpc.simulateTransaction = (async tx => {
       const ix = tx.message.instructions.find(ix => tx.message.accounts[ix.programIndex] === '11111111111111111111111111111111')!;
       const input = Buffer.from(ix.data).readBigUInt64LE(4);
-      return { err: null, logs: [], accounts: [{ lamports: Number(1000000000n - input - 6000000n) }, f.token(f.payment.mint, 250000n + input * 100n * 995n / 1000n - 1000000n), null] };
+      return { err: null, logs: [], accounts: [{ lamports: Number(1000000000n - input - 6000000n) }, f.token(f.payment.mint, 250000n + input * 100n * 995n / 1000n - BigInt(payment.amount)), null] };
     }) as RpcInterface['simulateTransaction'];
     const chain = createShopChain({ ...loadShopConfig({}), enabled: true, cluster: 'mainnet-beta', collection, treasury, jupiterApiKey: 'test-only-key', authoritySecret: JSON.stringify([...f.authority.secretKey]) }, f.umi);
-    const order = await chain.prepare('jup', f.buyer.publicKey, '0', f.payment, 'sol');
+    // This deliberately lookup-free route exceeds the packet limit at three.
+    // It must fail before returning bytes to approve, never split swap/payment.
+    if (quantity === 3) {
+      await assert.rejects(chain.prepare('jup', f.buyer.publicKey, '0', payment, 'sol', quantity), /This purchase is too large/);
+      return;
+    }
+    const order = await chain.prepare('jup', f.buyer.publicKey, '0', payment, 'sol', quantity);
     const tx = f.umi.transactions.deserialize(Buffer.from(order.transaction, 'base64'));
+    assert.ok(Buffer.from(order.transaction, 'base64').length <= 1232);
+    assert.equal(quantity > 1 ? order.assets?.length : 1, quantity);
     assert.equal(tx.message.version, 0); assert.equal(tx.message.accounts[0], f.buyer.publicKey);
     assert.equal(tx.message.instructions.filter(ix => tx.message.accounts[ix.programIndex] === JUPITER).length, 1);
     const transfer = tx.message.instructions.find(ix => tx.message.accounts[ix.programIndex] === SHOP_TOKEN_PROGRAM && ix.data[0] === 12)!;
-    assert.equal(Buffer.from(transfer.data).readBigUInt64LE(1), 1000000n);
+    assert.equal(Buffer.from(transfer.data).readBigUInt64LE(1), BigInt(payment.amount));
     const programs = tx.message.instructions.map(ix => tx.message.accounts[ix.programIndex]);
     assert.ok(programs.indexOf(JUPITER) < programs.indexOf(MPL_CORE_PROGRAM_ID));
+    assert.equal(programs.filter(program => program === MPL_CORE_PROGRAM_ID).length, quantity);
     assert.equal(tx.signatures[0]!.every(byte => byte === 0), true);
     assert.equal(order.networkFeeLamports, '6000000'); assert.ok(order.solFunding);
+    assert.equal(order.solFunding.shortfall, (BigInt(payment.amount) - 250000n).toString());
     const signed = await f.buyer.signTransaction(tx);
     assert.ok(chain.validateSigned({ transaction: order.transaction, buyer: f.buyer.publicKey }, Buffer.from(f.umi.transactions.serialize(signed)).toString('base64')));
+    if (quantity > 1) {
+      for (let index = 1; index < signed.message.header.numRequiredSignatures; index++) {
+        const missing = { ...signed, signatures: signed.signatures.map((signature, signer) => signer === index ? new Uint8Array(64) : signature) };
+        assert.throws(() => chain.validateSigned({ transaction: order.transaction, buyer: f.buyer.publicKey }, Buffer.from(f.umi.transactions.serialize(missing)).toString('base64')), /missing a valid signature/);
+      }
+    }
   } finally { globalThis.fetch = oldFetch; }
 });
 

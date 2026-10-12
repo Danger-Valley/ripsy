@@ -4,6 +4,14 @@ The native app checks the public `GET /mobile/update-policy` endpoint before mou
 
 This feature requires a new native release first. Previously installed builds without the gate cannot be remotely forced to update by this endpoint.
 
+The default title is now **You have to update the app**. On the Seeker update
+channel the primary button is **Open dApp Store** and opens the exact
+`solanadappstore://details?id=com.dangervalley.ripsy` URI. A configured HTTPS
+destination is retained as fallback if the native store cannot open. Other
+channels retain their configured store destination. This changes presentation
+and routing, not the activation policy: minimum builds remain disabled until a
+reachable, installable store release has been verified.
+
 ## Railway configuration
 
 Set **MOBILE_UPDATE_POLICY** on the backend service in Railway. It is one JSON value, not a mobile build variable and not a Vercel setting. Restart/redeploy the backend to apply a change. No app rebuild is required for subsequent policy changes.

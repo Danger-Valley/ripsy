@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { isFigureId, isTerminalMint, parseMintOrder, type TokenShortfall, type FigureId, type MintOrder, type SeekerChallenge, type SeekerProof, type ShopCatalog } from '@rps/core/shop';
+import { figureOrderQuantity, validateFigureQuantity, isFigureId, isTerminalMint, parseMintOrder, type TokenShortfall, type FigureId, type MintOrder, type SeekerChallenge, type SeekerProof, type ShopCatalog } from '@rps/core/shop';
 import { ShopClient, ShopRequestError } from './shop-client';
 
 export interface PurchaseIntent {
+  quantity?: number;
   paymentMode?: 'sol';
   key: string;
   figureId: FigureId;
@@ -23,8 +24,14 @@ export function parsePurchaseIntent(raw: string): PurchaseIntent {
     || (value.paymentMode !== undefined && value.paymentMode !== 'sol')
     || (value.signingStarted !== undefined && typeof value.signingStarted !== 'boolean')) throw new Error('Could not restore your purchase. Contact support before starting another mint.');
   if (value.order) value.order = parseMintOrder(value.order);
+  validateFigureQuantity(value.quantity === undefined ? 1 : value.quantity);
   if (value.order && (value.order.buyer !== value.buyer || value.order.figureId !== value.figureId)) throw new Error('Invalid saved purchase');
+  if (value.order && figureOrderQuantity(value.order) !== (value.quantity ?? 1)) throw new Error('Invalid saved purchase quantity');
   return value;
+}
+function verifyQuantity(pending: PurchaseIntent, order: MintOrder) {
+  if (figureOrderQuantity(order) !== (pending.quantity ?? 1)) throw new Error('The shop did not prepare the selected number of figures. No approval was requested.');
+  return order;
 }
 
 export function useShop(baseUrl: string, sessionToken: string, storage: PurchaseStorage) {
@@ -84,14 +91,20 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     finally { activeOperation.current = false; setBusy(false); }
   }, [sessionToken, restored]);
 
+  const createPurchase = useCallback(async (pending: PurchaseIntent) => verifyQuantity(pending, await (
+    (pending.quantity ?? 1) > 1 ? client.create(pending.figureId, pending.buyer, pending.key, pending.paymentMode, pending.quantity)
+    : pending.paymentMode ? client.create(pending.figureId, pending.buyer, pending.key, pending.paymentMode)
+    : client.create(pending.figureId, pending.buyer, pending.key)
+  )), [client]);
+
   const checkStatus = useCallback((background = false) => run(async () => {
     const current = intentRef.current;
     if (!current || (current.order && isTerminalMint(current.order))) return;
     if (background && preparationBlocked.current) return;
-    const order = current.order ? await client.get(current.order.id) : await client.create(current.figureId, current.buyer, current.key, current.paymentMode);
-    const latest = current.signed && !isTerminalMint(order) ? await client.submit(order.id, current.signed) : order;
+    const order = current.order ? verifyQuantity(current, await client.get(current.order.id)) : await createPurchase(current);
+    const latest = current.signed && !isTerminalMint(order) ? verifyQuantity(current, await client.submit(order.id, current.signed)) : order;
     await persist({ ...current, order: latest, ...(isTerminalMint(latest) ? { signed: undefined } : {}) });
-  }, background), [client, persist, run]);
+  }, background), [client, createPurchase, persist, run]);
 
   useEffect(() => {
     if (!restored || !sessionToken || !intent || (intent.order && isTerminalMint(intent.order))) return;
@@ -106,17 +119,19 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
   const signPrepared = useCallback(async (sign: (order: MintOrder) => Promise<string>) => {
     const pending = intentRef.current;
     if (!pending?.order) throw new Error('Check your pending purchase status.');
-    const order = await client.get(pending.order.id);
+    const order = verifyQuantity(pending, await client.get(pending.order.id));
     if (order.status !== 'prepared') { await persist({ ...pending, order }); return; }
     const signing = { ...pending, order, signingStarted: true };
     await persist(signing);
     const signed = pending.signed ?? await sign(order);
     await persist({ ...signing, signed });
-    const submitted = await client.submit(order.id, signed);
+    const submitted = verifyQuantity(pending, await client.submit(order.id, signed));
     await persist({ ...signing, signed, order: submitted });
   }, [client, persist]);
 
-  const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>, sign?: (order: MintOrder) => Promise<string>) => run(async () => {
+  const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>, sign?: (order: MintOrder) => Promise<string>, quantity = 1) => run(async () => {
+    validateFigureQuantity(quantity);
+    if (quantity > (catalog?.maxFigureQuantity ?? 1)) throw new Error('The shop has not enabled this quantity yet. Refresh the shop and try again.');
     const previous = intentRef.current;
     if (previous) {
       if (!previous.order || !isTerminalMint(previous.order)) throw new Error('Finish or close your current purchase first.');
@@ -127,12 +142,12 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
       await client.verifySeeker(await proveSeeker(challenge));
     }
     // This is an idempotency identifier, not an authentication credential.
-    const pending: PurchaseIntent = { key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`, figureId, buyer };
+    const pending: PurchaseIntent = { key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`, figureId, buyer, ...(quantity > 1 ? { quantity } : {}) };
     await persist(pending);
-    const order = await client.create(figureId, buyer, pending.key);
+    const order = await createPurchase(pending);
     await persist({ ...pending, order });
     if (sign) await signPrepared(sign);
-  }), [client, persist, run, signPrepared]);
+  }), [catalog, client, createPurchase, persist, run, signPrepared]);
 
   const confirm = useCallback((sign: (order: MintOrder) => Promise<string>) => run(() => signPrepared(sign)), [run, signPrepared]);
 
@@ -142,9 +157,9 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     const pending: PurchaseIntent = { ...saved, paymentMode: 'sol' };
     // Persist before HTTP. A lost response must recover this exact request.
     await persist(pending);
-    await persist({ ...pending, order: await client.create(pending.figureId, pending.buyer, pending.key, 'sol') });
+    await persist({ ...pending, order: await createPurchase(pending) });
     if (sign) await signPrepared(sign);
-  }), [client, persist, run, signPrepared]);
+  }), [createPurchase, persist, run, signPrepared]);
 
   const dismiss = useCallback(() => run(async () => {
     const current = intentRef.current;
@@ -156,7 +171,7 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     await client.clearWallet();
   }), [client, run]);
 
-  return { catalog, order: intent?.order ?? null, hasPurchase: Boolean(intent), purchaseBuyer: intent?.buyer ?? null,
+  return { catalog, order: intent?.order ?? null, hasPurchase: Boolean(intent), purchaseBuyer: intent?.buyer ?? null, purchaseQuantity: intent?.quantity ?? 1,
     fundingRequired: !intent?.order && !intent?.signingStarted && !intent?.paymentMode ? fundingRequired : null, buyWithSol,
     signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, prepare, confirm, dismiss, checkStatus, loadCatalog, clearWallet };
 }

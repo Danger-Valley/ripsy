@@ -1,5 +1,5 @@
 import { publicKey } from '@metaplex-foundation/umi';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, isSafeShopExternalUrl, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, MAX_FIGURE_PURCHASE_QUANTITY, isSafeShopExternalUrl, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 
 export interface ShopConfig {
@@ -51,6 +51,7 @@ function readPrice(value: string | undefined): string | null {
 export function shopCatalog(config: ShopConfig): ShopCatalog {
   return {
     cluster: config.cluster, treasury: config.treasury, collection: config.collection,
+    maxFigureQuantity: MAX_FIGURE_PURCHASE_QUANTITY,
     solanaMobileStoreUrl: config.solanaMobileStoreUrl,
     figures: FIGURES.filter(figure => figure.purchasable).map(figure => ({
       id: figure.id, name: figure.name, variant: figure.variant,

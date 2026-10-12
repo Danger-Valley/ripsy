@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { publicKey } from '@metaplex-foundation/umi';
-import { isFigureId, isTerminalMint, type MintOrder } from '@rps/core/shop';
+import { figureOrderQuantity, figureQuantityPrice, validateFigureQuantity, isFigureId, isTerminalMint, type MintOrder } from '@rps/core/shop';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 import { shopCatalog, type ShopConfig } from './shop-config.js';
 import type { ShopChain } from './shop-chain.js';
@@ -39,6 +39,8 @@ export class ShopService {
 
   async create(playerId: string, input: Record<string, unknown>): Promise<MintOrder> {
     if (!this.config.enabled) throw new ShopError('Minting is not available yet.', 503);
+    const quantity = input.quantity === undefined ? 1 : input.quantity;
+    try { validateFigureQuantity(quantity); } catch (error) { throw new ShopError((error as Error).message); }
     if (input.paymentMode !== undefined && input.paymentMode !== 'sol') throw new ShopError('Invalid payment method');
     if (!isFigureId(input.figureId) || !FIGURES.some(f => f.id === input.figureId)) throw new ShopError('Unknown figure');
     if (input.figureId === 'fig1') throw new ShopError('RIPSY 001 is free for every player and is not sold in the shop.', 409);
@@ -53,13 +55,16 @@ export class ShopService {
     return this.lock(id, async commit => {
       const existing = await this.read(id, playerId, false);
       if (existing) {
-        if (existing.order.buyer !== buyer || existing.order.figureId !== figureId) throw new ShopError('Purchase request already used', 409);
+        if (existing.order.buyer !== buyer || existing.order.figureId !== figureId || figureOrderQuantity(existing.order) !== quantity) throw new ShopError('Purchase request already used', 409);
         return this.refresh(existing);
       }
       // Saved requests retain their exact original currency/quote, including
       // legacy SOL fig2 receipts. New SKR payments below remain mainnet-only.
       const quote = this.pricing ? await this.pricing.payment(figureId) : { price: FIGURE_TOKEN_PAYMENTS[figureId] ? '0' : this.config.prices[figureId], tokenPayment: FIGURE_TOKEN_PAYMENTS[figureId] };
-      const { price, tokenPayment } = quote;
+      let total: ReturnType<typeof figureQuantityPrice>;
+      try { total = figureQuantityPrice({ priceLamports: quote.price ?? null, tokenPayment: quote.tokenPayment }, quantity); }
+      catch (error) { throw new ShopError((error as Error).message); }
+      const { priceLamports: price, tokenPayment } = total;
       if (tokenPayment && this.config.cluster !== 'mainnet-beta') throw new ShopError('This figure is only available on the production store.', 409);
       if (!price) throw new ShopError('This figure is not available yet', 409);
       if (FIGURES.find(f => f.id === figureId)!.seekerExclusive) {
@@ -69,9 +74,13 @@ export class ShopService {
       const bucket = `${this.prefix}:shop:rate:${playerId}:${Math.floor(Date.now() / 60_000)}`;
       const count = Number(await this.redis.eval("local n = redis.call('INCR', KEYS[1]); if n == 1 then redis.call('EXPIRE', KEYS[1], 120) end; return n", { keys: [bucket], arguments: [] }));
       if (count > 8) throw new ShopError('Too many mint requests. Wait a minute and try again.', 429);
-      const prepared = await this.chain.prepare(figureId, buyer, price, tokenPayment, input.paymentMode as 'sol' | undefined);
+      const prepared = quantity === 1
+        ? await this.chain.prepare(figureId, buyer, price, tokenPayment, input.paymentMode as 'sol' | undefined)
+        : await this.chain.prepare(figureId, buyer, price, tokenPayment, input.paymentMode as 'sol' | undefined, quantity);
+      if (quantity > 1 && (!prepared.assets || prepared.assets.length !== quantity || prepared.assets[0] !== prepared.asset || new Set(prepared.assets).size !== quantity)) throw new ShopError('Could not prepare all selected figures. No payment was sent.', 503);
       const order: MintOrder = {
         id, figureId, buyer, ...prepared, cluster: this.config.cluster, priceLamports: price,
+        ...(quantity > 1 ? { quantity } : {}),
         ...(tokenPayment ? { tokenPayment: { ...tokenPayment } } : {}),
         treasury: this.config.treasury!, collection: this.config.collection!, createdAt: Date.now(),
         status: 'prepared', signature: null, error: null,

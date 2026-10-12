@@ -69,6 +69,48 @@ test('prices are server owned and idempotency survives switching replicas', asyn
   await assert.rejects(() => f.replica.create('player', { ...input, buyer: 'SysvarC1ock11111111111111111111111111111111' }), /already used/);
 });
 
+test('quantity multiplies the server quote once, creates separate assets and pins idempotency across replicas', async () => {
+  const f = fixture(); const assets = [buyer, FIGURE_TOKEN_PAYMENTS.bonk!.mint, FIGURE_TOKEN_PAYMENTS.jup!.mint];
+  const original = f.chain.prepare; const calls: unknown[][] = [];
+  f.chain.prepare = async (...args) => { calls.push(args); return { ...await original(...args), assets }; };
+  const request = { ...input, quantity: 3, amount: '1', tokenPayment: { amount: '1' } };
+  const first = await f.service.create('player', request);
+  assert.equal(first.quantity, 3); assert.deepEqual(first.assets, assets);
+  assert.equal(first.tokenPayment!.amount, (BigInt(FIGURE_TOKEN_PAYMENTS.fig2!.amount) * 3n).toString());
+  assert.deepEqual(calls[0], ['fig2', buyer, '0', first.tokenPayment, undefined, 3]);
+  assert.deepEqual(await f.replica.create('player', request), first);
+  await assert.rejects(f.replica.create('player', { ...request, quantity: 2 }), /already used/);
+  await assert.rejects(f.replica.create('player', input), /already used/);
+  assert.equal(calls.length, 1); assert.equal(f.sends(), 0);
+  f.setState('confirmed'); const done = await f.replica.get('player', first.id);
+  assert.deepEqual(done.assets, assets); assert.equal(done.quantity, 3);
+});
+test('bad quantity and incomplete or duplicate prepared assets never produce a purchase', async () => {
+  for (const quantity of [0, 4, 14, -1, 1.5, '2', null, {}, Number.MAX_SAFE_INTEGER]) {
+    const f = fixture(); await assert.rejects(f.service.create('player', { ...input, quantity }), /between 1 and 3/);
+    assert.equal(f.prepares(), 0); assert.equal(f.sends(), 0);
+  }
+  for (const assets of [undefined, [buyer], [buyer, buyer]]) {
+    const f = fixture(); const original = f.chain.prepare;
+    f.chain.prepare = async (...args) => ({ ...await original(...args), assets });
+    await assert.rejects(f.service.create('player', { ...input, quantity: 2 }), /all selected figures/);
+    assert.equal([...f.redis.data.keys()].some(key => key.includes(':order:')), false);
+  }
+});
+test('bulk SOL recovery uses the full token total and never changes quantity after preparation', async () => {
+  const f = fixture(); const original = f.chain.prepare; const assets = [buyer, FIGURE_TOKEN_PAYMENTS.bonk!.mint];
+  f.chain.prepare = async (...args) => {
+    assert.equal(args[5], 2); assert.equal(args[3]!.amount, '2000000');
+    if (!args[4]) throw new ShopError('Not enough SKR', 400, { code: 'INSUFFICIENT_PURCHASE_TOKEN', ...args[3]!, required: args[3]!.amount, balance: '1000000' });
+    return { ...await original(...args), assets };
+  };
+  const request = { ...input, quantity: 2 };
+  await assert.rejects(f.service.create('player', request), (error: unknown) => error instanceof ShopError && error.recovery?.required === '2000000');
+  const order = await f.replica.create('player', { ...request, paymentMode: 'sol' });
+  assert.equal(order.quantity, 2); assert.equal(order.tokenPayment!.amount, '2000000');
+  assert.deepEqual(await f.service.create('player', request), order);
+});
+
 test('SOL recovery forwards only the payment mode and preserves prepared orders on retry', async () => {
   const f = fixture(), original = f.chain.prepare;
   const calls: unknown[][] = [];

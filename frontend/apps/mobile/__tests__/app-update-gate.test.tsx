@@ -84,6 +84,8 @@ test('Seeker tries dApp Store then configured HTTPS fallback, with an honest err
   const seekerRule = { ...rule, storeUrl: 'solanadappstore://details?id=com.dangervalley.ripsy', fallbackUrl: 'https://www.ripsy.fun/download' };
   jest.mocked(Linking.openURL).mockRejectedValueOnce(new Error('No handler'));
   await Renderer.act(async () => { tree = Renderer.create(<RequiredUpdateScreen rule={seekerRule} app={seeker} refreshing={false} checkFailed={false} onCheck={check} />); });
+  expect(tree!.root.findAllByType(ToyHomeButton)[0].props.children).toBe('Open dApp Store');
+  expect(tree!.root.findAllByType(Text).some(node => node.props.children === 'You have to update the app')).toBe(true);
   await Renderer.act(async () => tree!.root.findAllByType(ToyHomeButton)[0].props.onPress());
   expect(Linking.openURL).toHaveBeenNthCalledWith(1, seekerRule.storeUrl);
   expect(Linking.openURL).toHaveBeenNthCalledWith(2, seekerRule.fallbackUrl);
@@ -92,6 +94,14 @@ test('Seeker tries dApp Store then configured HTTPS fallback, with an honest err
   const copy = tree!.root.findAllByType(Text).map(text => text.props.children);
   expect(copy).toContain('Could not open the store. Check your connection and try again.');
   expect(tree!.root.findAllByType(Text).find(text => text.props.selectable)?.props.children).toBe(seekerRule.fallbackUrl);
+});
+test('Seeker always targets its exact dApp Store listing, retaining configured HTTPS as fallback', async () => {
+  const seeker = { ...app, channel: 'seeker' as const };
+  jest.mocked(Linking.openURL).mockRejectedValueOnce(new Error('No handler'));
+  await Renderer.act(async () => { tree = Renderer.create(<RequiredUpdateScreen rule={{ ...rule, storeUrl: 'https://www.ripsy.fun/download' }} app={seeker} refreshing={false} checkFailed={false} onCheck={check} />); });
+  await Renderer.act(async () => tree!.root.findAllByType(ToyHomeButton)[0].props.onPress());
+  expect(Linking.openURL).toHaveBeenNthCalledWith(1, 'solanadappstore://details?id=com.dangervalley.ripsy');
+  expect(Linking.openURL).toHaveBeenNthCalledWith(2, 'https://www.ripsy.fun/download');
 });
 
 test('update layout scrolls, clears safe areas and checks never clear the known gate', async () => {

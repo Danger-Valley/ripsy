@@ -10,3 +10,8 @@
 .page a.primary:active{transform:translateY(3px);box-shadow:0 2px 0 #e49c00}
 .packDrops { display: flex; gap: 20px; flex-wrap: wrap; }
 .packDrops > div { display: grid; gap: 6px; justify-items: center; }
+.quantity { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.quantity > span { margin-right: auto; font-weight: 800; }
+.page .quantity button { min-width: 46px; padding: 8px 12px; font-size: 22px; }
+.page .quantity button:focus-visible { outline: 3px solid var(--text); outline-offset: 4px; }
+.quantity output { min-width: 32px; text-align: center; color: var(--text); font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }

@@ -3,16 +3,16 @@ import { createNoopSigner, generateSigner, keypairIdentity, lamports, publicKey,
 import { base58 } from '@metaplex-foundation/umi/serializers';
 import { createV1, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import { mplToolbox, transferSol, setComputeUnitLimit, setComputeUnitPrice } from '@metaplex-foundation/mpl-toolbox';
-import { type FigureId, type MintOrder, type TokenPayment } from '@rps/core/shop';
+import { validateFigureQuantity, type FigureId, type MintOrder, type TokenPayment } from '@rps/core/shop';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 import type { ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
 import { shopTokenBalance, shopTokenPayment } from './shop-token-payment.js';
 import { prepareSolFunding, verifySolFundingSimulation } from './shop-sol-funding.js';
 
-export type ChainMint = Pick<MintOrder, 'asset' | 'transaction' | 'lastValidBlockHeight' | 'networkFeeLamports' | 'solFunding'>;
+export type ChainMint = Pick<MintOrder, 'asset' | 'assets' | 'transaction' | 'lastValidBlockHeight' | 'networkFeeLamports' | 'solFunding'>;
 export interface ShopChain {
-  prepare(figureId: FigureId, buyer: string, price: string, payment?: TokenPayment, paymentMode?: 'sol'): Promise<ChainMint>;
+  prepare(figureId: FigureId, buyer: string, price: string, payment?: TokenPayment, paymentMode?: 'sol', quantity?: number): Promise<ChainMint>;
   validateSigned(order: Pick<MintOrder, 'transaction' | 'buyer'>, signed: string): string;
   send(signed: string): Promise<void>;
   status(order: MintOrder): Promise<'pending' | 'confirmed' | 'failed' | 'expired'>;
@@ -33,7 +33,8 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
     catch { throw new ShopError('Invalid transaction'); }
   };
   return {
-    async prepare(figureId, buyerAddress, price, paymentQuote, paymentMode) {
+    async prepare(figureId, buyerAddress, price, paymentQuote, paymentMode, quantity = 1) {
+      validateFigureQuantity(quantity);
       if (!config.enabled || !config.collection || !config.treasury) throw new Error('Minting is not available yet');
       const buyer = createNoopSigner(publicKey(buyerAddress));
       const tokenPayment = paymentQuote ?? FIGURE_TOKEN_PAYMENTS[figureId];
@@ -52,10 +53,11 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
       if (genesis !== expectedGenesis) throw new Error('Shop RPC network does not match configuration');
       if (collection.updateAuthority !== umi.identity.publicKey) throw new Error('Invalid shop collection authority');
       const figure = FIGURES.find(candidate => candidate.id === figureId)!;
-      const asset = generateSigner(umi);
+      const assets = Array.from({ length: quantity }, () => generateSigner(umi));
+      const asset = assets[0]!;
       if (paymentMode && !tokenPayment) throw new ShopError('Buy with SOL is only available for token-priced figures.');
       const tokenBalance = paymentMode && tokenPayment ? (await shopTokenBalance(umi, buyer, tokenPayment)).amount : 0n;
-      const protectedAccounts = [String(umi.identity.publicKey), config.collection, config.treasury, String(asset.publicKey)];
+      const protectedAccounts = [String(umi.identity.publicKey), config.collection, config.treasury, ...assets.map(a => String(a.publicKey))];
       let funding = paymentMode && tokenPayment ? await prepareSolFunding(umi, buyer, tokenPayment,
         tokenBalance, config.jupiterApiKey, protectedAccounts) : null;
       const payment = tokenPayment
@@ -64,21 +66,21 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
       const compose = () => transactionBuilder()
         .setVersion(0).setFeePayer(buyer).setBlockhash(blockhash)
         .setAddressLookupTables(funding?.lookups ?? [])
-        .add(funding ? setComputeUnitLimit(umi, { units: 1_400_000 }).add(setComputeUnitPrice(umi, { microLamports: 10_000 })) : transactionBuilder())
+        .add(funding ? setComputeUnitLimit(umi, { units: 1_400_000 }).add(setComputeUnitPrice(umi, { microLamports: 10_000 })) : quantity > 1 ? setComputeUnitLimit(umi, { units: 600_000 }) : transactionBuilder())
         .add(funding?.before ?? transactionBuilder())
         .add(payment)
-        .add(createV1(umi, {
-          asset, payer: buyer, owner: buyer.publicKey, authority: umi.identity,
+        .add(assets.reduce((builder, nextAsset) => builder.add(createV1(umi, {
+          asset: nextAsset, payer: buyer, owner: buyer.publicKey, authority: umi.identity,
           collection: collection.publicKey, name: figure.name,
           uri: `${config.publicOrigin}/figures/${figureId}.json`,
-        })).add(funding?.after ?? transactionBuilder());
+        })), transactionBuilder())).add(funding?.after ?? transactionBuilder());
       let builder = compose();
       for (const maxAccounts of [16, 12] as const) {
         if (!funding || builder.fitsInOneTransaction(umi)) break;
         funding = await prepareSolFunding(umi, buyer, tokenPayment!, tokenBalance, config.jupiterApiKey, protectedAccounts, fetch, maxAccounts);
         builder = compose();
       }
-      if (!builder.fitsInOneTransaction(umi)) throw new ShopError('This exchange cannot fit with the purchase. Add the required tokens to your account instead.');
+      if (!builder.fitsInOneTransaction(umi)) throw new ShopError(quantity > 1 ? 'This purchase is too large. Choose fewer figures, or add the required tokens to your account.' : 'This exchange cannot fit with the purchase. Add the required tokens to your account instead.');
       const expiry = funding ? await umi.rpc.getLatestBlockhash() : blockhash;
       const currentBalance = funding ? await umi.rpc.getBalance(buyer.publicKey) : balance;
       builder = builder.setBlockhash(expiry);
@@ -96,6 +98,7 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
       if (funding && fee > 100_000_000n) throw new ShopError('Additional fees exceed the SOL purchase limit. No payment was sent.');
       return {
         asset: String(asset.publicKey), transaction: Buffer.from(umi.transactions.serialize(transaction)).toString('base64'),
+        ...(quantity > 1 ? { assets: assets.map(a => String(a.publicKey)) } : {}),
         lastValidBlockHeight: expiry.lastValidBlockHeight, networkFeeLamports: fee.toString(), ...(funding ? { solFunding: funding.receipt } : {}),
       };
     },

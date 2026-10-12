@@ -151,6 +151,30 @@ function tokenFixture(id: 'fig2' | 'bonk' | 'jup' | 'ore') {
 }
 
 for (const id of ['fig2', 'bonk', 'jup', 'ore'] as const) {
+  test(`${id}: three figures share one exact payment and one atomic, fully signed message`, async () => {
+    const f = tokenFixture(id); const payment = { ...f.payment, amount: (BigInt(f.payment.amount) * 3n).toString() };
+    f.setBalance(BigInt(payment.amount));
+    const prepared = await f.chain.prepare(id, f.buyer.publicKey, '0', payment, undefined, 3);
+    assert.equal(prepared.assets!.length, 3); assert.equal(new Set(prepared.assets).size, 3); assert.equal(prepared.assets![0], prepared.asset);
+    const tx = f.umi.transactions.deserialize(Buffer.from(prepared.transaction, 'base64'));
+    assert.ok(Buffer.from(prepared.transaction, 'base64').length <= 1232);
+    const transfer = tx.message.instructions.filter(ix => tx.message.accounts[ix.programIndex] === SHOP_TOKEN_PROGRAM);
+    assert.equal(transfer.length, 1); assert.equal(Buffer.from(transfer[0]!.data).readBigUInt64LE(1), BigInt(payment.amount));
+    const creations = tx.message.instructions.filter(ix => tx.message.accounts[ix.programIndex] === MPL_CORE_PROGRAM_ID);
+    assert.equal(creations.length, 3);
+    assert.deepEqual(creations.map(ix => tx.message.accounts[ix.accountIndexes[0]!]), prepared.assets);
+    assert.ok(creations.every(ix => tx.message.accounts[ix.accountIndexes[3]!] === f.buyer.publicKey && tx.message.accounts[ix.accountIndexes[4]!] === f.buyer.publicKey));
+    const order: MintOrder = { ...prepared, quantity: 3, id: 'c'.repeat(64), figureId: id, buyer: f.buyer.publicKey, cluster: 'mainnet-beta', priceLamports: '0', tokenPayment: payment, treasury: f.treasury, collection: f.collection, createdAt: 1, status: 'prepared', signature: null, error: null };
+    assert.deepEqual(parseMintOrder(order), order);
+    const signed = await f.buyer.signTransaction(tx);
+    assert.ok(f.chain.validateSigned(order, Buffer.from(f.umi.transactions.serialize(signed)).toString('base64')));
+    for (let index = 1; index < signed.signatures.length; index++) {
+      const signatures = [...signed.signatures]; signatures[index] = new Uint8Array(64);
+      assert.throws(() => f.chain.validateSigned(order, Buffer.from(f.umi.transactions.serialize({ ...signed, signatures })).toString('base64')), /signature/);
+    }
+    f.setBalance(BigInt(f.payment.amount));
+    await assert.rejects(f.chain.prepare(id, f.buyer.publicKey, '0', payment, undefined, 3), /Not enough/);
+  });
   test(`${id}: admin quote changes the actual checked transfer amount without changing currency`, async () => {
     const f = tokenFixture(id); const quote = { ...f.payment, amount: (BigInt(f.payment.amount) / 2n).toString() };
     const prepared = await f.chain.prepare(id, f.buyer.publicKey, '0', quote);

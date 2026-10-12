@@ -1,4 +1,5 @@
 export type BackendDiagnosticEvent =
+  | { level: 'info'; event: 'api.request'; route: 'shop' | 'session' | 'push' | 'updates' | 'other'; app: import('./app-request-metadata.js').AppRequestMetadata }
   | { level: 'info'; event: 'server.started'; port: number }
   | { level: 'info'; event: 'server.shutdown'; signal: string }
   | { level: 'info'; event: 'session.issued'; renewed: boolean }

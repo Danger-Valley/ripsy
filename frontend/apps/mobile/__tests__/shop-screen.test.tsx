@@ -57,7 +57,7 @@ async function mountRecovery() {
 function button(label: string) { return tree.root.findAll(node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0]; }
 async function press(label: string) { await Renderer.act(async () => { await button(label).props.onPress(); }); }
 function text(value: string) { return tree.root.findAllByType(Text).some(node => node.props.children === value); }
-function setShop(next: object) { jest.mocked(useShop).mockReturnValue({ ...shop, purchaseBuyer: null, fundingRequired: null, buyWithSol: jest.fn(), ...next } as ReturnType<typeof useShop>); }
+function setShop(next: object) { jest.mocked(useShop).mockReturnValue({ ...shop, purchaseQuantity: 1, purchaseBuyer: null, fundingRequired: null, buyWithSol: jest.fn(), ...next } as ReturnType<typeof useShop>); }
 function external(address: string | null = buyer) { jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: true, address, status: address ? 'connected' : 'disconnected' }); }
 function visibleModals() { return tree.root.findAllByType(Modal).filter(node => node.props.visible); }
 function purchaseModal(id: 'figure' | 'pack') {
@@ -72,6 +72,38 @@ function expectSimplePurchase(id: 'figure' | 'pack') {
 }
 async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />)); }
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
+
+test('quantity selection changes the total and one explicit Buy passes the selected count', async () => {
+  const figure = { ...fig2, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.fig2 };
+  external(); setShop({ catalog: { ...shop.catalog, figures: [figure], maxFigureQuantity: 3 } }); await mount();
+  expect(button('Fewer Seeker fighter figures').props.disabled).toBe(true);
+  await press('More Seeker fighter figures'); expect(text('2 SKR')).toBe(true); expect(text('Buy 2 figures')).toBe(true);
+  await press('More Seeker fighter figures'); expect(text('3 SKR')).toBe(true); expect(button('More Seeker fighter figures').props.disabled).toBe(true);
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(signShopTransaction).not.toHaveBeenCalled();
+  await press('Buy 3 Seeker fighter figures');
+  expect(shop.prepare).toHaveBeenCalledWith('fig2', buyer, proveSeekerWallet, expect.any(Function), 3);
+  expect(shop.prepare).toHaveBeenCalledTimes(1);
+});
+test('quantity controls lock for a saved purchase and are absent on exclusive and old-server cards', async () => {
+  setShop({ catalog: { ...shop.catalog, maxFigureQuantity: 3 } }); await mount();
+  expect(button('More Seeker fighter figures')).toBeUndefined();
+  external(); await updateScreen(); expect(button('More Seeker fighter figures')).toBeDefined();
+  setShop({ catalog: { ...shop.catalog, maxFigureQuantity: 3 }, hasPurchase: true, order, signingStarted: true }); await updateScreen();
+  expect(button('More Seeker fighter figures').props.disabled).toBe(true);
+  setShop({ catalog: shop.catalog }); await updateScreen(); expect(button('More Seeker fighter figures')).toBeUndefined();
+});
+test('bulk reward shows quantity and keeps all collectible IDs while Army opens the first exact asset', async () => {
+  external(); const assets = [order.asset, 'asset22222222222222222222222222222', 'asset33333333333333333333333333333'];
+  setShop({ hasPurchase: true, order: { ...order, quantity: 3, assets, status: 'confirmed' }, signingStarted: true });
+  await mount(); await press('Buy Seeker fighter'); // A fresh action may open a terminal receipt in this mocked screen.
+  await press('Close figure purchase popup');
+  setShop({ hasPurchase: true, order: { ...order, quantity: 3, assets, status: 'submitted' }, signingStarted: true }); await updateScreen();
+  await press('Continue purchase');
+  setShop({ hasPurchase: true, order: { ...order, quantity: 3, assets, status: 'confirmed' }, signingStarted: true }); await updateScreen();
+  expect(text('Seeker fighter x3')).toBe(true); expectSimplePurchase('figure');
+  await press('Add to your army'); expect(navigate).toHaveBeenCalledWith('Army', { expectedAssetId: assets[0] });
+  expect(jest.mocked(useShop).mock.results.at(-1)!.value.order?.assets).toEqual(assets);
+});
 
 test.each(['figure', 'pack'] as const)('asynchronous restored %s shortfall never opens checkout on shop entry', async kind => {
   external(); await mount();

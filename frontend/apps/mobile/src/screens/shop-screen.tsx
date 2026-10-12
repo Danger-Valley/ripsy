@@ -5,7 +5,7 @@ import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { packPurchaseStorage } from '../storage/pack-purchase';
 import { packPurchaseTitle, ShopPack, ShopPackPurchase } from '../components/shop-pack';
-import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figurePaymentPrice, figureStoreMessage, isTerminalMint, type PurchaseTransaction, type ShopFigure } from '@rps/core/shop';
+import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figureOrderQuantity, figureQuantityLimit, figureQuantityPrice, figurePaymentPrice, figureStoreMessage, isTerminalMint, type PurchaseTransaction, type ShopFigure } from '@rps/core/shop';
 import { isTerminalPack } from '@rps/core/packs';
 import { getGameWebSocketUrl } from '../config';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
@@ -17,6 +17,7 @@ import { saveFigureSlots } from '../storage/figure-loadout';
 import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from '../components/toy-home-controls';
 import { ToyBadge, ToyDialog } from '../components/toy-dialog';
 import { StatusBanner } from '../components/status-banner';
+import { FigureQuantity } from '../components/figure-quantity';
 import { figurePortrait, useFigureCatalog } from '../figures/catalog';
 import { colors, spacing } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -65,6 +66,7 @@ export function ShopScreen({ navigation, route }: Props) {
   const walletKind = wallet.isSupported ? 'external' : 'privy';
   const [walletOpen, setWalletOpen] = useState(Boolean(route.params?.signIn));
   const [purchasePopup, setPurchasePopup] = useState<'figure' | 'pack' | null>(null);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const seenPurchases = useRef({ figure: false, pack: false });
   // Opening the shop or recovering a saved payment never opens checkout.
   // Buy and Continue purchase are the only entry points to purchase dialogs.
@@ -143,6 +145,8 @@ export function ShopScreen({ navigation, route }: Props) {
     setEmailError(null); run(() => privy.sendCode(email.trim()));
   };
   const needsSolanaMobile = (figure: ShopFigure) => figure.seekerExclusive && (!wallet.isSupported || walletKind !== 'external');
+  const maximumFor = (figure: ShopFigure) => figureQuantityLimit(figure, shop.catalog?.maxFigureQuantity ?? 1);
+  const quantityFor = (figure: ShopFigure) => Math.min(quantities[figure.id] ?? 1, maximumFor(figure));
   const reviewFigure = (figure: ShopFigure) => {
     if (needsSolanaMobile(figure)) {
       run(async () => {
@@ -154,7 +158,9 @@ export function ShopScreen({ navigation, route }: Props) {
     if (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || directSigningRef.current || purchaseBusy || purchaseBlocked || (wallet.isSupported && walletBusy)) return;
     if (!address) { requestAccount(); return; }
     setPurchasePopup('figure');
-    buyAndSign(() => shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined, signPurchase));
+    const quantity = quantityFor(figure);
+    buyAndSign(() => quantity === 1 ? shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined, signPurchase)
+      : shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined, signPurchase, quantity));
   };
   const openArmy = (expectedAssetId?: string) => { setWalletOpen(false); setPurchasePopup(null); navigation.navigate('Army', expectedAssetId ? { expectedAssetId } : undefined); };
   const figurePurchaseTitle = order?.status === 'confirmed' ? 'Welcome to your army!' : order?.status === 'failed' || order?.status === 'expired' ? 'Purchase not completed' : order?.status === 'submitted' ? 'Processing purchase' : order ? 'Continue your purchase' : error && !shop.busy ? 'Purchase needs attention' : 'Preparing purchase';
@@ -202,13 +208,14 @@ export function ShopScreen({ navigation, route }: Props) {
             {figure.seekerExclusive && <View style={styles.exclusive}><Text style={styles.exclusiveText}>SEEKER EXCLUSIVE</Text></View>}
           </View>
           <View style={styles.cardCopy}>
-            <View style={styles.figureHeading}><Text accessibilityRole="header" style={styles.figureName}>{figure.name}</Text>{!needsSolanaMobile(figure) && <View style={styles.priceTag}><Text style={styles.price}>{figure.priceLamports ? figurePaymentPrice(figure, shop.catalog!.cluster) : 'Not available'}</Text></View>}</View>
+            <View style={styles.figureHeading}><Text accessibilityRole="header" style={styles.figureName}>{figure.name}</Text>{!needsSolanaMobile(figure) && <View style={styles.priceTag}><Text style={styles.price} accessibilityLiveRegion="polite">{figure.priceLamports ? figurePaymentPrice(figureQuantityPrice(figure, quantityFor(figure)), shop.catalog!.cluster) : 'Not available'}</Text></View>}</View>
             <Text style={styles.copy}>{figure.description}</Text>
             {figure.seekerExclusive && <Text style={styles.restriction}>Only available on Seeker.</Text>}
-            <ToyHomeButton tone="yellow" busy={!needsSolanaMobile(figure) && ((shop.busy && !shop.hasPurchase) || (wallet.isSupported && walletBusy))} disabled={!needsSolanaMobile(figure) && (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy))} accessibilityLabel={needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : 'Buy ' + figure.name} accessibilityHint={needsSolanaMobile(figure) ? 'Opens the Solana Mobile store in your browser' : undefined} onPress={() => reviewFigure(figure)}>
-              {needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : !figure.available || !figure.priceLamports ? 'Purchase unavailable' : address ? 'Buy figure' : wallet.isSupported ? 'Connect your wallet' : 'Register'}
+            {!needsSolanaMobile(figure) && figure.available && maximumFor(figure) > 1 && <FigureQuantity name={figure.name} value={quantityFor(figure)} maximum={maximumFor(figure)} disabled={!shop.ready || !pack.ready || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)} onChange={value => setQuantities(current => ({ ...current, [figure.id]: value }))} />}
+            <ToyHomeButton tone="yellow" busy={!needsSolanaMobile(figure) && ((shop.busy && !shop.hasPurchase) || (wallet.isSupported && walletBusy))} disabled={!needsSolanaMobile(figure) && (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy))} accessibilityLabel={needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : quantityFor(figure) > 1 ? `Buy ${quantityFor(figure)} ${figure.name} figures` : 'Buy ' + figure.name} accessibilityHint={needsSolanaMobile(figure) ? 'Opens the Solana Mobile store in your browser' : undefined} onPress={() => reviewFigure(figure)}>
+              {needsSolanaMobile(figure) ? 'Solana Mobile Exclusive' : !figure.available || !figure.priceLamports ? 'Purchase unavailable' : address ? quantityFor(figure) > 1 ? `Buy ${quantityFor(figure)} figures` : 'Buy figure' : wallet.isSupported ? 'Connect your wallet' : 'Register'}
             </ToyHomeButton>
-            <Text style={styles.note}>{needsSolanaMobile(figure) ? 'Explore Solana Mobile in your browser' : wallet.isSupported ? 'Approve your purchase in your wallet' : 'Approve your purchase to continue'}</Text>
+            <Text style={styles.note}>{needsSolanaMobile(figure) ? 'Explore Solana Mobile in your browser' : quantityFor(figure) > 1 ? `Total for ${quantityFor(figure)} figures + additional fees` : wallet.isSupported ? 'Approve your purchase in your wallet' : 'Approve your purchase to continue'}</Text>
           </View>
         </ToyHomePanel>)}
         <Text style={styles.footerNote}>Each figure can fill one army slot. Your fighters’ look changes, not their weapons.</Text>
@@ -233,7 +240,7 @@ export function ShopScreen({ navigation, route }: Props) {
             <ToyBadge tone={order.status === 'failed' || order.status === 'expired' ? 'coral' : 'yellow'}>{order.status === 'submitted' ? 'PROCESSING PURCHASE' : order.status === 'failed' ? 'PURCHASE FAILED' : order.status === 'expired' ? 'PURCHASE EXPIRED' : 'AWAITING YOUR APPROVAL'}</ToyBadge>
             <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Continue in your wallet to approve this saved purchase.'}</Text>
           </>}
-          <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={figurePortrait(order.figureId, definitions)} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}</Text></View>
+          <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={figurePortrait(order.figureId, definitions)} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{`${definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}${figureOrderQuantity(order) > 1 ? ` x${figureOrderQuantity(order)}` : ''}`}</Text></View>
           {order.cluster === 'devnet' && <Text style={styles.copy}>Test purchase only. No real payment.</Text>}
           {order.status === 'prepared' && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" busy={wallet.isSupported && walletBusy} onPress={requestAccount}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
           {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner || shop.busy} onPress={() => { if (orderSigner) buyAndSign(() => shop.confirm(signPurchase)); }}>Continue in wallet</ToyHomeButton>}

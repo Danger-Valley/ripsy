@@ -1,4 +1,5 @@
 export const UPDATE_CHANNELS = ['ios', 'android', 'seeker'] as const;
+export const RIPSY_DAPP_STORE_URL = 'solanadappstore://details?id=com.dangervalley.ripsy';
 export type UpdateChannel = typeof UPDATE_CHANNELS[number];
 export type UpdateRule = {
   minimumBuild: number;
@@ -15,7 +16,7 @@ const defaultRule: UpdateRule = {
   latestVersion: null,
   storeUrl: null,
   fallbackUrl: null,
-  title: 'A new adventure awaits!',
+  title: 'You have to update the app',
   message: 'Update RIPSY to keep playing with the latest improvements.',
 };
 
@@ -39,7 +40,7 @@ function label(value: unknown, fallback: string, max: number): string {
 export function validUpdateUrl(value: unknown, channel: UpdateChannel, fallback = false): value is string {
   if (typeof value !== 'string' || value.length > 2048 || /[\s\\\u0000-\u001f\u007f]/.test(value)) return false;
   // Only this app's dApp Store destination is accepted. No arbitrary intent/file schemes.
-  if (channel === 'seeker' && !fallback && value === 'solanadappstore://details?id=com.dangervalley.ripsy') return true;
+  if (channel === 'seeker' && !fallback && value === RIPSY_DAPP_STORE_URL) return true;
   // React Native's URL shim does not implement every credential/host getter.
   // Use the same deliberately narrow ASCII host grammar on server and device.
   const match = /^https:\/\/([a-z\d](?:[a-z\d-]*[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]*[a-z\d])?)*)(?::(\d{1,5}))?(?:[/?#].*)?$/i.exec(value);

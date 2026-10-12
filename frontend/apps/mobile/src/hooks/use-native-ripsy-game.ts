@@ -4,6 +4,7 @@ import { Choice, Owner, type GameState } from '@rps/core';
 import { RipsySocketClient, type ConnectionStatus } from '@rps/game-client/socket';
 import { getGameWebSocketUrl } from '../config';
 import { reportClientDiagnostic } from '../diagnostics';
+import { nativeApiSocket } from '../api-metadata';
 
 export function useNativeRipsyGame(playerId: string, sessionToken: string, gameId?: string, enabled = true) {
   const clientRef = useRef<RipsySocketClient | null>(null);
@@ -27,7 +28,7 @@ export function useNativeRipsyGame(playerId: string, sessionToken: string, gameI
       return;
     }
 
-    const client = new RipsySocketClient({ endpoint, playerId, sessionToken, diagnosticSink: reportClientDiagnostic });
+    const client = new RipsySocketClient({ endpoint, playerId, sessionToken, diagnosticSink: reportClientDiagnostic, socketFactory: nativeApiSocket });
     clientRef.current = client;
     const unsubscribeState = client.onState(setGameState);
     const unsubscribeStatus = client.onStatus(nextStatus => {

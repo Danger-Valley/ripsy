@@ -210,7 +210,7 @@ test('lost responses recover without auto-signing and reuse already-signed bytes
   api.create.mockRejectedValueOnce(new Error('Network interrupted'));
   await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign)); const key = JSON.parse(saved!).key;
   await Renderer.act(() => shop.checkStatus());
-  expect(api.create).toHaveBeenLastCalledWith('fig1', prepared.buyer, key, undefined); expect(sign).not.toHaveBeenCalled();
+  expect(api.create).toHaveBeenLastCalledWith('fig1', prepared.buyer, key); expect(sign).not.toHaveBeenCalled();
   api.submit.mockRejectedValueOnce(new Error('Lost submit reply')); await Renderer.act(() => shop.confirm(sign));
   expect(JSON.parse(saved!).signed).toBe('signed'); await Renderer.act(() => shop.confirm(sign));
   expect(sign).toHaveBeenCalledTimes(1); expect(api.submit).toHaveBeenLastCalledWith(prepared.id, 'signed');
@@ -249,4 +249,35 @@ test('a generic insufficient-looking message never authorizes SOL recovery', asy
   expect(shop.fundingRequired).toBeNull();
   await Renderer.act(() => shop.buyWithSol()); expect(api.create).toHaveBeenCalledTimes(1);
   expect(() => parsePurchaseIntent(JSON.stringify({ key: 'purchase-request-12345', figureId: 'jup', buyer: prepared.buyer, paymentMode: 'arbitrary' }))).toThrow();
+});
+
+const bulkOrder: MintOrder = { ...prepared, quantity: 2, assets: [prepared.asset, 'SysvarC1ock11111111111111111111111111111111'] };
+test('quantity is persisted before prepare, pinned through signing and identical-byte retry', async () => {
+  api.catalog.mockResolvedValueOnce({ cluster: 'devnet', figures: [], maxFigureQuantity: 3 });
+  api.create.mockResolvedValue(bulkOrder); api.get.mockResolvedValue(bulkOrder); api.submit.mockResolvedValue({ ...bulkOrder, status: 'submitted' });
+  await mount(); const sign = jest.fn().mockResolvedValue('signed');
+  api.submit.mockRejectedValueOnce(new Error('Lost submit response'));
+  await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign, 2));
+  const pending = JSON.parse(saved!); expect(pending.quantity).toBe(2); expect(pending.signed).toBe('signed');
+  expect(api.create).toHaveBeenCalledWith('fig1', prepared.buyer, pending.key, undefined, 2);
+  await Renderer.act(() => shop.confirm(sign)); expect(sign).toHaveBeenCalledTimes(1); expect(api.create).toHaveBeenCalledTimes(1);
+  expect(shop.order?.quantity).toBe(2); expect(shop.order?.assets).toEqual(bulkOrder.assets);
+});
+test('quantity survives token shortfall, SOL preparation and explicit wallet approval', async () => {
+  api.catalog.mockResolvedValueOnce({ cluster: 'devnet', figures: [], maxFigureQuantity: 3 }); await mount();
+  api.create.mockRejectedValueOnce(new ShopRequestError('Not enough JUP', recovery));
+  await Renderer.act(() => shop.prepare('jup', prepared.buyer, undefined, undefined, 2));
+  const key = JSON.parse(saved!).key; expect(JSON.parse(saved!).quantity).toBe(2);
+  const bulk = { ...bulkOrder, figureId: 'jup' }; api.create.mockResolvedValueOnce(bulk); api.get.mockResolvedValueOnce(bulk); api.submit.mockResolvedValueOnce({ ...bulk, status: 'submitted' });
+  const sign = jest.fn().mockResolvedValue('signed'); await Renderer.act(() => shop.buyWithSol(sign));
+  expect(api.create).toHaveBeenLastCalledWith('jup', prepared.buyer, key, 'sol', 2); expect(sign).toHaveBeenCalledTimes(1);
+  expect(shop.purchaseQuantity).toBe(2); expect(JSON.parse(saved!).quantity).toBe(2);
+});
+test('old backend or a mismatched restored quantity never opens a wallet', async () => {
+  await mount(); const sign = jest.fn(); await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign, 2));
+  expect(api.create).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled(); expect(saved).toBeNull();
+  api.catalog.mockResolvedValueOnce({ cluster: 'devnet', figures: [], maxFigureQuantity: 3 }); await Renderer.act(() => shop.loadCatalog());
+  await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign, 2));
+  expect(sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled(); expect(shop.error).toMatch(/selected number/);
+  expect(() => parsePurchaseIntent(JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, quantity: 2, order: prepared }))).toThrow(/quantity/);
 });

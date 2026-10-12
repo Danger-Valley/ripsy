@@ -23,6 +23,11 @@ export const FIGURE_TOKEN_PAYMENTS: Partial<Record<FigureId, TokenPayment>> = {
 };
 export const STARTER_FIGURE_ID = 'fig1' as const;
 export const FIGURE_SLOTS = 14;
+/** Current atomic Core transaction envelope; four figures exceed 1,232 bytes. */
+export const MAX_FIGURE_PURCHASE_QUANTITY = 3;
+export function validateFigureQuantity(value: unknown): asserts value is number {
+  if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > MAX_FIGURE_PURCHASE_QUANTITY) throw new Error(`Choose between 1 and ${MAX_FIGURE_PURCHASE_QUANTITY} figures.`);
+}
 export const DEFAULT_SOLANA_MOBILE_STORE_URL = 'https://store.solanamobile.com/';
 export interface ShopFigure {
   id: FigureId;
@@ -41,10 +46,15 @@ export interface ShopCatalog {
   collection: string | null;
   /** Optional for rolling compatibility with older backend deployments. */
   solanaMobileStoreUrl?: string;
+  /** Missing on older servers means single-figure purchases only. */
+  maxFigureQuantity?: number;
   figures: ShopFigure[];
 }
 export type MintStatus = 'prepared' | 'submitted' | 'confirmed' | 'failed' | 'expired';
 export interface MintOrder {
+  /** Missing fields denote a legacy single-figure purchase. */
+  quantity?: number;
+  assets?: string[];
   solFunding?: SolFunding;
   id: string;
   figureId: FigureId;
@@ -118,6 +128,25 @@ export function figurePaymentPrice(value: Pick<ShopFigure, 'priceLamports' | 'to
   const whole = (decimals ? padded.slice(0, -decimals) : padded).replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const fraction = decimals ? padded.slice(-decimals).replace(/0+$/, '') : '';
   return `${whole}${fraction ? `.${fraction}` : ''} ${symbol}`;
+}
+
+/** Display and server quoting use exact base units, never floating point. */
+export function figureQuantityPrice(value: Pick<ShopFigure, 'priceLamports' | 'tokenPayment'>, quantity: number) {
+  validateFigureQuantity(quantity);
+  const priceLamports = value.priceLamports === null ? null : (BigInt(value.priceLamports) * BigInt(quantity)).toString();
+  if (priceLamports !== null && (BigInt(priceLamports) < 0n || BigInt(priceLamports) > BigInt(Number.MAX_SAFE_INTEGER))) throw new Error('This purchase amount is too large. Choose fewer figures.');
+  const tokenPayment = value.tokenPayment ? { ...value.tokenPayment, amount: (BigInt(value.tokenPayment.amount) * BigInt(quantity)).toString() } : undefined;
+  if (tokenPayment && (BigInt(tokenPayment.amount) <= 0n || BigInt(tokenPayment.amount) > 18_446_744_073_709_551_615n)) throw new Error('This purchase amount is too large. Choose fewer figures.');
+  return { priceLamports, ...(tokenPayment ? { tokenPayment } : {}) };
+}
+export const figureOrderQuantity = (order: Pick<MintOrder, 'quantity'>) => order.quantity ?? 1;
+export const figureOrderAssets = (order: Pick<MintOrder, 'asset' | 'assets'>) => order.assets ?? [order.asset];
+export function figureQuantityLimit(value: Pick<ShopFigure, 'priceLamports' | 'tokenPayment'>, maximum = 1) {
+  validateFigureQuantity(maximum);
+  for (let quantity = maximum; quantity > 1; quantity--) {
+    try { figureQuantityPrice(value, quantity); return quantity; } catch { /* A total must fit exact payment units. */ }
+  }
+  return 1;
 }
 
 export function figurePurchaseTotal(order: MintOrder): string {
@@ -205,7 +234,8 @@ export function parseShopCatalog(value: unknown): ShopCatalog {
   const data = record(value);
   if (!isCluster(data.cluster) || !(data.treasury === null || isAddress(data.treasury))
     || !(data.collection === null || isAddress(data.collection)) || !Array.isArray(data.figures)
-    || !(data.solanaMobileStoreUrl === undefined || isSafeShopExternalUrl(data.solanaMobileStoreUrl))) throw new Error('Invalid shop catalog');
+    || !(data.solanaMobileStoreUrl === undefined || isSafeShopExternalUrl(data.solanaMobileStoreUrl))
+    || (data.maxFigureQuantity !== undefined && (!Number.isInteger(data.maxFigureQuantity) || Number(data.maxFigureQuantity) < 1 || Number(data.maxFigureQuantity) > MAX_FIGURE_PURCHASE_QUANTITY))) throw new Error('Invalid shop catalog');
   for (const entry of data.figures) {
     const figure = record(entry);
     if (!isFigureId(figure.id) || !isModelVariant(figure.variant) || !validTokenPayment(figure.tokenPayment, figure.id) || typeof figure.name !== 'string'
@@ -268,6 +298,11 @@ export function parseMintOrder(value: unknown): MintOrder {
     || !['prepared', 'submitted', 'confirmed', 'failed', 'expired'].includes(String(data.status))
     || !(data.signature === null || (typeof data.signature === 'string' && /^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(data.signature)))
     || !(data.error === null || typeof data.error === 'string')) throw new Error('Invalid mint order');
+  const quantity = data.quantity ?? 1;
+  try { validateFigureQuantity(quantity); } catch { throw new Error('Invalid mint order quantity'); }
+  if ((data.quantity !== undefined && data.quantity === null) || (quantity > 1 && data.assets === undefined)
+    || (data.assets !== undefined && (!Array.isArray(data.assets) || data.assets.length !== quantity
+      || data.assets[0] !== data.asset || data.assets.some(a => !isAddress(a)) || new Set(data.assets).size !== quantity))) throw new Error('Invalid mint order assets');
   validateSolFunding(data.solFunding, data.tokenPayment as TokenPayment | undefined);
   return data as unknown as MintOrder;
 }

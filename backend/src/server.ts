@@ -26,6 +26,7 @@ import { ShopAdminService } from './shop-admin.js';
 import { ShopUsdRatesService } from './shop-usd-rates.js';
 import { createPackAdminChain } from './pack-admin-chain.js';
 import { handleShopAdmin } from './shop-admin-http.js';
+import { readAppRequestMetadata, apiRouteFamily } from './app-request-metadata.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -86,6 +87,8 @@ const packs = new PackService(commandClient as unknown as ShopRedis, createPackC
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+  const appMetadata = readAppRequestMetadata(request.headers);
+  if (appMetadata) diagnose({ level: 'info', event: 'api.request', route: apiRouteFamily(requestUrl.pathname), app: appMetadata });
   if (requestUrl.pathname === '/mobile/update-policy') {
     if (!applyCors(request.headers.origin, response)) return;
     sendMobileUpdatePolicy(request, response, mobileUpdatePolicy);
@@ -278,7 +281,7 @@ function applyCors(origin: string | undefined, response: import('node:http').Ser
     return false;
   }
   if (origin) response.setHeader('access-control-allow-origin', origin);
-  response.setHeader('access-control-allow-headers', 'authorization, content-type');
+  response.setHeader('access-control-allow-headers', 'authorization, content-type, x-ripsy-app-version, x-ripsy-app-build, x-ripsy-app-platform, x-ripsy-app-channel');
   response.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS');
   response.setHeader('vary', 'Origin');
   return true;

@@ -27,7 +27,6 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
   }, [finish, onArtworkReady]);
   const window = useWindowDimensions();
   const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
-  const [loadingHeight, setLoadingHeight] = useState<number | null>(null);
   const insets = useSafeAreaInsets();
   const fitArtwork = Platform.OS === 'android';
   const { width, height } = fitArtwork && viewport ? viewport : window;
@@ -36,19 +35,18 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
   const sourceHeight = source?.height ?? 0;
   const artworkRatio = sourceWidth > 0 && sourceHeight > 0 ? sourceWidth / sourceHeight : 0.5;
   // Android windows vary with edge-to-edge, navigation mode and multi-window.
-  // Fit the whole illustration to the measured view, not a cropped window-sized image.
-  const loadingReserve = 32 + (loadingHeight ?? 36 + 12 + 24 * Math.min(window.fontScale, 1.6)) + 16;
-  const artworkTop = insets.top + 8;
-  const availableHeight = Math.max(1, height - artworkTop - insets.bottom - loadingReserve);
-  const availableWidth = Math.max(1, width - insets.left - insets.right);
+  // Aspect-fit to the ENTIRE measured view. Safe areas belong to foreground
+  // content, not the illustration: reserving loading space shrinks the art.
+  const availableHeight = Math.max(1, height);
+  const availableWidth = Math.max(1, width);
   const artworkWidth = Math.min(availableWidth, availableHeight * artworkRatio);
   const artworkHeight = artworkWidth / artworkRatio;
   const artworkFrame = {
     position: 'absolute' as const,
     width: artworkWidth,
     height: artworkHeight,
-    left: insets.left + (availableWidth - artworkWidth) / 2,
-    top: artworkTop + (availableHeight - artworkHeight) / 2,
+    left: (availableWidth - artworkWidth) / 2,
+    top: (availableHeight - artworkHeight) / 2,
   };
   const logoWidth = fitArtwork
     ? Math.min(artworkWidth * 0.78, 440, artworkHeight * 0.7)
@@ -68,7 +66,7 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
         accessible={false}
         accessibilityElementsHidden
         importantForAccessibility="no"
-        style={fitArtwork ? artworkFrame : StyleSheet.absoluteFill}
+        style={StyleSheet.absoluteFill}
       />
       <Image
         source={homeArt.logo}
@@ -81,16 +79,13 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
           height: logoHeight,
           ...(fitArtwork ? {
             left: artworkFrame.left + (artworkWidth - logoWidth) / 2,
-            top: artworkFrame.top + artworkHeight * 0.25 - logoHeight / 2,
+            top: Math.max(insets.top + 16, artworkFrame.top + artworkHeight * 0.25 - logoHeight / 2),
           } : {
             top: Math.max(insets.top + 16, height * 0.25 - logoHeight / 2),
           }),
         }]}
       />
-      <View testID="startup-loading" style={[styles.loading, { bottom: insets.bottom + 32 }]}
-        onLayout={({ nativeEvent: { layout } }) => {
-          if (fitArtwork && layout.height > 0) setLoadingHeight(layout.height);
-        }}>
+      <View testID="startup-loading" style={[styles.loading, { bottom: insets.bottom + 32 }]}>
         <Text maxFontSizeMultiplier={1.6} style={styles.caption}>Opening the toy box…</Text>
         <ActivityIndicator accessibilityLabel="Loading RIPSY" accessibilityRole="progressbar" color={colors.ink} size="large" />
       </View>

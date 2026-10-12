@@ -109,6 +109,14 @@ separate quote confirmation remains unchanged. Focused native ESLint and
 production Metro JavaScript bundles for iOS/Android also pass. This source change is not yet in
 the uploaded native build 58; physical/paid wallet verification remains pending.
 
+Android splash follow-up (2026-10-12): aspect-fit the illustration to the entire
+root viewport, not a smaller safe-area/loading rectangle. The logo and loading
+content overlay the fitted image with their own safe-area clearance. Original
+assets, iOS cover and startup timing are unchanged. All 539 mobile tests,
+TypeScript and focused lint pass; no Android device is connected and installed
+AVDs lack system images. Native visual verification and a new release remain
+pending; uploaded build 58 does not include this correction.
+
 ## Pack price/storage upgrade preparation (2026-10-10)
 
 Source now supports independently mutable edition prices and exact-size new

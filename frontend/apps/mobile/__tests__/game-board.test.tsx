@@ -282,7 +282,7 @@ test('renders the local lineup preview as non-interactive before battle', async 
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(1);
 });
 
-test('renders an unarmed opponent formation during lineup setup', async () => {
+test('does not invent an opponent army before its lineup is submitted', async () => {
   jest.useFakeTimers();
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
   jest.spyOn(Math, 'random').mockReturnValue(0.5);
@@ -305,7 +305,7 @@ test('renders an unarmed opponent formation during lineup setup', async () => {
   });
 
   const opponentCells = renderer.root.findAll(node => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.endsWith('opponent piece'));
-  expect(new Set(opponentCells.map(cell => cell.props.accessibilityLabel)).size).toBe(WIDTH * 2);
+  expect(opponentCells).toHaveLength(0);
   expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(0);
 
   await ReactTestRenderer.act(async () => {
@@ -313,9 +313,7 @@ test('renders an unarmed opponent formation during lineup setup', async () => {
     await Promise.resolve();
   });
 
-  expect(renderer.root.findAll(node => node.props.testID === 'rive-view').map(figure => figure.props.stateMachineName)).toEqual(
-    Array(WIDTH * 2).fill('State Machine Front'),
-  );
+  expect(renderer.root.findAll(node => node.props.testID === 'rive-view')).toHaveLength(0);
   await ReactTestRenderer.act(() => {
     renderer.unmount();
   });

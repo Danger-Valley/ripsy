@@ -156,21 +156,20 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
             const isMovingSource = moveAnimation?.from.x === x && moveAnimation.from.y === y;
             const isMovingDestination = moveAnimation?.to.x === x && moveAnimation.to.y === y;
             const isTrapDestination = trapAnimation?.to.x === x && trapAnimation.to.y === y;
-            const isOpponentPreview = Boolean(showOpponentFormation && displayY < 2 && previewItem === undefined && serverOwner === Owner.None);
+            // Only a saved opponent lineup establishes occupancy and models.
+            // Empty cells must not invent an army before the opponent submits.
+            const isOpponentFormation = Boolean(showOpponentFormation && ownOwner !== Owner.None && serverOwner === opponentOf(ownOwner));
             const owner = isMovingSource && moveAnimation
               ? moveAnimation.owner
               : previewItem !== undefined
                 ? ownOwner
-                : isOpponentPreview ? opponentOf(ownOwner) : serverOwner;
+                : serverOwner;
             const piece = isMovingSource && moveAnimation
               ? moveAnimation.piece
               : previewItem?.piece ?? state?.pieces[index] ?? Piece.Empty;
             const figureVariant = isMovingSource && moveAnimation
               ? moveAnimation.figureVariant
-              : previewItem?.figureVariant
-                ?? (isOpponentPreview
-                  ? ((displayX + displayY * WIDTH) % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2)
-                  : state?.figureVariants?.[index] ?? FigureVariant.Fig1);
+              : previewItem?.figureVariant ?? state?.figureVariants?.[index] ?? FigureVariant.Fig1;
             const riveFile = figureFiles[figureVariant ?? FigureVariant.Fig1];
             const isMine = owner === ownOwner && ownOwner !== Owner.None;
             const isCombatLandingDestination = Boolean(
@@ -228,7 +227,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
                         height: cellSize * 0.88,
                         transform: isMovingSource && moveAnimation && moveProgress
                           ? movingPieceTransform(cellSize, isPlayer1, moveAnimation, moveProgress)
-                          : [{ translateY: -cellSize * (isOpponentPreview ? 0.34 : 0.43) }],
+                          : [{ translateY: -cellSize * (isOpponentFormation ? 0.34 : 0.43) }],
                       },
                     ]}>
                     {riveFile ? (
@@ -250,7 +249,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
                         onConfigured={isMovingDestination ? onMoveDestinationReady : undefined}
                         piece={piece}
                         size={cellSize * 1.68}
-                        staggerStart={isOpponentPreview}
+                        staggerStart={isOpponentFormation}
                       />
                     ) : <Image accessibilityLabel="Loading fighter" source={figurePortrait(definitions.find(f => f.variant === figureVariant)?.id ?? 'fig1', definitions)} style={[styles.loadingPortrait, { width: cellSize * 1.68, height: cellSize * 1.68 }]} />}
                   </Animated.View>

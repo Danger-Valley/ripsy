@@ -441,6 +441,7 @@ Verified locally on 2026-09-14 with the production Next.js build and browser che
 
 ### Waiting and lineup setup
 
+- Actual opponent cosmetics (2026-10-12) supersede the decorative alternating Fig1/Seeker formation. Native and web render opponent occupancy/model IDs only from the authoritative game snapshot. Before that opponent saves a lineup, its unoccupied cells remain empty; do not synthesize collectible figures for an absent player or unsubmitted army. After Save, show the exact server-provided variants at their real coordinates, Front-facing, with weapon values kept at Piece.Empty until the server reveals them. Both player orientations, mixed/all-starter armies and transition into Active use the same models; status polling/reconnect must not replace them. Native setup keeps staggered idle/formation offset for actual submitted opponents. Shared legacy snapshot/storage fallback uses starter Fig1 only for occupied cells when model data is absent, never invents paid Seeker variants, and preserves valid saved variant arrays including future IDs. No schema/command change, owned-asset reassignment or weapon-rule change. Source implementation and native/web component regressions are local; a new native build and web/backend deployment remain pending.
 - Show a dedicated “Waiting for opponent” card with an Invite opponent action.
 - Explain that the lineup stays editable until battle start.
 - Keep Shuffle and Save lineup grouped in one `YOUR LINEUP` panel.
@@ -450,7 +451,7 @@ Verified locally on 2026-09-14 with the production Next.js build and browser che
 - After Save, show a visible READY badge and copy explaining that the game can start automatically.
 - If the user shuffles after saving, return to the dirty state and change the button to Save changes.
 - Remove the old “Your pieces / Opponent pieces” summary cards from the waiting screen.
-- Show 14 opponent placeholder figures in the top two rows even before their real lineup is visible, so the board reads as a confrontation.
+- Show the actual submitted opponent lineup from the server. Leave opponent cells empty while that player is choosing its lineup or has not joined; never create an alternating placeholder army.
 
 ### Board geometry and hit testing
 
@@ -476,7 +477,7 @@ Verified locally on 2026-09-14 with the production Next.js build and browser che
 - Opponent pieces always use `State Machine Front`, regardless of whether the local user is Player 0 or Player 1.
 - Do not fix orientation with an Android-only or Player-1-only horizontal mirror. Choose the correct state machine.
 - Opponent pieces do not reveal weapons until game rules reveal them.
-- During lineup preview, opponent figures are placeholders with no weapon.
+- During lineup preview, submitted opponent figures use their real models and hidden weapons. Unsubmitted opponent cells have no invented figures.
 
 ### Rive initialization and idle staggering
 
@@ -583,7 +584,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Stationary figures survive move updates (2026-10-03) | Port/verify | Native memoizes controllers and canonicalizes duplicate native view wrappers with `equals`; no reset/hide on unrelated turn/board updates. Verify stationary web canvas continuity through takeoff, landing, selection and next turn; Nitro-specific logic is native-only. |
 | Native mount-order and Shuffle continuity (2026-10-04) | Native updated; web verify pending | Android rows/cells stay materialized and use elevation, not changing zIndex/mount order. Same-view/file/facing ordinary weapons update in place without hiding/reset/play; true replacements/trap exit still configure. Verify equivalent web weapon-input/controller continuity; Android TextureView/Fabric mechanics are native-only. |
 | Saved/dirty/READY lineup states | Done | Native-equivalent labels, glow, and disabled saved button. |
-| Opponent pregame formation | Done | Front-facing weaponless placeholders. |
+| Actual opponent pregame figures (2026-10-12) | Native/web source verified locally; release/deployment pending | Exact server occupancy/model IDs for saved opposing lineups, Front-facing with hidden weapons; no invented figures before Save. Both orientations/mixed/starter armies covered by actual native/web component rendering tests. |
 | Board responsive bounds | Done | Square board verified at 390 px viewport without overflow. |
 | Piece art overflow without clipping | Done | Separate surface, cells, and visible artwork layers. |
 | Native Rive jump canvas headroom (2026-10-04) | Native implemented; web verify pending | Permanent 25% top/bottom native viewport overscan, unchanged width-limited scale/center and cell hit targets. Verify actual web canvas drawing bounds at the apex for both assets/facings; do not resize/remount only while jumping. |
@@ -629,7 +630,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 - [ ] Both players see their own side at the bottom and all opponent figures facing them.
 - [ ] Piece heads can cross the frame without clipping; clicks outside a cell never select it.
 - [ ] Shuffle never flashes letters, stale weapons, or all-scissors lineups.
-- [ ] Repeated Shuffle with an equipped Seeker keeps local fig1/fig2 Back-facing before Save for either player; asset swaps and overlapping initialization never reveal a stale Front pose. Opponent placeholders remain Front-facing and unarmed.
+- [ ] Repeated Shuffle with an equipped Seeker keeps local fig1/fig2 Back-facing before Save for either player; asset swaps and overlapping initialization never reveal a stale Front pose. Real submitted opponent figures retain their exact models, Front-facing and unarmed; an unsubmitted opponent has no fabricated formation.
 - [ ] Traps look like traps and cannot be selected as movable pieces.
 - [ ] Each trap collision activates once; scene cleanup removes only the victim and does not recreate/replay the surviving trap. Subsequent collisions still animate, including back-to-back queued events without an idle frame.
 - [ ] Pregame opponent animations are visibly desynchronized.
@@ -649,6 +650,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 
 ## Change ledger
 
+- 2026-10-12 - removed hard-coded alternating Fig1/Seeker opponent formations from native/web boards. Empty opposing cells stay empty until a real saved lineup arrives; the exact variants remain through setup/start, movement and reconnect while weapons stay hidden. Shared legacy fallbacks no longer assign paid models without model data. Verification: 33 targeted renderer/model tests (including both actual boards/orientations), all 171 backend tests including real two-client WebSocket recovery, 29 web tests, all three app TypeScript checks, native focused lint and production web build pass. The broader mobile working-tree suite reports 651 passes and 5 failures in game-screen-lineup/shop-screen; prior lineup failures and concurrently modified checkout work were left untouched. No native build, deployment or physical-device purchase action performed by this source task.
 - 2026-10-12 - delivered signed Android 1.0.0 (63) from b629d6e with 1..3 atomic figure purchases, native installed-version API/socket headers and Seeker update-screen routing. 169 backend / 629 mobile / 29 web tests, all typechecks, web production build, model checks and Android release preflight pass. Railway a4782f8a-c339-453c-b5dc-a33be48f2f97 is SUCCESS; live catalog advertises 3 and CORS accepts metadata, while all update minimums remain 0. Public asset 634007370 and independent download match 51,039,630 bytes and SHA-256 87dfabffdf8e1a077d84165c425fba4c35a2c6e6fbb3fa4804a58645f254e2ba; unchanged signing, matching R8 mapping, current production sources/bundle and secret/model checks pass. No iOS binary, store-listing submission, physical paid test, onchain/price/odds change or pack wallet-message fix. Web source implemented/built, not a new production visual-parity claim. Evidence: files/releases/1.0.0-63.md.
 
 - 2026-10-12 - user-authorized pack price change from 1,099 to 10 SKR finalized at slot 456045668, signature 5rDaLNN6uEVsEEbiBpTLm7ViJXUvqgwDEZGa5unPBoUq6s1djnTHJMhr1XgJL9AvHt3eMoJT2QWGUQmxy1UEWMcQ. Existing admin API job ba50a26be7cbf1eaa749130cb3e8e997def5d8c5b56e9343ecf1d13a77648b12 is confirmed; fresh catalog verifies 10,000,000 units. First canonical 25-byte price account created at revision 1, total 782,240 lamports including 5,000 fee. Exact one-instruction message/accounts/price and simulation checked before signing with selected local BJom key; no key/credential committed. Config and edition 2 bytes verified unchanged, Jup/BONK/ORE 40/40/20 and figure prices unchanged; no paid receipt writable, new edition, customer purchase, upgrade or source deployment. Native/web consume the live price without rebuild. Public operation evidence: onchain/pack-price-2026-10-12.json.
@@ -749,7 +751,7 @@ This ledger summarizes the recent work that established the native reference. Co
 - New/default lineups contain 14 free fig1 variants. Army configuration replaces one starter slot with fig2 for each unique equipped, currently-owned Core asset. Shuffle randomizes weapons and cells while moving each `{ figureVariant, figureAssetId }` pair together, so a visual can never detach from its ownership proof. The optional `submitLineup.figureVariants` field preserves legacy all-fig1 compatibility.
 - One NFT can occupy exactly one slot. Native/web clients enforce this in their Army picker. New clients also send optional `submitLineup.figureAssetIds`; the backend independently rejects variant/ID misalignment, duplicates, transferred/foreign assets, and any selected set that differs from the verified saved loadout. These IDs travel only client → server for authorization and are deliberately omitted from broadcast `GameState`.
 - Figure variants are authoritative game state. They move with a surviving piece and are cleared when a piece is removed, so reconnects, Redis persistence, combat overlays, trap animation, web, and mobile always render the same character.
-- Stored games migrate to schema version 5. Legacy records receive a stable alternating split per player, and legacy server payloads are parsed with the same safe fallback.
+- Stored games migrate to schema version 5. Legacy records/server payloads without model data now use free starter figures at occupied cells; valid explicit variants remain untouched. The earlier alternating fallback was removed on 2026-10-12 because it invented paid Seeker models.
 - All four Rive files share the same runtime contract, so existing state-machine triggers and timing synchronization apply to every model.
 
 ### Backend, protocol, scaling, and delivery foundation

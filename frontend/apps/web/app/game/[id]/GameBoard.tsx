@@ -61,21 +61,18 @@ export function GameBoard(props: Props) {
           const index = toIdx(coordinate.x, coordinate.y);
           const previewItem = preview.get(index);
           const serverOwner = props.state.owners[index] ?? Owner.None;
-          const opponentPreview = props.showOpponentFormation && display.y < 2 && previewItem === undefined && serverOwner === Owner.None;
+          const opponentFormation = props.showOpponentFormation && props.ownOwner !== Owner.None && serverOwner === opponentOf(props.ownOwner);
           const movingSource = same(props.moveAnimation?.from, coordinate);
           const movingDestination = same(props.moveAnimation?.to, coordinate);
           const owner = movingSource && props.moveAnimation
             ? props.moveAnimation.owner
-            : previewItem !== undefined ? props.ownOwner : opponentPreview ? opponentOf(props.ownOwner) : serverOwner;
+            : previewItem !== undefined ? props.ownOwner : serverOwner;
           const piece = movingSource && props.moveAnimation
             ? props.moveAnimation.piece
             : previewItem?.piece ?? props.state.pieces[index] ?? Piece.Empty;
           const figureVariant = movingSource && props.moveAnimation
             ? props.moveAnimation.figureVariant
-            : previewItem?.figureVariant
-              ?? (opponentPreview
-                ? (displayIndex % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2)
-                : props.state.figureVariants?.[index] ?? FigureVariant.Fig1);
+            : previewItem?.figureVariant ?? props.state.figureVariants?.[index] ?? FigureVariant.Fig1;
           const riveFile = figureFiles[figureVariant ?? FigureVariant.Fig1];
           const isMine = owner === props.ownOwner && props.ownOwner !== Owner.None;
           const combatLanding = Boolean(props.combatAnimation?.resolution === 'resolved' && props.combatPhase === 'settle' && same(props.combatAnimation.to, coordinate));
@@ -103,7 +100,7 @@ export function GameBoard(props: Props) {
                     key={`${figureVariant ?? FigureVariant.Fig1}:${isMine ? 'back' : 'front'}:${trapDestination ? `trap-${props.trapAnimationSequence}` : 'piece'}`}
                     onActionTriggered={trapDestination ? trigger => props.onTrapActionTriggered(trigger as 'Trap Activate') : movingSource ? props.onMoveActionTriggered : undefined}
                     riveFile={riveFile}
-                    staggerStart={opponentPreview}
+                    staggerStart={opponentFormation}
                     style={{ width: '168%', height: '168%', position: 'absolute', inset: '-34%' }}
                     trigger={trapDestination ? 'Trap Activate' : movingSource && props.moveAnimation ? jumpTrigger(props.moveAnimation, props.isPlayer1) : undefined}
                     weapon={piece as Weapon}

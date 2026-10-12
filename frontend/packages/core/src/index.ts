@@ -405,14 +405,8 @@ function isFigureVariant(value: number): value is FigureVariant {
 }
 
 function legacyFigureVariants(owners: number[]): FigureVariant[] {
-  const variants: FigureVariant[] = Array(CELLS).fill(FigureVariant.Empty);
-  for (const owner of [Owner.P0, Owner.P1]) {
-    const indexes = owners.map((value, index) => ({ value, index })).filter(item => item.value === owner);
-    indexes.forEach(({ index }, position) => {
-      variants[index] = position % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2;
-    });
-  }
-  return variants;
+  // Old snapshots do not carry collectible identity. Never infer paid models.
+  return owners.map(owner => owner === Owner.P0 || owner === Owner.P1 ? FigureVariant.Fig1 : FigureVariant.Empty);
 }
 
 function isPiece(value: number): value is Piece {

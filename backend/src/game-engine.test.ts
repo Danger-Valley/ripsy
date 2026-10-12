@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Choice, FigureVariant, Owner, Phase, Piece, toIdx } from '@rps/core';
+import { Choice, FigureVariant, Owner, Phase, Piece, toIdx, parseGameState } from '@rps/core';
 import {
   chooseWeapon,
   createGameRecord,
@@ -23,6 +23,37 @@ const lineup = [
 const xs = Array.from({ length: 14 }, (_, index) => index % 7);
 const aliceYs = Array.from({ length: 14 }, (_, index) => 5 + Math.floor(index / 7));
 const bobYs = Array.from({ length: 14 }, (_, index) => Math.floor(index / 7));
+
+test('both players receive actual opposing cosmetics during setup and after reconnect, with weapons hidden', () => {
+  const game = createGameRecord('real-armies', 'alice');
+  joinGame(game, 'bob');
+  const aliceFigures = [5, 4, 42, 2, ...Array(10).fill(1)];
+  const bobFigures = [3, 3, 3, 1, ...Array(10).fill(1)];
+  submitLineup(game, 'alice', xs, aliceYs, lineup, new Date(), aliceFigures);
+  const setup = parseGameState(gameView(game, 'bob'));
+  assert.deepEqual(xs.map((x, i) => setup.figureVariants![toIdx(x, aliceYs[i]!)]), aliceFigures);
+  assert.deepEqual(xs.map((x, i) => setup.pieces[toIdx(x, aliceYs[i]!)]), Array(14).fill(Piece.Empty));
+  submitLineup(game, 'bob', xs, bobYs, lineup, new Date(), bobFigures);
+  const restored = parseGameRecord(JSON.stringify(game));
+  for (const [viewer, ys, expected] of [['alice', bobYs, bobFigures], ['bob', aliceYs, aliceFigures]] as const) {
+    const view = parseGameState(gameView(restored, viewer));
+    assert.deepEqual(xs.map((x, i) => view.figureVariants![toIdx(x, ys[i]!)]), expected);
+    assert.deepEqual(xs.map((x, i) => view.pieces[toIdx(x, ys[i]!)]), Array(14).fill(Piece.Empty));
+  }
+});
+
+test('legacy snapshots without model data never manufacture collectible figures', () => {
+  const game = createGameRecord('legacy-starters', 'alice');
+  joinGame(game, 'bob');
+  submitLineup(game, 'alice', xs, aliceYs, lineup);
+  submitLineup(game, 'bob', xs, bobYs, lineup);
+  const stored = { ...game, schemaVersion: 4, figureVariants: undefined };
+  const migrated = parseGameRecord(JSON.stringify(stored));
+  const legacyView = parseGameState({ ...gameView(game, 'alice'), figureVariants: undefined });
+  for (const variants of [migrated.figureVariants, legacyView.figureVariants!]) {
+    assert.deepEqual(variants, game.owners.map(owner => owner === Owner.None ? FigureVariant.Empty : FigureVariant.Fig1));
+  }
+});
 
 test('BONK/Jup/ORE variants survive saved state, hidden views and movement', () => {
   const game = createGameRecord('new-figures', 'alice');

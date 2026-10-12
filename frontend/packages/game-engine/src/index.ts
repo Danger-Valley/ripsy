@@ -468,15 +468,9 @@ function validFigureVariants(value: unknown, owners: Owner[] | undefined): Figur
     && value.length === CELLS
     && value.every(item => Number.isInteger(item) && item >= 0 && item <= 255)
   ) return [...value] as FigureVariant[];
-  const variants: FigureVariant[] = Array(CELLS).fill(FigureVariant.Empty);
-  for (const owner of [Owner.P0, Owner.P1]) {
-    (owners ?? []).forEach((cellOwner, index) => {
-      if (cellOwner !== owner) return;
-      const assigned = variants.filter((variant, variantIndex) => (owners ?? [])[variantIndex] === owner && variant !== FigureVariant.Empty).length;
-      variants[index] = assigned % 2 === 0 ? FigureVariant.Fig1 : FigureVariant.Fig2;
-    });
-  }
-  return variants;
+  // Missing legacy model data cannot establish collectible ownership.
+  return Array.from({ length: CELLS }, (_, index) => owners?.[index] === Owner.P0 || owners?.[index] === Owner.P1
+    ? FigureVariant.Fig1 : FigureVariant.Empty);
 }
 
 function starterFigureVariants(): FigureVariant[] {

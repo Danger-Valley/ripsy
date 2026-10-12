@@ -72,7 +72,8 @@ test('two authenticated clients play through the real WebSocket transport and re
   alice.setGameId(created.gameId);
 
   const aliceSaved = waitForState(alice, state => state.phase === Phase.LineupP0Set);
-  await alice.request({ type: 'submitLineup', gameId: created.gameId!, xs, ys: aliceYs, pieces });
+  const aliceFigures = [5, 4, 42, ...Array(11).fill(1)];
+  await alice.request({ type: 'submitLineup', gameId: created.gameId!, xs, ys: aliceYs, pieces, figureVariants: aliceFigures });
   await aliceSaved;
   const listed = await alice.request({ type: 'listGames' });
   assert.deepEqual(listed.games?.map(game => game.gameId), ['game-1']);
@@ -84,13 +85,16 @@ test('two authenticated clients play through the real WebSocket transport and re
 
   const aliceActive = waitForState(alice, state => state.phase === Phase.Active);
   const bobActive = waitForState(bob, state => state.phase === Phase.Active);
-  await bob.request({ type: 'submitLineup', gameId: created.gameId!, xs, ys: bobYs, pieces });
+  const bobFigures = [3, 3, ...Array(12).fill(1)];
+  await bob.request({ type: 'submitLineup', gameId: created.gameId!, xs, ys: bobYs, pieces, figureVariants: bobFigures });
   const [aliceState, bobState] = await Promise.all([aliceActive, bobActive]);
 
   assert.equal(aliceState.pieces[toIdx(0, 0)], Piece.Empty, 'Alice must not see Bob\'s hidden piece');
   assert.equal(bobState.pieces[toIdx(0, 5)], Piece.Empty, 'Bob must not see Alice\'s hidden piece');
   assert.equal(aliceState.owners[toIdx(0, 0)], Owner.P1);
   assert.equal(bobState.owners[toIdx(0, 5)], Owner.P0);
+  assert.deepEqual(xs.map((x, index) => aliceState.figureVariants![toIdx(x, bobYs[index]!)]), bobFigures);
+  assert.deepEqual(xs.map((x, index) => bobState.figureVariants![toIdx(x, aliceYs[index]!)]), aliceFigures);
 
   const bobTurn = waitForState(bob, state => state.phase === Phase.Active && state.isP1Turn);
   await alice.request({ type: 'movePiece', gameId: created.gameId!, fromX: 0, fromY: 5, toX: 0, toY: 4 });
@@ -112,7 +116,9 @@ test('two authenticated clients play through the real WebSocket transport and re
   );
   alice.connect(created.gameId);
   await reconnected;
-  await recovered;
+  const recoveredState = await recovered;
+  assert.equal(recoveredState.figureVariants![toIdx(0, 4)], 5, 'moving/reconnecting retains the exact original model');
+  assert.deepEqual(xs.map((x, index) => recoveredState.figureVariants![toIdx(x, bobYs[index]!)]), bobFigures);
 });
 
 function createClient(endpoint: string, playerId: string, sessionToken: string) {
@@ -182,8 +188,8 @@ class MemoryGameStore implements GameStore {
     return this.mutate(gameId, playerId, game => joinGame(game, playerId));
   }
 
-  async submitLineup(gameId: string, playerId: string, lineupXs: number[], lineupYs: number[], lineupPieces: number[]) {
-    return this.mutate(gameId, playerId, game => submitLineup(game, playerId, lineupXs, lineupYs, lineupPieces));
+  async submitLineup(gameId: string, playerId: string, lineupXs: number[], lineupYs: number[], lineupPieces: number[], figureVariants?: number[]) {
+    return this.mutate(gameId, playerId, game => submitLineup(game, playerId, lineupXs, lineupYs, lineupPieces, new Date(), figureVariants));
   }
 
   async move(gameId: string, playerId: string, fromX: number, fromY: number, toX: number, toY: number) {

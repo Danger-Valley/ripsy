@@ -3,6 +3,7 @@ import * as Native from 'react-native';
 import { Image, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../src/theme';
 import Renderer from 'react-test-renderer';
+import { usePreventRemove } from '@react-navigation/native';
 import { ShopClient } from '@rps/game-client/shop';
 import { FIGURE_SLOTS, type FigureInventory } from '@rps/core/shop';
 import { ArmyScreen } from '../src/screens/army-screen';
@@ -12,6 +13,7 @@ import { usePrivyWallet } from '../src/hooks/use-privy-wallet';
 import { saveFigureSlots } from '../src/storage/figure-loadout';
 
 jest.mock('@rps/game-client/shop', () => ({ ShopClient: jest.fn() }));
+jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), usePreventRemove: jest.fn() }));
 jest.mock('../src/hooks/use-player-identity');
 jest.mock('../src/hooks/use-solana-wallet');
 jest.mock('../src/hooks/use-privy-wallet');
@@ -20,6 +22,7 @@ jest.mock('../src/storage/figure-loadout', () => ({ saveFigureSlots: jest.fn(() 
 const api = { inventory: jest.fn(), saveLoadout: jest.fn(), clearWallet: jest.fn(), walletChallenge: jest.fn(), verifyWallet: jest.fn() };
 const navigate = jest.fn();
 const goBack = jest.fn();
+const dispatch = jest.fn();
 const addListener = jest.fn(() => jest.fn());
 const disconnect = jest.fn(() => Promise.resolve());
 const connect = jest.fn(() => Promise.resolve());
@@ -43,7 +46,7 @@ beforeEach(() => {
 afterEach(async () => { if (tree) await Renderer.act(() => tree.unmount()); });
 async function mount(params?: { expectedAssetId?: string }) {
   await Renderer.act(async () => {
-    tree = Renderer.create(<ArmyScreen navigation={{ navigate, goBack, addListener } as never} route={{ params } as never} />);
+    tree = Renderer.create(<ArmyScreen navigation={{ navigate, goBack, addListener, dispatch } as never} route={{ params } as never} />);
   });
 }
 function button(label: string) {
@@ -135,10 +138,12 @@ test('an owned Seeker fighter is available on iPhone even though native Seeker m
   expect(button('Visit shop')).toBeUndefined();
 });
 
-test('free army saves locally without a wallet or backend mutation, even offline', async () => {
+test('free army selection autosaves locally without a wallet or backend mutation, even offline', async () => {
   jest.mocked(usePlayerIdentity).mockReturnValue({ isReady: false, playerId: '', sessionToken: '', error: null });
   await mount();
-  await press('Save army');
+  expect(button('Save army')).toBeUndefined();
+  await Renderer.act(() => slot(1).props.onPress());
+  await press('Use free RIPSY 001');
   expect(saveFigureSlots).toHaveBeenCalledWith(Array(FIGURE_SLOTS).fill(null));
   expect(api.saveLoadout).not.toHaveBeenCalled();
 });
@@ -161,8 +166,7 @@ test('owned BONK/Jup/ORE can be placed in distinct slots with their real names a
   expect(slot(2).props.accessibilityLabel).toContain('BONK');
   expect(slot(6).props.accessibilityLabel).toContain('Jup');
   expect(slot(9).props.accessibilityLabel).toContain('ORE');
-  await press('Save army');
-  const slots = api.saveLoadout.mock.calls[0][0];
+  const slots = api.saveLoadout.mock.calls.at(-1)![0];
   expect(slots.filter(Boolean)).toEqual(assets.map(owned => owned.assetId));
   expect(saveFigureSlots).toHaveBeenCalledWith(slots, assets);
 });
@@ -173,7 +177,6 @@ test('equips a collectible in the selected slot and never duplicates that NFT', 
   await Renderer.act(() => slot(4).props.onPress());
   await press('Equip Seeker fighter aaaa…1111');
   expect(slot(4).props.accessibilityLabel).toContain('Seeker fighter');
-  await press('Save army');
   const savedSlots = api.saveLoadout.mock.calls[0][0];
   expect(savedSlots[3]).toBe(asset);
   expect(savedSlots.filter((value: string | null) => value === asset)).toHaveLength(1);
@@ -187,7 +190,6 @@ test('free RIPSY 001 replaces only the chosen collectible slot', async () => {
   await Renderer.act(() => slot(1).props.onPress());
   await press('Use free RIPSY 001');
   expect(slot(1).props.accessibilityLabel).toContain('free RIPSY 001');
-  await press('Save army');
   expect(api.saveLoadout).toHaveBeenCalledWith(Array(FIGURE_SLOTS).fill(null));
 });
 
@@ -221,9 +223,16 @@ test('save failure remains visible and cannot claim that the army was saved', as
   api.inventory.mockResolvedValue(inventory);
   api.saveLoadout.mockRejectedValue(new Error('Could not save your army.'));
   await mount();
-  await press('Save army');
+  await press('Equip Seeker fighter aaaa…1111');
   expect(tree.root.findAllByType(Text).some(node => node.props.children === 'Could not save your army.')).toBe(true);
   expect(tree.root.findAllByType(Text).some(node => node.props.children === 'Saved ✓')).toBe(false);
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Changes not saved');
+  expect(slot(1).props.accessibilityLabel).toContain('Seeker fighter');
+  api.saveLoadout.mockImplementation(async slots => ({ ...inventory, slots }));
+  await press('Retry saving');
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Saved ✓');
+  expect(api.saveLoadout.mock.calls).toHaveLength(2);
+  expect(api.saveLoadout.mock.calls[1][0]).toEqual(api.saveLoadout.mock.calls[0][0]);
 });
 
 test('a full army requires a selected slot and replaces only that NFT', async () => {
@@ -235,19 +244,16 @@ test('a full army requires a selected slot and replaces only that NFT', async ()
   await Renderer.act(() => slot(6).props.onPress());
   expect(button(label).props.disabled).toBe(false);
   await press(label);
-  await press('Save army');
   expect(api.saveLoadout).toHaveBeenCalledWith(assets.slice(0, 14).map((owned, index) => index === 5 ? 'asset-14' : owned.assetId));
 });
 
-test('reset only changes the draft and never disconnects or deletes a collectible', async () => {
+test('reset autosaves the free lineup without disconnecting or deleting a collectible', async () => {
   api.inventory.mockResolvedValue({ ...inventory, slots: [asset, ...Array(13).fill(null)] });
   await mount();
   await press('Reset all slots to free RIPSY 001');
-  expect(api.saveLoadout).not.toHaveBeenCalled();
   expect(api.clearWallet).not.toHaveBeenCalled();
   expect(slot(1).props.accessibilityLabel).toContain('free RIPSY 001');
   expect(button('Equip Seeker fighter aaaa…1111')).toBeDefined();
-  await press('Save army');
   expect(api.saveLoadout).toHaveBeenCalledWith(Array(FIGURE_SLOTS).fill(null));
 });
 
@@ -340,22 +346,143 @@ test('free card tells users to choose a slot before enabling the fighter action'
   expect(tree.root.findAllByType(Text).some(node => node.props.children === 'Use fighter')).toBe(true);
 });
 
-test('saving copy describes the actual operation and saved state locks repeat submission', async () => {
+test('autosave shows its actual state without a Save button or a large success banner', async () => {
   let finishSave!: () => void;
   jest.mocked(saveFigureSlots).mockReturnValueOnce(new Promise<void>(resolve => { finishSave = resolve; }));
   await mount();
-  await press('Save army');
-  expect(button('Save army').props.busy).toBe(true);
+  await Renderer.act(() => slot(1).props.onPress());
+  await press('Use free RIPSY 001');
+  expect(button('Save army')).toBeUndefined();
   const copy = tree.root.findAllByType(Text).map(node => node.props.children);
-  expect(copy).toContain('Saving army…');
-  expect(copy).toContain('Saving your army…');
+  expect(copy).toContain('Saving…');
   expect(copy).not.toContain('Loading your collection…');
   await Renderer.act(async () => finishSave());
-  expect(button('Army saved').props.disabled).toBe(true);
+  expect(button('Army saved')).toBeUndefined();
   expect(tree.root.findAllByType(Text).some(node => node.props.children === 'Saved ✓')).toBe(true);
   await Renderer.act(() => slot(1).props.onPress());
   await press('Use free RIPSY 001');
-  expect(button('Save army').props.disabled).toBe(false);
+  expect(button('Save army')).toBeUndefined();
+  expect(tree.root.findAllByType(Text).some(node => node.props.children === 'Army saved. New lineups will use these figures.')).toBe(false);
+});
+
+test('loading, selecting slots and switching tabs never write a server loadout', async () => {
+  api.inventory.mockResolvedValue(inventory);
+  await mount();
+  await Renderer.act(() => slot(3).props.onPress());
+  await press('All figures'); await press('My collection');
+  expect(api.saveLoadout).not.toHaveBeenCalled();
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Changes save automatically');
+});
+
+test('rapid edits are serialized and old responses never undo the newest slots or selection', async () => {
+  const second = { ...inventory.assets[0], assetId: 'bbbb111111111111111111111111111111', name: 'Second fighter' };
+  const collection = { ...inventory, assets: [...inventory.assets, second] };
+  api.inventory.mockResolvedValue(collection);
+  let finishFirst!: (next: FigureInventory) => void, finishLast!: (next: FigureInventory) => void;
+  api.saveLoadout.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }));
+  api.saveLoadout.mockImplementationOnce(() => new Promise(resolve => { finishLast = resolve; }));
+  await mount();
+  await press('Equip Seeker fighter aaaa…1111');
+  await Renderer.act(() => slot(4).props.onPress()); await press('Equip Second fighter bbbb…1111');
+  await press('Remove Seeker fighter aaaa…1111');
+  await Renderer.act(() => slot(7).props.onPress());
+  expect(api.saveLoadout).toHaveBeenCalledTimes(1);
+  expect(slot(1).props.accessibilityLabel).toContain('free RIPSY 001');
+  expect(slot(4).props.accessibilityLabel).toContain('Second fighter');
+  await Renderer.act(async () => finishFirst({ ...collection, slots: api.saveLoadout.mock.calls[0][0] }));
+  expect(api.saveLoadout).toHaveBeenCalledTimes(2);
+  expect(slot(1).props.accessibilityLabel).toContain('free RIPSY 001');
+  expect(slot(7).props.accessibilityState.selected).toBe(true);
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Saving…');
+  const latest = Array<string | null>(14).fill(null); latest[3] = second.assetId;
+  expect(api.saveLoadout.mock.calls[1][0]).toEqual(latest);
+  await Renderer.act(async () => finishLast({ ...collection, slots: latest }));
+  expect(saveFigureSlots).toHaveBeenLastCalledWith(latest, collection.assets);
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Saved ✓');
+  expect(slot(7).props.accessibilityState.selected).toBe(true);
+});
+
+test('a failed older save retains and retries the latest queued choices', async () => {
+  api.inventory.mockResolvedValue(inventory);
+  let fail!: (error: Error) => void;
+  api.saveLoadout.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
+  await mount(); await press('Equip Seeker fighter aaaa…1111'); await press('Remove Seeker fighter aaaa…1111');
+  await Renderer.act(async () => fail(new Error('Network unavailable')));
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Changes not saved');
+  expect(api.saveLoadout).toHaveBeenCalledTimes(1);
+  expect(slot(1).props.accessibilityLabel).toContain('free RIPSY 001');
+  await press('Retry saving');
+  expect(api.saveLoadout.mock.calls[1][0]).toEqual(Array(14).fill(null));
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Saved ✓');
+});
+
+test('local cache failure is not called saved and retry persists the same selected army', async () => {
+  api.inventory.mockResolvedValue(inventory); await mount();
+  jest.mocked(saveFigureSlots).mockRejectedValueOnce(new Error('Could not store your army on this device.'));
+  await press('Equip Seeker fighter aaaa…1111');
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Changes not saved');
+  expect(slot(1).props.accessibilityLabel).toContain('Seeker fighter');
+  await press('Retry saving');
+  expect(api.saveLoadout.mock.calls[1][0]).toEqual(api.saveLoadout.mock.calls[0][0]);
+  expect(tree.root.findByProps({ testID: 'army-save-status' }).props.children).toBe('Saved ✓');
+});
+
+test('Back waits for autosave to reach the server and cache, without another confirmation', async () => {
+  api.inventory.mockResolvedValue(inventory);
+  let finish!: (next: FigureInventory) => void;
+  api.saveLoadout.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  await mount(); await press('Equip Seeker fighter aaaa…1111');
+  const [prevent, handler] = jest.mocked(usePreventRemove).mock.calls.at(-1)!;
+  expect(prevent).toBe(true);
+  const action = { type: 'GO_BACK' };
+  await Renderer.act(() => { handler({ data: { action } }); handler({ data: { action } }); });
+  expect(dispatch).not.toHaveBeenCalled();
+  await Renderer.act(async () => finish({ ...inventory, slots: api.saveLoadout.mock.calls[0][0] }));
+  expect(dispatch).toHaveBeenCalledWith(action);
+  expect(dispatch).toHaveBeenCalledTimes(1);
+  expect(jest.mocked(usePreventRemove).mock.calls.at(-1)![0]).toBe(false);
+});
+
+test('disconnect and inventory refresh are locked while automatic writes are pending', async () => {
+  api.inventory.mockResolvedValue(inventory);
+  let finish!: (next: FigureInventory) => void;
+  api.saveLoadout.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  await mount(); await press('Equip Seeker fighter aaaa…1111'); await press('Manage collection');
+  expect(button('Refresh collection').props.disabled).toBe(true);
+  expect(button('Sign out').props.disabled).toBe(true);
+  await press('Sign out'); await press('Refresh collection');
+  expect(api.clearWallet).not.toHaveBeenCalled(); expect(api.inventory).toHaveBeenCalledTimes(1);
+  await Renderer.act(async () => finish({ ...inventory, slots: api.saveLoadout.mock.calls[0][0] }));
+  expect(button('Sign out').props.disabled).toBe(false);
+});
+
+test('an already queued save finishes its cache write if the screen is unmounted', async () => {
+  api.inventory.mockResolvedValue(inventory);
+  let finish!: (next: FigureInventory) => void;
+  api.saveLoadout.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  await mount(); await press('Equip Seeker fighter aaaa…1111');
+  const latest = api.saveLoadout.mock.calls[0][0];
+  await Renderer.act(() => tree.unmount());
+  await Renderer.act(async () => finish({ ...inventory, slots: latest }));
+  expect(saveFigureSlots).toHaveBeenLastCalledWith(latest, inventory.assets);
+  expect(api.saveLoadout).toHaveBeenCalledTimes(1);
+});
+
+test('a new player session never receives an old response or old local loadout', async () => {
+  api.inventory.mockResolvedValue(inventory);
+  let finish!: (next: FigureInventory) => void;
+  api.saveLoadout.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  await mount(); await press('Equip Seeker fighter aaaa…1111');
+  jest.mocked(usePlayerIdentity).mockReturnValue({ isReady: true, playerId: 'other', sessionToken: 'other-token', error: null });
+  const nextCollection = { ...inventory, wallet: 'other-wallet', slots: Array(14).fill(null), assets: [] };
+  api.inventory.mockResolvedValue(nextCollection);
+  await Renderer.act(() => tree.update(<ArmyScreen navigation={{ navigate, goBack, addListener, dispatch } as never} route={{ params: undefined } as never} />));
+  await Renderer.act(async () => finish({ ...inventory, slots: api.saveLoadout.mock.calls[0][0] }));
+  expect(slot(1).props.accessibilityLabel).toContain('free RIPSY 001');
+  expect(button('Equip Seeker fighter aaaa…1111')).toBeUndefined();
+  expect(saveFigureSlots).toHaveBeenLastCalledWith(nextCollection.slots, []);
+  expect(saveFigureSlots).not.toHaveBeenCalledWith(api.saveLoadout.mock.calls[0][0], inventory.assets);
+  expect(api.saveLoadout).toHaveBeenCalledTimes(1);
 });
 
 test.each([320, 375, 768, 1280])('slots and fighter cards retain usable sizes at %i points', async width => {
@@ -410,7 +537,6 @@ test('owned collection shows every exact asset in a vertical grid and can equip 
   await Renderer.act(() => slot(14).props.onPress());
   await press('Equip Fighter 12 0011…1111');
   expect(slot(14).props.accessibilityLabel).toContain('Fighter 12');
-  await press('Save army');
   const savedSlots = api.saveLoadout.mock.calls[0][0];
   expect(savedSlots[13]).toBe(assets[11].assetId);
   expect(savedSlots.filter(Boolean)).toEqual([assets[11].assetId]);

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type PressableProps } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type PressableProps } from 'react-native';
+import { usePreventRemove } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ShopClient } from '@rps/game-client/shop';
 import { FIGURES, FIGURE_SLOTS, figureStoreMessage, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
@@ -10,6 +11,7 @@ import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from '../components/to
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { usePrivyWallet } from '../hooks/use-privy-wallet';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
+import { useArmyAutosave } from '../hooks/use-army-autosave';
 import { proveWallet as proveExternalWallet } from '../solana-wallet-adapter';
 import { saveFigureSlots } from '../storage/figure-loadout';
 import { ToyDialog } from '../components/toy-dialog';
@@ -43,21 +45,37 @@ export function ArmyScreen({ navigation, route }: Props) {
   const client = useMemo(() => new ShopClient(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken), [sessionToken]);
   const [inventory, setInventory] = useState<FigureInventory | null>(null);
   const [slots, setSlots] = useState<Array<string | null>>(starterSlots);
+  const slotsRef = useRef(slots);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const selectedSlotRef = useRef<number | null>(null);
+  const mounted = useRef(true);
+  const waitingToLeave = useRef(false);
+  const currentSession = useRef(sessionToken);
+  currentSession.current = sessionToken;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const autosave = useArmyAutosave();
   const [tab, setTab] = useState<'owned' | 'all'>('owned');
   const [walletOpen, setWalletOpen] = useState(false);
-  const [activity, setActivity] = useState<'loading' | 'saving' | 'disconnecting' | null>(null);
+  const [activity, setActivity] = useState<'loading' | 'disconnecting' | null>(null);
   const busy = activity !== null;
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [indexingChecks, setIndexingChecks] = useState(0);
   const address = external.isSupported ? external.address : privy.address;
   const expectedAssetId = route.params?.expectedAssetId;
   const isWaitingForMint = Boolean(expectedAssetId && inventory && !inventory.assets.some(asset => asset.assetId === expectedAssetId));
+  const replaceSlots = (next: Array<string | null>) => { slotsRef.current = next; setSlots(next); };
+  const selectSlot = (index: number | null) => { selectedSlotRef.current = index; setSelectedSlot(index); };
+  const managementBusy = busy || autosave.status === 'saving' || autosave.status === 'error';
+  // Back/Android Back/swipe finish the current save instead of needing a Save tap.
+  usePreventRemove(autosave.status === 'saving', ({ data }) => {
+    if (waitingToLeave.current) return;
+    waitingToLeave.current = true;
+    autosave.flush().then(() => { if (mounted.current) navigation.dispatch(data.action); }).catch(() => undefined).finally(() => { waitingToLeave.current = false; });
+  });
 
   const refresh = async (verify = false) => {
-    if (!sessionToken) return;
-    setActivity('loading'); setError(null); setSaved(false);
+    if (!sessionToken || autosave.hasPending()) return;
+    setActivity('loading'); setError(null);
     try {
       if (verify) {
         if (!address) throw new Error(external.isSupported ? 'Connect your wallet before loading your figures.' : 'Sign in with email before loading your figures.');
@@ -67,83 +85,90 @@ export function ArmyScreen({ navigation, route }: Props) {
         await client.verifyWallet(proof);
       }
       const next = await client.inventory();
-      setInventory(next); setSlots(next.slots); setSelectedSlot(null);
+      if (!mounted.current || currentSession.current !== sessionToken) return;
+      setInventory(next); replaceSlots(next.slots); selectSlot(null);
       await saveFigureSlots(next.slots, next.assets);
       if (verify) setWalletOpen(false);
     } catch (cause) {
+      if (!mounted.current || currentSession.current !== sessionToken) return;
       const message = cause instanceof Error ? cause.message : 'Could not load your figures.';
       // No verified collection is the normal free-starter state, not an error.
       if (verify || message !== 'Verify a Solana wallet to manage your army.') setError(message);
-    } finally { setActivity(null); }
+    } finally { if (mounted.current && currentSession.current === sessionToken) setActivity(null); }
   };
 
-  useEffect(() => { if (isReady) refresh(false).catch(() => undefined); }, [isReady, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!isWaitingForMint || busy || indexingChecks >= 10) return;
+    let active = true;
+    autosave.reset();
+    setActivity(isReady ? 'loading' : null);
+    autosave.flush().then(() => { if (active && isReady) return refresh(false); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [isReady, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isWaitingForMint || busy || autosave.hasPending() || indexingChecks >= 10) return;
     const timer = setTimeout(() => {
       refresh(false).catch(() => undefined).finally(() => setIndexingChecks(current => current + 1));
     }, 3000);
     return () => clearTimeout(timer);
-  }, [busy, indexingChecks, isWaitingForMint]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [busy, indexingChecks, isWaitingForMint, autosave.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const equipped = new Set(slots.filter((value): value is string => Boolean(value)));
   const allSlotsUsed = equipped.size === FIGURE_SLOTS;
   const toggleAsset = (asset: OwnedFigureAsset) => {
     if (busy) return;
-    setSaved(false);
-    setSlots(current => {
-      const existing = current.indexOf(asset.assetId);
-      if (existing >= 0) return current.map((value, index) => index === existing ? null : value);
-      const target = selectedSlot ?? current.indexOf(null);
-      if (target < 0) return current;
-      return current.map((value, index) => index === target ? asset.assetId : value);
-    });
-    setSelectedSlot(null);
+    const current = slotsRef.current;
+    const existing = current.indexOf(asset.assetId);
+    const target = selectedSlotRef.current ?? current.indexOf(null);
+    if (existing < 0 && target < 0) return;
+    changeSlots(current.map((value, index) => existing >= 0 ? index === existing ? null : value : index === target ? asset.assetId : value));
   };
   const selectStarter = () => {
-    setSaved(false);
-    if (selectedSlot !== null) setSlots(current => current.map((value, index) => index === selectedSlot ? null : value));
-    setSelectedSlot(null);
+    if (busy || selectedSlotRef.current === null) return;
+    changeSlots(slotsRef.current.map((value, index) => index === selectedSlotRef.current ? null : value));
   };
-  const save = async () => {
-    setActivity('saving'); setError(null); setSaved(false);
-    try {
+  const changeSlots = (nextSlots: Array<string | null>) => {
+    replaceSlots(nextSlots); selectSlot(null);
+    const collection = inventory;
+    autosave.enqueue(async () => {
+      if (currentSession.current !== sessionToken) throw new Error('Your account changed. Reload your collection.');
       // Save a playable offline army, not just asset IDs whose models are missing.
-      const selectedModels = new Set(slots.filter(Boolean).map(id => inventory?.assets.find(a => a.assetId === id)?.figureId));
+      const selectedModels = new Set(nextSlots.filter(Boolean).map(id => collection?.assets.find(a => a.assetId === id)?.figureId));
       for (const id of selectedModels) {
         const model = definitions.find(f => f.id === id);
         if (!model?.animation && !FIGURES.some(f => f.id === id)) throw new Error('Could not load this fighter. Reopen your army and try again.');
         if (model?.animation && model.animation.sha256 !== bundledHashes[model.variant]) await cacheFigureAnimation(model.animation);
       }
-      if (inventory) {
-        const next = await client.saveLoadout(slots);
-        setInventory(next); setSlots(next.slots);
+      if (currentSession.current !== sessionToken) throw new Error('Your account changed. Reload your collection.');
+      if (collection) {
+        if (!sessionToken) throw new Error('Sign in again to save your army.');
+        const next = await client.saveLoadout(nextSlots);
+        if (currentSession.current !== sessionToken) throw new Error('Your account changed. Reload your collection.');
         await saveFigureSlots(next.slots, next.assets);
+        // An older response must not reset a newer draft or its selected slot.
+        if (mounted.current && currentSession.current === sessionToken) setInventory(next);
       } else {
         // The mandatory free starter needs no wallet or network authorization.
         await saveFigureSlots(starterSlots());
       }
-      setSelectedSlot(null); setSaved(true);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save your army.');
-    } finally { setActivity(null); }
+    });
   };
   const disconnectCollectionWallet = async () => {
-    setActivity('disconnecting'); setError(null); setSaved(false);
+    if (autosave.hasPending()) return;
+    setActivity('disconnecting'); setError(null); autosave.reset();
     try {
       const connectedAddress = inventory?.wallet;
       await client.clearWallet();
       const emptySlots = starterSlots();
       await saveFigureSlots(emptySlots);
-      setSlots(emptySlots); setInventory(null); setSelectedSlot(null);
+      replaceSlots(emptySlots); setInventory(null); selectSlot(null);
       if (connectedAddress && connectedAddress === external.address) await external.disconnect();
       if (!external.isSupported && connectedAddress && connectedAddress === privy.address) await privy.disconnect();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not disconnect your collection wallet.');
     } finally { setActivity(null); }
   };
-  const openShop = () => { setWalletOpen(false); navigation.navigate('Shop'); };
-  const register = () => { if (external.isSupported) return; setWalletOpen(false); navigation.navigate('Shop', { signIn: true }); };
+  const openShop = () => { if (autosave.hasPending()) return; setWalletOpen(false); navigation.navigate('Shop'); };
+  const register = () => { if (external.isSupported || autosave.hasPending()) return; setWalletOpen(false); navigation.navigate('Shop', { signIn: true }); };
   // Army stays mounted while email sign-in is open in the shop.
   useEffect(() => navigation.addListener('focus', () => { if (!external.isSupported) refreshEmailAccount().catch(() => undefined); }), [navigation, refreshEmailAccount, external.isSupported]);
 
@@ -155,7 +180,7 @@ export function ArmyScreen({ navigation, route }: Props) {
         <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} style={styles.title}>Your army</Text>
         <ToyHomeButton small icon={homeArt.settings} accessibilityLabel="Manage collection" onPress={() => setWalletOpen(true)} />
       </View>
-      <ScrollView testID="army-scroll" contentContainerStyle={styles.content}>
+      <ScrollView testID="army-scroll" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
         <Text style={styles.subtitle}>Choose your fighters</Text>
         <ToyHomePanel style={styles.lineupPanel} testID="army-lineup-panel">
           <View testID="army-lineup-header" style={styles.lineupHeader}>
@@ -163,7 +188,7 @@ export function ArmyScreen({ navigation, route }: Props) {
               <Text accessibilityRole="header" style={styles.lineupTitle}>Your lineup</Text>
               <Text testID="army-lineup-count" style={styles.lineupCaption}>{`${FIGURE_SLOTS - equipped.size} free · ${equipped.size} collectible${equipped.size === 1 ? '' : 's'}`}</Text>
             </View>
-            <ArmyControl accessibilityRole="button" accessibilityLabel="Reset all slots to free RIPSY 001" disabled={busy || equipped.size === 0} onPress={() => { setSlots(starterSlots()); setSaved(false); setSelectedSlot(null); }} style={({ pressed }) => [styles.reset, pressed && styles.pressed, (busy || equipped.size === 0) && styles.disabled]}>
+            <ArmyControl accessibilityRole="button" accessibilityLabel="Reset all slots to free RIPSY 001" disabled={busy || equipped.size === 0} onPress={() => { if (!busy && equipped.size) changeSlots(starterSlots()); }} style={({ pressed }) => [styles.reset, pressed && styles.pressed, (busy || equipped.size === 0) && styles.disabled]}>
               <Text style={styles.resetText}>Reset</Text>
             </ArmyControl>
           </View>
@@ -181,7 +206,7 @@ export function ArmyScreen({ navigation, route }: Props) {
                     accessibilityLabel={`Army slot ${index + 1}, ${assetId ? inventory?.assets.find(asset => asset.assetId === assetId)?.name ?? 'Collectible fighter' : 'free RIPSY 001'}`}
                     disabled={busy}
                     key={index}
-                    onPress={() => setSelectedSlot(current => current === index ? null : index)}
+                    onPress={() => selectSlot(selectedSlotRef.current === index ? null : index)}
                     style={({ pressed }) => [styles.slot, assetId && styles.slotCollectible, selectedSlot === index && styles.slotSelected, pressed && styles.pressed]}>
                     <Image pointerEvents="none" source={figurePortrait(inventory?.assets.find(asset => asset.assetId === assetId)?.figureId ?? 'fig1', definitions)} style={styles.slotImage} />
                     <Text pointerEvents="none" maxFontSizeMultiplier={1.3} style={styles.slotNumber}>{index + 1}</Text>
@@ -192,6 +217,11 @@ export function ArmyScreen({ navigation, route }: Props) {
           </View>
           </ScrollView>
           <Text testID="army-slot-hint" accessibilityLiveRegion="polite" style={[styles.lineupHint, selectedSlot !== null && styles.lineupHintSelected]}>{selectedSlot !== null ? `Choose a fighter for slot ${selectedSlot + 1}` : 'Tap a slot, then choose a fighter below'}</Text>
+          <View style={styles.saveStatus}>
+            {autosave.status === 'saving' && <ActivityIndicator accessibilityLabel="Saving army" size="small" color={colors.accentShadow} />}
+            <Text testID="army-save-status" accessibilityLiveRegion="polite" style={[styles.saveStatusText, autosave.status === 'error' && styles.saveStatusError]}>{autosave.status === 'saving' ? 'Saving…' : autosave.status === 'saved' ? 'Saved ✓' : autosave.status === 'error' ? 'Changes not saved' : 'Changes save automatically'}</Text>
+          </View>
+          {autosave.error && <><StatusBanner message={figureStoreMessage(autosave.error, 'Could not save your army. Please try again.')} tone="error" /><ToyHomeButton compact tone="white" onPress={autosave.retry}>Retry saving</ToyHomeButton></>}
         </ToyHomePanel>
 
         <ToyHomePanel style={styles.collectionPanel}>
@@ -208,7 +238,7 @@ export function ArmyScreen({ navigation, route }: Props) {
             {tab === 'owned' && inventory?.assets.map(asset => (
               <FigureCard width={figureCardWidth} key={asset.assetId} name={asset.name} image={figurePortrait(asset.figureId, definitions, asset.imageUrl)} badge={equipped.has(asset.assetId) ? 'IN ARMY' : 'OWNED'} caption="In your collection" selected={equipped.has(asset.assetId)} button={equipped.has(asset.assetId) ? 'Remove' : 'Select'} disabled={busy || (!equipped.has(asset.assetId) && allSlotsUsed && selectedSlot === null)} accessibilityLabel={`${equipped.has(asset.assetId) ? 'Remove' : 'Equip'} ${asset.name} ${short(asset.assetId)}`} onPress={() => toggleAsset(asset)} />
             ))}
-            {tab === 'all' && definitions.filter(figure => figure.purchasable).map(figure => <FigureCard width={figureCardWidth} key={figure.id} name={figure.name} image={figurePortrait(figure.id, definitions)} badge={figure.seekerExclusive ? 'SEEKER' : 'COLLECTIBLE'} caption={inventory ? `${inventory.assets.filter(asset => asset.figureId === figure.id).length} in your collection` : 'Collect it in the shop'} button="Visit shop" tone="coral" onPress={openShop} />)}
+            {tab === 'all' && definitions.filter(figure => figure.purchasable).map(figure => <FigureCard width={figureCardWidth} key={figure.id} name={figure.name} image={figurePortrait(figure.id, definitions)} badge={figure.seekerExclusive ? 'SEEKER' : 'COLLECTIBLE'} caption={inventory ? `${inventory.assets.filter(asset => asset.figureId === figure.id).length} in your collection` : 'Collect it in the shop'} button="Visit shop" tone="coral" disabled={managementBusy} onPress={openShop} />)}
           </View>
           {tab === 'owned' && <Text style={styles.collectionHint}>Each collectible fills one slot. Free fighters fill the rest.</Text>}
         </ToyHomePanel>
@@ -218,28 +248,24 @@ export function ArmyScreen({ navigation, route }: Props) {
           <View style={styles.headerCopy}><Text style={styles.walletTitle}>{inventory ? 'Your collection' : address ? 'Load your collection' : external.isSupported ? 'Connect your wallet' : 'Register'}</Text><Text style={styles.walletCopy}>{inventory ? 'Manage your figures' : external.isSupported ? 'Use your Seeker wallet to load your figures' : 'Sign in with email to load your figures'}</Text></View>
           <Text style={styles.chevron}>›</Text>
         </ArmyControl>
-        {busy && <Text accessibilityLiveRegion="polite" style={styles.loadingCopy}>{activity === 'saving' ? 'Saving your army…' : activity === 'disconnecting' ? 'Signing out…' : 'Loading your collection…'}</Text>}
+        {busy && <Text accessibilityLiveRegion="polite" style={styles.loadingCopy}>{activity === 'disconnecting' ? 'Signing out…' : 'Loading your collection…'}</Text>}
         {error && <StatusBanner message={figureStoreMessage(error, 'Could not load your collection. Please try again.')} tone="error" />}
-        {saved && <StatusBanner message="Army saved. New lineups will use these figures." tone="success" />}
-        {isWaitingForMint && <StatusBanner message={indexingChecks < 10 ? 'Purchase complete. Your new figure will appear shortly…' : 'Purchase complete. Your collection is updating — try Refresh collection shortly.'} />}
-      </ScrollView>
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <ToyHomeButton tone="yellow" busy={activity === 'saving'} disabled={busy || saved || Boolean(inventory && !sessionToken)} accessibilityLabel={saved ? 'Army saved' : 'Save army'} accessibilityHint="Saves your fighter choices for new game lineups" onPress={() => { save().catch(() => undefined); }}>{activity === 'saving' ? 'Saving army…' : saved ? 'Saved ✓' : 'Save army'}</ToyHomeButton>
+        {isWaitingForMint && <StatusBanner message={indexingChecks < 10 ? 'Purchase complete. Your new figure will appear shortly…' : 'Purchase complete. Your collection is updating - try Refresh collection shortly.'} />}
         <Text style={styles.footerCopy}>For new games only. Your weapons stay unchanged.</Text>
-      </View>
+      </ScrollView>
 
       <ToyDialog visible={walletOpen} title="Your collection" icon={homeArt.army} onClose={() => setWalletOpen(false)} closeLabel="Close collection settings" testID="army-wallet-dialog">
             {inventory ? <>
               <Text style={styles.copy}>Your figures are ready to use in your army.</Text>
-              <ToyHomeButton busy={busy} onPress={() => { refresh(false).catch(() => undefined); }}>Refresh collection</ToyHomeButton>
-              <ToyHomeButton tone="white" disabled={busy} onPress={() => { disconnectCollectionWallet().catch(() => undefined); }}>{external.isSupported ? 'Disconnect wallet' : 'Sign out'}</ToyHomeButton>
+              <ToyHomeButton busy={busy} disabled={managementBusy} onPress={() => { refresh(false).catch(() => undefined); }}>Refresh collection</ToyHomeButton>
+              <ToyHomeButton tone="white" disabled={managementBusy} onPress={() => { disconnectCollectionWallet().catch(() => undefined); }}>{external.isSupported ? 'Disconnect wallet' : 'Sign out'}</ToyHomeButton>
             </> : <>
               <Text style={styles.copy}>{external.isSupported ? 'RIPSY 001 is free - no account needed. Connect your wallet to use your collectibles.' : 'RIPSY 001 is free - no account needed. Sign in only to use your collectibles.'}</Text>
               <Text style={styles.safeSign}>✓ Checking your collection is free</Text>
               {external.isSupported && external.address && <Text style={styles.safeSign}>Seeker wallet connected · {short(external.address)}</Text>}
-              {!external.address && external.isSupported && <ToyHomeButton busy={external.status === 'connecting'} disabled={busy} onPress={() => { external.connect().catch(() => setError('Could not connect your wallet. Please try again.')); }}>Connect your wallet</ToyHomeButton>}
-              {!external.isSupported && !privy.address && <ToyHomeButton tone="white" disabled={busy} onPress={register}>Register</ToyHomeButton>}
-              <ToyHomeButton tone="yellow" busy={busy} disabled={!address || !sessionToken} onPress={() => { refresh(true).catch(() => undefined); }}>Load my figures</ToyHomeButton>
+              {!external.address && external.isSupported && <ToyHomeButton busy={external.status === 'connecting'} disabled={managementBusy} onPress={() => { external.connect().catch(() => setError('Could not connect your wallet. Please try again.')); }}>Connect your wallet</ToyHomeButton>}
+              {!external.isSupported && !privy.address && <ToyHomeButton tone="white" disabled={managementBusy} onPress={register}>Register</ToyHomeButton>}
+              <ToyHomeButton tone="yellow" busy={busy} disabled={managementBusy || !address || !sessionToken} onPress={() => { refresh(true).catch(() => undefined); }}>Load my figures</ToyHomeButton>
             </>}
             {(error || (external.isSupported ? external.error : privy.error)) && <StatusBanner message={figureStoreMessage(error || (external.isSupported ? external.error : privy.error), 'Could not load your collection. Please try again.')} tone="error" />}
             <Text style={styles.modalNote}>{external.isSupported ? 'Disconnecting never removes your purchased figures.' : 'Signing out never removes your purchased figures.'}</Text>
@@ -303,6 +329,9 @@ const styles = StyleSheet.create({
   slotNumber: { position: 'absolute', bottom: 4, color: colors.ink, fontSize: 12, lineHeight: 16, fontWeight: '800', textAlign: 'center', fontVariant: ['tabular-nums'] },
   lineupHint: { color: colors.textMuted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
   lineupHintSelected: { color: colors.ink, fontWeight: '700' },
+  saveStatus: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  saveStatusText: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  saveStatusError: { color: colors.dangerShadow },
   collectionPanel: { padding: spacing.md, gap: spacing.md },
   tabs: { flexDirection: 'row', backgroundColor: colors.collectionMuted, borderRadius: 13, padding: 3, gap: 3 },
   tab: { flex: 1, minHeight: 44, borderRadius: 11, justifyContent: 'center', paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
@@ -331,7 +360,6 @@ const styles = StyleSheet.create({
   walletCopy: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   chevron: { color: colors.accentShadow, fontSize: 28 },
   loadingCopy: { color: colors.ink, textAlign: 'center', fontSize: 14, lineHeight: 20 },
-  footer: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 14, paddingTop: 8, gap: 6, backgroundColor: 'rgba(245,249,232,0.96)' },
   footerCopy: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.5 },

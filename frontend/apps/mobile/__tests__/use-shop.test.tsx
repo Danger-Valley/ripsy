@@ -281,3 +281,90 @@ test('old backend or a mismatched restored quantity never opens a wallet', async
   expect(sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled(); expect(shop.error).toMatch(/selected number/);
   expect(() => parsePurchaseIntent(JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, quantity: 2, order: prepared }))).toThrow(/quantity/);
 });
+
+test.each(['failed', 'expired'] as const)('Retry checks the old %s order, then signs only a fresh same-quantity purchase once', async status => {
+  api.catalog.mockResolvedValue({ cluster: 'devnet', figures: [], maxFigureQuantity: 3 });
+  const original = { ...bulkOrder, figureId: 'jup' };
+  api.create.mockResolvedValue(original); api.get.mockResolvedValue({ ...original, status });
+  await mount(); await Renderer.act(() => shop.prepare('jup', prepared.buyer, undefined, undefined, 2));
+  const key = JSON.parse(saved!).key;
+  await Renderer.act(() => shop.checkStatus());
+  const next = { ...original, id: 'b'.repeat(64), transaction: 'Ag==' };
+  api.create.mockImplementationOnce(async (_figure, _buyer, nextKey) => {
+    expect(nextKey).not.toBe(key); expect(JSON.parse(saved!).quantity).toBe(2);
+    return next;
+  });
+  api.get.mockResolvedValueOnce({ ...original, status }).mockResolvedValue(next);
+  api.submit.mockResolvedValue({ ...next, status: 'submitted' });
+  const sign = jest.fn().mockResolvedValue('new-signed');
+  await Renderer.act(async () => { await Promise.all([shop.retry(undefined, sign), shop.retry(undefined, sign)]); });
+  expect(api.create).toHaveBeenCalledTimes(2);
+  expect(api.get).toHaveBeenNthCalledWith(2, original.id);
+  expect(api.create).toHaveBeenLastCalledWith('jup', prepared.buyer, expect.any(String), undefined, 2);
+  expect(sign).toHaveBeenCalledTimes(1); expect(sign).toHaveBeenCalledWith(next);
+  expect(api.submit).toHaveBeenCalledWith(next.id, 'new-signed');
+  expect(shop.order?.id).toBe(next.id); expect(shop.order?.quantity).toBe(2);
+});
+
+test('Retry preserves Buy with SOL instead of requiring another token-shortfall step', async () => {
+  const original = { ...prepared, figureId: 'jup' };
+  api.create.mockRejectedValueOnce(new ShopRequestError('Not enough JUP', recovery));
+  await mount(); await Renderer.act(() => shop.prepare('jup', prepared.buyer));
+  api.create.mockResolvedValue(original);
+  await Renderer.act(() => shop.buyWithSol());
+  const oldKey = JSON.parse(saved!).key;
+  api.get.mockResolvedValue({ ...original, status: 'expired' });
+  await Renderer.act(() => shop.checkStatus());
+  await Renderer.act(() => shop.retry());
+  const newKey = JSON.parse(saved!).key;
+  expect(newKey).not.toBe(oldKey); expect(JSON.parse(saved!).paymentMode).toBe('sol');
+  expect(api.create).toHaveBeenLastCalledWith('jup', prepared.buyer, newKey, 'sol');
+});
+
+test.each(['prepared', 'submitted', 'confirmed'] as const)('Retry refuses a replacement when the latest server status is %s', async status => {
+  await mount(); await Renderer.act(() => shop.prepare('fig1', prepared.buyer));
+  api.get.mockResolvedValueOnce({ ...prepared, status: 'expired' });
+  await Renderer.act(() => shop.checkStatus());
+  api.get.mockResolvedValueOnce({ ...prepared, status });
+  const sign = jest.fn(); await Renderer.act(() => shop.retry(undefined, sign));
+  expect(api.create).toHaveBeenCalledTimes(1); expect(sign).not.toHaveBeenCalled();
+  expect(api.submit).not.toHaveBeenCalled(); expect(shop.order?.status).toBe(status);
+  expect(shop.error).toMatch(/already complete|still processing/);
+});
+
+test('Retry keeps the old receipt after a failed status check or storage write, without signing', async () => {
+  await mount(); await Renderer.act(() => shop.prepare('fig1', prepared.buyer));
+  api.get.mockResolvedValue({ ...prepared, status: 'expired' });
+  await Renderer.act(() => shop.checkStatus());
+  const sign = jest.fn(); api.get.mockRejectedValueOnce(new Error('Offline'));
+  await Renderer.act(() => shop.retry(undefined, sign));
+  expect(shop.order?.status).toBe('expired'); expect(shop.error).toBe('Offline');
+  const write = jest.spyOn(storage, 'save').mockRejectedValueOnce(new Error('Could not save'));
+  await Renderer.act(() => shop.retry(undefined, sign)); write.mockRestore();
+  expect(api.create).toHaveBeenCalledTimes(1); expect(sign).not.toHaveBeenCalled();
+  expect(shop.order?.id).toBe(prepared.id); expect(shop.error).toBe('Could not save');
+});
+
+test('Retry refuses a mismatched status response before replacing the receipt', async () => {
+  await mount(); await Renderer.act(() => shop.prepare('fig1', prepared.buyer));
+  api.get.mockResolvedValueOnce({ ...prepared, status: 'expired' });
+  await Renderer.act(() => shop.checkStatus());
+  api.get.mockResolvedValueOnce({ ...prepared, id: 'b'.repeat(64), status: 'expired' });
+  await Renderer.act(() => shop.retry(undefined, jest.fn()));
+  expect(api.create).toHaveBeenCalledTimes(1); expect(shop.order?.id).toBe(prepared.id);
+  expect(shop.error).toMatch(/verify your saved purchase/);
+});
+
+test('Retry renews Seeker eligibility proof and never replaces an unverified purchase', async () => {
+  const original = { ...prepared, figureId: 'fig2' };
+  api.create.mockResolvedValue(original); await mount();
+  const prove = jest.fn().mockResolvedValue({ address: prepared.buyer });
+  await Renderer.act(() => shop.prepare('fig2', prepared.buyer, prove));
+  api.get.mockResolvedValue({ ...original, status: 'expired' });
+  await Renderer.act(() => shop.checkStatus());
+  const sign = jest.fn(); await Renderer.act(() => shop.retry(undefined, sign));
+  expect(api.create).toHaveBeenCalledTimes(1); expect(sign).not.toHaveBeenCalled();
+  await Renderer.act(() => shop.retry(prove));
+  expect(prove).toHaveBeenCalledTimes(2); expect(api.verifySeeker).toHaveBeenCalledTimes(2);
+  expect(api.create).toHaveBeenCalledTimes(2);
+});

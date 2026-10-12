@@ -105,6 +105,9 @@ export function ShopScreen({ navigation, route }: Props) {
   const canClose = !shop.signingStarted || Boolean(order && isTerminalMint(order));
   const error = actionError || shop.error || (wallet.isSupported ? wallet.error : privy.error) || sessionError;
   const figures = shop.catalog?.figures.filter(figure => figure.id !== 'fig1') ?? [];
+  const retryable = order?.status === 'failed' || order?.status === 'expired';
+  const retryDefinition = figures.find(figure => figure.id === order?.figureId);
+  const retryAvailable = Boolean(retryDefinition?.available && retryDefinition.priceLamports && (!retryDefinition.seekerExclusive || wallet.isSupported));
   const run = (task: () => Promise<unknown>) => {
     setActionError(null);
     task().catch(cause => { if (mounted.current) setActionError(cause instanceof Error ? cause.message : 'Please try again.'); });
@@ -163,6 +166,10 @@ export function ShopScreen({ navigation, route }: Props) {
       : shop.prepare(figure.id, address, figure.seekerExclusive ? proveSeekerWallet : undefined, signPurchase, quantity));
   };
   const openArmy = (expectedAssetId?: string) => { setWalletOpen(false); setPurchasePopup(null); navigation.navigate('Army', expectedAssetId ? { expectedAssetId } : undefined); };
+  const retryFigure = () => {
+    if (!retryable || !retryAvailable || !orderSigner || !shop.ready || !pack.ready || purchaseBusy || activePackPurchase || (wallet.isSupported && walletBusy)) return;
+    buyAndSign(() => shop.retry(retryDefinition?.seekerExclusive ? proveSeekerWallet : undefined, signPurchase), Boolean(order?.solFunding));
+  };
   const figurePurchaseTitle = order?.status === 'confirmed' ? 'Welcome to your army!' : order?.status === 'failed' || order?.status === 'expired' ? 'Purchase not completed' : order?.status === 'submitted' ? 'Processing purchase' : order ? 'Continue your purchase' : error && !shop.busy ? 'Purchase needs attention' : 'Preparing purchase';
   const handoffTitle = handoffStage === 'opening-wallet' && !wallet.isSupported ? 'Approving purchase' : handoffTitles[handoffStage];
   const handoffCopy = handoffStage === 'preparing'
@@ -238,12 +245,13 @@ export function ShopScreen({ navigation, route }: Props) {
         {order ? <>
           {order.status !== 'confirmed' && <>
             <ToyBadge tone={order.status === 'failed' || order.status === 'expired' ? 'coral' : 'yellow'}>{order.status === 'submitted' ? 'PROCESSING PURCHASE' : order.status === 'failed' ? 'PURCHASE FAILED' : order.status === 'expired' ? 'PURCHASE EXPIRED' : 'AWAITING YOUR APPROVAL'}</ToyBadge>
-            <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Continue in your wallet to approve this saved purchase.'}</Text>
+            <Text accessibilityLiveRegion="polite" style={styles.copy}>{order.status === 'submitted' ? 'Processing your purchase… You can leave and check back.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Tap Retry to try again.' : order.error ? figureStoreMessage(order.error) : 'Continue in your wallet to approve this saved purchase.'}</Text>
           </>}
           <View style={styles.receiptFigure}><View style={styles.receiptPortrait}><Image source={figurePortrait(order.figureId, definitions)} style={styles.receiptImage} /></View><Text style={styles.sectionTitle}>{`${definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}${figureOrderQuantity(order) > 1 ? ` x${figureOrderQuantity(order)}` : ''}`}</Text></View>
           {order.cluster === 'devnet' && <Text style={styles.copy}>Test purchase only. No real payment.</Text>}
-          {order.status === 'prepared' && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" busy={wallet.isSupported && walletBusy} onPress={requestAccount}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
+          {(order.status === 'prepared' || retryable) && !orderSigner && <><Text style={styles.copy}>Sign in to the receiving account to approve the saved purchase.</Text><ToyHomeButton tone="white" busy={wallet.isSupported && walletBusy} onPress={requestAccount}>{wallet.isSupported ? 'Reconnect wallet' : 'Sign in with email'}</ToyHomeButton></>}
           {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!orderSigner || shop.busy} onPress={() => { if (orderSigner) buyAndSign(() => shop.confirm(signPurchase)); }}>Continue in wallet</ToyHomeButton>}
+          {retryable && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!retryAvailable || !orderSigner || !shop.ready || !pack.ready || purchaseBusy || activePackPurchase || (wallet.isSupported && walletBusy)} onPress={retryFigure}>Retry</ToyHomeButton>}
           {order.status === 'confirmed' && <ToyHomeButton tone="yellow" onPress={() => openArmy(order.asset)}>Add to your army</ToyHomeButton>}
         </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{shop.fundingRequired ? `You can use SOL to cover the missing ${shop.fundingRequired.symbol}. Approve the purchase in your wallet.` : error ? 'No payment has been approved. Check purchase status or cancel and try again.' : 'Preparing your purchase... Retry to recover this same request if the connection was interrupted.'}</Text>}
         {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={purchaseBusy || address !== shop.purchaseBuyer} onPress={() => buyAndSign(() => shop.buyWithSol(signPurchase), true)}>Buy with SOL</ToyHomeButton>}

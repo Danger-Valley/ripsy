@@ -129,7 +129,7 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     await persist({ ...signing, signed, order: submitted });
   }, [client, persist]);
 
-  const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>, sign?: (order: MintOrder) => Promise<string>, quantity = 1) => run(async () => {
+  const beginPurchase = useCallback(async (figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>, sign?: (order: MintOrder) => Promise<string>, quantity = 1, paymentMode?: 'sol') => {
     validateFigureQuantity(quantity);
     if (quantity > (catalog?.maxFigureQuantity ?? 1)) throw new Error('The shop has not enabled this quantity yet. Refresh the shop and try again.');
     const previous = intentRef.current;
@@ -142,12 +142,27 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
       await client.verifySeeker(await proveSeeker(challenge));
     }
     // This is an idempotency identifier, not an authentication credential.
-    const pending: PurchaseIntent = { key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`, figureId, buyer, ...(quantity > 1 ? { quantity } : {}) };
+    const pending: PurchaseIntent = { key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`, figureId, buyer, ...(quantity > 1 ? { quantity } : {}), ...(paymentMode ? { paymentMode } : {}) };
     await persist(pending);
     const order = await createPurchase(pending);
     await persist({ ...pending, order });
     if (sign) await signPrepared(sign);
-  }), [catalog, client, createPurchase, persist, run, signPrepared]);
+  }, [catalog, client, createPurchase, persist, signPrepared]);
+
+  const prepare = useCallback((figureId: FigureId, buyer: string, proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>, sign?: (order: MintOrder) => Promise<string>, quantity = 1) => run(() => beginPurchase(figureId, buyer, proveSeeker, sign, quantity)), [beginPurchase, run]);
+
+  // Retry is a new foreground purchase only after the server confirms the old
+  // payment failed/expired. Unknown, active and successful payments never get
+  // a replacement key or another wallet signature.
+  const retry = useCallback((proveSeeker?: (challenge: SeekerChallenge) => Promise<SeekerProof>, sign?: (order: MintOrder) => Promise<string>) => run(async () => {
+    const previous = intentRef.current;
+    if (!previous?.order || (previous.order.status !== 'failed' && previous.order.status !== 'expired')) throw new Error('Check your saved purchase status before trying again.');
+    const latest = verifyQuantity(previous, await client.get(previous.order.id));
+    if (latest.id !== previous.order.id || latest.buyer !== previous.buyer || latest.figureId !== previous.figureId) throw new Error('Could not verify your saved purchase. Please check its status.');
+    await persist({ ...previous, order: latest, ...(isTerminalMint(latest) ? { signed: undefined } : {}) });
+    if (latest.status !== 'failed' && latest.status !== 'expired') throw new Error(latest.status === 'confirmed' ? 'This purchase is already complete. Your figure is in your collection.' : 'Your purchase is still processing. Check its status before trying again.');
+    await beginPurchase(previous.figureId, previous.buyer, proveSeeker, sign, previous.quantity ?? 1, previous.paymentMode ?? (latest.solFunding ? 'sol' : undefined));
+  }), [beginPurchase, client, persist, run]);
 
   const confirm = useCallback((sign: (order: MintOrder) => Promise<string>) => run(() => signPrepared(sign)), [run, signPrepared]);
 
@@ -173,7 +188,7 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
 
   return { catalog, order: intent?.order ?? null, hasPurchase: Boolean(intent), purchaseBuyer: intent?.buyer ?? null, purchaseQuantity: intent?.quantity ?? 1,
     fundingRequired: !intent?.order && !intent?.signingStarted && !intent?.paymentMode ? fundingRequired : null, buyWithSol,
-    signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, prepare, confirm, dismiss, checkStatus, loadCatalog, clearWallet };
+    signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, prepare, retry, confirm, dismiss, checkStatus, loadCatalog, clearWallet };
 }
 
 function message(cause: unknown) { return cause instanceof Error ? cause.message : 'Could not complete this request. Try again.'; }

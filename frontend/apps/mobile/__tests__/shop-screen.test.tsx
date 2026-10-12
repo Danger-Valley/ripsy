@@ -23,7 +23,7 @@ jest.mock('../src/storage/figure-loadout', () => ({ saveFigureSlots: jest.fn(() 
 const buyer = 'buyer11111111111111111111111111111';
 const fig2: ShopFigure = { id: 'fig2', variant: 2, name: 'Seeker fighter', description: 'A new face for your collection.', imageUrl: 'https://example.test/fig2.png', priceLamports: '10000000', available: true, seekerExclusive: true };
 const order: MintOrder = { id: 'a'.repeat(64), figureId: 'fig2', buyer, asset: 'asset11111111111111111111111111111', treasury: 'treasury11111111111111111111111111', collection: 'collection11111111111111111111111', cluster: 'mainnet-beta', priceLamports: '10000000', networkFeeLamports: '1005000', transaction: 'AQ==', lastValidBlockHeight: 100, createdAt: 1, status: 'prepared', signature: null, error: null };
-const shop = { catalog: { cluster: 'mainnet-beta', collection: order.collection, treasury: order.treasury, figures: [fig2] }, order: null, hasPurchase: false, signingStarted: false, ready: true, busy: false, error: null, prepare: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn(), clearWallet: jest.fn() };
+const shop = { catalog: { cluster: 'mainnet-beta', collection: order.collection, treasury: order.treasury, figures: [fig2] }, order: null, hasPurchase: false, signingStarted: false, ready: true, busy: false, error: null, prepare: jest.fn(), retry: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn(), clearWallet: jest.fn() };
 const pack = { ...shop, catalog: INITIAL_PACK, prepare: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn() };
 const disconnect = jest.fn();
 const connect = jest.fn();
@@ -38,7 +38,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   for (const action of [pack.prepare, pack.confirm, pack.dismiss, pack.checkStatus, pack.loadCatalog]) action.mockResolvedValue(undefined);
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
-  for (const action of [shop.prepare, shop.confirm, shop.dismiss, shop.checkStatus, shop.loadCatalog, shop.clearWallet, disconnect, connect, sendCode, verifyCode]) action.mockResolvedValue(undefined);
+  for (const action of [shop.prepare, shop.retry, shop.confirm, shop.dismiss, shop.checkStatus, shop.loadCatalog, shop.clearWallet, disconnect, connect, sendCode, verifyCode]) action.mockResolvedValue(undefined);
   jest.mocked(useShop).mockReturnValue(shop as unknown as ReturnType<typeof useShop>);
   jest.mocked(usePackShop).mockReturnValue(pack as unknown as ReturnType<typeof usePackShop>);
   jest.mocked(usePlayerIdentity).mockReturnValue({ isReady: true, playerId: 'player', sessionToken: 'token', error: null });
@@ -845,6 +845,70 @@ test.each(['submitted', 'failed', 'expired'] as const)('purchase %s has an hones
   else { expect(button('Done')).toBeDefined(); expect(text(status === 'failed' ? 'PURCHASE FAILED' : 'PURCHASE EXPIRED')).toBe(true); }
   expect(shop.confirm).not.toHaveBeenCalled();
 });
+
+test.each(['failed', 'expired'] as const)('%s figure popup has Retry and retains visible progress through a fresh wallet handoff', async status => {
+  external(); setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status: 'submitted' } }); await mountRecovery();
+  setShop({ hasPurchase: true, signingStarted: true, order: { ...order, status } }); await updateScreen();
+  expect(button('Retry').props.disabled).toBe(false); expect(button('Done')).toBeDefined();
+  if (status === 'expired') expect(text('This purchase expired. Tap Retry to try again.')).toBe(true);
+  const modal = purchaseModal('figure'); const retry = button('Retry').props.onPress;
+  let finish!: () => void; const pending = new Promise<void>(resolve => { finish = resolve; });
+  const next = { ...order, id: 'b'.repeat(64) };
+  jest.mocked(signShopTransaction).mockResolvedValueOnce('new-signed');
+  shop.retry.mockImplementationOnce(async (_proof, sign) => { await pending; await sign(next); });
+  await press('Retry');
+  expect(purchaseModal('figure')).toBe(modal); expect(tree.root.findAllByType(View).filter(node => node.props.testID === 'purchase-handoff')).toHaveLength(1);
+  await Renderer.act(async () => { retry(); });
+  expect(shop.retry).toHaveBeenCalledTimes(1);
+  expect(shop.retry).toHaveBeenCalledWith(proveSeekerWallet, expect.any(Function));
+  expect(signShopTransaction).not.toHaveBeenCalled();
+  await Renderer.act(async () => { finish(); await pending; });
+  expect(signShopTransaction).toHaveBeenCalledWith(next);
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.dismiss).not.toHaveBeenCalled();
+});
+
+test.each(['prepared', 'submitted', 'confirmed'] as const)('Retry is absent for %s figure purchases', async status => {
+  external(); setShop({ hasPurchase: true, order: { ...order, status: 'submitted' } }); await mountRecovery();
+  setShop({ hasPurchase: true, order: { ...order, status } }); await updateScreen();
+  expect(button('Retry')).toBeUndefined(); expect(shop.retry).not.toHaveBeenCalled();
+});
+
+test.each(['wrong-account', 'busy', 'restoring', 'pending-pack', 'unsupported-seeker'] as const)('Retry cannot bypass %s purchase guards', async blocked => {
+  external(); setShop({ hasPurchase: true, order: { ...order, status: 'submitted' } }); await mountRecovery();
+  if (blocked === 'wrong-account') external('another-buyer');
+  if (blocked === 'unsupported-seeker') {
+    jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: false });
+    jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: buyer });
+  }
+  if (blocked === 'pending-pack') setPack({ hasPurchase: true, order: { ...packOrder, status: 'submitted' } });
+  setShop({ hasPurchase: true, order: { ...order, status: 'expired' }, busy: blocked === 'busy', ready: blocked !== 'restoring' }); await updateScreen();
+  expect(button('Retry').props.disabled).toBe(true);
+  await press('Retry'); expect(shop.retry).not.toHaveBeenCalled(); expect(shop.prepare).not.toHaveBeenCalled();
+});
+
+test('Retry for a general fighter uses the email signer on iOS and never starts a Seeker proof', async () => {
+  jest.replaceProperty(Platform, 'OS', 'ios');
+  jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: buyer, signShopTransaction: jest.fn().mockResolvedValue('signed') });
+  const jup = { ...fig2, id: 'jup', seekerExclusive: false, name: 'Jup' };
+  setShop({ catalog: { ...shop.catalog, figures: [jup] }, hasPurchase: true, order: { ...order, figureId: 'jup', status: 'submitted' } }); await mountRecovery();
+  setShop({ catalog: { ...shop.catalog, figures: [jup] }, hasPurchase: true, order: { ...order, figureId: 'jup', status: 'expired' } }); await updateScreen();
+  await press('Retry');
+  expect(shop.retry).toHaveBeenCalledWith(undefined, expect.any(Function));
+  expect(proveSeekerWallet).not.toHaveBeenCalled();
+});
+
+test('closing during Retry preparation pauses delayed wallet opening without losing the new saved purchase', async () => {
+  external(); setShop({ hasPurchase: true, order: { ...order, status: 'submitted' } }); await mountRecovery();
+  setShop({ hasPurchase: true, order: { ...order, status: 'expired' } }); await updateScreen();
+  let sign!: (order: MintOrder) => Promise<string>; let finish!: () => void;
+  const pending = new Promise<void>(resolve => { finish = resolve; });
+  shop.retry.mockImplementationOnce(async (_proof, approve) => { sign = approve; await pending; });
+  await press('Retry'); await press('Close figure purchase popup');
+  await expect(sign({ ...order, id: 'b'.repeat(64) })).rejects.toThrow(/Purchase paused/);
+  expect(signShopTransaction).not.toHaveBeenCalled(); expect(shop.dismiss).not.toHaveBeenCalled();
+  await Renderer.act(async () => { finish(); await pending; });
+});
+
 test('a different connected wallet cannot sign an existing order', async () => {
   external('other1111111111111111111111111111'); setShop({ hasPurchase: true, order }); await mountRecovery();
   expect(button('Continue in wallet').props.disabled).toBe(true);

@@ -44,7 +44,7 @@ build_status:
   web_metadata_deployed: true
   backend_pack_routes_deployed: true
   native_pack_release_uploaded: true
-  native_release_build: 59
+  native_release_build: 60
   native_ore_release_uploaded: true
   native_dynamic_figures_release_uploaded: true
   native_update_gate_release_uploaded: true
@@ -159,6 +159,18 @@ not reassigned or paid again. Ordinary iOS/Android retain email registration,
 restoration, approval and account management. All 565 mobile tests (49 suites),
 native TypeScript and focused ESLint pass. No backend/web eligibility or purchase
 storage change, release upload or physical wallet verification performed.
+
+Native 1.0.0 (60), delivered 2026-10-12, includes the simplified Your Army,
+terminal receipt Buy-button fix/removal of View Purchase, external-wallet-only
+Seeker accounts and correctly bounded aspect-fill splash. All 566 mobile tests,
+TypeScript, five-model assets and both-platform preflight pass. Android APK is
+published with unchanged signing certificate and public size/hash/download
+verification. iOS archive/upload/export succeeded; App Store Connect confirms
+VALID/internal IN_BETA_TESTING with automatic notification. All APK/IPA ZIP
+entries are free of five configured private env values, and five Rive models
+match. No paid/physical wallet test, backend/web deployment or price/odds update.
+Earlier source-only pending-release notes are superseded by this delivery.
+Evidence: files/releases/1.0.0-60.md.
 
 ## Pack price/storage upgrade preparation (2026-10-10)
 

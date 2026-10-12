@@ -4,6 +4,7 @@ node_modules/
 dist/
 *.log
 *.tsbuildinfo
+.watchman-cookie-*
 .env
 .env.local
 .vercel/

@@ -31,7 +31,7 @@ export function ShopScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { sessionToken, error: sessionError } = usePlayerIdentity();
   const wallet = useSolanaWallet();
-  const privy = usePrivyWallet();
+  const privy = usePrivyWallet(!wallet.isSupported);
   const shop = useShop(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken, shopPurchaseStorage);
   const pack = usePackShop(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken, packPurchaseStorage);
   const activeFigurePurchase = shop.hasPurchase && (!shop.order || !isTerminalMint(shop.order));
@@ -53,7 +53,7 @@ export function ShopScreen({ navigation, route }: Props) {
     return () => { subscription.remove(); unsubscribe?.(); };
   }, [navigation, loadFigures, loadPack, purchaseBlocked, purchaseBusy]);
   const order = shop.order;
-  const [walletKind, setWalletKind] = useState<'external' | 'privy'>(wallet.isSupported && !route.params?.signIn ? 'external' : 'privy');
+  const walletKind = wallet.isSupported ? 'external' : 'privy';
   const [walletOpen, setWalletOpen] = useState(Boolean(route.params?.signIn));
   const [purchasePopup, setPurchasePopup] = useState<'figure' | 'pack' | null>(null);
   const seenPurchases = useRef({ figure: false, pack: false });
@@ -83,20 +83,19 @@ export function ShopScreen({ navigation, route }: Props) {
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   useEffect(() => { setPaymentDetailsOpen(false); }, [order?.id]);
   useEffect(() => {
-    if (route.params?.signIn) { setWalletKind('privy'); setWalletOpen(true); }
+    if (route.params?.signIn) setWalletOpen(true);
   }, [route.params?.signIn]);
-  useEffect(() => { if (!wallet.isSupported) setWalletKind('privy'); }, [wallet.isSupported]);
-  const address = walletKind === 'privy' || !wallet.isSupported ? privy.address : wallet.address;
-  const selectedSigner = useRef({ address, sign: walletKind === 'privy' || !wallet.isSupported ? privy.signShopTransaction : signShopTransaction });
-  selectedSigner.current = { address, sign: walletKind === 'privy' || !wallet.isSupported ? privy.signShopTransaction : signShopTransaction };
+  const address = wallet.isSupported ? wallet.address : privy.address;
+  const selectedSigner = useRef({ address, sign: wallet.isSupported ? signShopTransaction : privy.signShopTransaction });
+  selectedSigner.current = { address, sign: wallet.isSupported ? signShopTransaction : privy.signShopTransaction };
   const signPurchase = async (purchase: PurchaseTransaction) => {
     if (!mounted.current || navigation.isFocused?.() === false || (AppState.currentState && AppState.currentState !== 'active')) throw new Error('Return to the shop to continue this saved purchase.');
     if (selectedSigner.current.address !== purchase.buyer) throw new Error('Reconnect the account selected for this saved purchase.');
     return selectedSigner.current.sign(purchase);
   };
-  const orderSigner = order?.buyer === privy.address ? privy.signShopTransaction : wallet.isSupported && order?.buyer === wallet.address ? signShopTransaction : null;
+  const orderSigner = order?.buyer === address ? selectedSigner.current.sign : null;
   const canClose = !shop.signingStarted || Boolean(order && isTerminalMint(order));
-  const error = actionError || shop.error || (wallet.isSupported ? wallet.error : null) || privy.error || sessionError;
+  const error = actionError || shop.error || (wallet.isSupported ? wallet.error : privy.error) || sessionError;
   const figures = shop.catalog?.figures.filter(figure => figure.id !== 'fig1') ?? [];
   const run = (task: () => Promise<unknown>) => {
     setActionError(null);
@@ -115,10 +114,9 @@ export function ShopScreen({ navigation, route }: Props) {
     // Disconnected Seeker shoppers go directly to MWA, not an account chooser.
     // Connecting never prepares or approves a purchase automatically.
     if (!wallet.isSupported || address) { setWalletOpen(true); return; }
-    if (connectionInFlight.current || walletBusy || privy.busy) return;
+    if (connectionInFlight.current || walletBusy) return;
     connectionInFlight.current = true;
     setConnectingWallet(true);
-    setWalletKind('external');
     run(async () => {
       try { await wallet.connect(); }
       finally { connectionInFlight.current = false; setConnectingWallet(false); }
@@ -131,8 +129,9 @@ export function ShopScreen({ navigation, route }: Props) {
     if (kind === 'external') await wallet.disconnect(); else await privy.disconnect();
   };
   const sendCode = () => {
+    if (wallet.isSupported) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setEmailError('Enter a valid email address.'); return; }
-    setEmailError(null); setWalletKind('privy'); run(() => privy.sendCode(email.trim()));
+    setEmailError(null); run(() => privy.sendCode(email.trim()));
   };
   const needsSolanaMobile = (figure: ShopFigure) => figure.seekerExclusive && (!wallet.isSupported || walletKind !== 'external');
   const reviewFigure = (figure: ShopFigure) => {
@@ -239,32 +238,30 @@ export function ShopScreen({ navigation, route }: Props) {
       </>}
       {purchasePopup === 'pack' && !walletOpen && <ShopPackPurchase pack={pack} address={address} blocked={activeFigurePurchase || purchaseBusy}
         onConfirm={() => {
-          const signer = pack.order?.buyer === privy.address ? privy.signShopTransaction : wallet.isSupported && pack.order?.buyer === wallet.address ? signShopTransaction : null;
+          const signer = pack.order?.buyer === address ? selectedSigner.current.sign : null;
           if (signer) buyAndSign(() => pack.confirm(signer)); else requestAccount();
         }} onBuyWithSol={() => buyAndSign(() => pack.buyWithSol(signPurchase))} onArmy={openArmy} onAccount={requestAccount} />}
       {walletOpen && <>
-              <Text style={styles.copy}>{wallet.isSupported ? 'Choose your purchase account. You approve every purchase.' : 'Sign in with email to keep your collection in RIPSY.'}</Text>
+              <Text style={styles.copy}>{wallet.isSupported ? 'Use your Seeker wallet. You approve every purchase.' : 'Sign in with email to keep your collection in RIPSY.'}</Text>
               {wallet.isSupported && figures.some(figure => figure.seekerExclusive) && <View style={styles.seekerNotice}><Text style={styles.restriction}>Seeker fighter is Seeker exclusive.</Text><Text style={styles.smallCopy}>Connect your Seeker wallet to check availability.</Text></View>}
               {wallet.isSupported && wallet.address && <View style={[styles.walletOption, walletKind === 'external' && styles.walletSelected]}>
                 <Text style={styles.optionTitle}>Seeker wallet{walletKind === 'external' ? ' · selected' : ''}</Text><Text selectable style={styles.address}>{short(wallet.address)}</Text>
-                {walletKind !== 'external' && <ToyHomeButton compact disabled={purchaseBusy} onPress={() => setWalletKind('external')}>Use this wallet</ToyHomeButton>}
-                {walletKind === 'external' && <ToyHomeButton compact tone="white" disabled={!shop.ready || !pack.ready || purchaseBusy || purchaseBlocked} onPress={() => run(() => disconnectWallet('external'))}>Disconnect wallet</ToyHomeButton>}
+                <ToyHomeButton compact tone="white" disabled={!shop.ready || !pack.ready || purchaseBusy || purchaseBlocked} onPress={() => run(() => disconnectWallet('external'))}>Disconnect wallet</ToyHomeButton>
               </View>}
               {/* Restoring a saved purchase must allow reconnecting its signer. */}
-              {!wallet.address && wallet.isSupported && <ToyHomeButton busy={wallet.status === 'connecting'} disabled={shop.busy || privy.busy} onPress={() => { setWalletKind('external'); run(wallet.connect); }}>Connect your wallet</ToyHomeButton>}
-              {privy.address ? <View style={[styles.walletOption, walletKind === 'privy' && styles.walletSelected]}>
+              {!wallet.address && wallet.isSupported && <ToyHomeButton busy={wallet.status === 'connecting'} disabled={shop.busy || walletBusy} onPress={requestAccount}>Connect your wallet</ToyHomeButton>}
+              {!wallet.isSupported && (privy.address ? <View style={[styles.walletOption, styles.walletSelected]}>
                 <Text style={styles.optionTitle}>Signed in with email{walletKind === 'privy' ? ' · selected' : ''}</Text>
-                {walletKind !== 'privy' && <ToyHomeButton compact disabled={purchaseBusy} onPress={() => setWalletKind('privy')}>Use email account</ToyHomeButton>}
                 {walletKind === 'privy' && <ToyHomeButton compact tone="white" busy={privy.activity === 'disconnecting'} disabled={!shop.ready || !pack.ready || purchaseBlocked || purchaseBusy} onPress={() => run(() => disconnectWallet('privy'))}>Sign out</ToyHomeButton>}
-              </View> : privy.status === 'authenticated' ? <ToyHomeButton busy={privy.activity === 'creating-wallet'} disabled={shop.busy || wallet.status === 'connecting'} onPress={() => { setWalletKind('privy'); run(privy.createWallet); }}>Finish registration</ToyHomeButton> : privy.configured ? <View style={styles.loginForm}>
-                {wallet.isSupported && <Text style={styles.optionTitle}>Sign in with email</Text>}<Text style={styles.smallCopy}>Keep your figure collection in your RIPSY account.</Text>
+              </View> : privy.status === 'authenticated' ? <ToyHomeButton busy={privy.activity === 'creating-wallet'} disabled={shop.busy || wallet.status === 'connecting'} onPress={() => run(privy.createWallet)}>Finish registration</ToyHomeButton> : privy.configured ? <View style={styles.loginForm}>
+                <Text style={styles.smallCopy}>Keep your figure collection in your RIPSY account.</Text>
                 <Text style={styles.label}>EMAIL ADDRESS</Text>
                 <TextInput accessibilityLabel="Email address" textContentType="emailAddress" autoCapitalize="none" autoCorrect={false} autoComplete="email" editable={!privy.busy && !privy.codeSent && !shop.busy} keyboardType="email-address" onChangeText={value => { setEmail(value); setEmailError(null); }} onSubmitEditing={() => { if (!privy.busy && !shop.busy && !privy.codeSent && email.trim()) sendCode(); }} returnKeyType="done" placeholder="you@example.com" placeholderTextColor={colors.kitPanelMuted} style={[styles.input, emailError && styles.invalidInput]} value={email} />
                 {emailError && <Text accessibilityRole="alert" style={styles.formError}>{emailError}</Text>}
                 {privy.codeSent && <><ToyBadge tone="green">CODE SENT</ToyBadge><Text style={styles.smallCopy}>Check your email for the sign-in code.</Text><Text style={styles.label}>SIGN-IN CODE</Text><TextInput accessibilityLabel="Email verification code" textContentType="oneTimeCode" autoComplete="one-time-code" keyboardType="number-pad" editable={!privy.busy && !shop.busy} maxLength={8} onChangeText={setCode} placeholder="Verification code" placeholderTextColor={colors.kitPanelMuted} style={styles.input} value={code} /></>}
-                {!privy.codeSent ? <ToyHomeButton busy={privy.activity === 'sending-code'} disabled={!email.trim() || shop.busy || privy.busy || wallet.status === 'connecting'} onPress={sendCode}>Send sign-in code</ToyHomeButton> : <ToyHomeButton busy={privy.activity === 'verifying-code' || privy.activity === 'creating-wallet'} disabled={!code.trim() || shop.busy || privy.busy || wallet.status === 'connecting'} onPress={() => { setWalletKind('privy'); run(() => privy.verifyCode(email.trim(), code.trim())); }}>Sign in</ToyHomeButton>}
-              </View> : <Text style={styles.note}>Sign in with email is unavailable in this build.</Text>}
-              {privy.status === 'authenticated-unverified' && <><Text style={styles.smallCopy}>Your saved email session could not be verified. Check your connection and retry.</Text><ToyHomeButton compact tone="white" disabled={privy.busy || shop.busy} onPress={() => run(privy.refresh)}>Retry email session</ToyHomeButton></>}
+                {!privy.codeSent ? <ToyHomeButton busy={privy.activity === 'sending-code'} disabled={!email.trim() || shop.busy || privy.busy || wallet.status === 'connecting'} onPress={sendCode}>Send sign-in code</ToyHomeButton> : <ToyHomeButton busy={privy.activity === 'verifying-code' || privy.activity === 'creating-wallet'} disabled={!code.trim() || shop.busy || privy.busy || wallet.status === 'connecting'} onPress={() => run(() => privy.verifyCode(email.trim(), code.trim()))}>Sign in</ToyHomeButton>}
+              </View> : <Text style={styles.note}>Sign in with email is unavailable in this build.</Text>)}
+              {!wallet.isSupported && privy.status === 'authenticated-unverified' && <><Text style={styles.smallCopy}>Your saved email session could not be verified. Check your connection and retry.</Text><ToyHomeButton compact tone="white" disabled={privy.busy || shop.busy} onPress={() => run(privy.refresh)}>Retry email session</ToyHomeButton></>}
               {error && <StatusBanner message={figureStoreMessage(error)} tone="error" />}
               {address && <ToyHomeButton tone="yellow" onPress={() => setWalletOpen(false)}>Back to figures</ToyHomeButton>}
       </>}

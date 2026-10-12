@@ -38,10 +38,9 @@ export function ArmyScreen({ navigation, route }: Props) {
   const slotGridWidth = Math.max(7 * 44 + 6 * spacing.xs, contentWidth - 28 - 2 * trayPaddingHorizontal);
   const { sessionToken, isReady } = usePlayerIdentity();
   const external = useSolanaWallet();
-  const privy = usePrivyWallet();
+  const privy = usePrivyWallet(!external.isSupported);
   const refreshEmailAccount = privy.refresh;
   const client = useMemo(() => new ShopClient(getGameWebSocketUrl().replace(/^ws/, 'http'), sessionToken), [sessionToken]);
-  const [walletKind, setWalletKind] = useState<'external' | 'privy'>(external.isSupported ? 'external' : 'privy');
   const [inventory, setInventory] = useState<FigureInventory | null>(null);
   const [slots, setSlots] = useState<Array<string | null>>(starterSlots);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
@@ -52,7 +51,7 @@ export function ArmyScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [indexingChecks, setIndexingChecks] = useState(0);
-  const address = walletKind === 'external' && external.isSupported ? external.address : privy.address;
+  const address = external.isSupported ? external.address : privy.address;
   const expectedAssetId = route.params?.expectedAssetId;
   const isWaitingForMint = Boolean(expectedAssetId && inventory && !inventory.assets.some(asset => asset.assetId === expectedAssetId));
 
@@ -63,7 +62,7 @@ export function ArmyScreen({ navigation, route }: Props) {
       if (verify) {
         if (!address) throw new Error(external.isSupported ? 'Connect your wallet before loading your figures.' : 'Sign in with email before loading your figures.');
         const challenge = await client.walletChallenge();
-        const proof = walletKind === 'external' && external.isSupported ? await proveExternalWallet(challenge) : await privy.proveWallet(challenge);
+        const proof = external.isSupported ? await proveExternalWallet(challenge) : await privy.proveWallet(challenge);
         if (proof.address !== address) throw new Error('The verified wallet does not match the selected wallet.');
         await client.verifyWallet(proof);
       }
@@ -138,15 +137,15 @@ export function ArmyScreen({ navigation, route }: Props) {
       await saveFigureSlots(emptySlots);
       setSlots(emptySlots); setInventory(null); setSelectedSlot(null);
       if (connectedAddress && connectedAddress === external.address) await external.disconnect();
-      if (connectedAddress && connectedAddress === privy.address) await privy.disconnect();
+      if (!external.isSupported && connectedAddress && connectedAddress === privy.address) await privy.disconnect();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not disconnect your collection wallet.');
     } finally { setActivity(null); }
   };
   const openShop = () => { setWalletOpen(false); navigation.navigate('Shop'); };
-  const register = () => { setWalletOpen(false); navigation.navigate('Shop', { signIn: true }); };
+  const register = () => { if (external.isSupported) return; setWalletOpen(false); navigation.navigate('Shop', { signIn: true }); };
   // Army stays mounted while email sign-in is open in the shop.
-  useEffect(() => navigation.addListener('focus', () => { refreshEmailAccount().catch(() => undefined); }), [navigation, refreshEmailAccount]);
+  useEffect(() => navigation.addListener('focus', () => { if (!external.isSupported) refreshEmailAccount().catch(() => undefined); }), [navigation, refreshEmailAccount, external.isSupported]);
 
   return (
     <View style={styles.screen}>
@@ -220,7 +219,7 @@ export function ArmyScreen({ navigation, route }: Props) {
 
         <ArmyControl focusRadius={18} accessibilityRole="button" accessibilityLabel={inventory ? 'Manage collection' : address ? 'Load your collection' : external.isSupported ? 'Connect your wallet' : 'Register'} onPress={() => { if (!external.isSupported && !address && !inventory) register(); else setWalletOpen(true); }} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>
           <View style={styles.walletIcon}><Text style={styles.walletIconText}>◎</Text></View>
-          <View style={styles.headerCopy}><Text style={styles.walletTitle}>{inventory ? 'Your collection' : address ? 'Load your collection' : external.isSupported ? 'Connect your wallet' : 'Register'}</Text><Text style={styles.walletCopy}>{inventory ? 'Manage your figures' : external.isSupported ? 'Use your Seeker wallet or sign in with email' : 'Sign in with email to load your figures'}</Text></View>
+          <View style={styles.headerCopy}><Text style={styles.walletTitle}>{inventory ? 'Your collection' : address ? 'Load your collection' : external.isSupported ? 'Connect your wallet' : 'Register'}</Text><Text style={styles.walletCopy}>{inventory ? 'Manage your figures' : external.isSupported ? 'Use your Seeker wallet to load your figures' : 'Sign in with email to load your figures'}</Text></View>
           <Text style={styles.chevron}>›</Text>
         </ArmyControl>
         {busy && <Text accessibilityLiveRegion="polite" style={styles.loadingCopy}>{activity === 'saving' ? 'Saving your army…' : activity === 'disconnecting' ? 'Signing out…' : 'Loading your collection…'}</Text>}
@@ -237,18 +236,17 @@ export function ArmyScreen({ navigation, route }: Props) {
             {inventory ? <>
               <Text style={styles.copy}>Your figures are ready to use in your army.</Text>
               <ToyHomeButton busy={busy} onPress={() => { refresh(false).catch(() => undefined); }}>Refresh collection</ToyHomeButton>
-              <ToyHomeButton tone="white" disabled={busy} onPress={() => { disconnectCollectionWallet().catch(() => undefined); }}>{external.isSupported && inventory.wallet !== privy.address ? 'Disconnect wallet' : 'Sign out'}</ToyHomeButton>
+              <ToyHomeButton tone="white" disabled={busy} onPress={() => { disconnectCollectionWallet().catch(() => undefined); }}>{external.isSupported ? 'Disconnect wallet' : 'Sign out'}</ToyHomeButton>
             </> : <>
-              <Text style={styles.copy}>RIPSY 001 is free — no account needed. Sign in only to use your collectibles.</Text>
+              <Text style={styles.copy}>{external.isSupported ? 'RIPSY 001 is free - no account needed. Connect your wallet to use your collectibles.' : 'RIPSY 001 is free - no account needed. Sign in only to use your collectibles.'}</Text>
               <Text style={styles.safeSign}>✓ Checking your collection is free</Text>
-              {external.isSupported && external.address && <ToyHomeButton tone={walletKind === 'external' ? 'blue' : 'white'} disabled={busy} onPress={() => setWalletKind('external')}>Use {short(external.address)}</ToyHomeButton>}
-              {privy.address && <ToyHomeButton tone={walletKind === 'privy' ? 'blue' : 'white'} disabled={busy} onPress={() => setWalletKind('privy')}>Use email account</ToyHomeButton>}
+              {external.isSupported && external.address && <Text style={styles.safeSign}>Seeker wallet connected · {short(external.address)}</Text>}
               {!external.address && external.isSupported && <ToyHomeButton busy={external.status === 'connecting'} disabled={busy} onPress={() => { external.connect().catch(() => setError('Could not connect your wallet. Please try again.')); }}>Connect your wallet</ToyHomeButton>}
-              {!privy.address && <ToyHomeButton tone="white" disabled={busy} onPress={register}>{external.isSupported ? 'Sign in with email' : 'Register'}</ToyHomeButton>}
+              {!external.isSupported && !privy.address && <ToyHomeButton tone="white" disabled={busy} onPress={register}>Register</ToyHomeButton>}
               <ToyHomeButton tone="yellow" busy={busy} disabled={!address || !sessionToken} onPress={() => { refresh(true).catch(() => undefined); }}>Load my figures</ToyHomeButton>
             </>}
-            {(error || (external.isSupported && external.error) || privy.error) && <StatusBanner message={figureStoreMessage(error || (external.isSupported ? external.error : null) || privy.error, 'Could not load your collection. Please try again.')} tone="error" />}
-            <Text style={styles.modalNote}>Signing out never removes your purchased figures.</Text>
+            {(error || (external.isSupported ? external.error : privy.error)) && <StatusBanner message={figureStoreMessage(error || (external.isSupported ? external.error : privy.error), 'Could not load your collection. Please try again.')} tone="error" />}
+            <Text style={styles.modalNote}>{external.isSupported ? 'Disconnecting never removes your purchased figures.' : 'Signing out never removes your purchased figures.'}</Text>
       </ToyDialog>
     </View>
   );

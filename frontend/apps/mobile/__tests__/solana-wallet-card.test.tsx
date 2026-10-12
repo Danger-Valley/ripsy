@@ -35,6 +35,17 @@ test('connects from the disconnected wallet card', async () => {
   expect(connect).toHaveBeenCalledTimes(1);
 });
 
+test('Seeker Home ignores a saved email account and never refreshes or offers email registration', async () => {
+  jest.mocked(usePrivyWallet).mockReturnValue({ address: 'emailwallet11111111111111111111111', refresh } as unknown as ReturnType<typeof usePrivyWallet>);
+  const renderer = await renderCard();
+  expect(renderer.root.findAllByType(Text).map(node => String(node.props.children)).join(' ')).not.toMatch(/email|register/i);
+  expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Manage account')).toHaveLength(0);
+  expect(refresh).not.toHaveBeenCalled();
+  expect(register).not.toHaveBeenCalled();
+  expect(usePrivyWallet).toHaveBeenCalledWith(false);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('shows the remembered address and disconnects it', async () => {
   const address = '7YWHMfk9JZe0LMkM4fV2hT3sGVB7uW9vW7ZxLmqeZjAa';
   jest.mocked(useSolanaWallet).mockReturnValue({

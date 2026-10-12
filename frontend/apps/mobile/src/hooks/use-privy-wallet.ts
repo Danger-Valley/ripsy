@@ -18,13 +18,14 @@ export type PrivyWalletActivity =
   | 'creating-wallet'
   | 'disconnecting';
 
-export function usePrivyWallet() {
+export function usePrivyWallet(enabled = true) {
   const [state, setState] = useState<PrivyWalletState>(initialState);
   const [activity, setActivity] = useState<PrivyWalletActivity>('loading');
   const [error, setError] = useState<string | null>(null);
   const [codeSent, setCodeSent] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
     setError(null);
     try {
       setState(await nativePrivyWallet.getState());
@@ -34,11 +35,12 @@ export function usePrivyWallet() {
     } finally {
       setActivity('idle');
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => { refresh().catch(() => undefined); }, [refresh]);
 
   const sendCode = useCallback(async (email: string) => {
+    if (!enabled) throw new Error('Connect your Seeker wallet to continue.');
     setActivity('sending-code');
     setError(null);
     try {
@@ -50,9 +52,10 @@ export function usePrivyWallet() {
     } finally {
       setActivity('idle');
     }
-  }, []);
+  }, [enabled]);
 
   const verifyCode = useCallback(async (email: string, code: string) => {
+    if (!enabled) throw new Error('Connect your Seeker wallet to continue.');
     setActivity('verifying-code');
     setError(null);
     try {
@@ -69,9 +72,10 @@ export function usePrivyWallet() {
     } finally {
       setActivity('idle');
     }
-  }, []);
+  }, [enabled]);
 
   const createWallet = useCallback(async () => {
+    if (!enabled) throw new Error('Connect your Seeker wallet to continue.');
     setActivity('creating-wallet');
     setError(null);
     try {
@@ -82,9 +86,10 @@ export function usePrivyWallet() {
     } finally {
       setActivity('idle');
     }
-  }, []);
+  }, [enabled]);
 
   const disconnect = useCallback(async () => {
+    if (!enabled) return;
     setActivity('disconnecting');
     setError(null);
     try {
@@ -96,16 +101,18 @@ export function usePrivyWallet() {
     } finally {
       setActivity('idle');
     }
-  }, []);
+  }, [enabled]);
 
   const signShopTransaction = useCallback(async (order: PurchaseTransaction) => {
+    if (!enabled) throw new Error('Connect your Seeker wallet to continue.');
     if (!state.address || state.address !== order.buyer) {
       throw new Error('Reconnect the embedded wallet selected for this purchase.');
     }
     return nativePrivyWallet.signTransaction(order.transaction, order.buyer);
-  }, [state.address]);
+  }, [enabled, state.address]);
 
   const proveWallet = useCallback(async (challenge: WalletChallenge): Promise<WalletProof> => {
+    if (!enabled) throw new Error('Connect your Seeker wallet to continue.');
     if (!state.address) throw new Error('Sign in to your embedded wallet first.');
     const messageText = createSignInMessageText({ ...challenge, address: state.address });
     const signature = decodeBase64(await nativePrivyWallet.signMessage(messageText, state.address));
@@ -115,14 +122,14 @@ export function usePrivyWallet() {
       signature: Array.from(signature),
       signedMessage: Array.from(new TextEncoder().encode(messageText)),
     };
-  }, [state.address]);
+  }, [enabled, state.address]);
 
   return {
-    ...state,
-    activity,
-    busy: activity !== 'idle',
-    error,
-    codeSent,
+    ...(enabled ? state : { ...initialState, configured: false, status: 'unavailable' as const }),
+    activity: enabled ? activity : 'idle' as const,
+    busy: enabled && activity !== 'idle',
+    error: enabled ? error : null,
+    codeSent: enabled && codeSent,
     refresh,
     sendCode,
     verifyCode,

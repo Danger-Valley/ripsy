@@ -686,16 +686,45 @@ test.each([
   expect(connect).not.toHaveBeenCalled();
 });
 
-test('a Seeker email account can buy a general figure without switching to the external wallet', async () => {
+test('a saved email account cannot replace direct Seeker connection for a general figure', async () => {
   external(null);
-  jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: buyer });
+  jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: buyer, busy: true });
   setShop({ catalog: { ...shop.catalog, figures: [{ ...fig2, id: 'jup', variant: 4, name: 'Jup', seekerExclusive: false, priceLamports: '0', tokenPayment: FIGURE_TOKEN_PAYMENTS.jup }] } });
   await mount({ signIn: true });
   await press('Close shop account');
   await press('Buy Jup');
-  expect(shop.prepare).toHaveBeenCalledWith('jup', buyer, undefined, expect.any(Function));
+  expect(connect).toHaveBeenCalledTimes(1);
+  expect(shop.prepare).not.toHaveBeenCalled();
   expect(proveSeekerWallet).not.toHaveBeenCalled();
   expect(shop.confirm).not.toHaveBeenCalled();
+});
+
+test.each(['unauthenticated', 'authenticated', 'authenticated-unverified', 'unavailable'] as const)('connected Seeker account settings never show email UI (%s)', async status => {
+  external();
+  jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), status, address: status === 'authenticated' ? buyer : null, error: 'Sign in with email is unavailable.', codeSent: true });
+  await mount({ signIn: true });
+  await press('Close shop account');
+  await press('Choose purchase wallet');
+  expect(visibleModals()).toHaveLength(1);
+  const copy = tree.root.findAllByType(Text).map(node => String(node.props.children)).join(' ');
+  expect(copy).not.toMatch(/email|registration|sign-in code/i);
+  expect(button('Send sign-in code')).toBeUndefined();
+  expect(button('Use email account')).toBeUndefined();
+  expect(button('Finish registration')).toBeUndefined();
+  expect(button('Disconnect wallet')).toBeDefined();
+  expect(tree.root.findAllByType(TextInput).some(node => /Email|verification code/.test(node.props.accessibilityLabel ?? ''))).toBe(false);
+  expect(usePrivyWallet).toHaveBeenCalledWith(false);
+});
+
+test.each(['figure', 'pack'] as const)('Seeker saved %s approval uses only the external signer even when an old email account matches', async kind => {
+  external();
+  const emailSigner = jest.fn();
+  jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: buyer, signShopTransaction: emailSigner });
+  if (kind === 'figure') setShop({ hasPurchase: true, order });
+  else setPack({ hasPurchase: true, order: packOrder });
+  await mount(); await press('Continue in wallet');
+  expect(kind === 'figure' ? shop.confirm : pack.confirm).toHaveBeenCalledWith(signShopTransaction);
+  expect(emailSigner).not.toHaveBeenCalled();
 });
 
 test.each(['unavailable', 'missing-price', 'restoring', 'busy', 'pending-figure', 'pending-pack'] as const)('email figure purchases stay blocked when %s', async condition => {

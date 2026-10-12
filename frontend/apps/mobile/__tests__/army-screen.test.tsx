@@ -83,13 +83,19 @@ test('owned figures and account settings use collection copy without payment int
   expect(button('Sign out')).toBeDefined();
 });
 
-test('Seeker Army keeps wallet connection and the email alternative', async () => {
+test('Seeker Army offers only wallet connection, never an email alternative', async () => {
   jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: true });
+  jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: wallet, error: 'Sign in with email unavailable' });
   await mount(); await press('Manage collection');
   await press('Connect your wallet');
   expect(jest.mocked(useSolanaWallet)().connect).toHaveBeenCalledTimes(1);
-  await press('Sign in with email');
-  expect(navigate).toHaveBeenCalledWith('Shop', { signIn: true });
+  expect(button('Sign in with email')).toBeUndefined();
+  expect(button('Use email account')).toBeUndefined();
+  expect(button('Register')).toBeUndefined();
+  expect(button('Load my figures').props.disabled).toBe(true);
+  expect(tree.root.findAllByType(Text).map(node => String(node.props.children)).join(' ')).not.toMatch(/email/i);
+  expect(navigate).not.toHaveBeenCalled();
+  expect(usePrivyWallet).toHaveBeenCalledWith(false);
 });
 
 test.each(['unverified', 'empty', 'offline'])('My collection shows only the free starter when inventory is %s', async state => {

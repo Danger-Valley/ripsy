@@ -148,6 +148,18 @@ native ESLint pass. Web still uses hasPurchase/inline review and needs a future
 presentation port; shared hook safety is updated. No release upload or physical
 paid transaction verification performed; uploaded build 59 is unchanged.
 
+Seeker account policy follow-up (2026-10-12): Home, Shop and Army use only
+the external Seeker wallet on detected Seeker devices. No email form,
+registration, account switch or email-session error appears there, including
+legacy signIn navigation and previously stored email accounts. Disable native
+email-account refresh/actions on Seeker without deleting its stored session.
+New figure/pack purchases and saved approvals select only the exact-buyer
+external signer; unfinished historical email orders remain stored/status-checkable,
+not reassigned or paid again. Ordinary iOS/Android retain email registration,
+restoration, approval and account management. All 565 mobile tests (49 suites),
+native TypeScript and focused ESLint pass. No backend/web eligibility or purchase
+storage change, release upload or physical wallet verification performed.
+
 ## Pack price/storage upgrade preparation (2026-10-10)
 
 Source now supports independently mutable edition prices and exact-size new

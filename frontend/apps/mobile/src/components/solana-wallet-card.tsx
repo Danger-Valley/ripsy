@@ -9,9 +9,9 @@ import { figureStoreMessage } from '@rps/core/shop';
 
 export function SolanaWalletCard({ onRegister, focused = true }: { onRegister: () => void; focused?: boolean }) {
   const wallet = useSolanaWallet();
-  const account = usePrivyWallet();
+  const account = usePrivyWallet(!wallet.isSupported);
   const refreshAccount = account.refresh;
-  useEffect(() => { if (focused) refreshAccount().catch(() => undefined); }, [focused, refreshAccount]);
+  useEffect(() => { if (focused && !wallet.isSupported) refreshAccount().catch(() => undefined); }, [focused, refreshAccount, wallet.isSupported]);
   const [showAddress, setShowAddress] = useState(false);
   if (!wallet.isSupported) return (
     <ToyHomePanel style={styles.card}>

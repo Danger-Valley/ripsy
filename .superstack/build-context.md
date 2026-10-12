@@ -44,7 +44,7 @@ build_status:
   web_metadata_deployed: true
   backend_pack_routes_deployed: true
   native_pack_release_uploaded: true
-  native_release_build: 58
+  native_release_build: 59
   native_ore_release_uploaded: true
   native_dynamic_figures_release_uploaded: true
   native_update_gate_release_uploaded: true
@@ -116,6 +116,16 @@ assets, iOS cover and startup timing are unchanged. All 539 mobile tests,
 TypeScript and focused lint pass; no Android device is connected and installed
 AVDs lack system images. Native visual verification and a new release remain
 pending; uploaded build 58 does not include this correction.
+
+Native release 1.0.0 (59), uploaded 2026-10-12, includes direct Buy/SOL wallet
+signing without the extra quote popup, full-viewport Android aspect fit and no
+numeric FIG badges. Android is published and independently download/hash
+verified. iOS archive/upload/export succeeded; App Store Connect confirms
+VALID/internal IN_BETA_TESTING with automatic tester notification. All 540 mobile tests, TypeScript, asset contracts and both-platform
+release preflight pass. Both packages contain five verified Rive models and
+no matches for five private env values. No physical/paid test or web deployment
+performed. Earlier pending-release notes describe source preparation only.
+See `files/releases/1.0.0-59.md`.
 
 ## Pack price/storage upgrade preparation (2026-10-10)
 

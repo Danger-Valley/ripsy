@@ -16,3 +16,10 @@ test('email sign-in presents only the email method in both SDK configurations', 
     assert.match(source, /loginMethods: \['email'\]/);
   }
 });
+
+test('Army loads and refreshes a connected collection without manual controls', () => {
+  const source = readFileSync(new URL('../app/army/army-content.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /Load my figures|Load your collection|Refresh collection/);
+  assert.match(source, /Connect once and RIPSY will keep your figures in sync until you disconnect/);
+  assert.match(source, /visibilitychange/);
+});

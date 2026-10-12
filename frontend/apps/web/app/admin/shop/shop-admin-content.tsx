@@ -182,7 +182,7 @@ export function ShopAdminContent() {
   const disabled = Boolean(busy || wallet.busy);
 
   return <main className={styles.page}>
-    <header className={styles.header}><div><Link href="/">RIPSY playground</Link><h1>Shop control room</h1><p>Figure prices and fighter pack editions.</p></div><span className={styles.badge}>{data?.cluster === 'mainnet-beta' ? 'Solana mainnet' : data?.cluster === 'devnet' ? 'Solana devnet' : 'Admin access'}</span></header>
+    <header className={styles.header}><div><Link href="/app">RIPSY playground</Link><h1>Shop control room</h1><p>Figure prices and fighter pack editions.</p></div><span className={styles.badge}>{data?.cluster === 'mainnet-beta' ? 'Solana mainnet' : data?.cluster === 'devnet' ? 'Solana devnet' : 'Admin access'}</span></header>
     {(error || playerError) && <div role="alert" className={styles.error}><strong>Action needed</strong><p>{error ?? playerError}</p><button disabled={disabled} onClick={() => void perform('Reloading...', async () => { if (authed) await load(false); else setConfig(await adminRequest('config')); })}>Retry / reload current values</button><p>Your form edits are kept when reloading current values.</p></div>}
     {notice && <p role="status" className={styles.notice}>{notice}</p>}
     {busy && <p role="status" aria-live="polite" className={styles.progress}>{busy}</p>}

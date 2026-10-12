@@ -184,11 +184,11 @@ export function BattleScreen({ game, gameId, playerId, sessionToken, isComputer 
     else { await navigator.clipboard.writeText(url); toast.success('Invite link copied'); }
   };
 
-  if (!gameId) return <JoinGate gameId="Invalid ID" title="Invalid battle link" copy="This invitation contains an invalid room code." onBack={() => router.replace('/')} />;
-  if (!game.gameState) return <JoinGate busy={!game.error} gameId={gameId} title={game.error ? 'Couldn’t open battle' : 'Opening battle'} copy={game.error || 'Checking the room and its player slot…'} onBack={() => router.replace('/')} onRetry={game.error ? () => game.refresh().catch(() => undefined) : undefined} />;
+  if (!gameId) return <JoinGate gameId="Invalid ID" title="Invalid battle link" copy="This invitation contains an invalid room code." onBack={() => router.replace('/app')} />;
+  if (!game.gameState) return <JoinGate busy={!game.error} gameId={gameId} title={game.error ? 'Couldn’t open battle' : 'Opening battle'} copy={game.error || 'Checking the room and its player slot…'} onBack={() => router.replace('/app')} onRetry={game.error ? () => game.refresh().catch(() => undefined) : undefined} />;
   if (!isParticipant) {
-    if (hasOpenSlot && joinStatus !== 'failed') return <JoinGate busy gameId={gameId} title="Joining battle" copy="Your place is being secured. Your lineup is next." onBack={() => router.replace('/')} />;
-    return <JoinGate gameId={gameId} title="Battle unavailable" copy={joinError || 'This room already has two players or the battle has started.'} onBack={() => router.replace('/')} onRetry={hasOpenSlot ? () => setJoinStatus('idle') : undefined} />;
+    if (hasOpenSlot && joinStatus !== 'failed') return <JoinGate busy gameId={gameId} title="Joining battle" copy="Your place is being secured. Your lineup is next." onBack={() => router.replace('/app')} />;
+    return <JoinGate gameId={gameId} title="Battle unavailable" copy={joinError || 'This room already has two players or the battle has started.'} onBack={() => router.replace('/app')} onRetry={hasOpenSlot ? () => setJoinStatus('idle') : undefined} />;
   }
 
   const renderedState = visibleState ?? game.gameState;
@@ -197,7 +197,7 @@ export function BattleScreen({ game, gameId, playerId, sessionToken, isComputer 
     <main className={styles.page}>
       <div className={styles.shell}>
         <header className={styles.header}>
-          <button aria-label="Back to home" className={styles.backButton} onClick={() => router.replace('/')}>‹</button>
+          <button aria-label="Back to playground" className={styles.backButton} onClick={() => router.replace('/app')}>‹</button>
           <h1>{isComputer ? 'Battle vs Computer' : `Battle ${gameId}`}</h1>
           <span />
         </header>

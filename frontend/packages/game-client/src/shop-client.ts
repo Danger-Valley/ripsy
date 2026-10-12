@@ -3,7 +3,7 @@ import { parsePackCatalog, parsePackOrder } from '@rps/core/packs';
 import { parseFigureManifest } from '@rps/core/figure-manifest';
 
 export class ShopRequestError extends Error {
-  constructor(message: string, public recovery: TokenShortfall | null) { super(message); }
+  constructor(message: string, public recovery: TokenShortfall | null, public status?: number) { super(message); }
 }
 export class ShopClient {
   // Browser fetch needs its Window/global receiver, not this ShopClient instance.
@@ -44,7 +44,7 @@ export class ShopClient {
       const result: unknown = response.status === 204 ? null : await response.json();
       if (!response.ok) {
         const message = result && typeof result === 'object' && 'error' in result && typeof result.error === 'string' ? result.error : 'Could not reach the shop. Try again.';
-        throw new ShopRequestError(message, result && typeof result === 'object' && 'recovery' in result ? parseTokenShortfall(result.recovery) : null);
+        throw new ShopRequestError(message, result && typeof result === 'object' && 'recovery' in result ? parseTokenShortfall(result.recovery) : null, response.status);
       }
       return result;
     } catch (error) {

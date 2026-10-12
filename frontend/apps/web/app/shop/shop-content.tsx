@@ -46,12 +46,13 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
   const disconnectWallet = async () => {
     await shop.clearWallet();
     localStorage.removeItem('ripsy.figure-loadout.v1');
+    localStorage.removeItem('ripsy.figure-variants.v1');
     if (walletKind === 'privy') await embedded!.logout();
     else await external.disconnect();
   };
 
   return <main className={styles.page}>
-    <nav className={styles.nav}><Link href="/">← RIPSY</Link><span>FIGURE SHOP</span>{shop.catalog?.cluster === 'devnet' && <span className={styles.network}>Test mode · No real purchases</span>}</nav>
+    <nav className={styles.nav}><Link href="/app">← PLAYGROUND</Link><span>FIGURE SHOP</span>{shop.catalog?.cluster === 'devnet' && <span className={styles.network}>Test mode · No real purchases</span>}</nav>
     <header className={styles.hero}>
       <div><p className={styles.eyebrow}>THE FIGURE COLLECTION</p><h1>Make it yours.</h1><p>Same fighting spirit. Your own figure.<br />Buy a fighter and add it to your army.</p></div>
       <div className={styles.heroChest} aria-hidden><span>★</span><Image src="/figures/fig2.png" alt="" width={190} height={190} priority /></div>

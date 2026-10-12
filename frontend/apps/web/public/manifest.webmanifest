@@ -2,10 +2,10 @@
   "name": "RIPSY",
   "short_name": "RIPSY",
   "description": "Arrange your army. Outsmart your opponent. Capture the flag.",
-  "start_url": "/",
+  "start_url": "/app",
   "display": "standalone",
-  "background_color": "#0b1419",
-  "theme_color": "#0b1419",
+  "background_color": "#79d8f6",
+  "theme_color": "#79d8f6",
   "icons": [
     {
       "src": "/icon-192.png",

@@ -1,189 +1,97 @@
-"use client";
-
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import type { Metadata } from 'next';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { Phase, Piece, toIdx, WIDTH, HEIGHT, type GameState } from '@rps/core';
-import { usePlayerIdentity, useRipsyGame } from '@rps/game-client';
-import { toast } from 'sonner';
-import { WalletCard } from './components/WalletCard';
-import styles from './page.module.css';
+import styles from './landing.module.css';
 
-const LAST_GAME_KEY = 'ripsy.last-game.v1';
+export const metadata: Metadata = {
+  title: 'RIPSY — Rock, Paper, Strategy',
+  description: 'Build a hidden army, outsmart your rival, and capture the flag in RIPSY.',
+};
 
-export default function HomePage() {
-  const router = useRouter();
-  const { playerId } = usePlayerIdentity();
-  const game = useRipsyGame();
-  const [roomCode, setRoomCode] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [gamesLoaded, setGamesLoaded] = useState(false);
+const steps = [
+  ['01', 'Build your army', 'Hide rocks, paper, scissors, traps, and your flag across the board.'],
+  ['02', 'Read your rival', 'Move with intent. Every clash reveals just enough to change your next play.'],
+  ['03', 'Steal the flag', 'Break through the formation, find the flag, and take the win.'],
+];
 
-  useEffect(() => {
-    if (!game.isConnected) {
-      setGamesLoaded(false);
-      return;
-    }
-    game.listGames().then(() => setGamesLoaded(true)).catch(() => undefined);
-  }, [game.isConnected]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!gamesLoaded) return;
-    const savedGameId = localStorage.getItem(LAST_GAME_KEY);
-    if (!savedGameId) return;
-    const savedGame = game.activeGames.find(candidate => candidate.gameId === savedGameId);
-    if (savedGame?.phase !== Phase.Finished) router.push(`/game/${savedGameId}`);
-    else localStorage.removeItem(LAST_GAME_KEY);
-  }, [game.activeGames, gamesLoaded, router]);
-
-  const activeGames = useMemo(
-    () => game.activeGames.filter(candidate => candidate.phase !== Phase.Finished),
-    [game.activeGames],
-  );
-
-  const openGame = (gameId: string) => {
-    localStorage.setItem(LAST_GAME_KEY, gameId);
-    router.push(`/game/${gameId}`);
-  };
-
-  const handleCreate = async () => {
-    setCreating(true);
-    try {
-      const { gameId } = await game.createGame();
-      openGame(gameId);
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Could not create game');
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleJoin = (event: FormEvent) => {
-    event.preventDefault();
-    const normalized = roomCode.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!normalized) return;
-    openGame(normalized);
-  };
-
+export default function LandingPage() {
   return (
     <main className={styles.page}>
-      <div className={styles.shell}>
-        <header className={styles.hero}>
-          <span className={styles.heroEyebrow}>RIPSY PLAYGROUND</span>
-          <h1>RIPSY</h1>
-          <div className={styles.heroStage} aria-hidden>
-            <span className={`${styles.fighterBubble} ${styles.fighterBubbleBlue}`}>
-              <Image alt="" height={150} priority src="/figures/fig1.png" width={150} />
-            </span>
-            <span className={styles.vsBadge}>VS</span>
-            <span className={`${styles.fighterBubble} ${styles.fighterBubbleCoral}`}>
-              <Image alt="" height={150} priority src="/figures/fig2.png" width={150} />
-            </span>
-          </div>
-          <p>Build your army. Outsmart your rival. Grab the flag!</p>
-        </header>
+      <nav className={styles.nav} aria-label="Main navigation">
+        <a className={styles.logo} href="/" aria-label="RIPSY home">RIPSY</a>
+        <div className={styles.navLinks}>
+          <a href="#how-it-works">How it works</a>
+          <a href="/download">Download</a>
+          <a className={styles.navCta} href="/app">Play now</a>
+        </div>
+      </nav>
 
-        <section className={styles.section} aria-labelledby="active-games-title">
-          <div className={styles.sectionHeading}>
-            <span>
-              <span className={styles.eyebrow}>BACK TO THE PLAY TABLE</span>
-              <h2 id="active-games-title">Your active games</h2>
-            </span>
-            <span className={styles.countBadge}>{activeGames.length}</span>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <p className={styles.eyebrow}>ROCK · PAPER · SCISSORS · STRATEGY</p>
+          <h1>Outthink.<br />Outplay.<br /><span>Capture the flag.</span></h1>
+          <p className={styles.lede}>RIPSY turns the world’s simplest battle into a hidden-army strategy game. Build your lineup, challenge a friend, and make every move count.</p>
+          <div className={styles.actions}>
+            <a className={styles.primaryAction} href="/app">Play RIPSY</a>
+            <a className={styles.secondaryAction} href="/download">Get the Android app</a>
           </div>
-          {activeGames.length > 0 ? (
-            <div className={styles.gameCarousel}>
-              {activeGames.map(candidate => (
-                <button className={styles.gameCard} key={candidate.gameId} onClick={() => openGame(candidate.gameId)}>
-                  <MiniBoard state={candidate} playerId={playerId} />
-                  <span className={styles.gameCardCopy}>
-                    <span className={styles.eyebrow}>BATTLE {candidate.gameId}</span>
-                    <strong>{gameTitle(candidate, playerId)}</strong>
-                    <span>{gameSubtitle(candidate)}</span>
-                  </span>
-                  <span className={styles.chevron} aria-hidden>›</span>
-                </button>
-              ))}
+          <p className={styles.note}>Free to play · No download required on web</p>
+        </div>
+
+        <div className={styles.heroArt} aria-label="Two RIPSY fighters facing off on the game board">
+          <span className={`${styles.cloud} ${styles.cloudOne}`} aria-hidden />
+          <span className={`${styles.cloud} ${styles.cloudTwo}`} aria-hidden />
+          <div className={styles.arena}>
+            <div className={`${styles.fighter} ${styles.fighterBlue}`}>
+              <Image alt="Blue RIPSY fighter" height={240} priority src="/figures/fig1.png" width={240} />
             </div>
-          ) : (
-            <div className={styles.emptyGames}>
-              <span className={styles.emptyCount}>0</span>
-              <span><strong>No battles in progress</strong><small>Your next rivalry starts below.</small></span>
+            <span className={styles.vs} aria-hidden>VS</span>
+            <div className={`${styles.fighter} ${styles.fighterCoral}`}>
+              <Image alt="Coral RIPSY fighter" height={240} priority src="/figures/fig2.png" width={240} />
             </div>
-          )}
-        </section>
-
-        <section className={`${styles.section} ${styles.battleCard}`}>
-          <div className={styles.cardHeading}>
-            <span className={styles.cardIcon}>VS</span>
-            <span><span className={styles.eyebrow}>CHOOSE YOUR MATCH</span><h2>Start a battle</h2></span>
           </div>
-          <button className={styles.primaryButton} disabled={!game.isConnected || creating} onClick={handleCreate}>
-            {creating ? 'Creating battle…' : game.isConnected ? 'Create game' : 'Connecting…'}
-          </button>
-          <a className={styles.computerButton} href="/computer">Play vs computer</a>
-          <form className={styles.joinForm} onSubmit={handleJoin}>
-            <label htmlFor="room-code">Have a room code?</label>
-            <div className={styles.joinRow}>
-              <input id="room-code" autoCapitalize="none" autoComplete="off" maxLength={32} onChange={event => setRoomCode(event.target.value)} placeholder="Enter battle ID" value={roomCode} />
-              <button disabled={!roomCode.trim()}>Join</button>
-            </div>
-          </form>
-          {game.error && <p className={styles.inlineError}>{game.error}</p>}
-        </section>
-
-        <section className={`${styles.section} ${styles.battleCard}`}>
-          <div className={styles.cardHeading}>
-            <span className={`${styles.cardIcon} ${styles.cardIconCoral}`}>★</span>
-            <span><span className={styles.eyebrow}>THE FIGURE COLLECTION</span><h2>Your next favourite fighter.</h2></span>
+          <div className={styles.board} aria-hidden>
+            {Array.from({ length: 35 }, (_, index) => <i key={index} />)}
           </div>
-          <a className={styles.primaryButton} href="/army">Set up your army</a>
-          <a className={styles.computerButton} href="/shop">Explore figure shop →</a>
-        </section>
-        <WalletCard />
+        </div>
+      </section>
 
-        <footer className={styles.footer}>
-          <a href="/download">Download Android</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a>
-        </footer>
-      </div>
+      <section className={styles.marquee} aria-label="Game features">
+        <span>Hidden armies</span><i aria-hidden>★</i><span>Real-time battles</span><i aria-hidden>★</i><span>Pure strategy</span><i aria-hidden>★</i><span>Fast rematches</span>
+      </section>
+
+      <section className={styles.how} id="how-it-works" aria-labelledby="how-title">
+        <div className={styles.sectionIntro}>
+          <p className={styles.eyebrow}>THREE MOVES AHEAD</p>
+          <h2 id="how-title">Easy to learn.<br />Hard to read.</h2>
+        </div>
+        <div className={styles.steps}>
+          {steps.map(([number, title, copy]) => (
+            <article className={styles.step} key={number}>
+              <span>{number}</span>
+              <h3>{title}</h3>
+              <p>{copy}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.playBanner}>
+        <div>
+          <p className={styles.eyebrow}>YOUR ARMY IS WAITING</p>
+          <h2>Ready to steal that flag?</h2>
+        </div>
+        <a className={styles.primaryAction} href="/app">Enter the playground</a>
+      </section>
+
+      <footer className={styles.footer}>
+        <a className={styles.logo} href="/">RIPSY</a>
+        <p>Rock, paper, strategy.</p>
+        <nav aria-label="Legal and support">
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/support">Support</a>
+        </nav>
+      </footer>
     </main>
   );
-}
-
-function MiniBoard({ state, playerId }: { state: GameState; playerId: string }) {
-  const isPlayer1 = state.p1 === playerId;
-  return (
-    <span className={styles.miniBoard} aria-hidden>
-      {Array.from({ length: WIDTH * HEIGHT }, (_, displayIndex) => {
-        const displayX = displayIndex % WIDTH;
-        const displayY = Math.floor(displayIndex / WIDTH);
-        const x = isPlayer1 ? WIDTH - 1 - displayX : displayX;
-        const y = isPlayer1 ? HEIGHT - 1 - displayY : displayY;
-        const piece = state.pieces[toIdx(x, y)] ?? Piece.Empty;
-        return <i key={displayIndex}>{pieceLetter(piece)}</i>;
-      })}
-    </span>
-  );
-}
-
-function pieceLetter(piece: Piece) {
-  if (piece === Piece.Rock) return 'R';
-  if (piece === Piece.Paper) return 'P';
-  if (piece === Piece.Scissors) return 'S';
-  if (piece === Piece.Flag) return 'F';
-  if (piece === Piece.Trap) return 'T';
-  return '';
-}
-
-function gameTitle(state: GameState, playerId: string) {
-  if (state.phase < Phase.Active) {
-    const ownLineupSaved = state.p0 === playerId ? state.phase === Phase.LineupP0Set : state.phase === Phase.LineupP1Set;
-    return ownLineupSaved ? 'Waiting for opponent lineup' : 'Set your lineup';
-  }
-  return state.isP1Turn === (state.p1 === playerId) ? 'Your turn' : "Opponent's turn";
-}
-
-function gameSubtitle(state: GameState) {
-  const players = state.p1 ? '2 players' : 'waiting for player';
-  return `${state.live0 + state.live1} pieces · ${players}`;
 }

@@ -1,13 +1,27 @@
 "use client";
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { usePlayerIdentity } from '@rps/game-client';
+import { ShopClient } from '@rps/game-client/shop';
 import { useBrowserWallet } from '../hooks/use-browser-wallet';
 import styles from '../page.module.css';
 
 export function WalletCard() {
   const wallet = useBrowserWallet();
+  const { sessionToken } = usePlayerIdentity();
+  const client = useMemo(() => new ShopClient(process.env.NEXT_PUBLIC_SHOP_API_URL ?? 'https://api.ripsy.fun', sessionToken), [sessionToken]);
   const [open, setOpen] = useState(false);
+  const disconnect = async () => {
+    try {
+      await client.clearWallet();
+      localStorage.removeItem('ripsy.figure-loadout.v1');
+      localStorage.removeItem('ripsy.figure-variants.v1');
+      await wallet.disconnect();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : 'Could not disconnect wallet');
+    }
+  };
 
   if (wallet.address) {
     return (
@@ -22,7 +36,7 @@ export function WalletCard() {
         <div className={styles.walletActions}>
           <button className={styles.iconButton} onClick={() => navigator.clipboard.writeText(wallet.address!).then(() => toast.success('Address copied'))}>Copy</button>
           {wallet.isConnected ? (
-            <button className={styles.iconButton} disabled={wallet.busy} onClick={() => wallet.disconnect()}>Disconnect</button>
+            <button className={styles.iconButton} disabled={wallet.busy || !sessionToken} onClick={() => void disconnect()}>Disconnect</button>
           ) : (
             <button className={styles.iconButton} disabled={wallet.busy} onClick={() => setOpen(true)}>Reconnect</button>
           )}

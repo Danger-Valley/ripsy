@@ -23,7 +23,7 @@ test('SOL recovery sends only a payment mode and surfaces only a validated serve
   const client = new ShopClient('https://api.example.test', 'session', async (_url, init) => {
     body = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ error: 'Not enough JUP', recovery }), { status: 400 });
   });
-  await assert.rejects(() => client.create('jup', recovery.mint, 'persisted-key-12345', 'sol'), (e: unknown) => e instanceof ShopRequestError && e.recovery?.required === '1000000');
+  await assert.rejects(() => client.create('jup', recovery.mint, 'persisted-key-12345', 'sol'), (e: unknown) => e instanceof ShopRequestError && e.status === 400 && e.recovery?.required === '1000000');
   assert.deepEqual(body, { figureId: 'jup', buyer: recovery.mint, idempotencyKey: 'persisted-key-12345', paymentMode: 'sol' });
   const invalid = new ShopClient('https://api.example.test', '', async () => new Response(JSON.stringify({ error: 'Not enough JUP', recovery: { ...recovery, balance: '1000000' } }), { status: 400 }));
   await assert.rejects(() => invalid.createPack(recovery.mint, 'persisted-key-12345', 'sol'), (e: unknown) => e instanceof ShopRequestError && e.recovery === null);

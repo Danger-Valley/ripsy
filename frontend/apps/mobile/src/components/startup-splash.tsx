@@ -2,23 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
-import { homeArt, homeFont } from './toy-home-controls';
+import { homeFont } from './toy-home-controls';
 
-const splashArtwork = require('../assets/ui/splash-playground-v1.png');
+const splashArtwork = require('../assets/ui/splashscreen.png');
 
 /** Finish actual restoration and local image loading, without a branding delay. */
 export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void }) {
-  const settled = useRef(new Set<string>());
   const completed = useRef(false);
   const finish = useCallback(() => {
     if (completed.current) return;
     completed.current = true;
     onArtworkReady?.();
   }, [onArtworkReady]);
-  const imageSettled = (name: string) => {
-    settled.current.add(name);
-    if (settled.current.size === 2) finish();
-  };
   useEffect(() => {
     if (!onArtworkReady) return;
     // Never block navigation if the native image loader loses a callback.
@@ -32,8 +27,6 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
   // RN Image supplies intrinsic asset width/height before our style. Explicit
   // viewport bounds must override those defaults; edge constraints alone do not.
   const imageSize = { width: Math.max(1, width), height: Math.max(1, height) };
-  const logoWidth = Math.min(width * 0.78, 440, height * 0.7);
-  const logoHeight = logoWidth / 2.5;
   return (
     <View testID="startup-splash" style={styles.screen} onLayout={({ nativeEvent: { layout } }) => {
       if (layout.width > 0 && layout.height > 0) {
@@ -44,24 +37,10 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
       <Image
         source={splashArtwork}
         resizeMode="cover"
-        onLoadEnd={() => imageSettled('background')}
-        accessible={false}
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-        style={[styles.artwork, imageSize]}
-      />
-      <Image
-        source={homeArt.logo}
+        onLoadEnd={finish}
         accessibilityLabel="RIPSY"
         accessible
-        resizeMode="contain"
-        onLoadEnd={() => imageSettled('logo')}
-        style={[styles.logo, {
-          width: logoWidth,
-          height: logoHeight,
-          left: (width - logoWidth) / 2,
-          top: Math.max(insets.top + 16, height * 0.25 - logoHeight / 2),
-        }]}
+        style={[styles.artwork, imageSize]}
       />
       <View testID="startup-loading" style={[styles.loading, { bottom: insets.bottom + 32 }]}>
         <Text maxFontSizeMultiplier={1.6} style={styles.caption}>Opening the toy box…</Text>
@@ -74,7 +53,6 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, overflow: 'hidden', alignItems: 'center' },
   artwork: { position: 'absolute', left: 0, top: 0 },
-  logo: { position: 'absolute' },
   loading: { position: 'absolute', left: 24, right: 24, alignItems: 'center', gap: 12 },
   caption: { color: colors.ink, fontFamily: homeFont, fontSize: 18, textAlign: 'center' },
 });

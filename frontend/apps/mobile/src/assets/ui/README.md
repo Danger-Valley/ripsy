@@ -2,15 +2,21 @@
 
 ## Replacing Home artwork (2026-10-05)
 
-The user's replacements for `home-rivals.png`, `home-robot.png`, `home-army.png` and `ripsy-toy-logo.png` are the runtime source files. Do not restore the older generated versions. After replacing the logo or splash background, run `npm run assets:sync -w @rps/mobile` from the repository root. This copies the exact original bytes into the iOS asset catalog; iOS run/upload scripts do it automatically. `npm run assets:check -w @rps/mobile` and release preflight check synchronized native copies and the seven 8 x 256 gradient ramps. Never replace `home-gradient-*.png` with logo/character art.
+The user's replacements for `home-rivals.png`, `home-robot.png`, `home-army.png` and `ripsy-toy-logo.png` are the runtime source files. Do not restore the older generated versions. After replacing `splashscreen.png`, run `npm run assets:sync -w @rps/mobile` from the repository root. This copies the exact original bytes into the iOS asset catalog; iOS run/upload scripts do it automatically. `npm run assets:check -w @rps/mobile` and release preflight check synchronized native copies and the seven 8 x 256 gradient ramps. The splash now includes its own logo; the Home logo is not copied into a separate native splash image. Never replace `home-gradient-*.png` with logo/character art.
 
 Home renders the hero in its original 3:2 ratio using the actual capped content width, with the logo contained in an 84 pt header slot. `home-portrait.tsx` shares head crops from the replacement hero between Home and the battle HUD; adjust those crop coordinates when changing the scene composition, not the game figures. Menu icons remain contained in fixed button bounds.
 
-Startup waits for both local splash images' `onLoadEnd` (success or failure) as well as navigation restoration before removing the splash. This avoids pending native image callbacks applying splash art to recycled Home image views. There is no minimum branding delay; a 1500 ms watchdog prevents a missing callback from blocking navigation. The original replacement files remain unchanged.
+Startup waits for the local splash image's `onLoadEnd` (success or failure) as well as navigation restoration before removing the splash. This avoids pending native image callbacks applying splash art to recycled Home image views. There is no minimum branding delay; a 1500 ms watchdog prevents a missing callback from blocking navigation. The original replacement files remain unchanged.
 
 These original bitmap backdrops were generated with OpenAI's built-in image generation tool on 2026-10-01. They intentionally contain no UI text, logos, characters, or copied game assets. React Native renders the real RIPSY logo, RIPSY 001/Seeker fighter sprites, controls, accessibility labels, and board interaction above them.
 
-## Illustrated startup splash — 2026-10-04
+## Current startup splash (2026-10-16)
+
+`splashscreen.png` is the user's supplied 945 x 2048 PNG, copied byte-for-byte from `files/splashscreen.png`. It already contains the RIPSY logo and red/blue fighters. Both React Native platforms render this single image with centered aspect fill (`resizeMode="cover"`) and explicit measured root width and height, so the original proportions are preserved. iOS's `LaunchScreen.storyboard` uses the identical `SplashArtwork` file with `scaleAspectFill`. The former separate logo overlay and its unused native image set were removed. The loading caption/indicator remains above the bottom safe area and never changes the image bounds. Android's system icon splash remains in place before React Native starts. Startup restoration, the image-completion callback and the 1500 ms watchdog retain their existing timing policy.
+
+## Previous generated startup splash (2026-10-04, replaced 2026-10-16)
+
+The following records the previous artwork's provenance and layout. That image and the separate native logo are no longer shipped; the current single-image policy above supersedes this section.
 
 `splash-playground-v1.png` is original artwork generated with OpenAI's built-in `image_gen` tool. Actual output is **887 × 1774 px**. It contains decorative blue/coral toy ninja mascots, sky and castles, but no text or logo. These are splash mascots, not new playable or purchasable figure variants. Native iOS and React Native separately overlay the unchanged `ripsy-toy-logo.png`; Android's system splash retains its app icon on the matching cyan background.
 

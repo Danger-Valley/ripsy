@@ -19,8 +19,7 @@ function fixture(run) {
   ramp.writeUInt32BE(256, 20);
   for (const name of ['yellow', 'blue', 'coral', 'green', 'white', 'panel', 'sky']) put(`src/assets/ui/home-gradient-${name}.png`, ramp);
   for (const [source, target] of [
-    ['ripsy-toy-logo.png', 'SplashLogo.imageset/splash-logo.png'],
-    ['splash-playground-v1.png', 'SplashArtwork.imageset/splash-artwork.png'],
+    ['splashscreen.png', 'SplashArtwork.imageset/splash-artwork.png'],
   ]) {
     put(`src/assets/ui/${source}`, Buffer.from(source));
     put(`ios/RipsyMobile/Images.xcassets/${target}`, Buffer.from(source));
@@ -32,14 +31,14 @@ test('accepts synchronized native copies and small color ramps', () => fixture(r
   assert.deepEqual(checkUiAssets(root), []);
 }));
 
-test('detects and synchronizes a replaced logo without modifying the source', () => fixture((root, put) => {
+test('detects and synchronizes replaced splash artwork without modifying the source', () => fixture((root, put) => {
   const replacement = Buffer.from('user replacement PNG');
-  put('src/assets/ui/ripsy-toy-logo.png', replacement);
-  assert.match(checkUiAssets(root)[0], /SplashLogo.*differs/);
+  put('src/assets/ui/splashscreen.png', replacement);
+  assert.match(checkUiAssets(root)[0], /SplashArtwork.*differs/);
   syncUiAssets(root);
   assert.deepEqual(checkUiAssets(root), []);
-  assert.deepEqual(readFileSync(resolve(root, 'src/assets/ui/ripsy-toy-logo.png')), replacement);
-  assert.deepEqual(readFileSync(resolve(root, 'ios/RipsyMobile/Images.xcassets/SplashLogo.imageset/splash-logo.png')), replacement);
+  assert.deepEqual(readFileSync(resolve(root, 'src/assets/ui/splashscreen.png')), replacement);
+  assert.deepEqual(readFileSync(resolve(root, 'ios/RipsyMobile/Images.xcassets/SplashArtwork.imageset/splash-artwork.png')), replacement);
 }));
 
 test('rejects illustration-sized artwork accidentally used as the sky ramp', () => fixture((root, put) => {

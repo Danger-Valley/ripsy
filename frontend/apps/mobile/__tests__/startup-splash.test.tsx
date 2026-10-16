@@ -3,7 +3,6 @@ import { ActivityIndicator, Image, Platform, StyleSheet, Text } from 'react-nati
 import Renderer from 'react-test-renderer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StartupSplash } from '../src/components/startup-splash';
-import { homeArt } from '../src/components/toy-home-controls';
 
 // Spy on the actual CommonJS exports (not TypeScript's wrapped namespace).
 const native = jest.requireActual('react-native');
@@ -26,22 +25,13 @@ test.each([
   jest.replaceProperty(Platform, 'OS', 'android');
   jest.spyOn(native, 'useWindowDimensions').mockReturnValue({ width, height, scale: 3, fontScale });
   jest.mocked(useSafeAreaInsets).mockReturnValue({ top, bottom, left: 0, right: 0 });
-  jest.spyOn(Image, 'resolveAssetSource').mockReturnValue({ width: 887, height: 1774, scale: 1, uri: 'splash.png' });
   await Renderer.act(async () => { tree = Renderer.create(<StartupSplash />); });
-  const background = tree.root.findAllByType(Image).find(image => image.props.accessible === false)!;
+  const background = tree.root.findByType(Image);
   const imageView = StyleSheet.flatten(background.props.style);
   expect(background.props.resizeMode).toBe('cover');
   expect(imageView).toEqual({ position: 'absolute', left: 0, top: 0, width, height });
-  // Both explicit dimensions override RN's default 887x1774 asset bounds.
-  expect(StyleSheet.flatten([{ width: 887, height: 1774 }, background.props.style])).toEqual(imageView);
-  const logo = tree.root.findAllByType(Image).find(image => image.props.accessibilityLabel === 'RIPSY')!;
-  const brand = StyleSheet.flatten(logo.props.style);
-  expect(logo.props.resizeMode).toBe('contain');
-  expect(brand.width / brand.height).toBe(2.5);
-  expect(brand.left).toBeCloseTo((width - brand.width) / 2);
-  expect(brand.left + brand.width).toBeLessThanOrEqual(width);
-  expect(brand.top).toBeGreaterThanOrEqual(top + 16);
-  expect(brand.top + brand.height).toBeLessThanOrEqual(height * 0.5);
+  // Both explicit dimensions override RN's default 945x2048 asset bounds.
+  expect(StyleSheet.flatten([{ width: 945, height: 2048 }, background.props.style])).toEqual(imageView);
   expect(StyleSheet.flatten(tree.root.findByProps({ testID: 'startup-loading' }).props.style).bottom).toBe(bottom + 32);
 });
 
@@ -49,16 +39,12 @@ test('Android uses measured root bounds, not source pixels or cached window dime
   jest.replaceProperty(Platform, 'OS', 'android');
   jest.spyOn(native, 'useWindowDimensions').mockReturnValue({ width: 412, height: 915, scale: 3, fontScale: 1 });
   jest.mocked(useSafeAreaInsets).mockReturnValue({ top: 24, bottom: 24, left: 20, right: 16 });
-  jest.spyOn(Image, 'resolveAssetSource').mockReturnValue({ width: 1200, height: 1800, scale: 1, uri: 'replacement.png' });
   await Renderer.act(async () => { tree = Renderer.create(<StartupSplash />); });
   await Renderer.act(() => tree.root.findByProps({ testID: 'startup-splash' }).props.onLayout({
     nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 720 } },
   }));
   const frame = StyleSheet.flatten(tree.root.findAllByType(Image)[0].props.style);
   expect(frame).toEqual({ position: 'absolute', left: 0, top: 0, width: 360, height: 720 });
-  const brand = StyleSheet.flatten(tree.root.findAllByType(Image)[1].props.style);
-  expect(brand.width).toBeCloseTo(360 * 0.78);
-  expect(brand.top).toBeCloseTo(720 * 0.25 - brand.height / 2);
   await Renderer.act(() => tree.root.findByProps({ testID: 'startup-splash' }).props.onLayout({
     nativeEvent: { layout: { x: 0, y: 0, width: 0, height: 0 } },
   }));
@@ -77,22 +63,19 @@ test.each([
   [390, 844, 59, 34, 1],
   [768, 1024, 24, 20, 1.8],
   [844, 390, 0, 21, 1],
-])('keeps logo proportional and loading clear of safe areas at %sx%s', async (width, height, top, bottom, fontScale) => {
+])('shows the branded asset once with safe-area loading at %sx%s', async (width, height, top, bottom, fontScale) => {
   jest.spyOn(native, 'useWindowDimensions').mockReturnValue({ width, height, scale: 3, fontScale });
   jest.mocked(useSafeAreaInsets).mockReturnValue({ top, bottom, left: 0, right: 0 });
   await Renderer.act(async () => { tree = Renderer.create(<StartupSplash />); });
   const images = tree.root.findAllByType(Image);
-  const background = images.find(image => image.props.accessible === false)!;
-  expect(background.props.source).toBe(require('../src/assets/ui/splash-playground-v1.png'));
+  // The replacement already contains its logo; another image would duplicate it.
+  expect(images).toHaveLength(1);
+  const background = images[0];
+  expect(background.props.source).toBe(require('../src/assets/ui/splashscreen.png'));
   expect(background.props.resizeMode).toBe('cover');
   expect(StyleSheet.flatten(background.props.style)).toEqual({ position: 'absolute', left: 0, top: 0, width, height });
-  expect(background.props.accessibilityElementsHidden).toBe(true);
-  const logo = images.find(image => image.props.accessibilityLabel === 'RIPSY')!;
-  expect(logo.props.source).toBe(homeArt.logo);
-  const style = StyleSheet.flatten(logo.props.style);
-  expect(style.width).toBeLessThanOrEqual(Math.min(width * 0.78, 440, height * 0.7));
-  expect(style.width / style.height).toBe(2.5);
-  expect(style.top).toBeGreaterThanOrEqual(top + 16);
+  expect(background.props.accessibilityLabel).toBe('RIPSY');
+  expect(background.props.accessible).toBe(true);
   const loading = tree.root.findByType(ActivityIndicator);
   expect(StyleSheet.flatten(loading.parent!.props.style).bottom).toBe(bottom + 32);
   expect(loading.props.accessibilityRole).toBe('progressbar');
@@ -109,11 +92,11 @@ test.each(['android', 'ios'] as const)('real %s Image wrapper cannot retain over
   const NativeImage = jest.requireActual(`react-native/Libraries/Image/Image.${os}`).default;
   let imageTree!: Renderer.ReactTestRenderer;
   try {
-    const source = { uri: 'asset:///splash.png', width: 887, height: 1774 };
+    const source = { uri: 'asset:///splash.png', width: 945, height: 2048 };
     const imageHost = () => imageTree.root.findAll(node => typeof node.type === 'string' && Array.isArray(node.props.source) && node.props.source[0]?.uri === source.uri)[0];
     await Renderer.act(async () => { imageTree = Renderer.create(<NativeImage {...props} source={source} style={StyleSheet.absoluteFill} />); });
     const oldBounds = StyleSheet.flatten(imageHost().props.style);
-    expect(oldBounds.width).toBe(887); expect(oldBounds.height).toBe(1774);
+    expect(oldBounds.width).toBe(945); expect(oldBounds.height).toBe(2048);
     await Renderer.act(() => imageTree.update(<NativeImage {...props} source={source} />));
     const host = imageHost();
     expect(host).toBeDefined();
@@ -123,17 +106,14 @@ test.each(['android', 'ios'] as const)('real %s Image wrapper cannot retain over
   } finally { if (imageTree) await Renderer.act(() => imageTree.unmount()); }
 });
 
-test('waits for both local images to settle, including failures, exactly once', async () => {
+test('finishes when the single artwork settles, including failures, exactly once', async () => {
   const ready = jest.fn();
   await Renderer.act(async () => { tree = Renderer.create(<StartupSplash onArtworkReady={ready} />); });
-  const images = tree.root.findAllByType(Image);
-  await Renderer.act(() => images[0].props.onLoadEnd());
   expect(ready).not.toHaveBeenCalled();
-  await Renderer.act(() => images[0].props.onLoadEnd());
-  expect(ready).not.toHaveBeenCalled();
-  await Renderer.act(() => images[1].props.onLoadEnd());
+  const artwork = tree.root.findByType(Image);
+  await Renderer.act(() => artwork.props.onLoadEnd());
   expect(ready).toHaveBeenCalledTimes(1);
-  await Renderer.act(() => images[1].props.onLoadEnd());
+  await Renderer.act(() => artwork.props.onLoadEnd());
   expect(ready).toHaveBeenCalledTimes(1);
 });
 

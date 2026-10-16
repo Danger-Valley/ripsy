@@ -4,8 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const mobileDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const copies = [
-  ['ripsy-toy-logo.png', 'SplashLogo.imageset/splash-logo.png'],
-  ['splash-playground-v1.png', 'SplashArtwork.imageset/splash-artwork.png'],
+  ['splashscreen.png', 'SplashArtwork.imageset/splash-artwork.png'],
 ];
 const gradients = ['yellow', 'blue', 'coral', 'green', 'white', 'panel', 'sky'];
 

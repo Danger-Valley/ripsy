@@ -19,9 +19,6 @@
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" image="SplashArtwork" translatesAutoresizingMaskIntoConstraints="NO" id="ART-bg-view">
                                 <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                             </imageView>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="SplashLogo" translatesAutoresizingMaskIntoConstraints="NO" id="LOG-toy-view">
-                                <rect key="frame" x="41.25" y="108.25" width="292.5" height="117"/>
-                            </imageView>
                         </subviews>
                         <color key="backgroundColor" red="0.4745098039" green="0.8470588235" blue="0.9647058824" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
@@ -29,13 +26,6 @@
                             <constraint firstItem="ART-bg-view" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="ART-top"/>
                             <constraint firstAttribute="trailing" secondItem="ART-bg-view" secondAttribute="trailing" id="ART-trailing"/>
                             <constraint firstAttribute="bottom" secondItem="ART-bg-view" secondAttribute="bottom" id="ART-bottom"/>
-                            <constraint firstItem="LOG-toy-view" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="LOG-centerX"/>
-                            <constraint firstItem="LOG-toy-view" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="bottom" multiplier="0.25" priority="999" id="LOG-centerY"/>
-                            <constraint firstItem="LOG-toy-view" firstAttribute="width" secondItem="Ze5-6b-2t3" secondAttribute="width" multiplier="0.78" priority="999" id="LOG-width"/>
-                            <constraint firstItem="LOG-toy-view" firstAttribute="width" relation="lessThanOrEqual" constant="440" id="LOG-maxWidth"/>
-                            <constraint firstItem="LOG-toy-view" firstAttribute="height" secondItem="LOG-toy-view" secondAttribute="width" multiplier="0.4" id="LOG-height"/>
-                            <constraint firstItem="LOG-toy-view" firstAttribute="height" relation="lessThanOrEqual" secondItem="Ze5-6b-2t3" secondAttribute="height" multiplier="0.28" id="LOG-maxHeight"/>
-                            <constraint firstItem="LOG-toy-view" firstAttribute="top" relation="greaterThanOrEqual" secondItem="Bcu-3y-fUS" secondAttribute="top" constant="16" id="LOG-safeTop"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
                     </view>
@@ -46,7 +36,6 @@
         </scene>
     </scenes>
     <resources>
-        <image name="SplashArtwork" width="887" height="1774"/>
-        <image name="SplashLogo" width="1983" height="793"/>
+        <image name="SplashArtwork" width="945" height="2048"/>
     </resources>
 </document>

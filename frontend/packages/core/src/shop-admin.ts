@@ -41,6 +41,11 @@ export interface AdminPublication {
 export interface AdminSnapshot {
   cluster: ShopCluster; prices: AdminPrices; pack: PackCatalog | null; packError: string | null;
   packPriceRevision?: string;
+  backendPack?: AdminPackSettings;
+}
+export interface AdminPackSettings {
+  catalog: PackCatalog;
+  audit: Array<{ at: number; address: string; before: PackCatalog; after: PackCatalog }>;
 }
 /** Display-only mainnet reference prices. Never used to build a payment. */
 export interface AdminUsdRates {

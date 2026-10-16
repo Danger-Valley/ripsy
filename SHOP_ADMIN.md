@@ -2,9 +2,21 @@
 
 Open `https://www.ripsy.fun/admin/shop` in a browser with a Wallet Standard Solana wallet. The configured administrator is `BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh`.
 
-## Pack contract retired - 2026-10-16
+## Backend pack settings - 2026-10-16
 
-Pack purchases are disabled and the mainnet pack program/state are closed. Keep Railway `PACK_ENABLED=false`; pack publication and price transactions below are historical instructions for the retired contract. Individual figure pricing in this admin remains active. Future pack price/chance administration will be implemented on the backend without MagicBlock VRF. Finalized rent return and preserved contract source: `onchain/retirement/README.md`.
+The active pack editor saves price, chances and availability together on the backend. Defaults preserve the last live values: **10 SKR**, **Jup 40%**, **BONK 40%**, **ORE 20%**. Sign the administrative login message once, edit **Fighter pack**, then choose **Save pack settings**. No wallet transaction, new onchain edition or network fee is required. USD remains a display-only estimate.
+
+`PUT /shop/admin/pack-settings` accepts `{ expectedVersion, price, available, drops }`: a decimal SKR string, a boolean and `{ figureId, weight }` entries totaling 1,000,000. The backend accepts only registered, purchasable, unrestricted fighters. Use 0 in the form to exclude one. CAS rejects stale tabs without losing their edits; reload current settings and Reset edits before replacing a stale draft. A settings revision is only a Redis revision, not a new blockchain account. The last 200 changes are audited. Already-prepared/paid orders retain their own price, odds, reward metadata and fixed result.
+
+Runtime requires `PACK_ENGINE=backend`, `PACK_ENABLED=true` and existing mainnet shop configuration. The form's availability toggle can pause new orders without stopping paid recovery. `GET /shop/admin/settings` includes `backendPack: { catalog, audit }`; stale onchain-publication/price writes now return 409 and require reloading. Historical publication source remains intact but is not an active admin workflow. Run the isolated browser fixture with `--backend` to verify saves, stale revisions and no pack transaction signing.
+
+The buyer pays SKR to the existing treasury. Result selection and delivery run on the backend, not MagicBlock VRF. Core creation fees are paid by the existing mint-authority wallet; maintain its SOL balance and Redis persistence/backups. Full flow and compatibility fields: `PACK_SHOP_SETUP.md`.
+
+Live verification: the backend editor is deployed at the admin URL. An authorized message-only sign-in verified settings and initialized the unchanged 10 SKR / 40-40-20 defaults through `PUT /pack-settings`, yielding Redis revision 2 and one audit entry without a blockchain transaction. Subsequent admin reads and the public catalog match. The isolated browser fixture verifies saving, stale-tab conflict/reload, retained drafts, authentication expiry, USD updates and 375/768/1280px layouts with zero pack transaction signatures. Source/deployment IDs and test counts: `PACK_SHOP_SETUP.md`. The read-only checker `backend/scripts/check-backend-pack-admin.ts --admin=/absolute/keypair.json` revokes its diagnostic login; its optional `--initialize` flag is restricted to the untouched initial defaults and is not a recurring health check.
+
+## Pack contract retired - historical evidence
+
+The mainnet pack program/state are closed. Pack publication and price transactions below are historical instructions for the retired contract; the backend editor above replaces them. Individual figure pricing remains active. Finalized rent return and preserved contract source: `onchain/retirement/README.md`.
 
 ## Historical pack price - 2026-10-12
 
@@ -16,8 +28,8 @@ Public evidence: `onchain/pack-price-2026-10-12.json`. Earlier 1,099-SKR deploym
 
 ## Setup
 
-- Railway backend: `SHOP_ADMIN_WALLET` is the **public** administrative address. Unset/empty disables admin access. It must match the deployed pack program administrator before pack editing works.
-- Keep existing `REDIS_URL`, `SESSION_SECRET`, shop cluster/RPC/collection/treasury/mint authority and public origin. Keep `PACK_ENABLED=false` after contract retirement. Never put an administrative private key in Railway or a browser bundle.
+- Railway backend: `SHOP_ADMIN_WALLET` is the **public** administrative address. Unset/empty disables admin access. The retired contract is not consulted for backend pack settings.
+- Keep existing `REDIS_URL`, `SESSION_SECRET`, shop cluster/RPC/collection/treasury/mint authority and public origin. Activate backend packs using both flags above. Never put an administrative private key in Railway or a browser bundle.
 - `ALLOWED_ORIGINS` must include the exact admin site origin, normally `https://www.ripsy.fun`. No wildcard is needed.
 - Vercel: reuse `NEXT_PUBLIC_SHOP_API_URL=https://api.ripsy.fun` and the existing production session endpoint. There is no new frontend secret or admin credential environment variable.
 - Redis pricing is durable and shared by replicas. Preserve Redis persistence/volume backups. Changing the Redis prefix or losing its data restores deployment defaults, not the last edited prices.
@@ -71,7 +83,7 @@ Keyless Jupiter access is supported and was verified for all five current curren
 
 Verification: 134 backend tests, 24 web tests, backend/web/mobile TypeScript and web production build pass. The isolated browser fixture verifies SOL/BONK/JUP/ORE/SKR estimates, live draft recalculation, provider-error recovery without lost edits, and 375/768/1280px layouts. The live keyless provider returned all five current mint rates. No figure prices, purchases, editions or odds were modified as a test; real operator wallet sign-in is still a human action.
 
-## Pack price and probabilities
+## Historical onchain pack price and probabilities (inactive)
 
 The active on-chain edition fixes the reward table. Its separate canonical price PDA controls **future purchases**, without publishing another edition. Purchased receipts keep their exact paid SKR amount and immutable edition reference; VRF resolution and delivery never consult the current price.
 

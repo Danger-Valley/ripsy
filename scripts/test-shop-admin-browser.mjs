@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const modulePath = process.argv.find(a => a.startsWith('--playwright='))?.slice(13);
+const backend = process.argv.includes('--backend');
 if (!modulePath) throw new Error('Pass an installed Playwright module path. This script never installs dependencies.');
 const { chromium } = await import(pathToFileURL(modulePath).href);
 const output = mkdtempSync(join(tmpdir(), 'ripsy-admin-ui-'));
@@ -19,10 +20,16 @@ const figures = [
   { id: 'jup', name: 'Jup', symbol: 'JUP', decimals: 6, mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', price: '99', amount: '99000000', packEligible: true },
   { id: 'ore', name: 'ORE', symbol: 'ORE', decimals: 11, mint: 'oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp', price: '0.25', amount: '25000000000', packEligible: true },
 ];
+for (const f of figures) f.imageUrl = `/figures/${f.id}.png`;
 const payment = { mint: 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3', symbol: 'SKR', decimals: 6, amount: '1099000000' };
 const snapshot = { cluster: 'mainnet-beta', prices: { revision: 1, figures, audit: [{ at: Date.now(), address: admin, revision: 1,
   changes: { fig2: { before: '10000000', after: '20000000', currency: { mint: null, symbol: 'SOL', decimals: 9 } } } }] }, pack: { name: 'Fighter pack', available: true, version: 2, payment, drops: [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }] }, packError: null };
+if (backend) {
+  payment.amount = '10000000'; snapshot.pack.engine = 'backend'; snapshot.pack.version = 1;
+  snapshot.backendPack = { catalog: structuredClone(snapshot.pack), audit: [] };
+}
 let job = null; let signedCount = 0; let saveCount = 0; let expire = false;
+let packSaves = 0;
 snapshot.packPriceRevision = '0';
 let ratesFailed = false; let rateCalls = 0;
 const rateValues = { SOL: 110, BONK: 0.0000033, JUP: 0.36, ORE: 107, SKR: 0.016 };
@@ -47,6 +54,16 @@ const api = createServer(async (request, response) => {
       rates: Object.fromEntries([...figures, payment].map(f => [f.mint ?? 'So11111111111111111111111111111111111111112', { usdPrice: rateValues[f.symbol], decimals: f.decimals, blockId: 1000 }])) });
   }
   if (path === '/shop/admin/settings') return send(snapshot);
+  if (path === '/shop/admin/pack-settings') {
+    assert.equal(backend, true);
+    if (body.expectedVersion !== snapshot.backendPack.catalog.version) return send({ error: 'Pack settings changed in another session. Reload before saving.' }, 409);
+    assert.equal(body.drops.reduce((sum, d) => sum + d.weight, 0), 1000000);
+    const [w, d = ''] = body.price.split('.');
+    const catalog = { ...snapshot.pack, version: body.expectedVersion + 1, available: body.available,
+      payment: { ...payment, amount: (BigInt(w) * 1000000n + BigInt(d.padEnd(6, '0') || '0')).toString() }, drops: body.drops };
+    snapshot.backendPack = { catalog, audit: [{ at: Date.now(), address: admin, before: snapshot.pack, after: catalog }, ...snapshot.backendPack.audit] };
+    snapshot.pack = catalog; packSaves++; return send(snapshot.backendPack);
+  }
   if (path === '/shop/admin/session') { response.writeHead(204).end(); return; }
   if (path === '/shop/admin/prices') {
     saveCount++; assert.equal(body.revision, snapshot.prices.revision);
@@ -57,6 +74,7 @@ const api = createServer(async (request, response) => {
     snapshot.prices.revision++; return send(snapshot.prices);
   }
   if (path === '/shop/admin/publications' || path === '/shop/admin/pack-price') {
+    assert.equal(backend, false, 'Backend packs must never prepare a publication or price transaction');
     const priceOnly = path.endsWith('/pack-price');
     if (priceOnly) { assert.equal(body.expectedRevision, snapshot.packPriceRevision); assert.equal(body.expectedPrice, snapshot.pack.payment.amount); }
     const [w, d = ''] = body.price.split('.');
@@ -89,7 +107,7 @@ try {
     if (i > 60) throw new Error('Local web fixture did not start.');
     await new Promise(resolve => setTimeout(resolve, 500));
   }
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, executablePath: process.argv.find(a => a.startsWith('--chromium='))?.slice(11) });
   const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
   // Install a test-only Wallet Standard provider in this isolated browser context.
   // Nothing from this fixture is included in application source or release bundles.
@@ -120,7 +138,7 @@ try {
   await page.locator('#price-fig2').fill('1.0000001');
   assert.equal(await page.getByRole('button', { name: 'Review price changes', exact: true }).isDisabled(), true);
   await page.locator('#price-fig2').fill('1');
-  assert.equal(await page.getByTestId('usd-pack').textContent(), '≈ $17.58 USD');
+  assert.equal(await page.getByTestId('usd-pack').textContent(), backend ? '≈ $0.16 USD' : '≈ $17.58 USD');
   await page.locator('#price-ore').fill('0.3'); assert.equal(await page.getByTestId('usd-ore').textContent(), '≈ $32.10 USD');
   ratesFailed = true; await page.getByRole('button', { name: 'Refresh USD rates', exact: true }).click();
   await page.getByTestId('usd-ore').filter({ hasText: 'USD rate unavailable' }).waitFor();
@@ -140,6 +158,28 @@ try {
   await page.getByRole('button', { name: 'Review price changes', exact: true }).click();
   assert.equal(saveCount, 0); await page.getByRole('button', { name: 'Save live prices', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Figure prices saved' }).waitFor(); assert.equal(saveCount, 1);
+  if (backend) {
+    assert.equal(await page.getByRole('button', { name: /Sign &|Review & simulate/ }).count(), 0);
+    const savePack = page.getByRole('button', { name: 'Save pack settings', exact: true });
+    await page.locator('#pack-price').fill('12.5'); await page.locator('#chance-ore').fill('21');
+    assert.equal(await savePack.isDisabled(), true);
+    await page.locator('#chance-bonk').fill('39'); await savePack.click();
+    await page.getByRole('status').filter({ hasText: 'Pack settings saved' }).waitFor();
+    assert.equal(snapshot.pack.version, 2); assert.equal(snapshot.pack.payment.amount, '12500000');
+    assert.equal(snapshot.pack.drops.find(d => d.figureId === 'ore').weight, 210000);
+    assert.equal(packSaves, 1); assert.equal(signedCount, 0); assert.equal(job, null);
+    await page.locator('#pack-price').fill('13');
+    // A different administrator tab saves first. A reload keeps the dirty local
+    // draft and its old revision, so CAS rejects rather than overwriting it.
+    snapshot.backendPack.catalog.version++;
+    await page.getByRole('button', { name: 'Load current settings', exact: true }).click();
+    assert.equal(await page.locator('#pack-price').inputValue(), '13');
+    await savePack.click(); await page.getByRole('alert').filter({ hasText: 'changed in another session' }).waitFor();
+    assert.equal(packSaves, 1);
+    await page.getByRole('region', { name: 'Fighter pack', exact: true }).getByRole('button', { name: 'Reset edits', exact: true }).click();
+    assert.equal(await page.locator('#pack-price').inputValue(), '12.5');
+    await page.screenshot({ path: join(output, 'admin-backend-saved.png'), fullPage: true });
+  } else {
   await page.locator('#pack-price').fill('10'); await page.locator('#chance-ore').fill('invalid');
   await page.getByRole('button', { name: 'Review & simulate price update', exact: true }).click();
   const priceSign = page.getByRole('button', { name: 'Sign & update pack price', exact: true }); await priceSign.waitFor();
@@ -162,11 +202,12 @@ try {
   await page.getByRole('button', { name: 'Check publication status', exact: true }).click();
   await page.getByRole('heading', { name: 'Edition 3: confirmed', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Load current settings', exact: true }).click();
+  }
   await page.locator('#price-jup').fill('102'); expire = true;
   await page.getByRole('button', { name: 'Review price changes', exact: true }).click(); await page.getByRole('button', { name: 'Save live prices', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in as admin', exact: true }).waitFor(); assert.equal(saveCount, 1);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, widths: [375, 768, 1280], usdConversion: true, usdRecoveryPreservesDraft: true, rateCalls, exactPriceValidation: true, explicitReviewAndSignature: true, expiryBlockedSave: true, screenshots: output, realTransactionSent: false }));
+  console.log(JSON.stringify({ passed: true, backendPacks: backend, packSaves, packTransactions: signedCount, widths: [375, 768, 1280], usdConversion: true, usdRecoveryPreservesDraft: true, rateCalls, exactPriceValidation: true, expiryBlockedSave: true, screenshots: output, realTransactionSent: false }));
 } finally {
   await browser?.close(); next.kill('SIGTERM'); api.closeAllConnections(); await new Promise(resolve => api.close(resolve));
 }

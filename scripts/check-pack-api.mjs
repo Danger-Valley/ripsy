@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const origin = 'https://api.ripsy.fun';
 const expectEnabled = process.argv.includes('--enabled');
+const backend = process.argv.includes('--backend');
 const expectedEdition = JSON.parse(readFileSync(new URL('../onchain/pack-config.json', import.meta.url), 'utf8'));
 const get = (path, options = {}) => fetch(`${origin}${path}`, {
   ...options, signal: AbortSignal.timeout(15000),
@@ -27,12 +28,20 @@ try {
   assert.equal(response.status, 200);
   const catalog = await response.json();
   assert.equal(catalog.available, expectEnabled, 'Catalog does not match the requested activation state');
-  assert.equal(catalog.version, expectedEdition.version);
+  if (backend) {
+    assert.equal(catalog.engine, 'backend');
+    assert.ok(Number.isSafeInteger(catalog.version) && catalog.version >= 1);
+  } else assert.equal(catalog.version, expectedEdition.version);
   assert.match(catalog.payment.amount, /^[1-9]\d{0,15}$/);
   const expectedPrice = process.argv.find(a => a.startsWith('--price='))?.slice(8);
   if (expectedPrice) assert.equal(catalog.payment.amount, expectedPrice);
   assert.equal(catalog.payment.mint, 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3');
-  assert.deepEqual(catalog.drops, expectedEdition.drops);
+  if (backend) {
+    assert.ok(Array.isArray(catalog.drops) && catalog.drops.length > 0);
+    assert.equal(new Set(catalog.drops.map(drop => drop.figureId)).size, catalog.drops.length);
+    assert.ok(catalog.drops.every(drop => Number.isSafeInteger(drop.weight) && drop.weight > 0));
+    assert.equal(catalog.drops.reduce((sum, drop) => sum + drop.weight, 0), 1000000);
+  } else assert.deepEqual(catalog.drops, expectedEdition.drops);
   // Enabled mode is strictly read-only apart from the diagnostic session.
   // Never attempt a real order during an operator health check.
   if (!expectEnabled) {
@@ -67,7 +76,8 @@ try {
   assert.deepEqual(dynamic.figures.map(f => f.id), manifest.figures.filter(f => f.purchasable).map(f => f.id));
   for (const drop of catalog.drops) assert.ok(manifest.figures.some(f => f.id === drop.figureId), 'Published pack model must have resources');
   console.log(JSON.stringify({ healthy: true, authenticationRequired: true,
-    packPurchasesBlocked: !catalog.available, priceBaseUnits: catalog.payment.amount, weightsMatch: true, legacyCatalogCompatible: true,
+    engine: catalog.engine ?? 'legacy',
+    packPurchasesBlocked: !catalog.available, priceBaseUnits: catalog.payment.amount, weightsValid: true, legacyCatalogCompatible: true,
     paidTransactionCreated: false }));
 } catch (error) {
   console.error(JSON.stringify({ failedStage: stage, errorType: error?.name,

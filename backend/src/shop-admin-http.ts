@@ -23,6 +23,7 @@ export async function handleShopAdmin(request: IncomingMessage, response: Server
   if (request.method === 'DELETE' && path === '/shop/admin/session') { await d.auth.logout(request.headers.authorization); response.writeHead(204).end(); return; }
   if (request.method === 'GET' && path === '/shop/admin/settings') { await sendJson(response, 200, d.service.snapshot()); return; }
   if (request.method === 'PUT' && path === '/shop/admin/prices') { await sendJson(response, 200, d.prices.save(admin, await d.readBody(request))); return; }
+  if (request.method === 'PUT' && path === '/shop/admin/pack-settings') { await sendJson(response, 200, d.service.savePack(admin, await d.readBody(request))); return; }
   if (request.method === 'POST' && path === '/shop/admin/publications') { await sendJson(response, 201, d.service.prepare(admin, await d.readBody(request))); return; }
   if (request.method === 'POST' && path === '/shop/admin/pack-price') { await sendJson(response, 201, d.service.prepare(admin, await d.readBody(request), 'price')); return; }
   const publication = /^\/shop\/admin\/publications\/([a-f0-9]{64})(\/submit)?$/.exec(path);

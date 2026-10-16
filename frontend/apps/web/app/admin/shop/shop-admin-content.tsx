@@ -10,6 +10,7 @@ import { decimalToUnits, unitsToDecimal, type AdminPrices, type AdminPublication
 import { useBrowserWallet } from '../../hooks/use-browser-wallet';
 import { adminRequest, AdminApiError, changedPrices, chanceWeight, usdEstimate } from './admin-client';
 import styles from './shop-admin.module.css';
+import { BackendPackEditor } from './backend-pack-editor';
 
 type AdminSession = { token: string; address: string; expiresAt: number };
 const JOB_KEY = 'ripsy.admin.publication.v1'; // Public request ID only, never the admin credential.
@@ -46,7 +47,7 @@ export function ShopAdminContent() {
   const prepareRef = useRef<{ id: string; payload: string } | null>(null);
   const authed = Boolean(session && wallet.isConnected && wallet.address === session.address);
 
-  const perform = useCallback(async (label: string, action: () => Promise<void>) => {
+  const perform = useCallback(async (label: string, action: () => Promise<unknown>) => {
     if (busyRef.current) return;
     busyRef.current = true; setBusy(label); setError(null); setNotice(null);
     try { await action(); } catch (cause) {
@@ -57,7 +58,12 @@ export function ShopAdminContent() {
   const protectedRequest = useCallback(async <T,>(path: string, method = 'GET', body?: unknown): Promise<T> => {
     const current = sessionRef.current;
     if (!current) throw new Error('Sign in with the administrative wallet.');
-    const result = await adminRequest<T>(path, current.token, method, body);
+    let result: T;
+    try { result = await adminRequest<T>(path, current.token, method, body); }
+    catch (cause) {
+      if (cause instanceof AdminApiError && cause.status === 401 && sessionRef.current === current) { sessionRef.current = null; setSession(null); }
+      throw cause;
+    }
     if (sessionRef.current !== current) throw new Error('The wallet or admin session changed. Sign in again.');
     return result;
   }, []);
@@ -100,6 +106,7 @@ export function ShopAdminContent() {
     const next = await protectedRequest<AdminSnapshot>('settings');
     setData(next);
     if (reset) { applyPrices(next.prices); applyPack(next); }
+    return next;
   };
   useEffect(() => {
     void perform('Loading admin access...', async () => {
@@ -135,8 +142,8 @@ export function ShopAdminContent() {
     const challenge = await adminRequest<WalletChallenge>('challenge', sessionToken, 'POST');
     const proof = await wallet.proveWallet(challenge);
     const next = await adminRequest<AdminSession>('verify', sessionToken, 'POST', proof);
-    sessionRef.current = next; setSession(next); await load(true);
-    if (recoverId) rememberJob(await protectedRequest<AdminPublication>(`publications/${recoverId}`));
+    sessionRef.current = next; setSession(next); const settings = await load(true);
+    if (recoverId && !settings.backendPack) rememberJob(await protectedRequest<AdminPublication>(`publications/${recoverId}`));
     setNotice('Admin access verified. No transaction was sent.');
   });
   const logout = () => perform('Signing out...', async () => {
@@ -182,12 +189,12 @@ export function ShopAdminContent() {
   const disabled = Boolean(busy || wallet.busy);
 
   return <main className={styles.page}>
-    <header className={styles.header}><div><Link href="/app">RIPSY playground</Link><h1>Shop control room</h1><p>Figure prices and fighter pack editions.</p></div><span className={styles.badge}>{data?.cluster === 'mainnet-beta' ? 'Solana mainnet' : data?.cluster === 'devnet' ? 'Solana devnet' : 'Admin access'}</span></header>
+    <header className={styles.header}><div><Link href="/app">RIPSY playground</Link><h1>Shop control room</h1><p>Figure prices and fighter pack settings.</p></div><span className={styles.badge}>{data?.cluster === 'mainnet-beta' ? 'Solana mainnet' : data?.cluster === 'devnet' ? 'Solana devnet' : 'Admin access'}</span></header>
     {(error || playerError) && <div role="alert" className={styles.error}><strong>Action needed</strong><p>{error ?? playerError}</p><button disabled={disabled} onClick={() => void perform('Reloading...', async () => { if (authed) await load(false); else setConfig(await adminRequest('config')); })}>Retry / reload current values</button><p>Your form edits are kept when reloading current values.</p></div>}
     {notice && <p role="status" className={styles.notice}>{notice}</p>}
     {busy && <p role="status" aria-live="polite" className={styles.progress}>{busy}</p>}
     <section className={styles.card} aria-labelledby="access-title"><div className={styles.sectionHeader}><h2 id="access-title">Administrative wallet</h2>{authed && <button onClick={() => void logout()} disabled={disabled}>Sign out</button>}</div>
-      {!config ? <p>Loading access configuration...</p> : !config.enabled ? <p>Administration is disabled. Set SHOP_ADMIN_WALLET on the backend to enable it.</p> : <><AdminAddress value={config.address!} label="Required wallet" /><p>Sign one message to open a 30-minute admin session. Publishing a pack requires a separate transaction signature.</p>
+      {!config ? <p>Loading access configuration...</p> : !config.enabled ? <p>Administration is disabled. Set SHOP_ADMIN_WALLET on the backend to enable it.</p> : <><AdminAddress value={config.address!} label="Required wallet" /><p>Sign one message to open a 30-minute admin session. Figure prices and pack settings then save directly on the server.</p>
         {!wallet.isConnected ? <div className={styles.actions}>{wallet.wallets.length ? wallet.wallets.map(w => <button key={w.name} disabled={disabled} onClick={() => void perform('Connecting wallet...', async () => { await wallet.connect(w); })}>Connect {w.name}</button>) : <p>No compatible wallet detected. Open this page in a wallet-enabled browser.</p>}</div> : <div className={styles.actions}><AdminAddress value={wallet.address!} label="Connected" /><button disabled={disabled} onClick={() => void perform('Disconnecting...', async () => { if (sessionRef.current) await protectedRequest('session', 'DELETE'); sessionRef.current = null; setSession(null); await wallet.disconnect(); })}>Disconnect</button>{!authed && <button className={styles.primary} disabled={disabled || !sessionToken || wallet.address !== config.address} onClick={() => void authenticate()}>Sign in as admin</button>}</div>}
         {wallet.isConnected && wallet.address !== config.address && <p role="alert">This is not the administrative wallet. Switch accounts to continue.</p>}</>}
     </section>
@@ -216,7 +223,8 @@ export function ShopAdminContent() {
           </form>
           {reviewPrices && <div className={styles.review} role="region" aria-label="Review figure price changes"><h3>Confirm new prices</h3><ul>{Object.entries(edits.prices).map(([id, value]) => { const f = data.prices.figures.find(f => f.id === id)!; return <li key={id}>{f.name}: {f.price || 'Not priced'} → <strong>{value} {f.symbol}</strong><small className={styles.usd}>{usd(value, f.mint, f.decimals)}</small></li>; })}</ul><p>These prices go live immediately after saving.</p><div className={styles.actions}><button type="button" onClick={() => setReviewPrices(false)} disabled={disabled}>Back to editing</button><button className={styles.primary} onClick={() => void savePrices()} disabled={disabled || !Object.keys(edits.prices).length}>Save live prices</button></div></div>}
         </section>
-        <section className={styles.card} aria-labelledby="pack-title"><h2 id="pack-title">Fighter pack</h2>
+        {data.backendPack ? <BackendPackEditor settings={data.backendPack} figures={data.prices.figures} disabled={disabled}
+          request={protectedRequest} onSaved={async () => { await load(false); }} usd={usd} /> : <section className={styles.card} aria-labelledby="pack-title"><h2 id="pack-title">Fighter pack</h2>
           {!data.pack ? <><p role="alert">{data.packError}</p><button disabled={disabled} onClick={() => void perform('Loading active edition...', () => load(false))}>Retry pack state</button></> : <>
             <p><span className={styles.badge}>Active edition {data.pack.version}</span> {data.pack.available ? 'Purchases open' : 'Purchases paused'}</p><p>Current price: <strong>{unitsToDecimal(data.pack.payment.amount, 6)} SKR</strong><span className={styles.usd}> {usd(unitsToDecimal(data.pack.payment.amount, 6), data.pack.payment.mint, 6)}</span>. Paid packs keep their original price and chances.</p>
             <form onSubmit={event => { event.preventDefault(); void prepare('price'); }}>
@@ -249,7 +257,7 @@ export function ShopAdminContent() {
             {job.status === 'submitted' && <p>Do not create another publication. Status checks recover the same signed transaction after connection errors.</p>}
             {['expired', 'failed', 'superseded'].includes(job.status) && <p>This request is no longer publishable. Reload the active edition before preparing another.</p>}
           </div>}
-        </section>
+        </section>}
       </div>
       <section className={styles.card}><h2>Price history</h2>{!data.prices.audit.length ? <p>No admin price changes yet. The store is using its configured defaults.</p> : <ol className={styles.audit}>{data.prices.audit.slice(0, 20).map(a => <li key={a.revision}><strong>Revision {a.revision}</strong> · <time dateTime={new Date(a.at).toISOString()}>{new Date(a.at).toLocaleString()}</time><ul>{Object.entries(a.changes).map(([id, change]) => {
         const f = data.prices.figures.find(f => f.id === id); const denomination = change.currency ?? f;

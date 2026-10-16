@@ -18,7 +18,9 @@ import { createFigureAssetSource, FigureInventoryService } from './figure-invent
 import { WalletVerificationService } from './wallet-verification.js';
 import { createPackChain } from './pack-chain.js';
 import { figureManifest } from './figure-resources.js';
-import { PackService } from './pack-service.js';
+import { BackendPackService } from './backend-pack-service.js';
+import { BackendPackSettingsService } from './backend-pack-settings.js';
+import { createBackendPackChain } from './backend-pack-chain.js';
 import { loadMobileUpdatePolicy, sendMobileUpdatePolicy } from './mobile-update-policy.js';
 import { ShopPricingService } from './shop-pricing.js';
 import { ShopAdminAuth } from './shop-admin-auth.js';
@@ -80,10 +82,13 @@ const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
 const seekerVerification = new SeekerVerificationService(commandClient as unknown as ShopRedis, createSeekerTokenChecker(shopConfig.seekerRpcUrl), shopConfig.publicOrigin, keyPrefix);
 const pricing = new ShopPricingService(commandClient as unknown as ShopRedis, shopConfig, keyPrefix);
 const adminAuth = new ShopAdminAuth(commandClient as unknown as ShopRedis, shopConfig.publicOrigin, process.env.SHOP_ADMIN_WALLET, keyPrefix);
+const backendPacksEnabled = process.env.PACK_ENGINE === 'backend' && process.env.PACK_ENABLED === 'true' && shopConfig.enabled && shopConfig.cluster === 'mainnet-beta';
+const backendPackSettings = new BackendPackSettingsService(commandClient as unknown as ShopRedis, keyPrefix, backendPacksEnabled);
 const shopAdmin = new ShopAdminService(commandClient as unknown as ShopRedis, shopConfig, pricing, createPackAdminChain(shopConfig, adminAuth.address), keyPrefix,
-  new ShopUsdRatesService(commandClient as unknown as ShopRedis, process.env.JUPITER_API_KEY, keyPrefix));
+  new ShopUsdRatesService(commandClient as unknown as ShopRedis, process.env.JUPITER_API_KEY, keyPrefix), backendPackSettings);
 const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification, pricing);
-const packs = new PackService(commandClient as unknown as ShopRedis, createPackChain(shopConfig, process.env.PACK_ENABLED === 'true'), keyPrefix);
+const packs = new BackendPackService(commandClient as unknown as ShopRedis, backendPackSettings, createBackendPackChain(shopConfig),
+  backendPacksEnabled, shopConfig.publicOrigin, keyPrefix, createPackChain(shopConfig, false));
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);

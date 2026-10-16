@@ -20,6 +20,7 @@ export interface PackDrop {
   weight: number;
 }
 export interface PackCatalog {
+  engine?: 'backend';
   name: string;
   available: boolean;
   version: number;
@@ -45,6 +46,7 @@ export type PackStatus =
   | "failed"
   | "expired";
 export interface PackOrder {
+  engine?: 'backend';
   solFunding?: SolFunding;
   id: string;
   buyer: string;
@@ -94,6 +96,7 @@ export function parsePackCatalog(value: unknown): PackCatalog {
   const c = value as PackCatalog;
   if (
     !c ||
+    (c.engine !== undefined && c.engine !== 'backend') ||
     typeof c.name !== "string" ||
     typeof c.available !== "boolean" ||
     !Number.isSafeInteger(c.version) ||
@@ -111,6 +114,7 @@ export function parsePackOrder(value: unknown): PackOrder {
   const o = value as PackOrder;
   if (
     !o ||
+    (o.engine !== undefined && o.engine !== 'backend') ||
     !/^[a-f0-9]{64}$/.test(o.id) ||
     ![o.buyer, o.receipt, o.asset, o.edition].every(isAddress) ||
     o.cluster !== "mainnet-beta" ||

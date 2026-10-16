@@ -1,10 +1,27 @@
 # Fighter packs
 
-## Current status - retired 2026-10-16
+## Current backend packs - 2026-10-16
+
+Packs now use the backend, with **10 SKR**, **Jup 40%**, **BONK 40%** and **ORE 20%**. There is no RIPSY pack-program call, escrow account, edition publication or MagicBlock VRF request. The original contract source and historical evidence below are preserved, not reactivated.
+
+- Enable only with Railway `PACK_ENGINE=backend`, `PACK_ENABLED=true` and the existing enabled mainnet shop configuration. The admin can independently pause new sales.
+- Admin: `https://www.ripsy.fun/admin/shop`. Sign the normal administrative login message, then save price, availability and chances directly. `PUT /shop/admin/pack-settings` uses exact six-decimal SKR units, a compare-and-swap revision and a bounded change audit. No transaction signature or account rent is required to edit settings. Positive chances must total 100%; zero excludes a reward. Registered unrestricted figures appear automatically.
+- Each prepared purchase captures price, odds and canonical reward metadata. Later settings edits never rewrite an existing order. A saved paid receipt, entropy, result and asset identity have no Redis TTL. Preserve Redis persistence/volume backups; backend randomness is not an independently verifiable oracle proof.
+- The buyer signs one standard SPL SKR payment with a unique server-signed Memo marker. Optional Buy with SOL composes the existing validated Jupiter exchange and full SKR transfer in that same transaction. The marker creates no account and costs no rent. No reward is chosen or exposed before exact-message, full-amount payment is finalized.
+- After payment, cryptographic server randomness is mapped to the saved weighted table with rejection sampling. The backend durably commits that one result before responding or delivering. A private saved seed derives a fixed Core asset signer; retries/restarts cannot create another asset or reroll the pack.
+- Core delivery is a separate server-paid transaction in the existing official collection, owned by the buyer. The existing shop mint-authority wallet needs SOL for asset creation and fees. Quotes are blocked before payment below 0.005 SOL; paid delivery records keep retrying after outages/funding delays. Read-only readiness found 0.00878604 SOL on `rps7sR8RN9gSJEzM7jiddtWdisA96rd3hVgsSmuoopE`. This is a small test balance, not sustained delivery capacity.
+- Signed payment/delivery bytes persist before broadcast. Finalized exact-message/history checks recover wallet broadcasts and ambiguous RPC responses; errors never create replacement payments. Redis leases fence every write, and the pending queue retries after app closure. The old retired-program path is read-only for historical unpaid-intent reconciliation.
+- Native/web pack endpoints and statuses remain compatible. Optional `engine: "backend"` identifies the new flow; legacy `receipt` is the Memo marker, `edition` a settings fingerprint, and `randomness` saved server entropy, not a VRF proof. The current installed app can buy without a native rebuild. Existing inventory/Army handoff still waits for confirmed Core ownership.
+
+Verification: backend pack service/chain tests cover finality, treasury credit, exact signatures, no pre-payment result, immutable settings, idempotency, lost leases, paid recovery and stable delivery. Existing native/web suites and production web build pass. No real paid purchase is sent by operator readiness checks. Use `node scripts/check-pack-api.mjs --backend --enabled --price=10000000` for live read-only catalog verification.
+
+Production release: Railway backend source deployment `e339cf38-8824-49c5-9527-6c0e162130c7`, with `PACK_ENGINE=backend` / `PACK_ENABLED=true`; Vercel `ripsy-c8qa74h7t-danger-valley.vercel.app`, aliased to `www.ripsy.fun`. Live catalog/admin-role/CORS checks pass. A message-only BJom admin session verified the new settings and saved the unchanged defaults once through the actual CAS API (revision 2, one audit entry); price, chances and availability were not altered. This also verified actual Redis settings persistence. An empty fresh public wallet reached the live mainnet preparation checks and received typed insufficient-SKR/Buy with SOL recovery, with no transaction prepared or sent. 193 backend, 673 mobile and 29 web tests pass, with all app typechecks, production web build and isolated 375/768/1280px admin browser verification. Actual paid delivery remains a user test, not an operator test.
+
+## Contract retirement - historical evidence
 
 The pack program is **closed on mainnet** at the user's request. ProgramData and all four administrative state accounts were closed, returning **2.550678160 SOL** to `BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh`; the temporary cleanup buffer deposit was also fully refunded. No paid receipt or escrow existed at retirement. The loader's non-closeable program-address tombstone retains 0.000833120 SOL. See `onchain/retirement/README.md` and `onchain/retirement/mainnet-retirement.json` for finalized evidence.
 
-Production Railway has **`PACK_ENABLED=false`**. Authenticated catalog reports unavailable and new pack orders are blocked; individual figure purchases and gameplay remain available. Preserve all Rust/IDL/client code and historical evidence. Future packs will use the backend without MagicBlock VRF; this replacement is not implemented or enabled yet. Do not run old activation/publication commands against the retired program ID.
+At retirement, production set `PACK_ENABLED=false` to block the old engine. Backend packs above supersede that temporary shutdown. Preserve all Rust/IDL/client code and historical evidence. Do not run old activation/publication commands against the retired program ID. All subsequent onchain setup/deployment sections describe historical behavior only.
 
 ## Historical deployment and activation
 

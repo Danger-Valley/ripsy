@@ -1,6 +1,12 @@
 # Fighter packs
 
-## Current status
+## Current status - retired 2026-10-16
+
+The pack program is **closed on mainnet** at the user's request. ProgramData and all four administrative state accounts were closed, returning **2.550678160 SOL** to `BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh`; the temporary cleanup buffer deposit was also fully refunded. No paid receipt or escrow existed at retirement. The loader's non-closeable program-address tombstone retains 0.000833120 SOL. See `onchain/retirement/README.md` and `onchain/retirement/mainnet-retirement.json` for finalized evidence.
+
+Production Railway has **`PACK_ENABLED=false`**. Authenticated catalog reports unavailable and new pack orders are blocked; individual figure purchases and gameplay remain available. Preserve all Rust/IDL/client code and historical evidence. Future packs will use the backend without MagicBlock VRF; this replacement is not implemented or enabled yet. Do not run old activation/publication commands against the retired program ID.
+
+## Historical deployment and activation
 
 Program **deployed and verified on Solana mainnet on 2026-10-06**. **Edition 2 is published and finalized on 2026-10-08:** Jup 40%, BONK 40%, ORE 20%, still 1,099 SKR. Purchases remain enabled (config unpaused, live authenticated API available=true). Historical edition 1 remains 50/50. Production backend and ORE metadata/previews are verified. Last uploaded native release is **1.0.0 (56)** and does not contain ORE; an updated iOS/Android release is required for variant 5. The real paid VRF-to-Core purchase remains unverified; activation is not a completed audit or end-to-end signoff. The user will personally test, not the operator. Current publication evidence: `onchain/edition-2-publication.json` / `onchain/edition-2-report.html`; `onchain/mainnet-deployment.json`, `onchain/mainnet-readiness.json` and `onchain/deployment-report.html` remain historical edition-1 evidence.
 

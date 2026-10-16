@@ -2,7 +2,11 @@
 
 Open `https://www.ripsy.fun/admin/shop` in a browser with a Wallet Standard Solana wallet. The configured administrator is `BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh`.
 
-## Current pack price - 2026-10-12
+## Pack contract retired - 2026-10-16
+
+Pack purchases are disabled and the mainnet pack program/state are closed. Keep Railway `PACK_ENABLED=false`; pack publication and price transactions below are historical instructions for the retired contract. Individual figure pricing in this admin remains active. Future pack price/chance administration will be implemented on the backend without MagicBlock VRF. Finalized rent return and preserved contract source: `onchain/retirement/README.md`.
+
+## Historical pack price - 2026-10-12
 
 At the user's explicit request, the live mainnet pack price changed from 1,099 SKR to **10 SKR** (10,000,000 base units), price revision 1. The existing administrative prepare/sign/submit/status API recorded the price-only operation. It finalized at slot 456045668; the public API independently returns the new price. Edition 2 remains byte-identical: Jup 40%, BONK 40%, ORE 20%. Individual figure prices are unchanged.
 
@@ -13,7 +17,7 @@ Public evidence: `onchain/pack-price-2026-10-12.json`. Earlier 1,099-SKR deploym
 ## Setup
 
 - Railway backend: `SHOP_ADMIN_WALLET` is the **public** administrative address. Unset/empty disables admin access. It must match the deployed pack program administrator before pack editing works.
-- Keep existing `REDIS_URL`, `SESSION_SECRET`, shop cluster/RPC/collection/treasury/mint authority, public origin and `PACK_ENABLED` settings. Never put an administrative private key in Railway or a browser bundle.
+- Keep existing `REDIS_URL`, `SESSION_SECRET`, shop cluster/RPC/collection/treasury/mint authority and public origin. Keep `PACK_ENABLED=false` after contract retirement. Never put an administrative private key in Railway or a browser bundle.
 - `ALLOWED_ORIGINS` must include the exact admin site origin, normally `https://www.ripsy.fun`. No wildcard is needed.
 - Vercel: reuse `NEXT_PUBLIC_SHOP_API_URL=https://api.ripsy.fun` and the existing production session endpoint. There is no new frontend secret or admin credential environment variable.
 - Redis pricing is durable and shared by replicas. Preserve Redis persistence/volume backups. Changing the Redis prefix or losing its data restores deployment defaults, not the last edited prices.

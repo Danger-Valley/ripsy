@@ -239,3 +239,21 @@ debug:
 No application/backend code, release, deployment, payment, pack price/odds or
 customer order was changed by this diagnostic. The 10-SKR price operation is
 recorded separately in onchain/pack-price-2026-10-12.json.
+
+## Current native release - 2026-10-20
+
+Native 1.0.0 (67) is delivered on Android and TestFlight. The signed arm64 APK is
+published at https://ripsy.fun/download and its independently downloaded bytes
+match the local artifact. App Store Connect build
+`ae66951e-9dc4-4322-a933-3f18a99b9920` is VALID/internal IN_BETA_TESTING with
+automatic notification. All 674 mobile tests, native TypeScript, five-model
+asset verification and both-platform release preflight pass. Both APK/IPA entry
+scans found no configured private values; signatures and bundled Rive digests
+are verified. Physical paid-wallet end-to-end testing remains unclaimed.
+
+Earlier onchain pack notes in this context are historical: the custom program
+was retired, the backend pack implementation is retained, and production now
+uses `PACK_ENABLED=false` at the user's request. New pack sales are blocked;
+paid recovery and ordinary figure sales remain active. This release does not
+re-enable packs or change prices/chances. Current operational evidence:
+`PACK_SHOP_SETUP.md`. Native artifact/upload evidence: `files/releases/1.0.0-67.md`.

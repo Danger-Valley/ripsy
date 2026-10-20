@@ -158,6 +158,21 @@ test('double tap and rejected approval never create a new random request', async
   await Renderer.act(() => pack.confirm(async () => 'AQ=='));
   expect(api.createPack).toHaveBeenCalledTimes(1);
 });
+test('prepaid delivery persists with the same pack and needs no second wallet approval', async () => {
+  const prepaid = { ...order, engine: 'backend' as const, deliveryFunding: { recipient: 'So11111111111111111111111111111111111111112', amountLamports: '2759680' }, networkFeeLamports: '2769680' };
+  api.createPack.mockResolvedValue(prepaid);
+  api.submitPack.mockResolvedValue({ ...prepaid, status: 'submitted' });
+  await mount();
+  const sign = jest.fn(async () => 'AQ==');
+  await Renderer.act(() => pack.prepare(buyer, sign));
+  expect(sign).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(saved!).order.deliveryFunding).toEqual(prepaid.deliveryFunding);
+  api.getPack.mockResolvedValue({ ...prepaid, status: 'confirmed', result: 'jup', randomness: 'f'.repeat(64) });
+  await Renderer.act(() => pack.checkStatus());
+  expect(pack.order?.status).toBe('confirmed');
+  expect(sign).toHaveBeenCalledTimes(1); expect(api.createPack).toHaveBeenCalledTimes(1);
+  expect(parsePackIntent(saved!).order?.deliveryFunding).toEqual(prepaid.deliveryFunding);
+});
 test('saved signed pack resumes identical bytes, never a fresh order', async () => {
   saved = JSON.stringify({
     key: 'pack-request-1234567',

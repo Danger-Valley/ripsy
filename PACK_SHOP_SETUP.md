@@ -1,6 +1,24 @@
 # Fighter packs
 
-## Current backend packs - 2026-10-16
+## Current buyer-funded delivery - 2026-10-20
+
+New packs keep **10 SKR**, **Jup 40%**, **BONK 40%**, **ORE 20%**, with automatic delivery paid by the buyer rather than sponsored by RIPSY. One wallet approval covers the SKR purchase, optional Jupiter Buy with SOL exchange and a standard SOL transfer to the existing delivery authority. There are still two blockchain transactions (payment and automatic delivery), not two buyer approvals. No custom pack program or VRF is used.
+
+- Before quoting, the backend takes the largest serialized base Core asset among the captured eligible rewards, fetches its actual rent and the fee for a two-signer delivery message, and includes the official 0.0015-SOL Core creation fee. An entirely unsigned funding+creation simulation checks the deployed program's asset owner, size and exact lamports. Changed protocol costs or invalid RPC data fail before returning any payable transaction. The delivery budget is capped at 0.01 SOL.
+- The public catalog adds optional `deliveryPayment: "buyer-prepaid"`. New orders snapshot `deliveryFunding: { recipient, amountLamports }`; clients cannot supply/replace either value. `networkFeeLamports` already includes this transfer plus payment fees/rent, excluding SKR and swap input. Never add `deliveryFunding` again to the aggregate total. Existing native/web clients already display additional fees and approve the exact complete message in the wallet; no new native binary is required.
+- The first finalized transaction must prove both the exact SKR treasury credit and the exact SOL delivery-authority credit, including address-lookup-table balance indexes. No draw or delivery begins on missing/partial/unverifiable funding. Signed-message/signature checks and durable recovery still apply.
+- Once payment is finalized, one server draw is saved and the fixed Core asset is created. Any unused SOL budget is returned to that same buyer **in the mint transaction**, after Core creation. Mint and refund are atomic and share the immutable asset identity, so retries cannot repeat the refund or require another wallet signature. The server still signs/pays that transaction mechanically, using the buyer's prepaid SOL. No additional wallet debit/approval happens after purchase.
+- Existing orders without `deliveryFunding` remain sponsored, including unpaid prepared quotes and paid background delivery. Never add a surcharge or refund from server funds to those receipts. Keep a small technical reserve for legacy obligations, exceptional fee changes and retries; normal new purchases cover their issuance cost.
+
+Read-only mainnet verification returned a **0.00275968 SOL** delivery budget. Current BONK creation uses it fully; Jup and ORE cost **0.00274952 SOL**, each returning **0.00001016 SOL** change. These are current simulated values, not immutable prices. Four probes were entirely unsigned; no paid order or mint was broadcast. Reproduce with `node --env-file=.env --import tsx backend/scripts/check-backend-pack-delivery-quote.ts`. Live catalog readiness: `node scripts/check-pack-api.mjs --backend --buyer-funded --enabled --price=10000000`.
+
+Production: Railway deployment `5b126930-cccb-4380-ad04-e98fd17827bf` is SUCCESS (image `sha256:b4b9fe92288e26e8b44511b9214709f2320174ce361c4b571317f27555993ca9`). Live authenticated catalog confirms `deliveryPayment=buyer-prepaid`, availability and 10 SKR; admin-role/CORS/catalog compatibility checks pass. No price/chance/availability/admin-revision change or real paid purchase was performed. Existing installed native/web clients can use this server-only switch; refresh the shop before preparing a new order.
+
+Sources: `backend/src/backend-pack-delivery-funding.ts` (budget and unsigned probe), `backend/src/backend-pack-chain.ts` (atomic payment, finality verification, mint/change), `backend/src/backend-pack-service.ts` (immutable snapshots), `frontend/packages/core/src/packs.ts` (optional compatibility fields). Tests: 202 backend, 674 mobile and 29 web tests pass, including both payment modes, exact funding, malformed quotes, atomic refunds, legacy recovery and one native wallet approval. All app typechecks and production web build pass. Re-run `npm run test:backend`, `npm run test:mobile -- --silent`, `npm run test -w @rps/web` and `npm run build`. No dependencies or native binaries changed. This is not a claim of a completed security audit or a real paid-device end-to-end test.
+
+## Backend packs launch - 2026-10-16
+
+The launch notes below describe the original sponsored issuance. The current buyer-funded section above supersedes its reserve requirement and delivery-fee policy; contract retirement and historical evidence remain unchanged.
 
 Packs now use the backend, with **10 SKR**, **Jup 40%**, **BONK 40%** and **ORE 20%**. There is no RIPSY pack-program call, escrow account, edition publication or MagicBlock VRF request. The original contract source and historical evidence below are preserved, not reactivated.
 

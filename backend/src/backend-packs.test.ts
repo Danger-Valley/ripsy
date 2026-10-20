@@ -50,8 +50,9 @@ function fixture() {
   const chain: BackendPackChain = {
     async prepare(address, _id, _nonce, catalog, mode) {
       prepareCount++; return { engine: 'backend', buyer: address, cluster: 'mainnet-beta', transaction: 'AQ==',
+        deliveryFunding: { recipient: otherBuyer, amountLamports: '2759680' },
         receipt: buyer, asset: buyer, edition: buyer, version: catalog.version, payment: catalog.payment,
-        drops: catalog.drops, networkFeeLamports: '10000', lastValidBlockHeight: 100,
+        drops: catalog.drops, networkFeeLamports: '2769680', lastValidBlockHeight: 100,
         ...(mode ? { solFunding: { inputLamports: '1', outputMint: catalog.payment.mint,
           minimumOutput: catalog.payment.amount, expectedOutput: catalog.payment.amount, shortfall: catalog.payment.amount, slippageBps: 50 } } : {}) };
     },
@@ -74,6 +75,7 @@ test('backend default price and chances preserve the live retired settings, with
   assert.deepEqual(value.catalog.drops, [{ figureId: 'jup', weight: 400000 }, { figureId: 'bonk', weight: 400000 }, { figureId: 'ore', weight: 200000 }]);
   assert.equal((await f.settings.catalog(false)).available, false);
   assert.equal(f.counts().prepareCount, 0);
+  assert.equal((await f.service.catalog()).deliveryPayment, 'buyer-prepaid');
 });
 test('backend administration rejects every old onchain job route before any chain call or replay', async () => {
   const f = fixture();
@@ -160,6 +162,40 @@ test('admin updates never change saved pack quotes or rewards, including future 
   assert.equal(recovered.payment.amount, '10000000'); assert.deepEqual(recovered.drops, DEFAULT_BACKEND_PACK.drops);
   f.setPayment('pending'); const next = await f.service.create('player', { ...request, idempotencyKey: 'backend-another-request-123' });
   assert.equal(next.payment.amount, '1000000'); assert.deepEqual(next.drops, [{ figureId: 'ore', weight: 1000000 }]);
+});
+test('delivery prepayment is a server-owned snapshot, never replaced on retries or supplied by the client', async () => {
+  const f = fixture(); const order = await f.service.create('player', { ...request, deliveryFunding: { amountLamports: '1', recipient: buyer } });
+  assert.deepEqual(order.deliveryFunding, { recipient: otherBuyer, amountLamports: '2759680' });
+  const prepare = f.chain.prepare;
+  f.chain.prepare = async (...args) => ({ ...await prepare(...args), deliveryFunding: { recipient: otherBuyer, amountLamports: '3000000' }, networkFeeLamports: '3010000' });
+  assert.deepEqual((await f.replica.create('player', request)).deliveryFunding, order.deliveryFunding);
+  const next = await f.service.create('player', { ...request, idempotencyKey: 'new-delivery-fee-request-123' });
+  assert.equal(next.deliveryFunding?.amountLamports, '3000000');
+  assert.equal(next.payment.amount, order.payment.amount);
+  assert.deepEqual(next.drops, order.drops);
+});
+test('a missing finalized SOL prepayment cannot draw or deliver a pack even when SKR was sent', async () => {
+  const f = fixture(); const order = await f.service.create('player', request);
+  const status = f.chain.paymentStatus;
+  f.chain.paymentStatus = async () => { throw new ShopError('Pack delivery payment verification needs attention.', 503); };
+  await assert.rejects(() => f.service.get('player', order.id), /delivery payment verification/);
+  const stored = JSON.parse(f.redis.data.get(`ripsy:packs:order:${order.id}`)!);
+  assert.equal(stored.paid, false); assert.equal(stored.order.result, null);
+  assert.equal(f.counts().draws, 0); assert.equal(f.counts().deliveryCount, 0); assert.deepEqual(f.sends, []);
+  f.chain.paymentStatus = status; f.setPayment('paid');
+  assert.ok((await f.replica.get('player', order.id)).result);
+});
+test('old sponsored quotes stay sponsored after upgrade, including paid background delivery', async () => {
+  const f = fixture(); const order = await f.service.create('player', request);
+  const key = `ripsy:packs:order:${order.id}`, stored = JSON.parse(f.redis.data.get(key)!);
+  delete stored.order.deliveryFunding; stored.order.networkFeeLamports = '10000';
+  f.redis.data.set(key, JSON.stringify(stored));
+  const pending = await f.replica.create('player', request);
+  assert.equal(pending.deliveryFunding, undefined); assert.equal(pending.networkFeeLamports, '10000');
+  f.setPayment('paid'); const resolved = await f.service.get('player', order.id);
+  assert.equal(resolved.deliveryFunding, undefined); assert.ok(resolved.result);
+  f.delivered(); assert.equal((await f.replica.get('player', order.id)).status, 'confirmed');
+  assert.equal(f.counts().prepareCount, 1); assert.equal(f.counts().draws, 1);
 });
 test('failed/expired payments do not draw or deliver and late retries keep terminal state', async () => {
   for (const status of ['failed', 'expired'] as const) {

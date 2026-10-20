@@ -32,6 +32,7 @@ try {
     assert.equal(catalog.engine, 'backend');
     assert.ok(Number.isSafeInteger(catalog.version) && catalog.version >= 1);
   } else assert.equal(catalog.version, expectedEdition.version);
+  if (process.argv.includes('--buyer-funded')) assert.equal(catalog.deliveryPayment, 'buyer-prepaid');
   assert.match(catalog.payment.amount, /^[1-9]\d{0,15}$/);
   const expectedPrice = process.argv.find(a => a.startsWith('--price='))?.slice(8);
   if (expectedPrice) assert.equal(catalog.payment.amount, expectedPrice);
@@ -77,6 +78,7 @@ try {
   for (const drop of catalog.drops) assert.ok(manifest.figures.some(f => f.id === drop.figureId), 'Published pack model must have resources');
   console.log(JSON.stringify({ healthy: true, authenticationRequired: true,
     engine: catalog.engine ?? 'legacy',
+    deliveryPayment: catalog.deliveryPayment ?? 'sponsored',
     packPurchasesBlocked: !catalog.available, priceBaseUnits: catalog.payment.amount, weightsValid: true, legacyCatalogCompatible: true,
     paidTransactionCreated: false }));
 } catch (error) {

@@ -37,7 +37,7 @@ export class BackendPackService {
   constructor(private redis: ShopRedis, private settings: BackendPackSettingsService, private chain: BackendPackChain,
     private enabled: boolean, private origin: string, private prefix = 'ripsy', private legacy?: Pick<PackChain, 'status'>,
     private entropy: () => Uint8Array = () => randomBytes(32)) {}
-  catalog() { return this.settings.catalog(this.enabled); }
+  async catalog() { return { ...await this.settings.catalog(this.enabled), deliveryPayment: 'buyer-prepaid' as const }; }
   async recoverDue(onError: (error: unknown) => void = () => undefined) {
     const ids = await this.redis.eval("return redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',ARGV[1],'LIMIT',0,5)",
       { keys: [`${this.prefix}:packs:pending`], arguments: [String(Date.now())] }) as string[];
@@ -74,7 +74,7 @@ export class BackendPackService {
       // Private seed is stored only on the server; neither it nor delivery bytes
       // are included in the public order. Result entropy is entirely separate.
       const nonce = randomBytes(32).toString('hex');
-      const quote = await this.chain.prepare(buyer, id, nonce, structuredClone(catalog), input.paymentMode as 'sol' | undefined);
+      const quote = await this.chain.prepare(buyer, id, nonce, structuredClone(catalog), input.paymentMode as 'sol' | undefined, rewards);
       const order: PackOrder = { ...quote, id, status: 'prepared', createdAt: Date.now(), signature: null, result: null, randomness: null };
       parsePackOrder(order);
       await save({ engine: 'backend-v1', playerId, nonce, rewards, paid: false, order });

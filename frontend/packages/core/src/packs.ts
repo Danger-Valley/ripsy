@@ -21,6 +21,7 @@ export interface PackDrop {
 }
 export interface PackCatalog {
   engine?: 'backend';
+  deliveryPayment?: 'buyer-prepaid';
   name: string;
   available: boolean;
   version: number;
@@ -47,6 +48,8 @@ export type PackStatus =
   | "expired";
 export interface PackOrder {
   engine?: 'backend';
+  /** Prepaid SOL budget for automatic delivery. Missing on older sponsored orders. */
+  deliveryFunding?: PackDeliveryFunding;
   solFunding?: SolFunding;
   id: string;
   buyer: string;
@@ -62,9 +65,14 @@ export interface PackOrder {
   signature: string | null;
   result: FigureId | null;
   randomness: string | null;
+  /** All additional buyer SOL costs, including deliveryFunding (not added twice). */
   networkFeeLamports: string;
   lastValidBlockHeight: number;
   createdAt: number;
+}
+export interface PackDeliveryFunding {
+  recipient: string;
+  amountLamports: string;
 }
 export function isTerminalPack(order: PackOrder) {
   return ["confirmed", "failed", "expired"].includes(order.status);
@@ -97,6 +105,7 @@ export function parsePackCatalog(value: unknown): PackCatalog {
   if (
     !c ||
     (c.engine !== undefined && c.engine !== 'backend') ||
+    (c.deliveryPayment !== undefined && (c.engine !== 'backend' || c.deliveryPayment !== 'buyer-prepaid')) ||
     typeof c.name !== "string" ||
     typeof c.available !== "boolean" ||
     !Number.isSafeInteger(c.version) ||
@@ -146,6 +155,12 @@ export function parsePackOrder(value: unknown): PackOrder {
     o.createdAt < 0
   )
     throw new Error("Invalid pack order");
+  if (o.deliveryFunding !== undefined && (o.engine !== 'backend' || !o.deliveryFunding
+    || !isAddress(o.deliveryFunding.recipient) || o.deliveryFunding.recipient === o.buyer
+    || typeof o.deliveryFunding.amountLamports !== 'string' || !/^[1-9]\d{0,7}$/.test(o.deliveryFunding.amountLamports)
+    || BigInt(o.deliveryFunding.amountLamports) > 10_000_000n
+    || BigInt(o.deliveryFunding.amountLamports) > BigInt(o.networkFeeLamports)))
+    throw new Error('Invalid pack delivery budget');
   parsePackCatalog({
     name: "Fighter pack",
     available: true,

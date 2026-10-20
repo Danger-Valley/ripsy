@@ -4,6 +4,8 @@ Open `https://www.ripsy.fun/admin/shop` in a browser with a Wallet Standard Sola
 
 ## Backend pack settings - 2026-10-16
 
+Production pause (2026-10-20): `PACK_ENABLED=false` blocks new pack purchases regardless of the admin availability toggle. Saved price/chances and implementation are retained for later work; paid recovery remains active. Ordinary figure sales remain enabled. Do not re-enable the global flag without a new user request. See `PACK_SHOP_SETUP.md` for the live pause check.
+
 Buyer-funded delivery follow-up (2026-10-20): the editable pack price remains 10 SKR and probabilities remain 40/40/20. New orders additionally collect a server-calculated SOL delivery budget within the same wallet approval, with unused budget returned atomically during NFT creation. This is not an editable merchant surcharge or another pack-price revision. Admin saves still change only new quote snapshots; existing sponsored/prepaid orders retain their captured terms. No contract transaction, admin wallet payment, probability change or new native binary is required. Calculation, limits and verification: `PACK_SHOP_SETUP.md`.
 
 The active pack editor saves price, chances and availability together on the backend. Defaults preserve the last live values: **10 SKR**, **Jup 40%**, **BONK 40%**, **ORE 20%**. Sign the administrative login message once, edit **Fighter pack**, then choose **Save pack settings**. No wallet transaction, new onchain edition or network fee is required. USD remains a display-only estimate.

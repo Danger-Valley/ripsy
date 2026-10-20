@@ -1,5 +1,11 @@
 # Fighter packs
 
+## Packs paused - 2026-10-20
+
+At the user's request, production `PACK_ENABLED=false` disables new pack purchases. `PACK_ENGINE=backend` and the saved 10 SKR / Jup 40%, BONK 40%, ORE 20% settings remain intact for later work. The catalog returns `available=false`; fresh order requests return 503 before preparing a payment. The global flag overrides the admin availability toggle. Existing saved purchases remain recoverable and paid delivery keeps retrying. Ordinary figure sales are unchanged. No contract/source removal or native rebuild is required.
+
+Verify the pause with `node scripts/check-pack-api.mjs --backend --buyer-funded --price=10000000` (without `--enabled`). It checks both unavailable catalog and rejection of a fresh purchase without signing or sending a transaction. The enabled/deployment notes below are historical implementation evidence, not current availability. Re-enable only after a new user request.
+
 ## Current buyer-funded delivery - 2026-10-20
 
 New packs keep **10 SKR**, **Jup 40%**, **BONK 40%**, **ORE 20%**, with automatic delivery paid by the buyer rather than sponsored by RIPSY. One wallet approval covers the SKR purchase, optional Jupiter Buy with SOL exchange and a standard SOL transfer to the existing delivery authority. There are still two blockchain transactions (payment and automatic delivery), not two buyer approvals. No custom pack program or VRF is used.

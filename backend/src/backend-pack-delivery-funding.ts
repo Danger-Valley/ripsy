@@ -19,7 +19,7 @@ export async function packDeliveryNetworkFee(umi: Umi, tx: Transaction): Promise
   const fee = await umi.rpc.call<{ value: number | null }>('getFeeForMessage',
     [Buffer.from(tx.serializedMessage).toString('base64'), { commitment: 'confirmed' }]);
   if (!Number.isSafeInteger(fee?.value) || fee.value! <= 0 || fee.value! > 100_000)
-    throw new ShopError('Could not estimate pack delivery fees. No payment was sent.', 503);
+    throw new ShopError('Could not estimate pack delivery fees. Please check the saved purchase again shortly.', 503);
   return BigInt(fee.value!);
 }
 

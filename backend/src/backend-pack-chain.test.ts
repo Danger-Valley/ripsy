@@ -222,6 +222,15 @@ test('insufficient SOL or malformed creation simulation never returns a payable 
   f.umi.rpc.simulateTransaction = (async () => ({ err: 'InsufficientFunds', accounts: [] })) as unknown as RpcInterface['simulateTransaction'];
   await assert.rejects(() => f.prepare(), /SOL balance/);
 });
+test('a paid delivery RPC outage never claims that the already completed payment was not sent', async () => {
+  const f = fixture(); const order = await f.prepare();
+  order.result = 'ore'; order.randomness = 'ab'.repeat(32); order.status = 'ready-to-claim';
+  f.setNetworkFee(null);
+  await assert.rejects(() => f.chain.prepareDelivery(order, f.nonce, f.rewards.find(r => r.figureId === 'ore')!), error => {
+    assert.ok(error instanceof Error); assert.match(error.message, /check the saved purchase/);
+    assert.doesNotMatch(error.message, /No payment was sent/); return true;
+  });
+});
 test('legacy sponsored payments still recover without a new SOL transfer or quote', async () => {
   const f = fixture(); const order = await f.prepare();
   delete order.deliveryFunding;

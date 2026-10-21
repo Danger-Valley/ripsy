@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { figurePrice, formatSol, solFundingNotice, solanaExplorer } from "@rps/core/shop";
@@ -25,6 +26,8 @@ export function PackCard({
   const definitions = useFigureCatalog();
   const name = (id: string) => definitions.find(f => f.id === id)?.name ?? id;
   const image = (id: string) => definitions.find(f => f.id === id)?.imageUrl ?? `/figures/${id}.png`;
+  // Hide unavailable/unresolved products, but never strand a saved purchase.
+  if (!catalog?.available && !pack.hasPurchase) return null;
   return (
     <section
       className={styles.review}
@@ -35,7 +38,7 @@ export function PackCard({
         {order?.status === "confirmed" ? "Your new fighter!" : "Fighter pack"}
       </h2>
       {pack.error && <p role="alert">{pack.error}</p>}
-      {catalog && !pack.hasPurchase && (
+      {catalog?.available && !pack.hasPurchase && (
         <>
           <p>One pack. One surprise fighter. Available on every device.</p>
           <div className={styles.packDrops}>
@@ -63,9 +66,7 @@ export function PackCard({
             disabled={!catalog.available || !pack.ready || blocked || pack.busy}
             onClick={onBuy}
           >
-            {!catalog.available
-              ? "Packs coming soon"
-              : address
+            {address
               ? "Buy pack"
               : "Sign in to buy a pack"}
           </button>
@@ -168,15 +169,6 @@ export function PackCard({
             )}
           </div>
         </>
-      )}
-      {!catalog && !pack.hasPurchase && (
-        <button
-          onClick={() => {
-            void pack.loadCatalog();
-          }}
-        >
-          Check pack availability
-        </button>
       )}
     </section>
   );

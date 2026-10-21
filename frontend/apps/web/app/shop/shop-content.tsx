@@ -80,7 +80,7 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
     {error && <div className={styles.error} role="alert"><p>{figureStoreMessage(error)}</p><button onClick={() => { setActionError(null); void (shop.hasPurchase ? shop.checkStatus() : shop.loadCatalog()); }}>Try again</button></div>}
 
     <PackCard pack={pack} address={address} blocked={shop.hasPurchase || walletBusy} onBuy={() => {
-      if (!shop.ready || !pack.ready || shop.hasPurchase || pack.hasPurchase || walletBusy) return;
+      if (!pack.catalog?.available || !shop.ready || !pack.ready || shop.hasPurchase || pack.hasPurchase || walletBusy) return;
       if (address) void pack.prepare(address);
       else if (embedded?.ready) { setWalletKind('privy'); embedded.login(); }
       else setWalletMenu(true);

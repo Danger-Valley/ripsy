@@ -1,5 +1,9 @@
 # Fighter packs
 
+## Storefront hidden when paused - 2026-10-21
+
+Updated native/web clients omit the pack product card entirely unless the catalog explicitly returns `available=true`, including during initial loading or catalog failure. There is no Coming soon placeholder, chance/price panel or availability button. Saved purchases retain their recovery and reward actions independently of new-product visibility. No pack implementation or saved settings were removed. This UI change needs a new native build after 67 (and a web deployment); disabling purchases itself was already live without that update.
+
 ## Packs paused - 2026-10-20
 
 At the user's request, production `PACK_ENABLED=false` disables new pack purchases. `PACK_ENGINE=backend` and the saved 10 SKR / Jup 40%, BONK 40%, ORE 20% settings remain intact for later work. The catalog returns `available=false`; fresh order requests return 503 before preparing a payment. The global flag overrides the admin availability toggle. Existing saved purchases remain recoverable and paid delivery keeps retrying. Ordinary figure sales are unchanged. No contract/source removal or native rebuild is required.

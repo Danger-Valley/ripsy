@@ -202,7 +202,7 @@ export function ShopScreen({ navigation, route }: Props) {
         {error && !shop.hasPurchase && purchasePopup !== 'figure' && <ToyHomePanel style={styles.errorPanel}><StatusBanner message={figureStoreMessage(error)} tone="error" /><ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.loadCatalog())}>Try again</ToyHomeButton></ToyHomePanel>}
 
         <ShopPack pack={pack} address={address} walletSupported={wallet.isSupported} accountBusy={preparingShop || (wallet.isSupported && walletBusy)} blocked={activeFigurePurchase || purchaseBusy} onBuy={() => {
-          if (!shop.ready || !pack.ready || preparingShop || directSigningRef.current || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)) return;
+          if (!pack.catalog?.available || !shop.ready || !pack.ready || preparingShop || directSigningRef.current || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)) return;
           if (!address) { requestAccount(); return; }
           setPurchasePopup('pack');
           buyAndSign(() => pack.prepare(address, signPurchase));

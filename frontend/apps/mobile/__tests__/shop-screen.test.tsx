@@ -7,6 +7,7 @@ import { INITIAL_PACK, PACK_PAYMENT } from '@rps/core/packs';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, type MintOrder, type ShopFigure } from '@rps/core/shop';
 import { ShopScreen } from '../src/screens/shop-screen';
 import { StatusBanner } from '../src/components/status-banner';
+import { ShopPack } from '../src/components/shop-pack';
 import { usePlayerIdentity } from '../src/hooks/use-player-identity';
 import { useSolanaWallet } from '../src/hooks/use-solana-wallet';
 import { usePrivyWallet } from '../src/hooks/use-privy-wallet';
@@ -25,7 +26,7 @@ const buyer = 'buyer11111111111111111111111111111';
 const fig2: ShopFigure = { id: 'fig2', variant: 2, name: 'Seeker fighter', description: 'A new face for your collection.', imageUrl: 'https://example.test/fig2.png', priceLamports: '10000000', available: true, seekerExclusive: true };
 const order: MintOrder = { id: 'a'.repeat(64), figureId: 'fig2', buyer, asset: 'asset11111111111111111111111111111', treasury: 'treasury11111111111111111111111111', collection: 'collection11111111111111111111111', cluster: 'mainnet-beta', priceLamports: '10000000', networkFeeLamports: '1005000', transaction: 'AQ==', lastValidBlockHeight: 100, createdAt: 1, status: 'prepared', signature: null, error: null };
 const shop = { catalog: { cluster: 'mainnet-beta', collection: order.collection, treasury: order.treasury, figures: [fig2] }, order: null, hasPurchase: false, signingStarted: false, ready: true, busy: false, error: null, prepare: jest.fn(), retry: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn(), clearWallet: jest.fn() };
-const pack = { ...shop, catalog: INITIAL_PACK, prepare: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn() };
+const pack = { ...shop, catalog: { ...INITIAL_PACK, available: true }, prepare: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn() };
 const disconnect = jest.fn();
 const connect = jest.fn();
 const sendCode = jest.fn();
@@ -139,12 +140,49 @@ test('saved purchase recovery waits for startup readiness instead of opening a s
   expect(purchaseModal('figure')).toBeDefined(); expect(shop.confirm).not.toHaveBeenCalled();
 });
 
-test('pack availability loading shows busy feedback and ignores taps until initialization completes', async () => {
+test('an unresolved pack catalog has no card or availability button during startup', async () => {
   external(); setShop({ ready: false }); setPack({ catalog: null }); await mount();
-  expect(button('Check pack availability').props.accessibilityState.busy).toBe(true); expect(button('Check pack availability').props.disabled).toBe(true);
-  await press('Check pack availability'); expect(pack.loadCatalog).not.toHaveBeenCalled();
-  setShop({}); await updateScreen(); await press('Check pack availability');
-  expect(pack.loadCatalog).toHaveBeenCalledTimes(1);
+  expect(tree.root.findByType(ShopPack).children).toHaveLength(0);
+  expect(text('Fighter pack')).toBe(false);
+  expect(button('Check pack availability')).toBeUndefined();
+  expect(button('Buy fighter pack')).toBeUndefined();
+  expect(text('Preparing shop...')).toBe(true);
+  setShop({}); await updateScreen();
+  expect(text('Fighter pack')).toBe(false);
+  expect(button('Buy Seeker fighter').props.disabled).toBe(false);
+  expect(pack.prepare).not.toHaveBeenCalled();
+});
+
+test.each([null, 'Pack catalog unavailable'])('a paused pack is completely hidden, including a catalog error: %s', async error => {
+  external(); setPack({ catalog: { ...INITIAL_PACK, available: false }, error }); await mount();
+  expect(tree.root.findByType(ShopPack).children).toHaveLength(0);
+  expect(text('Fighter pack')).toBe(false);
+  expect(text('One pack. One surprise fighter. Available on every device.')).toBe(false);
+  expect(text('Packs coming soon')).toBe(false);
+  expect(button('Buy fighter pack')).toBeUndefined();
+  expect(button('Check pack availability')).toBeUndefined();
+  expect(button('Buy Seeker fighter').props.disabled).toBe(false);
+  expect(visibleModals()).toHaveLength(0);
+  expect(pack.prepare).not.toHaveBeenCalled();
+  setPack({ catalog: { ...INITIAL_PACK, available: true } }); await updateScreen();
+  expect(text('Fighter pack')).toBe(true);
+  expect(button('Buy fighter pack').props.disabled).toBe(false);
+});
+
+test('a paid pack remains recoverable while its product card is hidden', async () => {
+  external(); setPack({ catalog: { ...INITIAL_PACK, available: false }, hasPurchase: true,
+    signingStarted: true, order: { ...packOrder, status: 'waiting-result' } });
+  await mountRecovery();
+  expect(text('Fighter pack')).toBe(false);
+  expect(button('Buy fighter pack')).toBeUndefined();
+  expect(button('Check pack status')).toBeDefined();
+  await press('Check pack status');
+  expect(pack.checkStatus).toHaveBeenCalledTimes(1);
+  setPack({ catalog: { ...INITIAL_PACK, available: false }, hasPurchase: true,
+    signingStarted: true, order: { ...packOrder, status: 'confirmed', result: 'bonk' } });
+  await updateScreen(); await press('Add to your army');
+  expect(navigate).toHaveBeenCalledWith('Army', { expectedAssetId: packOrder.asset });
+  expect(pack.prepare).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
 });
 
 test('quantity selection changes the total and one explicit Buy passes the selected count', async () => {

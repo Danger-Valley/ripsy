@@ -32,6 +32,8 @@ export function ShopPack({
   const catalog = pack.catalog;
   const activePurchase = pack.hasPurchase && (!pack.order || !isTerminalPack(pack.order));
   const definitions = useFigureCatalog();
+  // Recovery lives in the separate purchase dialog, not this product card.
+  if (!catalog?.available) return null;
   return (
     <ToyHomePanel style={styles.card}>
       <View style={styles.heading}>
@@ -76,9 +78,7 @@ export function ShopPack({
               onPress={onBuy}
               accessibilityLabel="Buy fighter pack"
             >
-              {!catalog.available
-                ? 'Packs coming soon'
-                : address
+              {address
                 ? `Buy pack - ${packPrice(catalog.payment)}`
                 : walletSupported ? 'Connect your wallet' : 'Register to buy a pack'}
             </ToyHomeButton>
@@ -87,11 +87,6 @@ export function ShopPack({
             {packPrice(catalog.payment)} + additional fees. Approve when prompted.
           </Text>
         </>
-      )}
-      {!catalog && !activePurchase && (
-        <ToyHomeButton compact tone="white" busy={accountBusy} disabled={accountBusy} onPress={() => { if (!accountBusy) pack.loadCatalog(); }}>
-          Check pack availability
-        </ToyHomeButton>
       )}
     </ToyHomePanel>
   );

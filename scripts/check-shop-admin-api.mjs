@@ -17,7 +17,8 @@ try {
   for (const [path, method] of [['/shop/admin/prices', 'PUT'], ['/shop/admin/pack-settings', 'PUT'], ['/shop/admin/publications', 'POST'], ['/shop/admin/pack-price', 'POST']]) assert.equal((await get(path, { method, headers, body: '{}' })).status, 401);
   stage = 'cors'; assert.equal((await get('/shop/admin/config', { headers: { origin: 'https://not-ripsy.invalid' } })).status, 403);
   stage = 'catalog'; const catalog = await (await get('/shop/catalog?catalogVersion=4')).json();
-  assert.deepEqual(catalog.figures.map(f => f.id), ['fig2', 'bonk', 'jup', 'ore']);
+  const manifest = await (await get('/shop/figures')).json();
+  assert.deepEqual(catalog.figures.map(f => f.id), manifest.figures.filter(f => f.purchasable).map(f => f.id));
   stage = 'seeker-payment'; const seeker = catalog.figures.find(f => f.id === 'fig2');
   assert.equal(seeker.seekerExclusive, true); assert.equal(seeker.priceLamports, '0');
   assert.equal(seeker.tokenPayment.mint, 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3');

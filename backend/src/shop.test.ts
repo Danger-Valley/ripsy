@@ -4,6 +4,7 @@ import { loadShopConfig, shopCatalog, type ShopConfig } from './shop-config.js';
 import { ShopError, ShopService, type ShopRedis } from './shop-service.js';
 import type { ShopChain } from './shop-chain.js';
 import { FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, figurePurchaseTotal, formatSol, parseShopCatalog } from '@rps/core/shop';
+import { FIGURES as REGISTERED_FIGURES } from './figure-registry.js';
 
 const buyer = '11111111111111111111111111111111';
 const config: ShopConfig = { ...loadShopConfig({}), cluster: 'mainnet-beta', enabled: true, treasury: 'So11111111111111111111111111111111111111112', collection: 'SysvarRent111111111111111111111111111111111', prices: { fig1: '100000000', fig2: '200000000' } };
@@ -48,7 +49,7 @@ test('shop is disabled by default; no invented prices and no signing secrets in 
   assert.ok(catalog.figures.every(figure => !figure.available));
   assert.equal(catalog.figures[0]!.priceLamports, '0');
   assert.deepEqual(catalog.figures[0]!.tokenPayment, FIGURE_TOKEN_PAYMENTS.fig2);
-  assert.deepEqual(catalog.figures.map(figure => figure.id), ['fig2', 'bonk', 'jup', 'ore']);
+  assert.deepEqual(catalog.figures.map(figure => figure.id), REGISTERED_FIGURES.filter(f => f.purchasable).map(f => f.id));
   assert.ok(!JSON.stringify(catalog).includes('not-public'));
   assert.ok(!JSON.stringify(shopCatalog(loadShopConfig({ JUPITER_API_KEY: 'server-only-test-key' }))).includes('server-only-test-key'));
   assert.throws(() => loadShopConfig({ SHOP_ENABLED: 'true' }), /incomplete/);
@@ -247,6 +248,19 @@ test('network errors do not erase an order or make it safe to charge again', asy
   const stored = JSON.parse((await f.redis.get(`ripsy:shop:order:${order.id}`))!);
   assert.equal(stored.order.status, 'prepared');
   assert.equal(f.prepares(), 1);
+});
+
+test('new SKR figures use authoritative 450-SKR quotes, stay out of legacy catalogs and reject client prices', async () => {
+  const f = fixture();
+  const all = await f.service.liveCatalog(4);
+  for (const [id, variant] of [['alien', 6], ['robot', 7], ['skull', 8]] as const) {
+    const product = all.figures.find(figure => figure.id === id)!;
+    assert.equal(product.variant, variant); assert.equal(product.seekerExclusive, false);
+    const receipt = await f.service.create('player', { figureId: id, buyer, idempotencyKey: `new-skr-${id}-123456`, tokenPayment: { amount: '1' }, priceLamports: '1' });
+    assert.equal(receipt.tokenPayment!.amount, '450000000');
+    assert.equal(figurePaymentPrice(receipt, 'mainnet-beta'), '450 SKR');
+    for (const version of [1, 2, 3]) assert.ok(!(await f.service.liveCatalog(version)).figures.some(figure => figure.id === id));
+  }
 });
 
 test('BONK/Jup/ORE prices are fixed, mainnet-only and cannot be overridden by clients', async () => {

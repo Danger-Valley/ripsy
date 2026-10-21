@@ -82,5 +82,59 @@
       "sha256": "68dfc42ecf16277df605a0acfc574f608014acdaae3260565f989cc9010f3520",
       "bytes": 385216
     }
+  },
+  {
+    "id": "alien",
+    "name": "Alien",
+    "variant": 6,
+    "description": "An out-of-this-world addition to your army.",
+    "seekerExclusive": false,
+    "purchasable": true,
+    "tokenPayment": {
+      "mint": "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3",
+      "symbol": "SKR",
+      "decimals": 6,
+      "amount": "450000000"
+    },
+    "animation": {
+      "sha256": "8931145bd2867571f23266f6d6297b982bd4d78ac6632424b0c0a4754c325137",
+      "bytes": 375940
+    }
+  },
+  {
+    "id": "robot",
+    "name": "Robot",
+    "variant": 7,
+    "description": "Built for battle. Ready for your army.",
+    "seekerExclusive": false,
+    "purchasable": true,
+    "tokenPayment": {
+      "mint": "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3",
+      "symbol": "SKR",
+      "decimals": 6,
+      "amount": "450000000"
+    },
+    "animation": {
+      "sha256": "15ddc0bed53355eb0e81c3e463abd24118d5b2b346d660ceb4960890deb0e015",
+      "bytes": 376238
+    }
+  },
+  {
+    "id": "skull",
+    "name": "Skull",
+    "variant": 8,
+    "description": "A fearless fighter with a mischievous grin.",
+    "seekerExclusive": false,
+    "purchasable": true,
+    "tokenPayment": {
+      "mint": "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3",
+      "symbol": "SKR",
+      "decimals": 6,
+      "amount": "450000000"
+    },
+    "animation": {
+      "sha256": "e6870dd08e41c4c7ee98baa89d5b6b6396728a7f9bff5586f36b8635163a8ae4",
+      "bytes": 382182
+    }
   }
 ]

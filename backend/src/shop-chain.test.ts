@@ -7,7 +7,8 @@ import { Key, MPL_CORE_PROGRAM_ID } from '@metaplex-foundation/mpl-core';
 import { getCollectionV1AccountDataSerializer } from '@metaplex-foundation/mpl-core/dist/src/generated/types/collectionV1AccountData.js';
 import { createShopChain } from './shop-chain.js';
 import { loadShopConfig } from './shop-config.js';
-import { FIGURES, FIGURE_TOKEN_PAYMENTS, parseMintOrder, type MintOrder } from '@rps/core/shop';
+import { parseMintOrder, type MintOrder } from '@rps/core/shop';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 import { findAssociatedTokenPda, getMintAccountDataSerializer, getTokenAccountDataSerializer, TokenState } from '@metaplex-foundation/mpl-toolbox';
 import { SHOP_TOKEN_PROGRAM } from './shop-token-payment.js';
 
@@ -128,7 +129,7 @@ test('expiry requires finalized height and complete history, not a missing RPC r
   await assert.rejects(() => f.chain.status(order), /reconciliation/);
 });
 
-function tokenFixture(id: 'fig2' | 'bonk' | 'jup' | 'ore') {
+function tokenFixture(id: string) {
   const f = fixture();
   f.config.cluster = 'mainnet-beta';
   const payment = FIGURE_TOKEN_PAYMENTS[id]!;
@@ -150,7 +151,7 @@ function tokenFixture(id: 'fig2' | 'bonk' | 'jup' | 'ore') {
   return { ...f, payment, mint, source, destination, setBalance: (value: bigint) => { tokenBalance = value; }, setDecimals: (value: number) => { decimals = value; }, setOwner: (value: typeof owner) => { owner = value; } };
 }
 
-for (const id of ['fig2', 'bonk', 'jup', 'ore'] as const) {
+for (const id of FIGURES.filter(figure => figure.purchasable && figure.tokenPayment).map(figure => figure.id)) {
   test(`${id}: three figures share one exact payment and one atomic, fully signed message`, async () => {
     const f = tokenFixture(id); const payment = { ...f.payment, amount: (BigInt(f.payment.amount) * 3n).toString() };
     f.setBalance(BigInt(payment.amount));

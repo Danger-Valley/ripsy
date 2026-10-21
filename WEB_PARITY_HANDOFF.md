@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-10-20
+Last updated: 2026-10-21
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -49,6 +49,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 ## Server-delivered figures (2026-10-08)
 
+- Alien/Robot/Skull registration (2026-10-21): backend-only IDs `alien`, `robot`, `skull`, permanent variants 6/7/8, names Alien/Robot/Skull, each 450 SKR (`450000000` units at six decimals). General figures, no Seeker-only restriction. All eight registry models match the same full contract-1 geometry, 26 timelines, machines and input types/timings. Canonical public Rive/PNG/metadata and immutable digests drive existing native/web shop, inventory, Army and remote board rendering without mobile imports/bootstrap edits or a new native build. Previews are actual Idle / No Weapon frames. Legacy v1/v2/v3 catalogs retain their original limits; v4 exposes all seven purchasable figures. Admin price controls include the new entries automatically. Packs stay paused and current saved odds/price do not change; registration does not put these new figures into the active drop table. Checks cover canonical metadata, exact 450-SKR server quotes against client tampering, one/three-asset atomic transfers, signatures, insufficient balance and currency validation. No paid purchase or physical-device visual verification is implied. Current registration and rollout evidence: `DYNAMIC_FIGURES.md`.
 - Authoritative identities, descriptions, token prices and resource digests now live in backend-only `backend/src/figure-registry.json`. Public `/shop/figures` serves validated contract-1 preview/Rive descriptors; catalog v4 accepts future IDs. Shared `FIGURES` remains an offline bootstrap only. Registry registration also drives minting, official inventory/variant authorization and pack admin checks.
 - Native shop, pack previews/results and Army render server names/images; owned inventory transports generic variants 1..255 through saved loadouts, offline engine and multiplayer snapshots. One exact asset per slot and server-selected prices/Seeker verification remain mandatory. Onchain pack editions/VRF and historical order tables remain authoritative and unchanged.
 - Native private Rive cache verifies HTTPS, exact size and SHA-256, limits individual files to 8 MiB and disk usage to 96 MiB, deduplicates concurrent downloads and exposes bounded retry. Board files remain mounted across unrelated moves, with no-op catalog refresh preserving identity. New opponent variants refresh the manifest. Saving an army preloads remote models; bundled starter models still work offline.

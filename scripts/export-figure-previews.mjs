@@ -1,14 +1,14 @@
-// Open http://127.0.0.1:3198, inspect both frames, then click Export previews.
+// Open http://127.0.0.1:3198, inspect the selected frames, then click Export previews.
 // Rive uses image meshes, which require a real browser WebGL renderer.
 import { createServer } from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const allIds = ['fig1', 'fig2', 'bonk', 'jup', 'ore'];
-const selected = process.argv.find(arg => arg.startsWith('--figure='))?.slice('--figure='.length);
-if (selected && !allIds.includes(selected)) throw new Error('Unknown figure preview');
-const ids = selected ? [selected] : allIds;
+const allIds = JSON.parse(await fs.readFile('backend/src/figure-registry.json', 'utf8')).map(figure => figure.id);
+const selected = process.argv.filter(arg => arg.startsWith('--figure=')).map(arg => arg.slice('--figure='.length));
+if (selected.some(id => !allIds.includes(id))) throw new Error('Unknown figure preview');
+const ids = selected.length ? [...new Set(selected)] : allIds;
 const html = `<!doctype html><html><meta charset="utf-8"><title>RIPSY figure previews</title>
 <style>body{background:#172129;color:white;font:16px system-ui}canvas{width:400px;height:400px}button{padding:16px}</style>
 <h1>Rive idle frame previews</h1><p id="status">Rendering…</p><div id="figures"></div><button id="export" disabled>Export previews</button>
@@ -27,7 +27,7 @@ artboard.draw(renderer);renderer.restore();runtime.resolveAnimationFrame();canva
 }
 document.querySelector('#status').textContent='Ready: first Idle frame, no weapon.';document.querySelector('#export').disabled=false;
 }
-document.querySelector('#export').onclick=async()=>{for(const canvas of document.querySelectorAll('canvas')){const response=await fetch('/export/'+canvas.dataset.figure,{method:'POST',headers:{'Content-Type':'image/png'},body:await new Promise(resolve=>canvas.toBlob(resolve,'image/png'))});if(!response.ok)throw Error('Export failed');}document.querySelector('#status').textContent='Exported both PNGs to web and mobile.';};
+document.querySelector('#export').onclick=async()=>{for(const canvas of document.querySelectorAll('canvas')){const response=await fetch('/export/'+canvas.dataset.figure,{method:'POST',headers:{'Content-Type':'image/png'},body:await new Promise(resolve=>canvas.toBlob(resolve,'image/png'))});if(!response.ok)throw Error('Export failed');}document.querySelector('#status').textContent='Exported ${ids.length} figure previews.';};
 render().then(()=>{if(location.search==='?export=1')document.querySelector('#export').click();}).catch(error=>document.querySelector('#status').textContent=error.message);
 </script></html>`;
 const server = createServer(async (request, response) => {
@@ -38,14 +38,16 @@ const server = createServer(async (request, response) => {
       response.end(await fs.readFile(require.resolve(`@rive-app/canvas${request.url}`))); return;
     }
     const id = ids.find(candidate => request.url === `/${candidate}.riv`);
-    if (id && request.method === 'GET') { response.end(await fs.readFile(`frontend/apps/mobile/src/assets/figures/${id}.riv`)); return; }
+    if (id && request.method === 'GET') { response.end(await fs.readFile(`frontend/apps/web/public/figures/${id}.riv`)); return; }
     const exportId = ids.find(candidate => request.url === `/export/${candidate}`);
     if (exportId && request.method === 'POST' && request.headers.origin === 'http://127.0.0.1:3198') {
       const chunks = []; let size = 0;
       for await (const chunk of request) { size += chunk.length; if (size > 2_000_000) throw Error('Image too large'); chunks.push(chunk); }
       const png = Buffer.concat(chunks);
       if (!png.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) throw Error('PNG required');
-      for (const directory of ['frontend/apps/web/public/figures', 'frontend/apps/mobile/src/assets/shop']) {
+      const directories = ['frontend/apps/web/public/figures'];
+      if (await fs.stat(`frontend/apps/mobile/src/assets/figures/${exportId}.riv`).then(value => value.isFile(), () => false)) directories.push('frontend/apps/mobile/src/assets/shop');
+      for (const directory of directories) {
         await fs.mkdir(directory, { recursive: true }); await fs.writeFile(path.join(directory, `${exportId}.png`), png);
       }
       response.writeHead(204).end(); return;

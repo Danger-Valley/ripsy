@@ -6,6 +6,7 @@ import { generateSigner } from '@metaplex-foundation/umi';
 import { createSignInMessage } from '@solana/wallet-standard-util';
 import { decimalToUnits, unitsToDecimal, type AdminPublication } from '@rps/core/shop-admin';
 import { FIGURE_TOKEN_PAYMENTS } from '@rps/core/shop';
+import { FIGURES as REGISTERED_FIGURES } from './figure-registry.js';
 import { INITIAL_PACK, PACK_PAYMENT } from '@rps/core/packs';
 import { parseShopCatalog } from '@rps/core/shop';
 import { ShopAdminAuth } from './shop-admin-auth.js';
@@ -221,7 +222,7 @@ test('expired publications cannot be resubmitted and pack RPC errors never hide 
   const f = fixture(); const job = await f.service.prepare(admin.publicKey, { ...draft, requestId: 'publication-request-1234' });
   f.setState('expired'); assert.equal((await f.service.submit(admin.publicKey, job.id, 'signed')).status, 'expired'); assert.equal(f.sends(), 0);
   f.chain.catalog = async () => { throw new Error('RPC with secret data'); };
-  const snapshot = await f.service.snapshot(); assert.equal(snapshot.pack, null); assert.ok(!snapshot.packError!.includes('secret data')); assert.equal(snapshot.prices.figures.length, 4);
+  const snapshot = await f.service.snapshot(); assert.equal(snapshot.pack, null); assert.ok(!snapshot.packError!.includes('secret data')); assert.equal(snapshot.prices.figures.length, REGISTERED_FIGURES.filter(f => f.purchasable).length);
 });
 test('real admin HTTP boundary requires wallet proof, not customer bearer tokens, for every mutation', async t => {
   const f = fixture();

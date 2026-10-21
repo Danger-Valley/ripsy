@@ -1,0 +1,8 @@
+{
+  "name": "Robot",
+  "description": "Built for battle. Ready for your army. An official RIPSY fighter collectible.",
+  "image": "https://www.ripsy.fun/figures/robot.png",
+  "external_url": "https://www.ripsy.fun/shop",
+  "attributes": [{"trait_type":"Figure","value":"robot"},{"trait_type":"Series","value":"RIPSY Originals"}],
+  "properties": {"category":"image","files":[{"uri":"https://www.ripsy.fun/figures/robot.png","type":"image/png"}]}
+}

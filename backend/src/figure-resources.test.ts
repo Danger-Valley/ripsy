@@ -13,6 +13,21 @@ import { createGameRecord, joinGame, submitLineup, movePiece, gameView, parseGam
 
 const manifest = figureManifest('https://www.ripsy.fun');
 const future = { ...manifest.figures[2]!, id: 'future-fighter', variant: 42, name: 'Future fighter', imageUrl: 'https://www.ripsy.fun/future.png' };
+test('Alien, Robot and Skull register compatible resources and canonical metadata at exactly 450 SKR', () => {
+  const catalog = shopCatalog({ ...loadShopConfig({}), enabled: true, cluster: 'mainnet-beta' });
+  for (const [id, name, variant] of [['alien', 'Alien', 6], ['robot', 'Robot', 7], ['skull', 'Skull', 8]] as const) {
+    const definition = manifest.figures.find(f => f.id === id)!;
+    assert.equal(definition.name, name); assert.equal(definition.variant, variant);
+    assert.equal(definition.animation.contract, 1); assert.equal(definition.seekerExclusive, false);
+    const product = catalog.figures.find(f => f.id === id)!;
+    assert.equal(product.available, true);
+    assert.equal(figurePaymentPrice(product, 'mainnet-beta'), '450 SKR');
+    assert.deepEqual(product.tokenPayment, { mint: 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3', symbol: 'SKR', decimals: 6, amount: '450000000' });
+    const metadata = JSON.parse(readFileSync(new URL(`../../frontend/apps/web/public/figures/${id}.json`, import.meta.url), 'utf8'));
+    assert.equal(metadata.name, name); assert.equal(metadata.image, `https://www.ripsy.fun/figures/${id}.png`);
+    assert.ok(metadata.attributes.some((trait: { trait_type: string; value: string }) => trait.trait_type === 'Figure' && trait.value === id));
+  }
+});
 test('registering a backend-only figure adds its catalog and resources without client bootstrap edits', () => {
   const tokenPayment = { mint: '11111111111111111111111111111111', symbol: 'NEW', decimals: 0, amount: '123' };
   FIGURES.push({ ...future, tokenPayment });

@@ -1,0 +1,8 @@
+{
+  "name": "Alien",
+  "description": "An out-of-this-world addition to your army. An official RIPSY fighter collectible.",
+  "image": "https://www.ripsy.fun/figures/alien.png",
+  "external_url": "https://www.ripsy.fun/shop",
+  "attributes": [{"trait_type":"Figure","value":"alien"},{"trait_type":"Series","value":"RIPSY Originals"}],
+  "properties": {"category":"image","files":[{"uri":"https://www.ripsy.fun/figures/alien.png","type":"image/png"}]}
+}

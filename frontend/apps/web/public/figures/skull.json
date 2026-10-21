@@ -1,0 +1,8 @@
+{
+  "name": "Skull",
+  "description": "A fearless fighter with a mischievous grin. An official RIPSY fighter collectible.",
+  "image": "https://www.ripsy.fun/figures/skull.png",
+  "external_url": "https://www.ripsy.fun/shop",
+  "attributes": [{"trait_type":"Figure","value":"skull"},{"trait_type":"Series","value":"RIPSY Originals"}],
+  "properties": {"category":"image","files":[{"uri":"https://www.ripsy.fun/figures/skull.png","type":"image/png"}]}
+}

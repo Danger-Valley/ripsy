@@ -1,5 +1,15 @@
 # Adding server-delivered fighters
 
+## Alien, Robot and Skull - 2026-10-21
+
+Registered `alien` / Alien / variant 6, `robot` / Robot / variant 7 and `skull` / Skull / variant 8 at **450 SKR each** (`450000000` base units, six decimals). All three are unrestricted general figures, not Seeker exclusives. Source assets are the user-provided `rps_alien.riv`, `rps_robot.riv` and `rps_skull.riv`. Canonical resources are published under `/figures/<id>.riv`, `.png` and `.json`; preview PNGs are exported from real Idle / No Weapon frames, not generated lookalikes.
+
+The complete authored contract matches the starter: 1000x1000 artboard, 26 timelines, Front/Back machines and identical input types/timings. No native imports, bundled assets, shared-bootstrap IDs, animation controllers or gameplay rules were added/changed. Dynamic-capable installed clients (including build 67) load these models through the existing validated cache. Admin figure pricing automatically includes all three, while old catalog versions retain their original model limits. Existing figure prices and saved receipts remain unchanged.
+
+Packs remain globally paused and their existing 10-SKR / Jup 40%, BONK 40%, ORE 20% table is unchanged. The three figures are eligible for a future admin-configured table, not automatically added to current odds. The custom contract is retired; preserve its source and never republish an onchain edition for this backend flow.
+
+Rollout status: public assets are deployed and independently hash-verified, but backend activation is blocked by Railway's 2026-10-21 global deployment outage (`Deploys have been paused temporarily`). The live catalog still lists the original four products. Code/tests are complete; do not claim these new figures are purchasable until a successful backend deployment and a live v4 catalog check. Detailed verification and resume steps: `files/releases/figures-alien-robot-skull-2026-10-21.md`.
+
 The mobile and web clients now accept server-issued figure IDs and visual variants. The authoritative registry is `backend/src/figure-registry.json`. The shared `FIGURES` constant is only an offline/legacy bootstrap, not the registration allowlist.
 
 An initial native release containing this implementation is required. Installed build 56 cannot acquire support for unknown fighters through configuration alone. After that release, adding a compatible fighter does not require an iOS/Android rebuild.
@@ -9,7 +19,7 @@ An initial native release containing this implementation is required. Installed 
 - Public `GET /shop/figures`: ID, permanent numeric variant, name, description, purchase/platform flags, preview URL, Rive URL, exact byte length, SHA-256 and animation contract version.
 - Public `GET /shop/catalog?catalogVersion=4`: purchasable figures, server-selected prices and availability.
 - Authenticated inventory includes the canonical visual variant for each owned Core asset. A specific asset can occupy one slot only; ownership remains checked by the backend.
-- Pack price/drop weights/results come from the published onchain edition and the order's saved drop table, not from a client list or the figure registry. Current edition 2 stays Jup 40%, BONK 40%, ORE 20%, 1,099 SKR.
+- Pack price/drop weights/results come from backend settings and each order's captured table, not from a client list. Packs are currently paused; the saved settings remain 10 SKR and Jup/BONK/ORE 40/40/20. Historical onchain editions and retired contract source are preserved only as evidence. See `PACK_SHOP_SETUP.md`.
 - Native caches the validated manifest across launches. Missing Rives download into private storage and are checked by exact size and SHA-256 before Rive loads them. Download requests are deduplicated, automatic retries are bounded, and the board offers manual retry. Cache size is bounded to 96 MiB.
 - The board loads each required remote model once and keeps its loaded file alive across moves/attacks/traps. Foreground refreshes do not reset unchanged definitions/controllers. A newly encountered opponent variant forces a catalog refresh.
 - Offline computer lineups preserve generic variant IDs. Saving an army pre-downloads its remote models. If a resource is unavailable, do not silently substitute a different collectible.
@@ -23,7 +33,7 @@ An initial native release containing this implementation is required. Installed 
 5. Run `npm run figures:check`, backend/mobile/web tests and TypeScript. The figure checker reads the registry, validates web bytes/hash and the authored Rive contract; native asset equality is checked only for models already bundled.
 6. Deploy the public resources before the backend registration. Run the Vercel upload checker to ensure all registered assets are included and backend/native/secrets are excluded. Deploy the backend through its existing allowlisted staging workflow. A Git push alone is not evidence of a successful deployment.
 7. Check the live manifest and version-4 catalog, then use an updated physical phone to browse, acquire, equip, restart offline and encounter the model in a real game. Verify jump/combat/trap/facing and unchanged neighboring instances.
-8. To include it in packs, separately update and explicitly approve publication of an append-only pack edition. Editing the registry or local weights does not change the onchain edition or existing receipts. The current program supports at most 32 rewards per edition.
+8. To include it in future backend packs, separately edit price/chances/availability in the existing admin settings. Registration alone never changes saved weights or purchased receipts. Do not re-enable the global pack flag without a new user request; the retired contract must not be called.
 
 Example registry entry (replace the placeholder digest, size, token address and precision with independently verified values):
 

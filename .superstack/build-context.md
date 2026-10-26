@@ -240,7 +240,7 @@ No application/backend code, release, deployment, payment, pack price/odds or
 customer order was changed by this diagnostic. The 10-SKR price operation is
 recorded separately in onchain/pack-price-2026-10-12.json.
 
-## Current native release - 2026-10-20
+## Native release - 2026-10-20 (historical)
 
 Native 1.0.0 (67) is delivered on Android and TestFlight. The signed arm64 APK is
 published at https://ripsy.fun/download and its independently downloaded bytes
@@ -257,3 +257,24 @@ uses `PACK_ENABLED=false` at the user's request. New pack sales are blocked;
 paid recovery and ordinary figure sales remain active. This release does not
 re-enable packs or change prices/chances. Current operational evidence:
 `PACK_SHOP_SETUP.md`. Native artifact/upload evidence: `files/releases/1.0.0-67.md`.
+
+## Current native release - 2026-10-26
+
+Native 1.0.0 (68) is built for Android and delivered to TestFlight. The signed
+arm64 APK is retained locally at `files/builds/Ripsy-v1.0.0(68)-seeker.apk` with
+its exact R8 mapping; website/GitHub publication was skipped, so the public
+Android download still points to the prior build. No Play/dApp Store listing
+submission was performed.
+
+App Store Connect build `298bc114-412b-456a-8087-caf4006951be` is VALID/internal
+IN_BETA_TESTING with automatic notification, confirmed 2026-10-26 13:34:52
+Europe/Warsaw. The exact uploaded IPA is retained locally. Both native build
+numbers are 68, using the existing React Native Community CLI projects and
+unchanged dependencies; no Expo. All 677 mobile tests, native TypeScript,
+eight-model contract checks and both-platform preflight pass. APK/IPA signatures,
+five bundled Rive digests and per-entry configured-private-value checks pass;
+physical-device and paid-wallet testing remain unclaimed.
+
+No backend/web deployment, figure publication, authority/SOL operation, pack
+activation or price/chance/minimum-build change was performed. The old Railway
+monitor remains paused. Evidence: `files/releases/1.0.0-68.md`.

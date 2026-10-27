@@ -262,9 +262,15 @@ re-enable packs or change prices/chances. Current operational evidence:
 
 Native 1.0.0 (68) is built for Android and delivered to TestFlight. The signed
 arm64 APK is retained locally at `files/builds/Ripsy-v1.0.0(68)-seeker.apk` with
-its exact R8 mapping; website/GitHub publication was skipped, so the public
-Android download still points to the prior build. No Play/dApp Store listing
-submission was performed.
+its exact R8 mapping. Website/GitHub publication was initially skipped, then
+explicitly authorized and completed on 2026-10-27 without rebuilding. The public
+APK's 50,141,626 bytes and SHA-256
+`9a24a519d965b700fbe82f02d07df79ec3054f169a4cad5c3baa47a4040ea4b5`
+match the local artifact; after normal cache revalidation, the Download page
+shows `RIPSY Android 1.0.0 (68)` (confirmed 2026-10-27 07:33:51 UTC). The user
+also made verified Download publication the default for future requested signed
+Android release builds unless explicitly opted out; see `AGENTS.md` and
+`.superstack/learnings.md`. No Play/dApp Store listing submission was performed.
 
 App Store Connect build `298bc114-412b-456a-8087-caf4006951be` is VALID/internal
 IN_BETA_TESTING with automatic notification, confirmed 2026-10-26 13:34:52

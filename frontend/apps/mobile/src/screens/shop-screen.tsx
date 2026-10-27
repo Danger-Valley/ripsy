@@ -18,6 +18,8 @@ import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from '../components/to
 import { ToyBadge, ToyDialog } from '../components/toy-dialog';
 import { StatusBanner } from '../components/status-banner';
 import { FigureQuantity } from '../components/figure-quantity';
+import { ShopFigurePreview } from '../components/shop-figure-preview';
+import { useShopPreviewMotion, useShopPreviewViewport } from '../hooks/use-shop-previews';
 import { figurePortrait, useFigureCatalog } from '../figures/catalog';
 import { colors, spacing } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -25,6 +27,7 @@ import type { RootStackParamList } from '../navigation';
 
 const scenery = require('../assets/ui/battle-playground.png');
 const showcase = require('../assets/ui/toy-box-home-arena.png');
+const showcaseHeight = 248;
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
 type HandoffStage = 'preparing' | 'opening-wallet' | 'sending';
 const handoffTitles: Record<HandoffStage, string> = {
@@ -66,6 +69,8 @@ export function ShopScreen({ navigation, route }: Props) {
   const walletKind = wallet.isSupported ? 'external' : 'privy';
   const [walletOpen, setWalletOpen] = useState(Boolean(route.params?.signIn));
   const [purchasePopup, setPurchasePopup] = useState<'figure' | 'pack' | null>(null);
+  const previewMotion = useShopPreviewMotion(navigation);
+  const previewViewport = useShopPreviewViewport();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const seenPurchases = useRef({ figure: false, pack: false });
   // Opening the shop or recovering a saved payment never opens checkout.
@@ -191,7 +196,9 @@ export function ShopScreen({ navigation, route }: Props) {
         <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} style={styles.title}>Figure shop</Text>
         <ToyHomeButton small icon={homeArt.army} accessibilityLabel="Open your army" onPress={() => openArmy()} />
       </View>
-      <ScrollView testID="shop-scroll" keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
+      <ScrollView testID="shop-scroll" keyboardShouldPersistTaps="handled" onLayout={previewViewport.onViewportLayout}
+        onScroll={previewViewport.onScroll} scrollEventThrottle={32}
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
         <Text style={styles.subtitle}>Pick your next fighter!</Text>
         {shop.catalog?.cluster === 'devnet' && <View style={[styles.networkBadge, styles.testNetwork]}><Text style={styles.network}>TEST MODE · NO REAL PURCHASES</Text></View>}
         <Pressable testID="shop-account-shortcut" accessibilityRole="button" accessibilityLabel={preparingShop ? 'Preparing shop' : wallet.isSupported ? address ? 'Choose purchase wallet' : 'Connect your wallet' : address ? 'Manage account' : 'Register'} accessibilityState={{ disabled: preparingShop || (wallet.isSupported && walletBusy), busy: preparingShop || (wallet.isSupported && walletBusy) }} disabled={preparingShop || (wallet.isSupported && walletBusy)} onPress={() => { if (!preparingShop) requestAccount(); }} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>
@@ -212,11 +219,13 @@ export function ShopScreen({ navigation, route }: Props) {
 
         {!shop.catalog && !error && <ToyHomePanel style={styles.skeleton}><View accessibilityLabel="Loading figures" accessibilityRole="progressbar" style={styles.skeletonArt} /><View style={styles.skeletonLine} /><View style={styles.skeletonPrice} /><View style={styles.skeletonButton} /><Text style={styles.note}>Unpacking the figure shop…</Text></ToyHomePanel>}
         {shop.catalog && figures.length === 0 && <ToyHomePanel style={styles.empty}><Image source={homeArt.shop} style={styles.emptyChest} /><Text style={styles.sectionTitle}>New fighters on the way</Text><Text style={styles.copy}>The shelves are empty for now. Your free army is always ready.</Text><ToyHomeButton compact onPress={() => openArmy()}>Open your army</ToyHomeButton></ToyHomePanel>}
-        {figures.map(figure => <ToyHomePanel key={figure.id} style={styles.figureCard}>
+        {figures.map(figure => <View key={figure.id} testID={`shop-card-${figure.id}`}
+          onLayout={event => previewViewport.onCardLayout(figure.id, event, showcaseHeight)}><ToyHomePanel style={styles.figureCard}>
           <View style={styles.showcase}>
             <Image pointerEvents="none" accessibilityElementsHidden source={showcase} style={styles.showcaseScenery} />
             <View pointerEvents="none" style={styles.plinthBase} /><View pointerEvents="none" style={styles.plinthTop} />
-            <Image accessibilityLabel={figure.name + ' preview'} source={figurePortrait(figure.id, definitions, figure.imageUrl)} style={styles.figureImage} />
+            <ShopFigurePreview figure={figure} definition={definitions.find(definition => definition.id === figure.id)}
+              active={previewMotion && !walletOpen && purchasePopup === null && previewViewport.visibleIds.includes(figure.id)} />
             {figure.seekerExclusive && <View style={styles.exclusive}><Text style={styles.exclusiveText}>SEEKER EXCLUSIVE</Text></View>}
           </View>
           <View style={styles.cardCopy}>
@@ -229,7 +238,7 @@ export function ShopScreen({ navigation, route }: Props) {
             </ToyHomeButton>
             <Text style={styles.note}>{needsSolanaMobile(figure) ? 'Explore Solana Mobile in your browser' : quantityFor(figure) > 1 ? `Total for ${quantityFor(figure)} figures + additional fees` : wallet.isSupported ? 'Approve your purchase in your wallet' : 'Approve your purchase to continue'}</Text>
           </View>
-        </ToyHomePanel>)}
+        </ToyHomePanel></View>)}
         <Text style={styles.footerNote}>Each figure can fill one army slot. Your fighters’ look changes, not their weapons.</Text>
       </ScrollView>
       <ToyDialog visible={walletOpen || purchasePopup !== null}
@@ -320,9 +329,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.75 },
   errorPanel: { gap: spacing.md },
   figureCard: { padding: 0 },
-  showcase: { height: 248, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surfaceHighlight },
+  showcase: { height: showcaseHeight, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surfaceHighlight },
   showcaseScenery: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
-  figureImage: { position: 'absolute', width: 300, height: 300, bottom: 24, resizeMode: 'contain' },
   // Native molded plinths reuse the shared Toy Box material/role colors.
   plinthBase: { position: 'absolute', bottom: 13, width: 180, height: 32, borderRadius: 90, backgroundColor: colors.accentShadow },
   plinthTop: { position: 'absolute', bottom: 23, width: 180, height: 25, borderRadius: 90, backgroundColor: colors.accent },

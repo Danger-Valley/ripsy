@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, AppState, Linking, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, AppState, Linking, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import Renderer from 'react-test-renderer';
 import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
@@ -74,6 +74,24 @@ function expectSimplePurchase(id: 'figure' | 'pack') {
 }
 async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />)); }
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
+
+test('only visible shop showcases animate, and an account popup stops them without touching purchases', async () => {
+  jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  await mount();
+  const preview = () => tree.root.find(node => node.props.figure?.id === 'fig2' && typeof node.props.active === 'boolean');
+  expect(preview().props.active).toBe(false);
+  await Renderer.act(() => {
+    tree.root.findByProps({ testID: 'shop-card-fig2' }).props.onLayout({ nativeEvent: { layout: { y: 100, height: 500 } } });
+    tree.root.findByProps({ testID: 'shop-scroll' }).props.onLayout({ nativeEvent: { layout: { height: 600 } } });
+  });
+  expect(preview().props.active).toBe(true);
+  await press('Register'); expect(preview().props.active).toBe(false);
+  await press('Close shop account'); expect(preview().props.active).toBe(true);
+  await Renderer.act(() => tree.root.findByProps({ testID: 'shop-scroll' }).props.onScroll({ nativeEvent: { contentOffset: { y: 400 } } }));
+  expect(preview().props.active).toBe(false);
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
+  expect(pack.prepare).not.toHaveBeenCalled(); expect(signShopTransaction).not.toHaveBeenCalled();
+});
 
 test.each(['figure-recovery', 'pack-recovery', 'seeker-wallet', 'email-account', 'session'] as const)('shop entry explains %s loading, guards purchase taps and unlocks without auto-signing', async loading => {
   external();

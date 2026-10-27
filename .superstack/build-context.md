@@ -284,3 +284,20 @@ physical-device and paid-wallet testing remain unclaimed.
 No backend/web deployment, figure publication, authority/SOL operation, pack
 activation or price/chance/minimum-build change was performed. The old Railway
 monitor remains paused. Evidence: `files/releases/1.0.0-68.md`.
+
+## Native Shop idle preview follow-up — 2026-10-27 (source only)
+
+Purchase cards now use the actual figure's Front/No Weapon Rive idle, with the
+existing portrait retained until configuration succeeds or on failure. Animation
+is limited to measured visible showcases while focused/foreground, with Reduce
+Motion off and account/checkout popups closed. Bundled hashes, verified remote
+cache, stable native view identity and all payment/ownership behavior are retained.
+Army/pack portraits and inspected web Shop remain static. No assets, dependency,
+native bridge, backend/catalog, authority or release-channel changes were made.
+
+693 native tests/53 suites, TypeScript, focused lint, eight-model contract checks
+and both-platform Metro bundles pass. The actual Shop/Seeker idle was inspected/recorded
+in an existing iOS Simulator binary with current JS; that ad-hoc test copy has a
+local Keychain-entitlement limitation, not a verified purchase/sign-in flow.
+No physical-device/Android rendering pass or new APK/TestFlight build is claimed.
+Published build 68 remains unchanged. Behavioral handoff: `WEB_PARITY_HANDOFF.md`.

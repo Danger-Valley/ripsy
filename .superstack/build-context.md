@@ -301,3 +301,32 @@ in an existing iOS Simulator binary with current JS; that ad-hoc test copy has a
 local Keychain-entitlement limitation, not a verified purchase/sign-in flow.
 No physical-device/Android rendering pass or new APK/TestFlight build is claimed.
 Published build 68 remains unchanged. Behavioral handoff: `WEB_PARITY_HANDOFF.md`.
+
+## Native Shop authentication recovery — 2026-10-27 (source only)
+
+The reported Authentication is required message is the server's player-session
+Bearer guard, before purchase preparation. Cached but revoked credentials after
+session-secret rotation are a plausible cause; the phone's actual token was not
+inspected. Native startup now validates/renews credentials through POST /session
+before readiness, deduplicates concurrent consumers and persists securely before
+publishing. A valid token retains its player ID; only 401 invokes the existing
+one-time anonymous fallback. Network/storage errors keep the cached credential;
+15-second abort plus active-only startup backoff/foreground retry prevents a
+network outage from permanently stranding Home. Offline computer play is unchanged.
+
+Typed shop/pack 401 now offers Connect Seeker (ordinary phones: Restore shop
+access). Explicit recovery renews the HTTP session first, then authorizes MWA
+only if still mounted/focused/foreground. It never prepares/signs/submits or
+clears a purchase. Background 401 polling stops; renewed tokens and late old-token
+responses cannot create a replacement order. Exact buyer/key/signed bytes/receipts
+remain saved, including when a revoked player's order returns 404 to a new
+anonymous identity. That case needs support, not automatic rebinding/payment.
+Existing Seeker exclusivity and wrong-wallet/signature checks remain intact.
+
+All 723 native tests/54 suites (with open-handle detection), mobile/web TypeScript,
+31 web tests, focused ESLint and both-platform Metro production bundles pass.
+Existing shared no-void lint warnings remain. Browser cached-token validation and
+repair UI are not implemented; shared timeout/polling guards apply. No physical
+Seeker, real payment, new signed APK/TestFlight, backend/catalog/secret/authority
+or production change was performed. Published build 68 is unchanged; a new native
+release is needed to deliver this fix. See WEB_PARITY_HANDOFF.md for the contract.

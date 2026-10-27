@@ -36,10 +36,15 @@ function verifyQuantity(pending: PurchaseIntent, order: MintOrder) {
 
 export function useShop(baseUrl: string, sessionToken: string, storage: PurchaseStorage) {
   const client = useMemo(() => new ShopClient(baseUrl, sessionToken), [baseUrl, sessionToken]);
+  const latestToken = useRef(sessionToken);
+  latestToken.current = sessionToken;
   const [catalog, setCatalog] = useState<ShopCatalog | null>(null);
   const [intent, setIntent] = useState<PurchaseIntent | null>(null);
   const intentRef = useRef<PurchaseIntent | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A late response from a rejected token must not invalidate its replacement.
+  const [rejectedToken, setRejectedToken] = useState<string | null>(null);
+  const authenticationRequired = Boolean(sessionToken && rejectedToken === sessionToken);
   const [fundingRequired, setFundingRequired] = useState<TokenShortfall | null>(null);
   const fundingRef = useRef<TokenShortfall | null>(null);
   const preparationBlocked = useRef(false);
@@ -83,9 +88,14 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
     if (!background) { setBusy(true); setError(null); }
     try { await operation(); if (!background || !preparationBlocked.current) { setFundingRequired(null); fundingRef.current = null; preparationBlocked.current = false; } }
     catch (cause) {
+      if (cause instanceof ShopRequestError && cause.status === 401) {
+        preparationBlocked.current = true;
+        if (latestToken.current !== sessionToken) return;
+        setRejectedToken(sessionToken);
+      }
       const recovery = cause instanceof ShopRequestError ? cause.recovery : null;
       fundingRef.current = recovery; setFundingRequired(recovery);
-      preparationBlocked.current = cause instanceof ShopRequestError && !intentRef.current?.order;
+      preparationBlocked.current = cause instanceof ShopRequestError && (cause.status === 401 || !intentRef.current?.order);
       setError(message(cause));
     }
     finally { activeOperation.current = false; setBusy(false); }
@@ -188,7 +198,7 @@ export function useShop(baseUrl: string, sessionToken: string, storage: Purchase
 
   return { catalog, order: intent?.order ?? null, hasPurchase: Boolean(intent), purchaseBuyer: intent?.buyer ?? null, purchaseQuantity: intent?.quantity ?? 1,
     fundingRequired: !intent?.order && !intent?.signingStarted && !intent?.paymentMode ? fundingRequired : null, buyWithSol,
-    signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, prepare, retry, confirm, dismiss, checkStatus, loadCatalog, clearWallet };
+    signingStarted: Boolean(intent?.signingStarted), ready: restored && Boolean(sessionToken), busy, error, authenticationRequired, prepare, retry, confirm, dismiss, checkStatus, loadCatalog, clearWallet };
 }
 
 function message(cause: unknown) { return cause instanceof Error ? cause.message : 'Could not complete this request. Try again.'; }

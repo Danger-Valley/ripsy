@@ -8,7 +8,7 @@ import { packPurchaseTitle, ShopPack, ShopPackPurchase } from '../components/sho
 import { DEFAULT_SOLANA_MOBILE_STORE_URL, FIGURE_SLOTS, figureOrderQuantity, figureQuantityLimit, figureQuantityPrice, figurePaymentPrice, figureStoreMessage, isTerminalMint, type PurchaseTransaction, type ShopFigure } from '@rps/core/shop';
 import { isTerminalPack } from '@rps/core/packs';
 import { getGameWebSocketUrl } from '../config';
-import { usePlayerIdentity } from '../hooks/use-player-identity';
+import { refreshPlayerIdentity, usePlayerIdentity } from '../hooks/use-player-identity';
 import { useSolanaWallet } from '../hooks/use-solana-wallet';
 import { usePrivyWallet } from '../hooks/use-privy-wallet';
 import { proveSeekerWallet, signShopTransaction } from '../solana-wallet-adapter';
@@ -89,7 +89,9 @@ export function ShopScreen({ navigation, route }: Props) {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [connectingWallet, setConnectingWallet] = useState(false);
+  const [restoringAccess, setRestoringAccess] = useState(false);
   const connectionInFlight = useRef(false);
+  const accountRequestGeneration = useRef(0);
   const walletBusy = connectingWallet || wallet.status === 'loading' || wallet.status === 'connecting' || wallet.status === 'disconnecting';
   useEffect(() => {
     if (route.params?.signIn) setWalletOpen(true);
@@ -109,12 +111,16 @@ export function ShopScreen({ navigation, route }: Props) {
   const orderSigner = order?.buyer === address ? selectedSigner.current.sign : null;
   const canClose = !shop.signingStarted || Boolean(order && isTerminalMint(order));
   const error = actionError || shop.error || (wallet.isSupported ? wallet.error : privy.error) || sessionError;
+  const needsSessionRecovery = Boolean(shop.authenticationRequired || pack.authenticationRequired || sessionError || restoringAccess);
+  const recoveryLabel = wallet.isSupported ? 'Connect Seeker' : 'Restore shop access';
+  const recoveryCopy = wallet.isSupported ? 'Reconnect your Seeker wallet to restore shop access. Your purchase stays saved.'
+    : 'Restore your shop session to continue. Your purchase stays saved.';
   const figures = shop.catalog?.figures.filter(figure => figure.id !== 'fig1') ?? [];
   const retryable = order?.status === 'failed' || order?.status === 'expired';
   const retryDefinition = figures.find(figure => figure.id === order?.figureId);
   const retryAvailable = Boolean(retryDefinition?.available && retryDefinition.priceLamports && (!retryDefinition.seekerExclusive || wallet.isSupported));
   const accountRestoring = wallet.isSupported ? wallet.status === 'loading' : privy.activity === 'loading';
-  const initializationError = sessionError || (!shop.ready && shop.error) || (!pack.ready && pack.error)
+  const initializationError = needsSessionRecovery || (!shop.ready && shop.error) || (!pack.ready && pack.error)
     || (accountRestoring && (wallet.isSupported ? wallet.error : privy.error));
   const preparingShop = !initializationError && (!sessionToken || !shop.ready || !pack.ready || accountRestoring);
   const preparationCopy = !sessionToken ? 'Getting your shop ready...' : !shop.ready || !pack.ready ? 'Checking saved purchases...' : 'Restoring your account...';
@@ -135,6 +141,24 @@ export function ShopScreen({ navigation, route }: Props) {
     });
   };
   const requestAccount = () => {
+    if (needsSessionRecovery) {
+      if (connectionInFlight.current || purchaseBusy || walletBusy) return;
+      connectionInFlight.current = true;
+      const generation = ++accountRequestGeneration.current;
+      setConnectingWallet(true);
+      setRestoringAccess(true);
+      run(async () => {
+        try {
+          // HTTP session renewal and MWA authorization are separate. Connecting
+          // alone cannot repair a revoked Bearer token, and neither action may
+          // prepare, sign, submit, clear or replace the saved purchase.
+          await refreshPlayerIdentity();
+          if (!mounted.current || generation !== accountRequestGeneration.current || navigation.isFocused?.() === false || (AppState.currentState && AppState.currentState !== 'active')) return;
+          if (wallet.isSupported) await wallet.connect();
+        } finally { connectionInFlight.current = false; if (mounted.current) { setConnectingWallet(false); setRestoringAccess(false); } }
+      });
+      return;
+    }
     // Disconnected Seeker shoppers go directly to MWA, not an account chooser.
     // Connecting never prepares or approves a purchase automatically.
     if (!wallet.isSupported || address) { setWalletOpen(true); return; }
@@ -168,6 +192,7 @@ export function ShopScreen({ navigation, route }: Props) {
       });
       return;
     }
+    if (needsSessionRecovery) { requestAccount(); return; }
     if (!figure.available || !figure.priceLamports || !shop.ready || !pack.ready || preparingShop || directSigningRef.current || purchaseBusy || purchaseBlocked || (wallet.isSupported && walletBusy)) return;
     if (!address) { requestAccount(); return; }
     setPurchasePopup('figure');
@@ -180,7 +205,12 @@ export function ShopScreen({ navigation, route }: Props) {
     if (!retryable || !retryAvailable || !orderSigner || !shop.ready || !pack.ready || preparingShop || purchaseBusy || activePackPurchase || (wallet.isSupported && walletBusy)) return;
     buyAndSign(() => shop.retry(retryDefinition?.seekerExclusive ? proveSeekerWallet : undefined, signPurchase), Boolean(order?.solFunding));
   };
-  const figurePurchaseTitle = order?.status === 'confirmed' ? 'Welcome to your army!' : order?.status === 'failed' || order?.status === 'expired' ? 'Purchase not completed' : order?.status === 'submitted' ? 'Processing purchase' : order ? 'Continue your purchase' : error && !shop.busy ? 'Purchase needs attention' : 'Preparing purchase';
+  const figurePurchaseTitle = needsSessionRecovery ? recoveryLabel : order?.status === 'confirmed' ? 'Welcome to your army!' : order?.status === 'failed' || order?.status === 'expired' ? 'Purchase not completed' : order?.status === 'submitted' ? 'Processing purchase' : order ? 'Continue your purchase' : error && !shop.busy ? 'Purchase needs attention' : !shop.busy ? shop.hasPurchase ? 'Continue your purchase' : 'Choose your figure' : 'Preparing purchase';
+  const purchaseTitle = needsSessionRecovery ? recoveryLabel : purchasePopup === 'pack' ? packPurchaseTitle(pack) : figurePurchaseTitle;
+  const accountLabel = preparingShop ? 'Preparing shop' : needsSessionRecovery ? recoveryLabel : wallet.isSupported ? address ? 'Choose purchase wallet' : 'Connect your wallet' : address ? 'Manage account' : 'Register';
+  const accountTitle = preparingShop ? 'Preparing shop...' : needsSessionRecovery ? recoveryLabel : address ? walletKind === 'privy' ? 'Your account' : 'Seeker wallet connected' : wallet.isSupported ? 'Connect your wallet' : 'Register';
+  const accountCaption = preparingShop ? preparationCopy : needsSessionRecovery ? 'Restore access before continuing your purchase' : address ? (walletKind === 'privy' ? 'Signed in with email · tap to manage' : 'Ready to buy figures · tap to manage') : wallet.isSupported ? 'Use your Seeker wallet to buy figures' : 'Sign in with email';
+  const accountBusy = preparingShop || connectingWallet || (wallet.isSupported && walletBusy);
   const handoffTitle = handoffStage === 'opening-wallet' && !wallet.isSupported ? 'Approving purchase' : handoffTitles[handoffStage];
   const handoffCopy = handoffStage === 'preparing'
     ? `${payingWithSol ? 'Preparing your SOL payment.' : 'Checking your purchase.'} ${wallet.isSupported ? 'Your wallet will open for approval.' : 'Please wait while we prepare your purchase.'}`
@@ -201,14 +231,16 @@ export function ShopScreen({ navigation, route }: Props) {
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
         <Text style={styles.subtitle}>Pick your next fighter!</Text>
         {shop.catalog?.cluster === 'devnet' && <View style={[styles.networkBadge, styles.testNetwork]}><Text style={styles.network}>TEST MODE · NO REAL PURCHASES</Text></View>}
-        <Pressable testID="shop-account-shortcut" accessibilityRole="button" accessibilityLabel={preparingShop ? 'Preparing shop' : wallet.isSupported ? address ? 'Choose purchase wallet' : 'Connect your wallet' : address ? 'Manage account' : 'Register'} accessibilityState={{ disabled: preparingShop || (wallet.isSupported && walletBusy), busy: preparingShop || (wallet.isSupported && walletBusy) }} disabled={preparingShop || (wallet.isSupported && walletBusy)} onPress={() => { if (!preparingShop) requestAccount(); }} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>
+        <Pressable testID="shop-account-shortcut" accessibilityRole="button" accessibilityLabel={accountLabel} accessibilityState={{ disabled: accountBusy, busy: accountBusy }} disabled={accountBusy} onPress={() => { if (!accountBusy) requestAccount(); }} style={({ pressed }) => [styles.walletShortcut, pressed && styles.pressed]}>
           <View style={styles.walletIcon}><Text style={styles.walletSymbol}>◎</Text></View>
-          <View style={styles.grow}><Text accessibilityLiveRegion="polite" style={styles.walletTitle}>{preparingShop ? 'Preparing shop...' : address ? walletKind === 'privy' ? 'Your account' : 'Seeker wallet connected' : wallet.isSupported ? 'Connect your wallet' : 'Register'}</Text><Text accessibilityLiveRegion="polite" style={styles.walletCaption}>{preparingShop ? preparationCopy : address ? (walletKind === 'privy' ? 'Signed in with email · tap to manage' : 'Ready to buy figures · tap to manage') : wallet.isSupported ? 'Use your Seeker wallet to buy figures' : 'Sign in with email'}</Text></View>
-          {preparingShop || (wallet.isSupported && walletBusy) ? <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel={preparingShop ? 'Preparing shop' : 'Connecting wallet'} color={colors.accentShadow} /> : <Text style={styles.chevron}>›</Text>}
+          <View style={styles.grow}><Text accessibilityLiveRegion="polite" style={styles.walletTitle}>{accountTitle}</Text><Text accessibilityLiveRegion="polite" style={styles.walletCaption}>{accountCaption}</Text></View>
+          {accountBusy ? <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel={preparingShop ? 'Preparing shop' : restoringAccess ? 'Restoring shop access' : 'Connecting wallet'} color={colors.accentShadow} /> : <Text style={styles.chevron}>›</Text>}
         </Pressable>
-        {error && !shop.hasPurchase && purchasePopup !== 'figure' && <ToyHomePanel style={styles.errorPanel}><StatusBanner message={figureStoreMessage(error)} tone="error" /><ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.loadCatalog())}>Try again</ToyHomeButton></ToyHomePanel>}
+        {needsSessionRecovery && purchasePopup === null && !walletOpen && <StatusBanner message={actionError || sessionError || recoveryCopy} tone={actionError || sessionError ? 'error' : 'warning'} />}
+        {error && !needsSessionRecovery && !shop.hasPurchase && purchasePopup !== 'figure' && <ToyHomePanel style={styles.errorPanel}><StatusBanner message={figureStoreMessage(error)} tone="error" /><ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.loadCatalog())}>Try again</ToyHomeButton></ToyHomePanel>}
 
         <ShopPack pack={pack} address={address} walletSupported={wallet.isSupported} accountBusy={preparingShop || (wallet.isSupported && walletBusy)} blocked={activeFigurePurchase || purchaseBusy} onBuy={() => {
+          if (needsSessionRecovery) { requestAccount(); return; }
           if (!pack.catalog?.available || !shop.ready || !pack.ready || preparingShop || directSigningRef.current || purchaseBlocked || purchaseBusy || (wallet.isSupported && walletBusy)) return;
           if (!address) { requestAccount(); return; }
           setPurchasePopup('pack');
@@ -242,10 +274,10 @@ export function ShopScreen({ navigation, route }: Props) {
         <Text style={styles.footerNote}>Each figure can fill one army slot. Your fighters’ look changes, not their weapons.</Text>
       </ScrollView>
       <ToyDialog visible={walletOpen || purchasePopup !== null}
-        title={walletOpen ? wallet.isSupported ? 'Your purchase account' : privy.address ? 'Your account' : 'Sign in with email' : directSigning ? handoffTitle : purchasePopup === 'pack' ? packPurchaseTitle(pack) : figurePurchaseTitle}
+        title={walletOpen ? wallet.isSupported ? 'Your purchase account' : privy.address ? 'Your account' : 'Sign in with email' : directSigning ? handoffTitle : purchaseTitle}
         icon={homeArt.shop} keyboard={walletOpen}
         contentKey={walletOpen ? 'account' : directSigning ? 'purchase-handoff' : purchasePopup === 'pack' ? `pack:${pack.order?.status ?? 'preparing'}` : `figure:${order?.status ?? 'preparing'}`}
-        onClose={() => { if (walletOpen) setWalletOpen(false); else { if (directSigningRef.current) dismissedHandoff.current = true; setPurchasePopup(null); } }}
+        onClose={() => { accountRequestGeneration.current += 1; if (walletOpen) setWalletOpen(false); else { if (directSigningRef.current) dismissedHandoff.current = true; setPurchasePopup(null); } }}
         closeLabel={walletOpen ? 'Close shop account' : purchasePopup === 'pack' ? 'Close pack purchase popup' : 'Close figure purchase popup'}
         testID={walletOpen || purchasePopup === null ? 'shop-wallet-dialog' : purchasePopup === 'pack' ? 'pack-purchase-dialog' : 'figure-purchase-dialog'}>
       {directSigning && !walletOpen && <View testID="purchase-handoff" style={styles.handoff}>
@@ -254,6 +286,12 @@ export function ShopScreen({ navigation, route }: Props) {
         <Text style={styles.handoffNote}>Please wait. You don't need to tap Buy again.</Text>
       </View>}
       {purchasePopup === 'figure' && !walletOpen && !directSigning && <>
+        {needsSessionRecovery ? <>
+          <StatusBanner message={recoveryCopy} tone="warning" />
+          {actionError && <StatusBanner message={figureStoreMessage(actionError)} tone="error" />}
+          <ToyHomeButton tone="yellow" busy={connectingWallet || walletBusy} disabled={purchaseBusy || walletBusy} onPress={requestAccount}>{recoveryLabel}</ToyHomeButton>
+          <Text style={styles.copy}>Connecting never approves a payment. Continue this saved purchase after reconnecting.</Text>
+        </> : <>
         {error && <StatusBanner message={figureStoreMessage(error)} tone={shop.fundingRequired ? 'warning' : 'error'} />}
         {((shop.busy && !order) || order?.status === 'submitted') && !error && <ActivityIndicator accessibilityRole="progressbar" accessibilityLabel={order ? 'Processing purchase' : 'Preparing purchase'} color={colors.accentShadow} size="large" />}
         {order ? <>
@@ -267,17 +305,21 @@ export function ShopScreen({ navigation, route }: Props) {
           {order.status === 'prepared' && <ToyHomeButton tone="yellow" busy={shop.busy || preparingShop} disabled={!orderSigner || preparingShop || purchaseBusy} onPress={() => { if (orderSigner && !preparingShop && !purchaseBusy) buyAndSign(() => shop.confirm(signPurchase)); }}>Continue in wallet</ToyHomeButton>}
           {retryable && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={!retryAvailable || !orderSigner || !shop.ready || !pack.ready || preparingShop || purchaseBusy || activePackPurchase || (wallet.isSupported && walletBusy)} onPress={retryFigure}>Retry</ToyHomeButton>}
           {order.status === 'confirmed' && <ToyHomeButton tone="yellow" onPress={() => openArmy(order.asset)}>Add to your army</ToyHomeButton>}
-        </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{shop.fundingRequired ? `You can use SOL to cover the missing ${shop.fundingRequired.symbol}. Approve the purchase in your wallet.` : error ? 'No payment has been approved. Check purchase status or cancel and try again.' : 'Preparing your purchase... Retry to recover this same request if the connection was interrupted.'}</Text>}
+        </> : <Text accessibilityLiveRegion="polite" style={styles.copy}>{shop.fundingRequired ? `You can use SOL to cover the missing ${shop.fundingRequired.symbol}. Approve the purchase in your wallet.` : error ? 'No payment has been approved. Check purchase status or cancel and try again.' : !shop.busy ? shop.hasPurchase ? 'Your purchase is saved. Check purchase status to continue.' : 'Choose your figure to try again. No payment has been approved.' : 'Preparing your purchase... Retry to recover this same request if the connection was interrupted.'}</Text>}
         {shop.fundingRequired && <ToyHomeButton tone="yellow" busy={shop.busy} disabled={purchaseBusy || address !== shop.purchaseBuyer} onPress={() => buyAndSign(() => shop.buyWithSol(signPurchase), true)}>Buy with SOL</ToyHomeButton>}
         {shop.hasPurchase && (!canClose || !order || Boolean(error)) && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.checkStatus())}>Check purchase status</ToyHomeButton>}
-        {shop.hasPurchase && canClose && <ToyHomeButton compact tone="white" disabled={shop.busy} onPress={() => run(() => shop.dismiss())}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</ToyHomeButton>}
+        {!shop.hasPurchase && !shop.busy && <ToyHomeButton tone="white" onPress={() => setPurchasePopup(null)}>Back to figures</ToyHomeButton>}
+        </>}
+        {shop.hasPurchase && canClose && <ToyHomeButton compact tone="white" disabled={shop.busy || connectingWallet} onPress={() => run(() => shop.dismiss())}>{order && isTerminalMint(order) ? 'Done' : 'Cancel purchase'}</ToyHomeButton>}
         {shop.hasPurchase && (!order || !isTerminalMint(order)) && <Text style={styles.note}>Closing this popup keeps your purchase saved.</Text>}
       </>}
       {purchasePopup === 'pack' && !walletOpen && !directSigning && <ShopPackPurchase pack={pack} address={address} blocked={activeFigurePurchase || purchaseBusy}
         onConfirm={() => {
           const signer = pack.order?.buyer === address ? selectedSigner.current.sign : null;
           if (signer) buyAndSign(() => pack.confirm(signPurchase)); else requestAccount();
-        }} onBuyWithSol={() => buyAndSign(() => pack.buyWithSol(signPurchase), true)} onArmy={openArmy} onAccount={requestAccount} />}
+        }} onBuyWithSol={() => buyAndSign(() => pack.buyWithSol(signPurchase), true)} onArmy={openArmy} onAccount={requestAccount}
+        accountConnectionLabel={recoveryLabel} accountBusy={connectingWallet || walletBusy}
+        authenticationRequired={needsSessionRecovery} accountError={actionError} />}
       {walletOpen && <>
               <Text style={styles.copy}>{wallet.isSupported ? 'Use your Seeker wallet. You approve every purchase.' : 'Sign in with email to keep your collection in RIPSY.'}</Text>
               {wallet.isSupported && figures.some(figure => figure.seekerExclusive) && <View style={styles.seekerNotice}><Text style={styles.restriction}>Seeker fighter is Seeker exclusive.</Text><Text style={styles.smallCopy}>Connect your Seeker wallet to check availability.</Text></View>}

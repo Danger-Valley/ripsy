@@ -42,7 +42,7 @@ export function ShopPack({
           Fighter pack
         </Text>
       </View>
-      {pack.error && !pack.hasPurchase && !purchaseVisible && (
+      {pack.error && !pack.authenticationRequired && !pack.hasPurchase && !purchaseVisible && (
         <StatusBanner message={figureStoreMessage(pack.error)} tone={pack.fundingRequired ? 'warning' : 'error'} />
       )}
       {catalog && (
@@ -108,6 +108,8 @@ export function packPurchaseTitle(pack: ReturnType<typeof usePackShop>) {
     ? 'Continue your pack purchase'
     : pack.error && !pack.busy
     ? 'Pack needs attention'
+    : pack.hasPurchase && !pack.busy
+    ? 'Continue your pack purchase'
     : 'Preparing pack';
 }
 
@@ -120,6 +122,10 @@ export function ShopPackPurchase({
   onBuyWithSol,
   onArmy,
   onAccount,
+  accountConnectionLabel = 'Restore shop access',
+  accountBusy = false,
+  authenticationRequired = pack.authenticationRequired,
+  accountError = null,
 }: {
   pack: ReturnType<typeof usePackShop>;
   address: string | null;
@@ -128,11 +134,21 @@ export function ShopPackPurchase({
   onBuyWithSol(): void;
   onArmy(asset: string): void;
   onAccount(): void;
+  accountConnectionLabel?: string;
+  accountBusy?: boolean;
+  authenticationRequired?: boolean;
+  accountError?: string | null;
 }) {
   const order = pack.order;
   const definitions = useFigureCatalog();
   return (
     <>
+      {authenticationRequired ? <>
+        <StatusBanner message="Restore shop access to continue. Your pack purchase stays saved." tone="warning" />
+        {accountError && <StatusBanner message={figureStoreMessage(accountError)} tone="error" />}
+        <ToyHomeButton tone="yellow" busy={accountBusy} disabled={accountBusy || blocked || pack.busy} onPress={onAccount}>{accountConnectionLabel}</ToyHomeButton>
+        <Text style={styles.copy}>Connecting never approves a payment. Continue this saved purchase after reconnecting.</Text>
+      </> : <>
       {pack.error && (
         <StatusBanner message={figureStoreMessage(pack.error)} tone={pack.fundingRequired ? 'warning' : 'error'} />
       )}
@@ -166,6 +182,8 @@ export function ShopPackPurchase({
           ? `You can use SOL to cover the missing ${pack.fundingRequired.symbol}. Approve the purchase in your wallet.`
           : pack.error
           ? 'No payment has been approved. Close this popup and try again.'
+          : pack.hasPurchase && !pack.busy
+          ? 'Your pack purchase is saved. Check pack status to continue.'
           : 'Preparing your pack… Retry to recover this same request if the connection was interrupted.'}
       </Text>}
       {pack.fundingRequired && <ToyHomeButton tone="yellow" busy={pack.busy} disabled={blocked || pack.busy || address !== pack.purchaseBuyer} onPress={onBuyWithSol}>Buy with SOL</ToyHomeButton>}
@@ -223,12 +241,13 @@ export function ShopPackPurchase({
           Check pack status
         </ToyHomeButton>
       )}
+      </>}
       {pack.hasPurchase &&
         (!pack.signingStarted || Boolean(order && isTerminalPack(order))) && (
           <ToyHomeButton
             compact
             tone="white"
-            disabled={pack.busy}
+            disabled={pack.busy || accountBusy}
             onPress={() => pack.dismiss()}
           >
             {order && isTerminalPack(order) ? 'Done' : 'Cancel pack purchase'}

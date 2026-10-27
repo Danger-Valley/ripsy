@@ -8,7 +8,7 @@ import { FIGURES, FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, type MintOrder, typ
 import { ShopScreen } from '../src/screens/shop-screen';
 import { StatusBanner } from '../src/components/status-banner';
 import { ShopPack } from '../src/components/shop-pack';
-import { usePlayerIdentity } from '../src/hooks/use-player-identity';
+import { refreshPlayerIdentity, usePlayerIdentity } from '../src/hooks/use-player-identity';
 import { useSolanaWallet } from '../src/hooks/use-solana-wallet';
 import { usePrivyWallet } from '../src/hooks/use-privy-wallet';
 import { proveSeekerWallet, signShopTransaction } from '../src/solana-wallet-adapter';
@@ -25,7 +25,7 @@ jest.mock('../src/storage/figure-loadout', () => ({ saveFigureSlots: jest.fn(() 
 const buyer = 'buyer11111111111111111111111111111';
 const fig2: ShopFigure = { id: 'fig2', variant: 2, name: 'Seeker fighter', description: 'A new face for your collection.', imageUrl: 'https://example.test/fig2.png', priceLamports: '10000000', available: true, seekerExclusive: true };
 const order: MintOrder = { id: 'a'.repeat(64), figureId: 'fig2', buyer, asset: 'asset11111111111111111111111111111', treasury: 'treasury11111111111111111111111111', collection: 'collection11111111111111111111111', cluster: 'mainnet-beta', priceLamports: '10000000', networkFeeLamports: '1005000', transaction: 'AQ==', lastValidBlockHeight: 100, createdAt: 1, status: 'prepared', signature: null, error: null };
-const shop = { catalog: { cluster: 'mainnet-beta', collection: order.collection, treasury: order.treasury, figures: [fig2] }, order: null, hasPurchase: false, signingStarted: false, ready: true, busy: false, error: null, prepare: jest.fn(), retry: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn(), clearWallet: jest.fn() };
+const shop = { catalog: { cluster: 'mainnet-beta', collection: order.collection, treasury: order.treasury, figures: [fig2] }, order: null, hasPurchase: false, signingStarted: false, ready: true, busy: false, error: null, authenticationRequired: false, prepare: jest.fn(), retry: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn(), clearWallet: jest.fn() };
 const pack = { ...shop, catalog: { ...INITIAL_PACK, available: true }, prepare: jest.fn(), confirm: jest.fn(), dismiss: jest.fn(), checkStatus: jest.fn(), loadCatalog: jest.fn() };
 const disconnect = jest.fn();
 const connect = jest.fn();
@@ -38,6 +38,7 @@ const appStateDescriptor = Object.getOwnPropertyDescriptor(AppState, 'currentSta
 beforeEach(() => {
   Object.defineProperty(AppState, 'currentState', { configurable: true, writable: true, value: 'active' });
   jest.clearAllMocks();
+  jest.mocked(refreshPlayerIdentity).mockResolvedValue({ playerId: 'player', token: 'fresh-session', expiresAt: new Date(Date.now() + 60_000).toISOString() });
   for (const action of [pack.prepare, pack.confirm, pack.dismiss, pack.checkStatus, pack.loadCatalog]) action.mockResolvedValue(undefined);
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   for (const action of [shop.prepare, shop.retry, shop.confirm, shop.dismiss, shop.checkStatus, shop.loadCatalog, shop.clearWallet, disconnect, connect, sendCode, verifyCode]) action.mockResolvedValue(undefined);
@@ -74,6 +75,116 @@ function expectSimplePurchase(id: 'figure' | 'pack') {
 }
 async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen navigation={{ navigate, goBack } as never} route={{ params: undefined } as never} />)); }
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
+
+function recoveryButton(kind: 'figure' | 'pack', label = 'Connect Seeker') {
+  return purchaseModal(kind).findAll(node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0];
+}
+
+test('a rejected session shows Connect Seeker immediately; reconnecting renews HTTP access first and never buys or signs', async () => {
+  external(); setShop({ hasPurchase: true, authenticationRequired: true, error: 'Authentication is required', purchaseBuyer: buyer });
+  await mountRecovery();
+  expect(text('Authentication is required')).toBe(false);
+  expect(button('Check purchase status')).toBeUndefined();
+  expect(recoveryButton('figure')).toBeDefined();
+  connect.mockImplementationOnce(async () => { expect(refreshPlayerIdentity).toHaveBeenCalledTimes(1); });
+  await Renderer.act(async () => { await recoveryButton('figure').props.onPress(); });
+  expect(connect).toHaveBeenCalledTimes(1);
+  for (const action of [shop.prepare, shop.confirm, shop.retry, shop.checkStatus, shop.dismiss, pack.prepare, signShopTransaction]) expect(action).not.toHaveBeenCalled();
+  setShop({ hasPurchase: true, purchaseBuyer: buyer }); await updateScreen();
+  expect(text('Your purchase is saved. Check purchase status to continue.')).toBe(true);
+  expect(button('Check purchase status')).toBeDefined(); expect(shop.checkStatus).not.toHaveBeenCalled();
+});
+
+test('double taps during session repair show progress and never open duplicate MWA requests', async () => {
+  let finish!: (value: Awaited<ReturnType<typeof refreshPlayerIdentity>>) => void;
+  jest.mocked(refreshPlayerIdentity).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  external(); setShop({ hasPurchase: true, authenticationRequired: true, error: 'Authentication is required' }); await mountRecovery();
+  await Renderer.act(() => { recoveryButton('figure').props.onPress(); recoveryButton('figure').props.onPress(); });
+  expect(recoveryButton('figure').props.accessibilityState.busy).toBe(true); expect(connect).not.toHaveBeenCalled();
+  expect(refreshPlayerIdentity).toHaveBeenCalledTimes(1);
+  await Renderer.act(async () => finish({ playerId: 'player', token: 'fresh', expiresAt: new Date(Date.now() + 60_000).toISOString() }));
+  expect(connect).toHaveBeenCalledTimes(1); expect(shop.confirm).not.toHaveBeenCalled();
+});
+
+test('failed session repair stays actionable and does not open a wallet until HTTP recovery succeeds', async () => {
+  external(); setShop({ hasPurchase: true, authenticationRequired: true, error: 'Authentication is required' });
+  jest.mocked(refreshPlayerIdentity).mockRejectedValueOnce(new Error('Check your connection and try again.'));
+  await mountRecovery(); await Renderer.act(async () => { recoveryButton('figure').props.onPress(); });
+  expect(connect).not.toHaveBeenCalled(); expect(text('Check your connection and try again.')).toBe(true);
+  await Renderer.act(async () => { recoveryButton('figure').props.onPress(); });
+  expect(connect).toHaveBeenCalledTimes(1); expect(shop.prepare).not.toHaveBeenCalled();
+});
+
+test('authentication rejected before an intent exists can return to figures after recovery instead of preparing forever', async () => {
+  external();
+  shop.prepare.mockImplementationOnce(async () => { setShop({ authenticationRequired: true, error: 'Authentication is required' }); });
+  await mount(); await press('Buy Seeker fighter');
+  await Renderer.act(async () => recoveryButton('figure').props.onPress());
+  setShop({}); await updateScreen();
+  expect(text('Choose your figure to try again. No payment has been approved.')).toBe(true);
+  expect(button('Check purchase status')).toBeUndefined();
+  await press('Back to figures'); expect(visibleModals()).toHaveLength(0);
+  expect(shop.prepare).toHaveBeenCalledTimes(1); expect(shop.confirm).not.toHaveBeenCalled(); expect(signShopTransaction).not.toHaveBeenCalled();
+});
+
+test.each(['background', 'unmounted', 'closed'] as const)('session repair cannot open MWA after %s', async destination => {
+  let finish!: (value: Awaited<ReturnType<typeof refreshPlayerIdentity>>) => void;
+  jest.mocked(refreshPlayerIdentity).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  external(); setShop({ hasPurchase: true, authenticationRequired: true, error: 'Authentication is required' }); await mountRecovery();
+  await Renderer.act(() => recoveryButton('figure').props.onPress());
+  if (destination === 'unmounted') await Renderer.act(() => tree.unmount());
+  else if (destination === 'closed') await press('Close figure purchase popup');
+  else AppState.currentState = 'background';
+  await Renderer.act(async () => finish({ playerId: 'player', token: 'fresh', expiresAt: new Date(Date.now() + 60_000).toISOString() }));
+  expect(connect).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
+  expect(shop.dismiss).not.toHaveBeenCalled();
+});
+
+test('reauthorizing another wallet cannot reassign or approve the original saved buyer', async () => {
+  external(); setShop({ hasPurchase: true, authenticationRequired: true, error: 'Authentication is required', order }); await mountRecovery();
+  await Renderer.act(async () => { recoveryButton('figure').props.onPress(); });
+  external('other-buyer11111111111111111111111'); setShop({ hasPurchase: true, order }); await updateScreen();
+  expect(button('Continue in wallet').props.disabled).toBe(true);
+  expect(shop.confirm).not.toHaveBeenCalled(); expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.dismiss).not.toHaveBeenCalled();
+});
+
+test('an authentication failure before a new Buy connects Seeker without opening checkout or creating an order', async () => {
+  external(); setPack({ authenticationRequired: true, error: 'Authentication is required' }); await mount();
+  await press('Buy Seeker fighter');
+  expect(refreshPlayerIdentity).toHaveBeenCalledTimes(1); expect(connect).toHaveBeenCalledTimes(1);
+  expect(visibleModals()).toHaveLength(0); expect(shop.prepare).not.toHaveBeenCalled();
+});
+
+test('a saved paid pack offers Connect Seeker instead of retrying status with a rejected session', async () => {
+  external(); setPack({ hasPurchase: true, signingStarted: true, authenticationRequired: true, error: 'Authentication is required', order: { ...packOrder, status: 'waiting-result' } });
+  await mountRecovery(); expect(button('Check pack status')).toBeUndefined();
+  await Renderer.act(async () => { recoveryButton('pack').props.onPress(); });
+  expect(connect).toHaveBeenCalledTimes(1); expect(pack.prepare).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled(); expect(pack.dismiss).not.toHaveBeenCalled();
+});
+
+test('pack recovery stays visible while the renewed session is connecting the wallet, with a retryable network error', async () => {
+  external();
+  const savedPack = { hasPurchase: true, signingStarted: true, order: { ...packOrder, status: 'waiting-result' } };
+  setPack({ ...savedPack, authenticationRequired: true, error: 'Authentication is required' });
+  jest.mocked(refreshPlayerIdentity).mockRejectedValueOnce(new Error('Check your connection and try again.'));
+  await mountRecovery(); await Renderer.act(async () => recoveryButton('pack').props.onPress());
+  expect(text('Check your connection and try again.')).toBe(true); expect(connect).not.toHaveBeenCalled();
+  let finish!: () => void;
+  connect.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  await Renderer.act(async () => recoveryButton('pack').props.onPress());
+  setPack(savedPack); await updateScreen();
+  expect(recoveryButton('pack').props.accessibilityState.busy).toBe(true);
+  expect(button('Check pack status')).toBeUndefined();
+  await Renderer.act(async () => finish());
+  expect(button('Check pack status')).toBeDefined();
+  expect(pack.prepare).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled(); expect(pack.dismiss).not.toHaveBeenCalled();
+});
+
+test('ordinary phones restore only the app session, without Seeker, email login or payment prompts', async () => {
+  setShop({ hasPurchase: true, authenticationRequired: true, error: 'Authentication is required' }); await mountRecovery();
+  await Renderer.act(async () => { recoveryButton('figure', 'Restore shop access').props.onPress(); });
+  expect(refreshPlayerIdentity).toHaveBeenCalledTimes(1); expect(connect).not.toHaveBeenCalled(); expect(sendCode).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
+});
 
 test('only visible shop showcases animate, and an account popup stops them without touching purchases', async () => {
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);

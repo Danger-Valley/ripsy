@@ -34,6 +34,7 @@ const api = {
 let pack!: ReturnType<typeof usePackShop>;
 let tree: Renderer.ReactTestRenderer;
 let saved: string | null;
+let token = 'session';
 const storage: PurchaseStorage = {
   async load() {
     return saved;
@@ -43,7 +44,7 @@ const storage: PurchaseStorage = {
   },
 };
 function Probe() {
-  pack = usePackShop('https://api.example.test', 'session', storage);
+  pack = usePackShop('https://api.example.test', token, storage);
   return null;
 }
 async function mount() {
@@ -54,6 +55,7 @@ async function mount() {
 beforeEach(() => {
   jest.useFakeTimers();
   saved = null;
+  token = 'session';
   jest.clearAllMocks();
   jest
     .mocked(ShopClient)
@@ -70,6 +72,36 @@ beforeEach(() => {
 afterEach(async () => {
   if (tree) await Renderer.act(() => tree.unmount());
   jest.useRealTimers();
+});
+
+test('pack catalog 401 is typed even with existing wallet state, and renewed credentials clear only the auth marker', async () => {
+  api.packCatalog.mockRejectedValueOnce(new ShopRequestError('Authentication is required', null, 401));
+  await mount(); expect(pack.authenticationRequired).toBe(true); expect(api.createPack).not.toHaveBeenCalled();
+  token = 'fresh'; await Renderer.act(async () => tree.update(<Probe />));
+  expect(pack.authenticationRequired).toBe(false); expect(api.createPack).not.toHaveBeenCalled();
+});
+
+test.each([false, true])('a late pack catalog 401 cannot replace the new token auth state (rejected=%s)', async rejected => {
+  let fail!: (cause: Error) => void;
+  api.packCatalog.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+  await mount();
+  if (rejected) api.packCatalog.mockRejectedValueOnce(new ShopRequestError('Authentication is required', null, 401));
+  token = 'fresh'; await Renderer.act(async () => tree.update(<Probe />));
+  await Renderer.act(async () => fail(new ShopRequestError('Authentication is required', null, 401)));
+  expect(pack.authenticationRequired).toBe(rejected);
+  expect(pack.error).toBe(rejected ? 'Authentication is required' : null);
+  expect(api.createPack).not.toHaveBeenCalled();
+});
+
+test('401 on a saved paid pack pauses polling without replacing the order or submitting another payment', async () => {
+  saved = JSON.stringify({ key: 'pack-request-1234567', buyer, order: { ...order, status: 'waiting-result' }, signingStarted: true });
+  const original = saved;
+  api.getPack.mockRejectedValueOnce(new ShopRequestError('Authentication is required', null, 401));
+  await mount(); await Renderer.act(() => pack.checkStatus());
+  expect(pack.authenticationRequired).toBe(true);
+  await Renderer.act(async () => { jest.advanceTimersByTime(16_000); }); expect(api.getPack).toHaveBeenCalledTimes(1);
+  token = 'fresh'; await Renderer.act(async () => tree.update(<Probe />));
+  expect(saved).toBe(original); expect(api.createPack).not.toHaveBeenCalled(); expect(api.submitPack).not.toHaveBeenCalled();
 });
 test('persists intent before prepare and approval before opening any signer, on every device', async () => {
   await mount();

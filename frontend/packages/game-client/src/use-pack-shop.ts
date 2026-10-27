@@ -51,6 +51,8 @@ export function usePackShop(
     () => new ShopClient(baseUrl, token),
     [baseUrl, token]
   );
+  const latestToken = useRef(token);
+  latestToken.current = token;
   const [catalog, setCatalog] = useState<PackCatalog | null>(null);
   const [intent, setIntent] = useState<PackIntent | null>(null);
   const current = useRef<PackIntent | null>(null);
@@ -58,6 +60,8 @@ export function usePackShop(
   const [restored, setRestored] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rejectedToken, setRejectedToken] = useState<string | null>(null);
+  const authenticationRequired = Boolean(token && rejectedToken === token);
   const [fundingRequired, setFundingRequired] = useState<TokenShortfall | null>(null);
   const fundingRef = useRef<TokenShortfall | null>(null);
   const preparationBlocked = useRef(false);
@@ -75,6 +79,10 @@ export function usePackShop(
       setCatalog(await client.packCatalog());
       setError(null);
     } catch (cause) {
+      if (cause instanceof ShopRequestError && cause.status === 401) {
+        if (latestToken.current !== token) return;
+        setRejectedToken(token);
+      }
       setError(message(cause));
     }
   }, [client, token]);
@@ -118,9 +126,14 @@ export function usePackShop(
         await fn();
         if (!background || !preparationBlocked.current) { fundingRef.current = null; setFundingRequired(null); preparationBlocked.current = false; }
       } catch (cause) {
+        if (cause instanceof ShopRequestError && cause.status === 401) {
+          preparationBlocked.current = true;
+          if (latestToken.current !== token) return;
+          setRejectedToken(token);
+        }
         const recovery = cause instanceof ShopRequestError ? cause.recovery : null;
         fundingRef.current = recovery; setFundingRequired(recovery);
-        preparationBlocked.current = cause instanceof ShopRequestError && !current.current?.order;
+        preparationBlocked.current = cause instanceof ShopRequestError && (cause.status === 401 || !current.current?.order);
         setError(message(cause));
       } finally {
         operation.current = false;
@@ -237,6 +250,7 @@ export function usePackShop(
     ready: restored && Boolean(token),
     busy,
     error,
+    authenticationRequired,
     purchaseBuyer: intent?.buyer ?? null,
     fundingRequired: !intent?.order && !intent?.signingStarted && !intent?.paymentMode ? fundingRequired : null,
     buyWithSol,

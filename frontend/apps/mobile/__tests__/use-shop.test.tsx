@@ -17,11 +17,12 @@ const api = { catalog: jest.fn(), seekerChallenge: jest.fn(), verifySeeker: jest
 let shop!: ReturnType<typeof useShop>;
 let tree: Renderer.ReactTestRenderer;
 let saved: string | null;
+let token = 'session';
 const storage: PurchaseStorage = { async load() { return saved; }, async save(value) { saved = value; } };
-function Probe() { shop = useShop('https://api.example.test', 'session', storage); return null; }
+function Probe() { shop = useShop('https://api.example.test', token, storage); return null; }
 async function mount() { await Renderer.act(async () => { tree = Renderer.create(<Probe />); }); }
 beforeEach(() => {
-  jest.useFakeTimers(); saved = null; jest.clearAllMocks();
+  jest.useFakeTimers(); saved = null; token = 'session'; jest.clearAllMocks();
   jest.mocked(ShopClient).mockImplementation(() => api as unknown as ShopClient);
   api.catalog.mockResolvedValue({ cluster: 'devnet', figures: [] });
   api.seekerChallenge.mockResolvedValue({ chainId: 'solana:mainnet', domain: 'www.ripsy.fun', expirationTime: new Date(Date.now() + 300_000).toISOString(), issuedAt: new Date().toISOString(), nonce: 'a'.repeat(32), statement: 'Verify Seeker', uri: 'https://www.ripsy.fun', version: '1' });
@@ -32,6 +33,52 @@ beforeEach(() => {
   api.submit.mockResolvedValue({ ...prepared, status: 'submitted', signature: '1'.repeat(64) });
 });
 afterEach(async () => { if (tree) await Renderer.act(async () => tree.unmount()); jest.useRealTimers(); });
+
+test('typed 401 retains the exact unpaid intent and stops background preparation; a new session never signs automatically', async () => {
+  const sign = jest.fn(); api.create.mockRejectedValueOnce(new ShopRequestError('Authentication is required', null, 401));
+  await mount(); await Renderer.act(() => shop.prepare('fig1', prepared.buyer, undefined, sign));
+  expect(shop.authenticationRequired).toBe(true);
+  const original = saved;
+  await Renderer.act(async () => { jest.advanceTimersByTime(20_000); });
+  expect(api.create).toHaveBeenCalledTimes(1); expect(saved).toBe(original);
+  token = 'fresh-session'; await Renderer.act(async () => tree.update(<Probe />));
+  expect(shop.authenticationRequired).toBe(false); expect(saved).toBe(original); expect(api.create).toHaveBeenCalledTimes(1);
+  await Renderer.act(() => shop.checkStatus());
+  expect(api.create).toHaveBeenLastCalledWith('fig1', prepared.buyer, JSON.parse(original!).key);
+  expect(sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test('401 on a signed saved order never drops bytes or creates a replacement, even after renewed identity gets 404', async () => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true, signed: 'signed' });
+  const original = saved;
+  api.get.mockRejectedValueOnce(new ShopRequestError('Authentication is required', null, 401));
+  await mount(); await Renderer.act(() => shop.checkStatus());
+  expect(shop.authenticationRequired).toBe(true);
+  await Renderer.act(async () => { jest.advanceTimersByTime(12_000); }); expect(api.get).toHaveBeenCalledTimes(1);
+  token = 'fresh-session'; await Renderer.act(async () => tree.update(<Probe />));
+  api.get.mockRejectedValueOnce(new ShopRequestError('Purchase not found', null, 404));
+  await Renderer.act(() => shop.checkStatus());
+  expect(saved).toBe(original); expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test('permissions and error copy alone are not misclassified as an HTTP authentication failure', async () => {
+  api.create.mockRejectedValueOnce(new ShopRequestError('Authentication is required', null, 403));
+  await mount(); await Renderer.act(() => shop.prepare('fig1', prepared.buyer));
+  expect(shop.authenticationRequired).toBe(false);
+});
+
+test('a late 401 from the previous token cannot reject the renewed session or start a replacement purchase', async () => {
+  let fail!: (cause: Error) => void;
+  api.create.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+  await mount();
+  let operation!: Promise<void>;
+  await Renderer.act(async () => { operation = shop.prepare('fig1', prepared.buyer); });
+  const original = saved;
+  token = 'fresh-session'; await Renderer.act(async () => tree.update(<Probe />));
+  await Renderer.act(async () => { fail(new ShopRequestError('Authentication is required', null, 401)); await operation; });
+  expect(shop.authenticationRequired).toBe(false); expect(shop.error).toBeNull(); expect(saved).toBe(original);
+  expect(api.create).toHaveBeenCalledTimes(1); expect(api.submit).not.toHaveBeenCalled();
+});
 
 test.each(['confirmed', 'failed', 'expired'] as const)('restored %s receipt is cleared and a new purchase starts cleanly', async status => {
   saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: { ...prepared, status }, signingStarted: true });

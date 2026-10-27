@@ -1,4 +1,8 @@
 /* global jest */
+jest.mock('@solana-mobile/seeker-connect-react-native', () => ({
+  SeekerConnectButton: props => require('react').createElement(require('react-native').View, props,
+    require('react').createElement(require('react-native').Text, null, 'Connect with Seeker')),
+}));
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
 jest.mock('react-native-keychain', () => ({
   ACCESSIBLE: { AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'AfterFirstUnlockThisDeviceOnly' },

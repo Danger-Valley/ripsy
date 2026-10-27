@@ -92,6 +92,13 @@ test('keeps a friendly inline error after a cancelled connection', async () => {
   expect(wallet.error).toBe('Friendly wallet error');
 });
 
+test('saved-purchase reconnect explicitly carries its exact expected buyer without signing', async () => {
+  await renderHook();
+  await ReactTestRenderer.act(() => wallet.connect(session.address));
+  expect(connectSolanaWallet).toHaveBeenCalledWith(null, session.address);
+  expect(wallet.address).toBe(session.address);
+});
+
 async function renderHook() {
   await ReactTestRenderer.act(async () => {
     ReactTestRenderer.create(<WalletProbe />);

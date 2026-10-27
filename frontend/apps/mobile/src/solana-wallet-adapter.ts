@@ -12,7 +12,7 @@ export async function signShopTransaction(_order: PurchaseTransaction): Promise<
   throw new Error('Connect a supported wallet to sign this purchase.');
 }
 
-export async function connectSolanaWallet(_previousSession?: SolanaWalletSession | null): Promise<SolanaWalletSession> {
+export async function connectSolanaWallet(_previousSession?: SolanaWalletSession | null, _expectedAddress?: string): Promise<SolanaWalletSession> {
   throw new Error('Solana Mobile wallet connection is available on Android only.');
 }
 

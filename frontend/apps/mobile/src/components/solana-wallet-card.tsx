@@ -6,6 +6,7 @@ import { colors, spacing } from '../theme';
 import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from './toy-home-controls';
 import { ToyBadge, ToySectionHeading } from './toy-dialog';
 import { figureStoreMessage } from '@rps/core/shop';
+import { SeekerConnectAction } from './seeker-connect-action';
 
 export function SolanaWalletCard({ onRegister, focused = true }: { onRegister: () => void; focused?: boolean }) {
   const wallet = useSolanaWallet();
@@ -35,12 +36,13 @@ export function SolanaWalletCard({ onRegister, focused = true }: { onRegister: (
           {showAddress && <Text style={styles.hint}>Touch and hold the address to copy.</Text>}
         </View>}
         {wallet.error && <Text accessibilityRole="alert" style={styles.error}>{figureStoreMessage(wallet.error, 'Could not connect your Seeker wallet. Please try again.')}</Text>}
-        <ToyHomeButton compact tone={connected ? 'white' : 'yellow'} busy={working}
-          accessibilityLabel={connected ? 'Disconnect wallet' : 'Connect your wallet'}
-          accessibilityHint={connected ? 'Disconnects and forgets this wallet on this device' : 'Opens your Seeker wallet to connect it'}
-          onPress={() => { (connected ? wallet.disconnect() : wallet.connect()).catch(() => undefined); }}>
-          {wallet.status === 'loading' ? 'Restoring wallet…' : wallet.status === 'connecting' ? 'Connecting…' : wallet.status === 'disconnecting' ? 'Disconnecting…' : connected ? 'Disconnect wallet' : wallet.error ? 'Retry connection' : 'Connect your wallet'}
-        </ToyHomeButton>
+        {connected ? <ToyHomeButton compact tone="white" busy={working}
+          accessibilityLabel="Disconnect wallet"
+          accessibilityHint="Disconnects and forgets this wallet on this device"
+          onPress={() => { wallet.disconnect().catch(() => undefined); }}>
+          {wallet.status === 'connecting' ? 'Connecting…' : wallet.status === 'disconnecting' ? 'Disconnecting…' : 'Disconnect wallet'}
+        </ToyHomeButton> : <SeekerConnectAction busy={working} accessibilityLabel="Connect your wallet"
+          onPress={() => { wallet.connect().catch(() => undefined); }} />}
         <Text style={styles.hint}>Connecting never changes your lineup or buys a figure.</Text>
       </View>
     </ToyHomePanel>

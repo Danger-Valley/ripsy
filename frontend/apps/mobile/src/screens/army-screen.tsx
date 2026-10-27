@@ -7,6 +7,7 @@ import { FIGURES, FIGURE_SLOTS, figureStoreMessage, type FigureInventory, type O
 import { getGameWebSocketUrl } from '../config';
 import { sounds } from '../audio/sounds';
 import { StatusBanner } from '../components/status-banner';
+import { SeekerConnectAction } from '../components/seeker-connect-action';
 import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from '../components/toy-home-controls';
 import { usePlayerIdentity } from '../hooks/use-player-identity';
 import { usePrivyWallet } from '../hooks/use-privy-wallet';
@@ -263,7 +264,7 @@ export function ArmyScreen({ navigation, route }: Props) {
               <Text style={styles.copy}>{external.isSupported ? 'RIPSY 001 is free - no account needed. Connect your wallet to use your collectibles.' : 'RIPSY 001 is free - no account needed. Sign in only to use your collectibles.'}</Text>
               <Text style={styles.safeSign}>✓ Checking your collection is free</Text>
               {external.isSupported && external.address && <Text style={styles.safeSign}>Seeker wallet connected · {short(external.address)}</Text>}
-              {!external.address && external.isSupported && <ToyHomeButton busy={external.status === 'connecting'} disabled={managementBusy} onPress={() => { external.connect().catch(() => setError('Could not connect your wallet. Please try again.')); }}>Connect your wallet</ToyHomeButton>}
+              {!external.address && external.isSupported && <SeekerConnectAction busy={external.status === 'connecting' || external.status === 'loading'} disabled={managementBusy} accessibilityLabel="Connect your wallet" onPress={() => { external.connect().catch(() => setError('Could not connect your wallet. Please try again.')); }} />}
               {!external.isSupported && !privy.address && <ToyHomeButton tone="white" disabled={managementBusy} onPress={register}>Register</ToyHomeButton>}
               <ToyHomeButton tone="yellow" busy={busy} disabled={managementBusy || !address || !sessionToken} onPress={() => { refresh(true).catch(() => undefined); }}>Load my figures</ToyHomeButton>
             </>}

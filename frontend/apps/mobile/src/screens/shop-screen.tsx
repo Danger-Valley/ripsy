@@ -17,6 +17,7 @@ import { saveFigureSlots } from '../storage/figure-loadout';
 import { homeArt, homeFont, ToyHomeButton, ToyHomePanel } from '../components/toy-home-controls';
 import { ToyBadge, ToyDialog } from '../components/toy-dialog';
 import { StatusBanner } from '../components/status-banner';
+import { SeekerConnectAction } from '../components/seeker-connect-action';
 import { FigureQuantity } from '../components/figure-quantity';
 import { ShopFigurePreview } from '../components/shop-figure-preview';
 import { useShopPreviewMotion, useShopPreviewViewport } from '../hooks/use-shop-previews';
@@ -141,6 +142,8 @@ export function ShopScreen({ navigation, route }: Props) {
     });
   };
   const requestAccount = () => {
+    const expectedBuyer = activeFigurePurchase ? shop.purchaseBuyer : activePackPurchase ? pack.purchaseBuyer : null;
+    const connectWallet = () => expectedBuyer ? wallet.connect(expectedBuyer) : wallet.connect();
     if (needsSessionRecovery) {
       if (connectionInFlight.current || purchaseBusy || walletBusy) return;
       connectionInFlight.current = true;
@@ -149,24 +152,24 @@ export function ShopScreen({ navigation, route }: Props) {
       setRestoringAccess(true);
       run(async () => {
         try {
-          // HTTP session renewal and MWA authorization are separate. Connecting
+          // HTTP session renewal and Seeker Connect authorization are separate. Connecting
           // alone cannot repair a revoked Bearer token, and neither action may
           // prepare, sign, submit, clear or replace the saved purchase.
           await refreshPlayerIdentity();
           if (!mounted.current || generation !== accountRequestGeneration.current || navigation.isFocused?.() === false || (AppState.currentState && AppState.currentState !== 'active')) return;
-          if (wallet.isSupported) await wallet.connect();
+          if (wallet.isSupported) await connectWallet();
         } finally { connectionInFlight.current = false; if (mounted.current) { setConnectingWallet(false); setRestoringAccess(false); } }
       });
       return;
     }
-    // Disconnected Seeker shoppers go directly to MWA, not an account chooser.
+    // Disconnected/wrong-account Seeker shoppers connect directly, not through a chooser.
     // Connecting never prepares or approves a purchase automatically.
-    if (!wallet.isSupported || address) { setWalletOpen(true); return; }
+    if (!wallet.isSupported || (address && (!expectedBuyer || address === expectedBuyer))) { setWalletOpen(true); return; }
     if (connectionInFlight.current || walletBusy) return;
     connectionInFlight.current = true;
     setConnectingWallet(true);
     run(async () => {
-      try { await wallet.connect(); }
+      try { await connectWallet(); }
       finally { connectionInFlight.current = false; setConnectingWallet(false); }
     });
   };
@@ -289,7 +292,8 @@ export function ShopScreen({ navigation, route }: Props) {
         {needsSessionRecovery ? <>
           <StatusBanner message={recoveryCopy} tone="warning" />
           {actionError && <StatusBanner message={figureStoreMessage(actionError)} tone="error" />}
-          <ToyHomeButton tone="yellow" busy={connectingWallet || walletBusy} disabled={purchaseBusy || walletBusy} onPress={requestAccount}>{recoveryLabel}</ToyHomeButton>
+          {wallet.isSupported ? <SeekerConnectAction accessibilityLabel={recoveryLabel} busy={connectingWallet || walletBusy} disabled={purchaseBusy} onPress={requestAccount} />
+            : <ToyHomeButton tone="yellow" busy={connectingWallet} disabled={purchaseBusy || connectingWallet} onPress={requestAccount}>{recoveryLabel}</ToyHomeButton>}
           <Text style={styles.copy}>Connecting never approves a payment. Continue this saved purchase after reconnecting.</Text>
         </> : <>
         {error && <StatusBanner message={figureStoreMessage(error)} tone={shop.fundingRequired ? 'warning' : 'error'} />}
@@ -319,7 +323,7 @@ export function ShopScreen({ navigation, route }: Props) {
           if (signer) buyAndSign(() => pack.confirm(signPurchase)); else requestAccount();
         }} onBuyWithSol={() => buyAndSign(() => pack.buyWithSol(signPurchase), true)} onArmy={openArmy} onAccount={requestAccount}
         accountConnectionLabel={recoveryLabel} accountBusy={connectingWallet || walletBusy}
-        authenticationRequired={needsSessionRecovery} accountError={actionError} />}
+        authenticationRequired={needsSessionRecovery} accountError={actionError} seekerSupported={wallet.isSupported} />}
       {walletOpen && <>
               <Text style={styles.copy}>{wallet.isSupported ? 'Use your Seeker wallet. You approve every purchase.' : 'Sign in with email to keep your collection in RIPSY.'}</Text>
               {wallet.isSupported && figures.some(figure => figure.seekerExclusive) && <View style={styles.seekerNotice}><Text style={styles.restriction}>Seeker fighter is Seeker exclusive.</Text><Text style={styles.smallCopy}>Connect your Seeker wallet to check availability.</Text></View>}
@@ -328,7 +332,7 @@ export function ShopScreen({ navigation, route }: Props) {
                 <ToyHomeButton compact tone="white" disabled={!shop.ready || !pack.ready || purchaseBusy || purchaseBlocked} onPress={() => run(() => disconnectWallet('external'))}>Disconnect wallet</ToyHomeButton>
               </View>}
               {/* Restoring a saved purchase must allow reconnecting its signer. */}
-              {!wallet.address && wallet.isSupported && <ToyHomeButton busy={walletBusy} disabled={shop.busy || walletBusy} onPress={requestAccount}>Connect your wallet</ToyHomeButton>}
+              {!wallet.address && wallet.isSupported && <SeekerConnectAction busy={walletBusy} disabled={shop.busy} accessibilityLabel="Connect your wallet" onPress={requestAccount} />}
               {!wallet.isSupported && (privy.address ? <View style={[styles.walletOption, styles.walletSelected]}>
                 <Text style={styles.optionTitle}>Signed in with email{walletKind === 'privy' ? ' · selected' : ''}</Text>
                 {walletKind === 'privy' && <ToyHomeButton compact tone="white" busy={privy.activity === 'disconnecting'} disabled={!shop.ready || !pack.ready || purchaseBlocked || purchaseBusy} onPress={() => run(() => disconnectWallet('privy'))}>Sign out</ToyHomeButton>}

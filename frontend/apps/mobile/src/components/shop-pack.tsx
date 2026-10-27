@@ -11,6 +11,7 @@ import {
 import { StatusBanner } from './status-banner';
 import { colors, spacing } from '../theme';
 import { figurePortrait, useFigureCatalog } from '../figures/catalog';
+import { SeekerConnectAction } from './seeker-connect-action';
 
 export function ShopPack({
   pack,
@@ -69,7 +70,8 @@ export function ShopPack({
             ))}
           </View>
           {!activePurchase && (
-            <ToyHomeButton
+            !address && walletSupported ? <SeekerConnectAction busy={accountBusy} disabled={!pack.ready || blocked || pack.busy}
+              onPress={onBuy} /> : <ToyHomeButton
               tone="yellow"
               busy={accountBusy}
               disabled={
@@ -126,6 +128,7 @@ export function ShopPackPurchase({
   accountBusy = false,
   authenticationRequired = pack.authenticationRequired,
   accountError = null,
+  seekerSupported = false,
 }: {
   pack: ReturnType<typeof usePackShop>;
   address: string | null;
@@ -138,6 +141,7 @@ export function ShopPackPurchase({
   accountBusy?: boolean;
   authenticationRequired?: boolean;
   accountError?: string | null;
+  seekerSupported?: boolean;
 }) {
   const order = pack.order;
   const definitions = useFigureCatalog();
@@ -146,7 +150,8 @@ export function ShopPackPurchase({
       {authenticationRequired ? <>
         <StatusBanner message="Restore shop access to continue. Your pack purchase stays saved." tone="warning" />
         {accountError && <StatusBanner message={figureStoreMessage(accountError)} tone="error" />}
-        <ToyHomeButton tone="yellow" busy={accountBusy} disabled={accountBusy || blocked || pack.busy} onPress={onAccount}>{accountConnectionLabel}</ToyHomeButton>
+        {seekerSupported ? <SeekerConnectAction busy={accountBusy} disabled={blocked || pack.busy} accessibilityLabel={accountConnectionLabel} onPress={onAccount} />
+          : <ToyHomeButton tone="yellow" busy={accountBusy} disabled={accountBusy || blocked || pack.busy} onPress={onAccount}>{accountConnectionLabel}</ToyHomeButton>}
         <Text style={styles.copy}>Connecting never approves a payment. Continue this saved purchase after reconnecting.</Text>
       </> : <>
       {pack.error && (

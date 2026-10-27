@@ -57,3 +57,12 @@ test('home and shop observers share saved wallet changes and unsubscribe cleanly
   await saveSolanaWalletSession(session);
   expect(observer).toHaveBeenCalledTimes(2);
 });
+
+test('failed secure storage cannot publish a successful connection or local disconnect', async () => {
+  const observer = jest.fn(); const unsubscribe = subscribeSolanaWallet(observer);
+  jest.mocked(Keychain.setGenericPassword).mockResolvedValueOnce(false);
+  await expect(saveSolanaWalletSession(session)).rejects.toThrow('securely');
+  jest.mocked(Keychain.resetGenericPassword).mockResolvedValueOnce(false);
+  await expect(clearSolanaWalletSession()).rejects.toThrow('forget');
+  expect(observer).not.toHaveBeenCalled(); unsubscribe();
+});

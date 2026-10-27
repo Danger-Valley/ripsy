@@ -7,7 +7,7 @@ mobile:
   targets:
     - ios
     - android
-  wallet_method: embedded-privy-and-solana-mobile-wallet-adapter
+  wallet_method: embedded-privy-and-seeker-connect
   blockchain: solana-mainnet-wallet-identity-and-optional-core-shop
   transport: websocket
   state_store: redis
@@ -16,8 +16,8 @@ mobile:
 ```
 
 RIPSY intentionally does not use Expo. Native Privy uses the official Swift SDK
-on iOS and Kotlin SDK on Android. Solana Mobile Wallet Adapter remains available
-on Android as the external-wallet option. Multiplayer gameplay remains
+on iOS and Kotlin SDK on Android. Official native Seeker Connect (over Mobile
+Wallet Adapter) is the external-wallet transport on Seeker. Multiplayer gameplay remains
 server-authoritative over the existing WebSocket backend and Redis architecture;
 the optional Metaplex Core shop does not move game rules on-chain.
 
@@ -330,3 +330,32 @@ repair UI are not implemented; shared timeout/polling guards apply. No physical
 Seeker, real payment, new signed APK/TestFlight, backend/catalog/secret/authority
 or production change was performed. Published build 68 is unchanged; a new native
 release is needed to deliver this fix. See WEB_PARITY_HANDOFF.md for the contract.
+
+## Seeker Connect migration — 2026-10-27 (source only)
+
+Native Seeker now uses official Seeker Connect 0.2.0, matching Kinbay's SDK
+transport rather than copying its Expo dependencies or vault policies. SDK/button
+imports are Android-only and lazy; root Gradle supplies the actual RN 0.87.1 API.
+The branded native button is used for Home/Army/shop connection and auth recovery.
+RIPSY's existing HTTPS identity, ordinary-phone email routing and separate
+anonymous session remain unchanged. No new backend/env/relay configuration.
+
+Old MWA tokens are not imported. SDK cache restores validate network and public
+key/address; first explicit use may need approval once. Explicit saved-purchase
+reconnect carries the exact original buyer and may forget only a wrong SDK cache;
+another account/cancellation cannot reassign an order or request payment. SIWS
+keeps the exact server challenge and verifies its cryptographic proof locally
+and on the backend. Raw transaction signing preserves the original message and
+server signatures, checks the required buyer and advertised version, and leaves
+all submission/recovery to the backend. No sign-and-send, message-signing of
+transactions, Lighthouse waivers, automatic wallet retries or authority changes.
+
+758 mobile tests/56 suites with open-handle detection, 217 backend and 31 web
+tests, all app typechecks, focused lint, both Metro production bundles and full
+Android debug APK compilation/packaging pass. The SDK is autolinked and its wallet
+visibility query is merged. No Android device was attached; physical Seeker
+association, native button/dialog rendering and a real paid purchase are not
+verified. Web Seeker Connect is unported. No signed release/publication, TestFlight,
+production deployment, price/pack/key/env/authority operation was performed.
+Published build 68 is unchanged; native rebuild/device validation is required.
+Full behavioral handoff: WEB_PARITY_HANDOFF.md and the mobile README.

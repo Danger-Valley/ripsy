@@ -8,6 +8,7 @@ import { FIGURES, FIGURE_TOKEN_PAYMENTS, figurePaymentPrice, type MintOrder, typ
 import { ShopScreen } from '../src/screens/shop-screen';
 import { StatusBanner } from '../src/components/status-banner';
 import { ShopPack } from '../src/components/shop-pack';
+import { SeekerConnectAction } from '../src/components/seeker-connect-action';
 import { refreshPlayerIdentity, usePlayerIdentity } from '../src/hooks/use-player-identity';
 import { useSolanaWallet } from '../src/hooks/use-solana-wallet';
 import { usePrivyWallet } from '../src/hooks/use-privy-wallet';
@@ -61,7 +62,7 @@ function button(label: string) { return tree.root.findAll(node => node.props.acc
 async function press(label: string) { await Renderer.act(async () => { await button(label).props.onPress(); }); }
 function text(value: string) { return tree.root.findAllByType(Text).some(node => node.props.children === value); }
 function setShop(next: object) { jest.mocked(useShop).mockReturnValue({ ...shop, purchaseQuantity: 1, purchaseBuyer: null, fundingRequired: null, buyWithSol: jest.fn(), ...next } as ReturnType<typeof useShop>); }
-function external(address: string | null = buyer) { jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: true, address, status: address ? 'connected' : 'disconnected' }); }
+function external(address: string | null = buyer) { jest.replaceProperty(Platform, 'OS', 'android'); jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: true, address, status: address ? 'connected' : 'disconnected' }); }
 function visibleModals() { return tree.root.findAllByType(Modal).filter(node => node.props.visible); }
 function purchaseModal(id: 'figure' | 'pack') {
   const modal = visibleModals().find(node => node.findAllByProps({ testID: `${id}-purchase-dialog` }).length > 0);
@@ -77,7 +78,7 @@ async function updateScreen() { await Renderer.act(() => tree.update(<ShopScreen
 function setPack(next: object) { jest.mocked(usePackShop).mockReturnValue({ ...pack, ...next } as unknown as ReturnType<typeof usePackShop>); }
 
 function recoveryButton(kind: 'figure' | 'pack', label = 'Connect Seeker') {
-  return purchaseModal(kind).findAll(node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0];
+  return purchaseModal(kind).findAll(node => node.type !== SeekerConnectAction && node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0];
 }
 
 test('a rejected session shows Connect Seeker immediately; reconnecting renews HTTP access first and never buys or signs', async () => {
@@ -146,6 +147,15 @@ test('reauthorizing another wallet cannot reassign or approve the original saved
   external('other-buyer11111111111111111111111'); setShop({ hasPurchase: true, order }); await updateScreen();
   expect(button('Continue in wallet').props.disabled).toBe(true);
   expect(shop.confirm).not.toHaveBeenCalled(); expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.dismiss).not.toHaveBeenCalled();
+});
+
+test('a wrong connected account can explicitly reconnect the saved buyer without an unusable account chooser', async () => {
+  external('other-buyer11111111111111111111111');
+  setShop({ hasPurchase: true, purchaseBuyer: buyer, order }); await mountRecovery();
+  await press('Reconnect wallet');
+  expect(connect).toHaveBeenCalledWith(buyer);
+  expect(shop.confirm).not.toHaveBeenCalled(); expect(shop.prepare).not.toHaveBeenCalled();
+  expect(tree.root.findAllByProps({ testID: 'shop-wallet-dialog' }).some(node => node.props.visible)).toBe(false);
 });
 
 test('an authentication failure before a new Buy connects Seeker without opening checkout or creating an order', async () => {
@@ -764,7 +774,7 @@ test('disconnected Seeker shoppers can connect without preparing a purchase', as
 });
 test.each(['Buy Seeker fighter', 'Buy fighter pack'])('%s connects directly on Seeker and still needs explicit purchase review afterwards', async label => {
   external(null); setPack({ catalog: { ...INITIAL_PACK, available: true } }); await mount();
-  await press(label);
+  await press(label === 'Buy fighter pack' ? 'Connect with Seeker' : label);
   expect(connect).toHaveBeenCalledTimes(1); expect(visibleModals()).toHaveLength(0);
   expect(text('Your purchase account')).toBe(false); expect(button('Send sign-in code')).toBeUndefined();
   expect(shop.prepare).not.toHaveBeenCalled(); expect(pack.prepare).not.toHaveBeenCalled();

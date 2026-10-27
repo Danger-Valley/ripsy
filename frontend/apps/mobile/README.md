@@ -96,9 +96,51 @@ required after shipping these changes; unit tests do not prove APNs/FCM delivery
 
 ## Solana Mobile wallet
 
-The Android app can connect to an installed wallet through the official Solana Mobile Wallet Adapter protocol. RIPSY requests authorization for `solana:mainnet`, displays the returned public address, and stores the public address, authorization token, and wallet base URI in Android Keystore via `react-native-keychain`. It never receives or stores private keys. Disconnect first asks the wallet to deauthorize the token and then removes the local record, even if the wallet is no longer installed.
+On Seeker, Android uses official `@solana-mobile/seeker-connect-react-native`
+**0.2.0** over the Kotlin SDK/Mobile Wallet Adapter. Home, Army and shop account/
+recovery actions use its native **Connect with Seeker** button and progress/error
+dialogs. The direct wallet URI is `https://connect.solanamobile.com`; native apps
+need no relay configuration. The integration uses ordinary React Native, not Expo.
+Keep Gradle's `reactNativeVersion` aligned with this app so the module does not
+compile against its own default React Native version.
 
-MWA's native client SDK is Android-only. The adapter implementation lives in `src/solana-wallet-adapter.android.ts`; the default module is a safe unsupported-platform implementation so the iOS app never imports the Android native module. Wallet connection currently identifies the player locally and is deliberately separate from the WebSocket game session and server-authoritative gameplay.
+The SDK owns its separate authorization cache. Old direct-MWA tokens and wallet
+URIs are never imported: an existing user may approve RIPSY once on first explicit
+connection/signing. The remembered public address remains in device-only protected
+Keychain/Keystore storage for display and exact-buyer checks; loading it never
+launches a wallet. SDK cache restores are checked for network and public-key/address
+consistency. Explicit saved-purchase reconnect can forget a wrong SDK account and
+authorize the exact original buyer; cancellation/another account cannot replace
+that buyer or the order. Disconnect forgets SDK and local connection state; this
+does not promise revocation of every prior wallet authorization.
+
+`src/solana-wallet-adapter.android.ts` lazily loads the Android SDK; the default
+adapter and button remain unsupported on iOS. Seeker-only device routing is
+unchanged; ordinary phones retain email registration. Wallet identity is separate
+from the backend's anonymous HTTP/WebSocket session. The existing 401 session
+repair runs before explicit wallet connection, without automatic purchase approval.
+
+Collection/Seeker proofs use `signIn` with the exact server nonce/domain/expiry
+and selected address. The response is verified locally and by the backend; only
+the existing exclusive figure requires SGT. Payments use `signTransactions` on
+the original raw, pre-signed bytes. Check the wallet's transaction-version
+capability, immutable message, existing server signatures and required buyer
+signature before returning the bytes to the backend. Never use SDK
+`signAndSendTransactions`, sign a transaction as a message, allow extra wallet
+instructions or automatically retry cancelled/ambiguous signing. RIPSY's backend
+still owns final validation, durable recovery and submission. A wallet that changes
+the message fails safely; this migration does not relax that compatibility policy.
+
+Verification of this source migration: 758 native tests/56 suites, 217 backend
+tests, 31 web tests, all three app typechecks, focused ESLint, both-platform Metro
+production bundles and Android `compileDebugKotlin`/`assembleDebug` pass. SDK
+autolinking and merged wallet-query manifest are present. These are local/mocked
+checks, not a physical Seeker association, native-button visual inspection or paid
+purchase. No new release version/APK publication/TestFlight upload is implied;
+published build 68 remains unchanged. A new native build and physical Seeker test
+are needed for delivery/signoff. See the official
+[quickstart](https://docs.solanamobile.com/solana-mobile-stack/seeker-connect-quickstart)
+and `WEB_PARITY_HANDOFF.md`.
 
 The figure shop also supports a native Privy embedded Solana wallet on iOS and
 Android. Email OTP, restored login, wallet creation, disconnect and transaction

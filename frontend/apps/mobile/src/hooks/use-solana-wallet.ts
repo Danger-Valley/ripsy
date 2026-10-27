@@ -40,12 +40,12 @@ export function useSolanaWallet() {
     return () => { active = false; unsubscribe(); };
   }, []);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (expectedAddress?: string) => {
     if (!isSolanaWalletSupported || status === 'connecting' || status === 'disconnecting') return;
     setStatus('connecting');
     setError(null);
     try {
-      const nextSession = await connectSolanaWallet(session);
+      const nextSession = expectedAddress ? await connectSolanaWallet(session, expectedAddress) : await connectSolanaWallet(session);
       await saveSolanaWalletSession(nextSession);
       setSession(nextSession);
       setStatus('connected');

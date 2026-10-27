@@ -50,14 +50,16 @@ export async function loadSolanaWalletSession(): Promise<SolanaWalletSession | n
 }
 
 export async function saveSolanaWalletSession(session: SolanaWalletSession): Promise<void> {
-  await Keychain.setGenericPassword('ripsy-solana-wallet', JSON.stringify(session), {
+  const saved = await Keychain.setGenericPassword('ripsy-solana-wallet', JSON.stringify(session), {
     service: keychainService,
     accessible: Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
   });
+  if (!saved) throw new Error('Could not save the Seeker connection securely. Try again.');
   listeners.forEach(listener => listener(session));
 }
 
 export async function clearSolanaWalletSession(): Promise<void> {
-  await Keychain.resetGenericPassword({ service: keychainService });
+  const cleared = await Keychain.resetGenericPassword({ service: keychainService });
+  if (!cleared) throw new Error('Could not forget the saved Seeker connection. Try again.');
   listeners.forEach(listener => listener(null));
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { Platform, Text } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import { SolanaWalletCard, shortenAddress } from '../src/components/solana-wallet-card';
 import { useSolanaWallet } from '../src/hooks/use-solana-wallet';
@@ -14,6 +14,7 @@ const register = jest.fn();
 const refresh = jest.fn(() => Promise.resolve());
 
 beforeEach(() => {
+  jest.replaceProperty(Platform, 'OS', 'android');
   jest.clearAllMocks();
   jest.mocked(usePrivyWallet).mockReturnValue({ address: null, refresh } as unknown as ReturnType<typeof usePrivyWallet>);
   jest.mocked(useSolanaWallet).mockReturnValue({
@@ -26,6 +27,7 @@ beforeEach(() => {
     disconnect,
   });
 });
+afterEach(() => jest.restoreAllMocks());
 
 test('connects from the disconnected wallet card', async () => {
   const renderer = await renderCard();
@@ -97,7 +99,7 @@ test.each(['loading', 'connecting', 'disconnecting'] as const)('wallet %s shows 
   jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), status, address: status === 'disconnecting' ? 'address11111111111111111111111111111111' : null });
   const renderer = await renderCard();
   const button = renderer.root.findAll(node => node.props.accessibilityRole === 'button' && node.props.accessibilityHint?.includes('wallet'))[0]!;
-  expect(button.props.disabled).toBe(true); expect(button.props.accessibilityState.busy).toBe(true);
+  expect(button.props.accessibilityState.disabled).toBe(true); expect(button.props.accessibilityState.busy).toBe(true);
   expect(connect).not.toHaveBeenCalled(); expect(disconnect).not.toHaveBeenCalled();
   await ReactTestRenderer.act(() => renderer.unmount());
 });

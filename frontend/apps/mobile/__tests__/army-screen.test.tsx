@@ -44,7 +44,7 @@ beforeEach(() => {
   api.clearWallet.mockResolvedValue(undefined);
   api.verifyWallet.mockResolvedValue(undefined);
 });
-afterEach(async () => { if (tree) await Renderer.act(() => tree.unmount()); });
+afterEach(async () => { if (tree) await Renderer.act(() => tree.unmount()); jest.restoreAllMocks(); });
 async function mount(params?: { expectedAssetId?: string }) {
   await Renderer.act(async () => {
     tree = Renderer.create(<ArmyScreen navigation={{ navigate, goBack, addListener, dispatch } as never} route={{ params } as never} />);
@@ -100,6 +100,7 @@ test('owned figures and account settings use collection copy without payment int
 });
 
 test('Seeker Army offers only wallet connection, never an email alternative', async () => {
+  jest.replaceProperty(Native.Platform, 'OS', 'android');
   jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: true });
   jest.mocked(usePrivyWallet).mockReturnValue({ ...jest.mocked(usePrivyWallet)(), address: wallet, error: 'Sign in with email unavailable' });
   await mount(); await press('Manage collection');

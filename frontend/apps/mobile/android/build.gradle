@@ -7,6 +7,8 @@ buildscript {
         // Rive 11.9.x requires the LLVM 19 C++ runtime shipped with NDK 28.
         ndkVersion = "28.2.13676358"
         kotlinVersion = "2.2.0"
+        // Seeker Connect's compileOnly API must match the host, not its SDK default.
+        reactNativeVersion = new groovy.json.JsonSlurper().parse(file("../package.json")).dependencies["react-native"]
     }
     repositories {
         google()

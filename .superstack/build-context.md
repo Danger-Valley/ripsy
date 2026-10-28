@@ -359,3 +359,25 @@ verified. Web Seeker Connect is unported. No signed release/publication, TestFli
 production deployment, price/pack/key/env/authority operation was performed.
 Published build 68 is unchanged; native rebuild/device validation is required.
 Full behavioral handoff: WEB_PARITY_HANDOFF.md and the mobile README.
+
+## Native release 1.0.0 (69) — 2026-10-28
+
+Delivers the previously source-only native idle shop previews, anonymous-session
+and 401 recovery, and official Seeker Connect 0.2.0 migration from baseline
+`7ff68c9`. Android arm64 release is signed, R8-optimized and published to the
+existing Download channel; unauthenticated APK hash and Download version 69 label
+are verified. iOS archive/export/upload succeeded with Danger Valley distribution
+signing; App Store Connect independently confirms VALID/internal IN_BETA_TESTING
+and automatic tester notification. Evidence is recorded in
+`files/releases/1.0.0-69.md`. The earlier source-only release statuses above are
+historical, not a claim that these changes remain absent from build 69.
+
+All 758 mobile tests/56 suites with open-handle detection, native TypeScript,
+eight-model contracts and both-platform preflight pass. Exact APK/archive/IPA
+checks find no matches for 19 configured local private-value representations and
+verify all five bundled Rive digests; this is bounded, not a comprehensive secret
+audit. Exact R8 mapping, IPA/archive and matching framework dSYMs are retained in
+ignored build output. No physical-device/push/payment pass or web port is implied.
+No Expo, dependency update, production backend/web/catalog/env/authority or update
+minimum change was made. Order recovery after lost anonymous identity and
+dependency-advisory reachability work remain open; packs can remain disabled.

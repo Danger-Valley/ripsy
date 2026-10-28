@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -11,7 +11,22 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
-## Native Seeker Connect migration (2026-10-27, source only)
+## Native release 69 delivery (2026-10-28)
+
+Signed Android 1.0.0 (69) now delivers the previously source-only Seeker Connect,
+session/401 recovery and shop idle-preview changes described below. Its public
+APK bytes and Download page version label are independently verified. iOS 69
+archive/export/upload succeeded; App Store Connect independently confirms VALID
+and internal IN_BETA_TESTING, with automatic tester notification enabled. Full
+evidence is recorded in `files/releases/1.0.0-69.md`. These records supersede only
+the earlier build-68/source-only delivery statuses, not their behavioral contracts.
+All 758 mobile tests, native TypeScript, eight-model asset contracts and both
+platform release preflights pass. Physical Seeker signing/payment, native update
+installation and push delivery remain unverified. Browser Seeker Connect,
+browser cached-token recovery UI and web idle previews remain unported. No web,
+backend, catalog, price, update-minimum or authority change accompanies this build.
+
+## Native Seeker Connect migration (2026-10-27, source only at implementation)
 
 - Seeker now uses official `@solana-mobile/seeker-connect-react-native` 0.2.0 over the Kotlin SDK/MWA, matching Kinbay's transport boundary without its Expo or vault-specific policies. Remove the old direct MWA JS packages; do not add Expo, a browser SDK, relay infrastructure or new backend settings. Supply the host React Native version to Gradle. Identity remains RIPSY/`https://www.ripsy.fun`/`favicon.ico`, with direct first association to `https://connect.solanamobile.com` and a 30-second association bound. Android native SDK/button imports are lazy; iOS and ordinary-phone email routing remain unchanged.
 - Native Home/Army/shop connection and 401 recovery actions embed the official 56-point Connect with Seeker button, with disabled/busy accessibility state and progress. Account management, purchase review, quantity and Army visuals retain Toy Box controls. Do not infer backend eligibility from Android model detection: the server still checks SIWS/SGT, with SGT required only for the existing exclusive figure. Native SDK dialogs supplement, not replace, the saved-purchase/error UI.

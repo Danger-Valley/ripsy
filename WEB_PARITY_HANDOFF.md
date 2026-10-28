@@ -13,6 +13,8 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 ## Direct-figure stranded checkout reconciliation (2026-10-28, source only)
 
+Implementation commit: `e53de52`.
+
 Direct payment plus Core mint is already atomic. A typed 404 for a saved order
 now persists `reconciliationOnly` and calls authenticated
 `POST /shop/orders/:id/reconcile` with the original pre-signed transaction and

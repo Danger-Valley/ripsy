@@ -1,6 +1,7 @@
 # Direct-figure checkout reconciliation — 2026-10-28
 
 Implementation only; not included in published Android/TestFlight 1.0.0 (69).
+Implementation commit: `e53de52`.
 
 ## Scope
 

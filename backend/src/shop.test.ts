@@ -42,6 +42,68 @@ function fixture() {
   return { redis, chain, service: new ShopService(redis, config, chain, 'ripsy', seeker), replica: new ShopService(redis, config, chain, 'ripsy', seeker), prepares: () => prepares, sends: () => sends, setState: (value: typeof state) => { state = value; } };
 }
 
+test('new player can reconcile only the exact receipt; no ownership, order write, prepare or send', async () => {
+  const f = fixture(); const order = await f.service.create('old-player', input);
+  const key = `ripsy:shop:order:${order.id}`; const original = await f.redis.get(key);
+  const calls: unknown[] = [];
+  f.chain.status = async (snapshot, finality) => { calls.push(finality); snapshot.signature = '1'.repeat(64); return 'confirmed'; };
+  const result = await f.service.reconcile('new-player', order.id, { transaction: order.transaction });
+  assert.equal(result.status, 'confirmed'); assert.equal(result.signature, '1'.repeat(64));
+  assert.deepEqual(calls, ['finalized']); assert.equal(await f.redis.get(key), original);
+  assert.equal(f.prepares(), 1); assert.equal(f.sends(), 0);
+  await assert.rejects(f.service.get('new-player', order.id), /not found/);
+  await assert.rejects(f.service.submit('new-player', order.id, 'signed'), /not found/);
+  assert.equal(f.sends(), 0);
+});
+
+test('reconciliation of saved signed bytes only derives the original signature and never broadcasts', async () => {
+  const f = fixture(); const order = await f.service.create('old-player', input);
+  const key = `ripsy:shop:order:${order.id}`; const original = await f.redis.get(key);
+  const checked = await f.service.reconcile('new-player', order.id, { transaction: order.transaction, signed: 'signed' });
+  assert.equal(checked.status, 'submitted'); assert.equal(checked.signature, '1'.repeat(64));
+  assert.equal(f.sends(), 0); assert.equal(await f.redis.get(key), original);
+  for (const state of ['failed', 'expired'] as const) {
+    f.setState(state);
+    assert.equal((await f.service.reconcile('new-player', order.id, { transaction: order.transaction, signed: 'signed' })).status, state);
+    assert.equal(await f.redis.get(key), original); assert.equal(f.sends(), 0);
+  }
+});
+
+test('reconciling an already-submitted stored payment never calls the rebroadcasting refresh path', async () => {
+  const f = fixture(); const order = await f.service.create('old-player', input);
+  const key = `ripsy:shop:order:${order.id}`;
+  const original = JSON.stringify({ playerId: 'old-player', order: { ...order, status: 'submitted', signature: '1'.repeat(64) }, signed: 'signed' });
+  await f.redis.set(key, original);
+  const result = await f.service.reconcile('new-player', order.id, { transaction: order.transaction });
+  assert.equal(result.status, 'submitted'); assert.equal(result.signature, '1'.repeat(64));
+  assert.equal(await f.redis.get(key), original); assert.equal(f.sends(), 0); assert.equal(f.prepares(), 1);
+});
+
+test('bad or missing receipt, signature, network and ambiguous RPC fail closed', async () => {
+  const f = fixture(); const order = await f.service.create('old-player', input);
+  const key = `ripsy:shop:order:${order.id}`; const original = await f.redis.get(key);
+  let calls = 0; f.chain.status = async () => { calls++; throw new Error('RPC unavailable'); };
+  for (const transaction of [undefined, '', 'different', 'x'.repeat(1645)]) {
+    await assert.rejects(f.service.reconcile('new-player', order.id, { transaction }), /not found/);
+  }
+  await assert.rejects(f.service.reconcile('new-player', 'b'.repeat(64), { transaction: order.transaction }), /not found/);
+  await assert.rejects(f.service.reconcile('new-player', order.id, { transaction: order.transaction, signed: 'wrong' }), /signature/);
+  assert.equal(calls, 0);
+  await assert.rejects(f.service.reconcile('new-player', order.id, { transaction: order.transaction }), /RPC unavailable/);
+  assert.equal(await f.redis.get(key), original); assert.equal(f.sends(), 0);
+  await f.redis.set(key, JSON.stringify({ playerId: 'old-player', order: { ...order, cluster: 'devnet' } }));
+  await assert.rejects(f.service.reconcile('new-player', order.id, { transaction: order.transaction }), /different network/);
+  assert.equal(calls, 1);
+});
+
+test('read-only reconciliation is rate limited independently of preparing a new purchase', async () => {
+  const f = fixture(); const order = await f.service.create('old-player', input);
+  for (let n = 0; n < 30; n++) await f.service.reconcile('new-player', order.id, { transaction: order.transaction });
+  await assert.rejects(f.service.reconcile('new-player', order.id, { transaction: order.transaction }), (e: unknown) => e instanceof ShopError && e.status === 429);
+  await assert.rejects(f.service.reconcile('another-player', order.id, { transaction: order.transaction }), (e: unknown) => e instanceof ShopError && e.status === 429);
+  assert.equal(f.prepares(), 1); assert.equal(f.sends(), 0);
+});
+
 test('shop is disabled by default; no invented prices and no signing secrets in catalog', () => {
   const defaults = loadShopConfig({ SHOP_MINT_AUTHORITY_SECRET: 'not-public' });
   const catalog = shopCatalog(defaults);

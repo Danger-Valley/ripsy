@@ -43,7 +43,7 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
   const order = shop.order;
   const error = actionError || shop.error || external.error || sessionError;
   const walletBusy = external.busy || shop.busy || pack.busy;
-  const canClose = !shop.signingStarted || (order && isTerminalMint(order));
+  const canClose = (!shop.signingStarted && !shop.reconciliationOnly) || (order && isTerminalMint(order));
   const handle = (task: () => Promise<unknown>) => { setActionError(null); void task().catch(cause => setActionError(cause instanceof Error ? cause.message : 'Please try again.')); };
   const canConnect = !walletBusy;
   const canDisconnect = shop.ready && pack.ready && !shop.hasPurchase && !pack.hasPurchase && !walletBusy;
@@ -92,14 +92,14 @@ export function ShopContent({ embedded }: { embedded?: EmbeddedWallet }) {
     {shop.hasPurchase && <section className={styles.review} aria-label="Purchase review" aria-live="polite">
       <h2>{order?.status === 'confirmed' ? 'Your figure is ready!' : 'Your purchase'}</h2>
       {order ? <>
-        <p>{order.status === 'confirmed' ? 'Purchase complete. Your figure is in your collection.' : order.status === 'submitted' ? 'Processing your purchase. You can return later; this purchase is saved.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Review the total below. Nothing is purchased until you approve.'}</p>
-        {order.status === 'prepared' && address !== order.buyer && <p>Sign in to the purchase account to approve this saved order. Its destination cannot be changed.</p>}
+        <p>{order.status === 'confirmed' ? 'Purchase complete. Your figure is in your collection.' : shop.reconciliationOnly ? isTerminalMint(order) ? 'The original transaction did not complete. No figure payment was made; network fees may apply. You can close this checkout.' : 'Checking the original transaction on the blockchain. No new payment or wallet approval will be requested. Your purchase stays saved until its result is certain.' : order.status === 'submitted' ? 'Processing your purchase. You can return later; this purchase is saved.' : order.status === 'failed' ? figureStoreMessage(order.error, 'The purchase failed. Check its status before trying again.') : order.status === 'expired' ? 'This purchase expired. Close it to start again.' : order.error ? figureStoreMessage(order.error) : 'Review the total below. Nothing is purchased until you approve.'}</p>
+        {!shop.reconciliationOnly && order.status === 'prepared' && address !== order.buyer && <p>Sign in to the purchase account to approve this saved order. Its destination cannot be changed.</p>}
         {order.cluster === 'devnet' && <p>Test purchase only. No real payment.</p>}
         <dl><dt>Figure</dt><dd>{definitions.find(figure => figure.id === order.figureId)?.name ?? order.figureId}{figureOrderQuantity(order) > 1 ? ` x${figureOrderQuantity(order)}` : ''}</dd><dt>Price</dt><dd>{figurePaymentPrice(order, order.cluster)}</dd><dt>Estimated additional fees</dt><dd>{figurePrice(order.networkFeeLamports, order.cluster)}</dd><dt>Estimated total</dt><dd>{figurePurchaseTotal(order)}</dd><dt>Sold by</dt><dd>RIPSY</dd></dl>
         <details><summary>Payment details</summary><dl><dt>Purchase account</dt><dd className={styles.address}>{order.buyer}</dd><dt>Seller account</dt><dd className={styles.address}>{order.treasury}</dd></dl>{order.signature && <a href={solanaExplorer('tx', order.signature, order.cluster)} target="_blank" rel="noreferrer">View payment record ↗</a>}</details>
         {order.solFunding && <><p>Pay with SOL: {formatSol(order.solFunding.inputLamports)}</p><p>{solFundingNotice(order.solFunding)}</p></>}
         <div className={styles.actions}>
-          {order.status === 'prepared' && <button className={styles.primary} disabled={shop.busy || address !== order.buyer} onClick={() => { void shop.confirm(walletKind === 'privy' ? embedded!.sign : external.signShopTransaction); }}>{shop.busy ? 'Waiting for approval…' : shop.signingStarted ? 'Retry purchase approval' : 'Confirm purchase'}</button>}
+          {!shop.reconciliationOnly && order.status === 'prepared' && <button className={styles.primary} disabled={shop.busy || address !== order.buyer} onClick={() => { void shop.confirm(walletKind === 'privy' ? embedded!.sign : external.signShopTransaction); }}>{shop.busy ? 'Waiting for approval…' : shop.signingStarted ? 'Retry purchase approval' : 'Confirm purchase'}</button>}
           {order.status === 'confirmed' && <a href={`/army?minted=${encodeURIComponent(order.asset)}`}>Add to your army →</a>}
         </div>
       </> : <p>{shop.fundingRequired ? `Use SOL to cover the missing ${shop.fundingRequired.symbol}. Review the total before approval.` : shop.error ? 'No payment has been approved. Check status or cancel and try again.' : 'Preparing your purchase. If the connection was interrupted, retry to recover this request.'}</p>}

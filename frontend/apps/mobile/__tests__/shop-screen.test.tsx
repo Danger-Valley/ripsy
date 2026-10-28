@@ -58,10 +58,54 @@ async function mountRecovery() {
   expect(shop.confirm).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled();
   await press('Continue purchase');
 }
+
+test.each(['prepared', 'submitted', 'failed', 'expired', 'confirmed'] as const)('read-only %s checkout has no wallet approval or Retry and only final results can close', async status => {
+  external();
+  setShop({ hasPurchase: true, signingStarted: true, reconciliationOnly: true, order: { ...order, status: 'submitted' } });
+  await mountRecovery();
+  setShop({ hasPurchase: true, signingStarted: true, reconciliationOnly: true, order: { ...order, status } });
+  await updateScreen();
+  expect(button('Continue in wallet')).toBeUndefined(); expect(button('Retry')).toBeUndefined();
+  expect(button('Reconnect wallet')).toBeUndefined();
+  if (status === 'prepared' || status === 'submitted') {
+    expect(text('CHECKING ORIGINAL PURCHASE')).toBe(true);
+    expect(button('Cancel purchase')).toBeUndefined(); expect(button('Done')).toBeUndefined();
+    await press('Check purchase status'); expect(shop.checkStatus).toHaveBeenCalledTimes(1);
+  } else {
+    expect(button('Done')).toBeDefined(); await press('Done'); expect(shop.dismiss).toHaveBeenCalledTimes(1);
+  }
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled(); expect(shop.retry).not.toHaveBeenCalled();
+  expect(signShopTransaction).not.toHaveBeenCalled(); expect(connect).not.toHaveBeenCalled();
+});
+
+test('read-only checkout renews HTTP access without opening Seeker authorization or a payment', async () => {
+  external();
+  setShop({ hasPurchase: true, signingStarted: true, reconciliationOnly: true, authenticationRequired: true, order });
+  await mountRecovery();
+  expect(purchaseModal('figure').findAllByType(SeekerConnectAction)).toHaveLength(0);
+  await press('Restore shop access');
+  expect(refreshPlayerIdentity).toHaveBeenCalledTimes(1); expect(connect).not.toHaveBeenCalled();
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled(); expect(shop.retry).not.toHaveBeenCalled();
+  expect(signShopTransaction).not.toHaveBeenCalled();
+});
+
+test('legacy read-only pending checkout cannot offer Cancel even without a signingStarted flag', async () => {
+  setShop({ hasPurchase: true, reconciliationOnly: true, signingStarted: false, order }); await mountRecovery();
+  expect(button('Cancel purchase')).toBeUndefined(); expect(button('Done')).toBeUndefined();
+  expect(button('Continue in wallet')).toBeUndefined(); expect(button('Check purchase status')).toBeDefined();
+});
+
+test('a completed reconciled figure receipt does not suppress existing pack wallet reconnection', async () => {
+  external(); setShop({ hasPurchase: true, reconciliationOnly: true, order: { ...order, status: 'confirmed' } });
+  jest.mocked(usePackShop).mockReturnValue({ ...pack, hasPurchase: true, authenticationRequired: true, purchaseBuyer: buyer } as unknown as ReturnType<typeof usePackShop>);
+  await mountRecovery(); await press('Connect Seeker');
+  expect(refreshPlayerIdentity).toHaveBeenCalledTimes(1); expect(connect).toHaveBeenCalledWith(buyer);
+  expect(pack.prepare).not.toHaveBeenCalled(); expect(pack.confirm).not.toHaveBeenCalled(); expect(shop.prepare).not.toHaveBeenCalled();
+});
 function button(label: string) { return tree.root.findAll(node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0]; }
 async function press(label: string) { await Renderer.act(async () => { await button(label).props.onPress(); }); }
 function text(value: string) { return tree.root.findAllByType(Text).some(node => node.props.children === value); }
-function setShop(next: object) { jest.mocked(useShop).mockReturnValue({ ...shop, purchaseQuantity: 1, purchaseBuyer: null, fundingRequired: null, buyWithSol: jest.fn(), ...next } as ReturnType<typeof useShop>); }
+function setShop(next: object) { jest.mocked(useShop).mockReturnValue({ ...shop, reconciliationOnly: false, purchaseQuantity: 1, purchaseBuyer: null, fundingRequired: null, buyWithSol: jest.fn(), ...next } as ReturnType<typeof useShop>); }
 function external(address: string | null = buyer) { jest.replaceProperty(Platform, 'OS', 'android'); jest.mocked(useSolanaWallet).mockReturnValue({ ...jest.mocked(useSolanaWallet)(), isSupported: true, address, status: address ? 'connected' : 'disconnected' }); }
 function visibleModals() { return tree.root.findAllByType(Modal).filter(node => node.props.visible); }
 function purchaseModal(id: 'figure' | 'pack') {

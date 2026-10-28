@@ -381,3 +381,24 @@ ignored build output. No physical-device/push/payment pass or web port is implie
 No Expo, dependency update, production backend/web/catalog/env/authority or update
 minimum change was made. Order recovery after lost anonymous identity and
 dependency-advisory reachability work remain open; packs can remain disabled.
+
+## Direct-figure checkout reconciliation — 2026-10-28 (source only)
+
+Lost old-player access to a retained checkout receipt now has a read-only path.
+The original pre-signed transaction plus a valid current session can observe its
+finalized chain outcome; old GET/submit permissions remain scoped to the original
+player. No order transfer/write, wallet binding, prepare, sign or send occurs in
+reconciliation. Strict expiry requires finalized height, invalid blockhash,
+complete bounded history and no expected asset accounts. Unknown/malformed RPC
+evidence, missing receipts and storage failure keep recovery saved and blocked.
+
+Shared hook durably enters reconciliation-only mode after 404; native/web hide
+approval/Retry and finish only a verified terminal receipt. Legacy missing
+signingStarted, token changes, unmounts and quote/asset mismatches are covered.
+Native 401 repair in this mode is HTTP-only; browser session repair and packs
+remain unchanged. 791 mobile, 228 backend and 32 web tests, all app typechecks,
+focused lint and both Metro production-mode bundles pass. No live transaction,
+deployment, native rebuild/upload, dependency or production configuration change
+was made. Deploy backend before new clients; build 69 does not include this fix.
+Full contract: `files/releases/checkout-reconciliation-2026-10-28.md` and
+`WEB_PARITY_HANDOFF.md`.

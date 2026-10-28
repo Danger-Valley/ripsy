@@ -13,6 +13,7 @@ import { attachGameWebSocketServer } from './game-websocket-server.js';
 import { loadShopConfig } from './shop-config.js';
 import { createShopChain } from './shop-chain.js';
 import { ShopError, ShopService, type ShopRedis } from './shop-service.js';
+import { handleShopReconciliation } from './shop-reconciliation-http.js';
 import { createSeekerTokenChecker, SeekerVerificationService } from './seeker-verification.js';
 import { createFigureAssetSource, FigureInventoryService } from './figure-inventory.js';
 import { WalletVerificationService } from './wallet-verification.js';
@@ -178,13 +179,14 @@ const server = createServer(async (request, response) => {
         response.writeHead(201).end(JSON.stringify(result));
         return;
       }
+      if (await handleShopReconciliation(request, response, requestUrl.pathname, { service: shop, verifyPlayer: () => playerId, readBody: readJsonBody })) return;
       const match = /^\/shop\/orders\/([a-f0-9]{64})(\/submit)?$/.exec(requestUrl.pathname);
       if (match && request.method === 'GET' && !match[2]) {
         const result = await shop.get(playerId, match[1]!);
         response.writeHead(200).end(JSON.stringify(result));
         return;
       }
-      if (match && request.method === 'POST' && match[2]) {
+      if (match && request.method === 'POST' && match[2] === '/submit') {
         const body = await readJsonBody(request);
         const result = await shop.submit(playerId, match[1]!, body.transaction);
         response.writeHead(200).end(JSON.stringify(result));

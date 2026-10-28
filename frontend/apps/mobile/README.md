@@ -2,6 +2,21 @@
 
 Bare React Native Community CLI application for iOS and Android. This is a native client: it does not use Expo or render the web application.
 
+## Saved checkout after session loss
+
+Direct figure payment and Core mint remain one atomic transaction. A saved order
+returning 404 now enters durable read-only reconciliation using its exact receipt.
+Only finalized confirmed/failed/expired results finish pending work; unknown RPC
+results retain it. Recovery never opens signing, submits a payment, changes the
+buyer or transfers an order to the new player ID. Approval/Retry are hidden for
+these receipts, and session repair renews HTTP without launching Seeker.
+
+Deploy the new backend reconciliation route before releasing updated clients.
+Missing retained receipts remain blocked for support; never clear app storage to
+work around an unknown payment. This source fix is not in published build 69.
+See `files/releases/checkout-reconciliation-2026-10-28.md` for verification and
+the complete rollout/safety contract. Packs are not changed by this fix.
+
 ## Local development
 
 Start Redis and the WebSocket backend from the repository root:

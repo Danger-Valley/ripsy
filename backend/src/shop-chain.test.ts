@@ -110,6 +110,84 @@ test('processed is pending; confirmed chain error is terminal failure', async ()
   assert.equal(await f.chain.status(order), 'failed');
 });
 
+test('detached checkout waits for finalized success/failure, not processed or confirmed', async () => {
+  const f = fixture(); const { order, encoded } = await f.prepare();
+  order.signature = f.chain.validateSigned(order, encoded);
+  for (const commitment of ['processed', 'confirmed'] as const) {
+    f.umi.rpc.getSignatureStatuses = async () => [{ commitment, error: null, slot: 1, confirmations: 1 }];
+    assert.equal(await f.chain.status(order, 'finalized'), 'pending');
+  }
+  f.umi.rpc.getSignatureStatuses = async () => [{ commitment: 'finalized', error: null, slot: 1, confirmations: null }];
+  assert.equal(await f.chain.status(order, 'finalized'), 'confirmed');
+  f.umi.rpc.getSignatureStatuses = (async () => [{ commitment: 'finalized', error: { InstructionError: [0, 'test'] }, slot: 1, confirmations: null }]) as RpcInterface['getSignatureStatuses'];
+  assert.equal(await f.chain.status(order, 'finalized'), 'failed');
+});
+
+test('read-only reconciliation finds exact wallet-broadcast bytes before expiry without sending', async () => {
+  const f = fixture(); const { order, signed } = await f.prepare();
+  const signature = base58.deserialize(signed.signatures[0]!)[0];
+  const original = f.umi.rpc.call;
+  f.umi.rpc.call = (async (method, params) => {
+    if (method === 'getBlockHeight') return 99;
+    if (method === 'getSignaturesForAddress') { assert.deepEqual(params, [order.asset, { commitment: 'finalized', limit: 10 }]); return [{ signature }]; }
+    return original(method, params);
+  }) as RpcInterface['call'];
+  f.umi.rpc.getTransaction = (async (_signature: unknown, options?: { commitment?: string }) => {
+    assert.equal(options?.commitment, 'finalized'); return { ...signed, meta: { err: null } };
+  }) as unknown as RpcInterface['getTransaction'];
+  f.umi.rpc.sendTransaction = async () => { throw new Error('Must not broadcast'); };
+  assert.equal(await f.chain.status(order, 'finalized'), 'confirmed'); assert.equal(order.signature, signature);
+});
+
+test('reconciliation expires only beyond finalized height with invalid blockhash and absent assets', async () => {
+  const f = fixture(); const { order } = await f.prepare(); const original = f.umi.rpc.call;
+  let valid: unknown = { value: false }, height = 101, exists = false;
+  f.umi.rpc.call = (async (method, params) => {
+    if (method === 'isBlockhashValid') { assert.deepEqual(params, ['11111111111111111111111111111111', { commitment: 'finalized' }]); return valid; }
+    if (method === 'getBlockHeight') { assert.deepEqual(params, [{ commitment: 'finalized' }]); return height; }
+    return original(method, params);
+  }) as RpcInterface['call'];
+  f.umi.rpc.getAccount = (async (address, options) => { assert.equal(options?.commitment, 'finalized'); return { exists, publicKey: address }; }) as RpcInterface['getAccount'];
+  assert.equal(await f.chain.status(order, 'finalized'), 'expired');
+  for (valid of [{ value: true }, {}, null]) await assert.rejects(f.chain.status(order, 'finalized'), /expiry requires/);
+  valid = { value: false }; exists = true;
+  await assert.rejects(f.chain.status(order, 'finalized'), /account history/);
+  exists = false; height = 100;
+  assert.equal(await f.chain.status(order, 'finalized'), 'pending');
+  for (height of [NaN, -1, Number.MAX_SAFE_INTEGER + 1]) await assert.rejects(f.chain.status(order, 'finalized'), /block height/);
+});
+
+test('reconciliation rejects wrong network and missing history, never accepting an unrelated message', async () => {
+  const f = fixture(); const { order, signed } = await f.prepare(); const original = f.umi.rpc.call;
+  f.umi.rpc.call = (async () => 'wrong-network') as RpcInterface['call'];
+  await assert.rejects(f.chain.status(order, 'finalized'), /network/);
+  f.umi.rpc.call = (async (method, params) => method === 'getSignaturesForAddress' ? [{ signature: '1'.repeat(64) }] : original(method, params)) as RpcInterface['call'];
+  f.umi.rpc.getTransaction = async () => null;
+  await assert.rejects(f.chain.status(order, 'finalized'), /history requires/);
+  const altered = { ...signed, serializedMessage: new Uint8Array([1, 2, 3]) };
+  f.umi.rpc.getTransaction = (async () => ({ ...altered, meta: { err: null } })) as unknown as RpcInterface['getTransaction'];
+  // Without expiry evidence, an unrelated transaction is not a successful mint.
+  await assert.rejects(f.chain.status(order, 'finalized'));
+  assert.equal(order.signature, null);
+  const previous = f.umi.rpc.call;
+  f.umi.rpc.call = (async (method, params) => method === 'isBlockhashValid' ? { value: false } : previous(method, params)) as RpcInterface['call'];
+  f.umi.rpc.getAccount = async address => ({ exists: false, publicKey: address });
+  assert.equal(await f.chain.status(order, 'finalized'), 'expired');
+  assert.equal(order.signature, null);
+});
+
+test('malformed finalized RPC status or missing transaction result cannot report success', async () => {
+  const f = fixture(); const { order, signed, encoded } = await f.prepare();
+  const signature = f.chain.validateSigned(order, encoded); order.signature = signature;
+  f.umi.rpc.getSignatureStatuses = (async () => [{ commitment: 'finalized' }]) as unknown as RpcInterface['getSignatureStatuses'];
+  await assert.rejects(f.chain.status(order, 'finalized'), /status requires/);
+  order.signature = null; const original = f.umi.rpc.call;
+  f.umi.rpc.call = (async (method, params) => method === 'getSignaturesForAddress' ? [{ signature }] : original(method, params)) as RpcInterface['call'];
+  f.umi.rpc.getTransaction = (async () => ({ ...signed, meta: {} })) as unknown as RpcInterface['getTransaction'];
+  await assert.rejects(f.chain.status(order, 'finalized'), /result requires/);
+  assert.equal(order.signature, null);
+});
+
 test('recovers a wallet-broadcast transaction even if the app never submitted its signature', async () => {
   const f = fixture();
   const { order, signed } = await f.prepare();

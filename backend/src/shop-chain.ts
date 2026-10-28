@@ -3,7 +3,7 @@ import { createNoopSigner, generateSigner, keypairIdentity, lamports, publicKey,
 import { base58 } from '@metaplex-foundation/umi/serializers';
 import { createV1, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import { mplToolbox, transferSol, setComputeUnitLimit, setComputeUnitPrice } from '@metaplex-foundation/mpl-toolbox';
-import { validateFigureQuantity, type FigureId, type MintOrder, type TokenPayment } from '@rps/core/shop';
+import { figureOrderAssets, validateFigureQuantity, type FigureId, type MintOrder, type TokenPayment } from '@rps/core/shop';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
 import type { ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
@@ -15,7 +15,7 @@ export interface ShopChain {
   prepare(figureId: FigureId, buyer: string, price: string, payment?: TokenPayment, paymentMode?: 'sol', quantity?: number): Promise<ChainMint>;
   validateSigned(order: Pick<MintOrder, 'transaction' | 'buyer'>, signed: string): string;
   send(signed: string): Promise<void>;
-  status(order: MintOrder): Promise<'pending' | 'confirmed' | 'failed' | 'expired'>;
+  status(order: MintOrder, finality?: 'confirmed' | 'finalized'): Promise<'pending' | 'confirmed' | 'failed' | 'expired'>;
 }
 
 // Umi stays entirely on the server: neither private mint keys nor SDK legacy
@@ -118,31 +118,51 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
     async send(encoded) {
       await umi.rpc.sendTransaction(decode(encoded), { skipPreflight: false, maxRetries: 3, preflightCommitment: 'confirmed' });
     },
-    async status(order) {
+    async status(order, finality = 'confirmed') {
+      // Detached checkout recovery is a read-only, finalized observation. A
+      // wrong-cluster RPC must never make a paid receipt look expired.
+      if (finality === 'finalized') {
+        const genesis = await umi.rpc.call<string>('getGenesisHash');
+        const expected = order.cluster === 'devnet' ? 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG' : '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
+        if (genesis !== expected) throw new Error('Purchase reconciliation network is unavailable');
+      }
       if (order.signature) {
         const [status] = await umi.rpc.getSignatureStatuses([base58.serialize(order.signature)], { searchTransactionHistory: true });
         // A processed observation is not enough to report success or failure.
-        if (status?.commitment === 'confirmed' || status?.commitment === 'finalized') return status.error ? 'failed' : 'confirmed';
+        if (status?.commitment === 'finalized' || (finality === 'confirmed' && status?.commitment === 'confirmed')) {
+          if (status.error === undefined) throw new Error('Purchase status requires reconciliation');
+          return status.error ? 'failed' : 'confirmed';
+        }
         if (status) return 'pending';
       }
       // Only declare expiry after finalized block height passes the blockhash
       // lifetime. An ambiguous RPC error must never unlock another payment.
       const height = await umi.rpc.call<number>('getBlockHeight', [{ commitment: 'finalized' }]);
-      if (height <= order.lastValidBlockHeight) return 'pending';
-      // A wallet may broadcast before returning its signature to the app. After
-      // expiry, recover that exact message via the unique asset address. Do not
+      if (!Number.isSafeInteger(height) || height < 0) throw new Error('Purchase block height requires reconciliation');
+      if (height <= order.lastValidBlockHeight && finality !== 'finalized') return 'pending';
+      // A wallet may broadcast before returning its signature to the app. Strict
+      // recovery checks this even before expiry, via the unique asset. Do not
       // mistake an unrelated transfer to the address for a successful mint.
       const history = await umi.rpc.call<Array<{ signature: string }>>('getSignaturesForAddress', [order.asset, { commitment: 'finalized', limit: 10 }]);
+      if (!Array.isArray(history) || history.length > 10) throw new Error('Purchase history requires reconciliation');
       const expected = decode(order.transaction);
       const transactions = await Promise.all(history.map(item => umi.rpc.getTransaction(base58.serialize(item.signature), { commitment: 'finalized' })));
       for (let index = 0; index < transactions.length; index++) {
         const transaction = transactions[index];
         if (transaction && Buffer.from(transaction.serializedMessage).equals(Buffer.from(expected.serializedMessage))) {
+          if (transaction.meta?.err === undefined) throw new Error('Purchase transaction result requires reconciliation');
           order.signature = history[index]!.signature;
           return transaction.meta.err ? 'failed' : 'confirmed';
         }
       }
       if (transactions.some(transaction => !transaction) || history.length === 10) throw new Error('Purchase history requires reconciliation');
+      if (height <= order.lastValidBlockHeight) return 'pending';
+      if (finality === 'finalized') {
+        const valid = await umi.rpc.call<{ value: boolean }>('isBlockhashValid', [expected.message.blockhash, { commitment: 'finalized' }]);
+        if (valid?.value !== false) throw new Error('Purchase expiry requires reconciliation');
+        const assets = await Promise.all(figureOrderAssets(order).map(asset => umi.rpc.getAccount(publicKey(asset), { commitment: 'finalized' })));
+        if (assets.some(asset => asset.exists !== false)) throw new Error('Purchase account history requires reconciliation');
+      }
       return 'expired';
     },
   };

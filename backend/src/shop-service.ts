@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { publicKey } from '@metaplex-foundation/umi';
 import { figureOrderQuantity, figureQuantityPrice, validateFigureQuantity, isFigureId, isTerminalMint, type MintOrder } from '@rps/core/shop';
 import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
@@ -92,6 +92,38 @@ export class ShopService {
 
   async get(playerId: string, id: string) {
     return this.lock(id, async () => this.refresh((await this.read(id, playerId))!));
+  }
+
+  async reconcile(playerId: string, id: string, input: Record<string, unknown>): Promise<MintOrder> {
+    // Possession of the original pre-signed receipt permits ONLY observing its
+    // public chain outcome. It grants no GET/submit access, wallet binding or
+    // order ownership. Never call refresh(): it may re-broadcast signed bytes.
+    if (!/^[a-f0-9]{64}$/.test(id) || typeof input.transaction !== 'string' || !input.transaction || input.transaction.length > 1644) throw new ShopError('Purchase receipt not found', 404);
+    const raw = await this.redis.get(`${this.prefix}:shop:order:${id}`);
+    if (!raw) throw new ShopError('Purchase receipt not found', 404);
+    const stored = JSON.parse(raw) as StoredOrder;
+    const expected = Buffer.from(stored.order.transaction), supplied = Buffer.from(input.transaction);
+    if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) throw new ShopError('Purchase receipt not found', 404);
+    if (stored.order.cluster !== this.config.cluster) throw new ShopError('This purchase belongs to a different network. Contact support before starting another purchase.', 409);
+    const minute = Math.floor(Date.now() / 60_000);
+    for (const scope of [`player:${playerId}`, `receipt:${id}`]) {
+      const bucket = `${this.prefix}:shop:reconcile-rate:${scope}:${minute}`;
+      const count = Number(await this.redis.eval("local n = redis.call('INCR', KEYS[1]); if n == 1 then redis.call('EXPIRE', KEYS[1], 120) end; return n", { keys: [bucket], arguments: [] }));
+      if (count > 30) throw new ShopError('Too many status checks. Wait a minute and try again.', 429);
+    }
+    const order = { ...stored.order };
+    if (input.signed !== undefined) {
+      if (typeof input.signed !== 'string' || input.signed.length > 1644) throw new ShopError('Invalid purchase signature');
+      const signature = this.chain.validateSigned(order, input.signed);
+      if (order.signature && order.signature !== signature) throw new ShopError('The saved purchase signature does not match', 409);
+      order.signature = signature;
+    }
+    const state = await this.chain.status(order, 'finalized');
+    if (state === 'confirmed' && !order.signature) throw new ShopError('The purchase result could not be verified. Keep it saved and check again.', 503);
+    order.status = state === 'pending' ? order.signature ? 'submitted' : 'prepared' : state;
+    order.error = state === 'failed' ? 'The transaction failed. The figure price was not charged; network fees may apply.'
+      : state === 'expired' ? 'This purchase expired without completing. No figure payment was made.' : null;
+    return order;
   }
 
   async submit(playerId: string, id: string, signed: unknown) {

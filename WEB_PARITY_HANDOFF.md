@@ -11,6 +11,41 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
+## Direct-figure stranded checkout reconciliation (2026-10-28, source only)
+
+Direct payment plus Core mint is already atomic. A typed 404 for a saved order
+now persists `reconciliationOnly` and calls authenticated
+`POST /shop/orders/:id/reconcile` with the original pre-signed transaction and
+optional original signed bytes. This is a read-only chain observation capability,
+not an old-player login: GET/submit ownership checks stay unchanged, no order is
+rebound or rewritten, and no wallet/inventory binding is granted. Recovery cannot
+prepare, sign, submit, broadcast or automatically retry a payment. Independent
+short-lived player/receipt rate counters are the only writes in this route.
+
+Use finalized chain evidence and the exact serialized message. Unknown RPC,
+wrong network, incomplete/full asset history, malformed results and contradictory
+blockhash/asset evidence retain the receipt. Clear pending storage only after
+definitive confirmed/failed/expired outcome and successful persistence. Keep an
+in-memory receipt/Done action; never discard an unknown legacy signed receipt
+just because its old `signingStarted` field is absent. Preserve buyer/key/quote,
+transaction and all asset IDs. Stale-token/unmount results cannot clear it.
+
+Shared hook and native/web read-only presentation are implemented: approval,
+reconnect-for-approval and Retry disappear in this mode; status/Done remain.
+Native session repair renews HTTP only in this mode, without opening Seeker.
+Browser cached-token validation/401 repair remains unported, so web still needs
+a valid session before recovery can run. Packs are unchanged. Missing retained
+server receipts remain saved for support; client-supplied quotes/expiry cannot
+replace them. See `files/releases/checkout-reconciliation-2026-10-28.md`.
+
+Verification: 791 mobile/228 backend/32 web tests, all app typechecks, focused
+native/shared lint (no errors; two existing `no-void` warnings) and both Metro
+production-mode bundles pass. No physical/paid purchase, deployment, new native
+build/upload, env/key/authority/catalog or update-minimum change was performed.
+Deploy backend first, then updated clients. Published build 69 is unchanged.
+This supersedes the earlier support-only handling of retained old-player orders,
+not the prohibition on rebinding or the pending-state safety guarantees.
+
 ## Native release 69 delivery (2026-10-28)
 
 Signed Android 1.0.0 (69) now delivers the previously source-only Seeker Connect,

@@ -57,6 +57,27 @@ test('malformed success payload cannot become a purchase', async () => {
   await assert.rejects(() => client.get('a'.repeat(64)), /Invalid mint order/);
 });
 
+test('checkout reconciliation sends only the original receipt under the current session, never submit or player reassignment', async () => {
+  const id = 'a'.repeat(64);
+  const result = { id, figureId: 'fig1', buyer: '11111111111111111111111111111111', asset: 'So11111111111111111111111111111111111111112',
+    treasury: '11111111111111111111111111111111', collection: 'SysvarRent111111111111111111111111111111111', cluster: 'devnet',
+    priceLamports: '100000000', networkFeeLamports: '1000', transaction: 'AQ==', lastValidBlockHeight: 100,
+    createdAt: 1, status: 'confirmed', signature: '1'.repeat(64), error: null };
+  const calls: unknown[] = [];
+  const client = new ShopClient('https://api.example.test/', 'new-session', async (url, init) => {
+    calls.push(String(url)); assert.equal(init?.method, 'POST');
+    assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer new-session');
+    assert.deepEqual(JSON.parse(String(init?.body)), { transaction: 'AQ==', signed: 'original-signed-bytes' });
+    return new Response(JSON.stringify(result));
+  });
+  assert.deepEqual(await client.reconcile(id, 'AQ==', 'original-signed-bytes'), result);
+  assert.deepEqual(calls, [`https://api.example.test/shop/orders/${id}/reconcile`]);
+  const missing = new ShopClient('https://api.example.test', 'new-session', async () => new Response('{}', { status: 404 }));
+  await assert.rejects(missing.reconcile(id, 'AQ=='), (e: unknown) => e instanceof ShopRequestError && e.status === 404);
+  const invalid = new ShopClient('https://api.example.test', 'new-session', async () => new Response('{}'));
+  await assert.rejects(invalid.reconcile(id, 'AQ=='), /Invalid mint order/);
+});
+
 test('catalog accepts referral URLs and remains compatible with older servers', async () => {
   const referral = 'https://store.solanamobile.com/?ref=ripsy&utm_source=app';
   const response = { ...catalog, solanaMobileStoreUrl: referral };

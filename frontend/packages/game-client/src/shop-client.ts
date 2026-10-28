@@ -31,6 +31,9 @@ export class ShopClient {
     return order;
   }
   async get(id: string) { return parseMintOrder(await this.request(`/shop/orders/${encodeURIComponent(id)}`)); }
+  async reconcile(id: string, transaction: string, signed?: string) {
+    return parseMintOrder(await this.request(`/shop/orders/${encodeURIComponent(id)}/reconcile`, { transaction, ...(signed ? { signed } : {}) }));
+  }
   async submit(id: string, transaction: string) {
     return parseMintOrder(await this.request(`/shop/orders/${encodeURIComponent(id)}/submit`, { transaction }));
   }

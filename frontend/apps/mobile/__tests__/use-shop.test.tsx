@@ -13,7 +13,7 @@ const prepared: MintOrder = {
   priceLamports: '100000000', networkFeeLamports: '1000', transaction: 'AQ==', lastValidBlockHeight: 100,
   createdAt: 1, status: 'prepared', signature: null, error: null,
 };
-const api = { catalog: jest.fn(), seekerChallenge: jest.fn(), verifySeeker: jest.fn(), clearWallet: jest.fn(), create: jest.fn(), get: jest.fn(), submit: jest.fn() };
+const api = { catalog: jest.fn(), seekerChallenge: jest.fn(), verifySeeker: jest.fn(), clearWallet: jest.fn(), create: jest.fn(), get: jest.fn(), submit: jest.fn(), reconcile: jest.fn() };
 let shop!: ReturnType<typeof useShop>;
 let tree: Renderer.ReactTestRenderer;
 let saved: string | null;
@@ -30,6 +30,7 @@ beforeEach(() => {
   api.clearWallet.mockResolvedValue(undefined);
   api.create.mockResolvedValue(prepared);
   api.get.mockResolvedValue(prepared);
+  api.reconcile.mockRejectedValue(new ShopRequestError('Chain status unavailable', null, 503));
   api.submit.mockResolvedValue({ ...prepared, status: 'submitted', signature: '1'.repeat(64) });
 });
 afterEach(async () => { if (tree) await Renderer.act(async () => tree.unmount()); jest.useRealTimers(); });
@@ -58,7 +59,135 @@ test('401 on a signed saved order never drops bytes or creates a replacement, ev
   token = 'fresh-session'; await Renderer.act(async () => tree.update(<Probe />));
   api.get.mockRejectedValueOnce(new ShopRequestError('Purchase not found', null, 404));
   await Renderer.act(() => shop.checkStatus());
+  expect(JSON.parse(saved!)).toEqual({ ...JSON.parse(original), reconciliationOnly: true });
+  expect(api.reconcile).toHaveBeenCalledWith(prepared.id, prepared.transaction, 'signed');
+  expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test.each(['confirmed', 'failed', 'expired'] as const)('404 checkout reconciles %s and unlocks without preparing, signing or submitting', async status => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true, signed: 'signed' });
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockResolvedValue({ ...prepared, status, signature: status === 'expired' ? null : '1'.repeat(64) });
+  const sign = jest.fn();
+  await mount(); await Renderer.act(() => shop.checkStatus());
+  expect(shop.order?.status).toBe(status); expect(shop.reconciliationOnly).toBe(true);
+  expect(shop.order?.transaction).toBe(prepared.transaction); expect(shop.purchaseBuyer).toBe(prepared.buyer);
+  expect(saved).toBeNull(); expect(shop.error).toBeNull();
+  await Renderer.act(() => shop.confirm(sign));
+  await Renderer.act(() => shop.retry(undefined, sign));
+  expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
+  await Renderer.act(() => shop.dismiss()); expect(shop.hasPurchase).toBe(false);
+});
+
+test('pending reconciliation survives remount and can only check, never submit or open approval', async () => {
+  const original = { key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true, signed: 'signed' };
+  saved = JSON.stringify(original);
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockResolvedValue({ ...prepared, status: 'submitted', signature: '1'.repeat(64) });
+  await mount(); await Renderer.act(() => shop.checkStatus());
+  const sign = jest.fn();
+  expect(JSON.parse(saved!)).toMatchObject({ key: original.key, buyer: original.buyer, signed: original.signed, reconciliationOnly: true });
+  await Renderer.act(() => shop.confirm(sign)); await Renderer.act(() => shop.dismiss());
+  expect(shop.hasPurchase).toBe(true); expect(saved).not.toBeNull();
+  await Renderer.act(() => tree.unmount()); await mount();
+  await Renderer.act(() => shop.checkStatus());
+  expect(api.get).toHaveBeenCalledTimes(1); expect(api.reconcile).toHaveBeenCalledTimes(3);
+  expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
+  expect(shop.order?.status).toBe('submitted');
+});
+
+test.each([new ShopRequestError('Missing receipt', null, 404), new ShopRequestError('RPC unavailable', null, 503), new Error('Network timeout')])('ambiguous reconciliation retains exact bytes and remains blocked: %s', async failure => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true, signed: 'signed' });
+  const original = JSON.parse(saved);
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404)); api.reconcile.mockRejectedValue(failure);
+  await mount(); await Renderer.act(() => shop.checkStatus());
+  expect(JSON.parse(saved!)).toEqual({ ...original, reconciliationOnly: true });
+  await Renderer.act(() => shop.dismiss()); expect(shop.hasPurchase).toBe(true);
+  expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test.each([
+  { id: 'b'.repeat(64) }, { transaction: 'different' }, { buyer: prepared.asset }, { asset: prepared.buyer },
+  { figureId: 'fig2' }, { cluster: 'mainnet-beta' }, { quantity: 2, assets: [prepared.asset, prepared.buyer] },
+  { assets: [prepared.buyer] }, { signature: null },
+])('a mismatched reconciliation result cannot clear the receipt: %j', async changed => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true, signed: 'signed' });
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockResolvedValue({ ...prepared, status: 'confirmed', signature: '1'.repeat(64), ...changed });
+  await mount(); await Renderer.act(() => shop.checkStatus());
+  expect(saved).not.toBeNull(); expect(shop.order?.status).toBe('prepared'); expect(shop.error).not.toBeNull();
+  expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test('reconciliation applies only outcome and cannot rewrite the original quote', async () => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true });
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockResolvedValue({ ...prepared, status: 'confirmed', signature: '1'.repeat(64), treasury: prepared.buyer, priceLamports: '999', createdAt: 99 });
+  await mount(); await Renderer.act(() => shop.checkStatus());
+  expect(shop.order).toMatchObject({ ...prepared, status: 'confirmed', signature: '1'.repeat(64) });
+  expect(saved).toBeNull(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test.each(['token-change', 'unmount'])('late reconciliation cannot clear the receipt after %s', async kind => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true, signed: 'signed' });
+  let resolve!: (order: MintOrder) => void;
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  await mount(); let operation!: Promise<void>;
+  await Renderer.act(async () => { operation = shop.checkStatus(); });
+  const original = saved;
+  if (kind === 'unmount') await Renderer.act(() => tree.unmount());
+  else { token = 'another-session'; await Renderer.act(() => tree.update(<Probe />)); }
+  await Renderer.act(async () => { resolve({ ...prepared, status: 'confirmed', signature: '1'.repeat(64) }); await operation; });
   expect(saved).toBe(original); expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test('a partial handed-off receipt with no order never prepares a replacement request', async () => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, signingStarted: true, signed: 'signed' });
+  const original = saved; await mount(); await Renderer.act(() => shop.checkStatus());
+  expect(saved).toBe(original); expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test('a legacy signed receipt without signingStarted cannot dismiss an uncertain reconciled payment', async () => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signed: 'signed' });
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockResolvedValue({ ...prepared, status: 'submitted', signature: '1'.repeat(64) });
+  await mount(); await Renderer.act(() => shop.checkStatus()); await Renderer.act(() => shop.dismiss());
+  expect(saved).not.toBeNull(); expect(shop.hasPurchase).toBe(true);
+  expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test('Continue in wallet encountering 404 switches to observation without calling the signer', async () => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true });
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockResolvedValue(prepared); const sign = jest.fn();
+  await mount(); await Renderer.act(() => shop.confirm(sign));
+  expect(shop.reconciliationOnly).toBe(true); expect(saved).not.toBeNull();
+  expect(sign).not.toHaveBeenCalled(); expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+});
+
+test('a foreground Retry that loses old-player access only reconciles and never creates a replacement', async () => {
+  await mount(); await Renderer.act(() => shop.prepare('fig1', prepared.buyer));
+  api.get.mockResolvedValueOnce({ ...prepared, status: 'failed' }); await Renderer.act(() => shop.checkStatus());
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockResolvedValue({ ...prepared, status: 'expired' }); const sign = jest.fn();
+  await Renderer.act(() => shop.retry(undefined, sign));
+  expect(shop.reconciliationOnly).toBe(true); expect(shop.order?.status).toBe('expired'); expect(saved).toBeNull();
+  expect(api.create).toHaveBeenCalledTimes(1); expect(api.submit).not.toHaveBeenCalled(); expect(sign).not.toHaveBeenCalled();
+});
+
+test.each(['boundary', 'terminal'])('storage failure at reconciliation %s does not send or discard recovery', async phase => {
+  saved = JSON.stringify({ key: 'purchase-request-12345', figureId: 'fig1', buyer: prepared.buyer, order: prepared, signingStarted: true, signed: 'signed' });
+  api.get.mockRejectedValue(new ShopRequestError('Purchase not found', null, 404));
+  api.reconcile.mockResolvedValue({ ...prepared, status: 'confirmed', signature: '1'.repeat(64) });
+  const originalSave = storage.save;
+  storage.save = async value => { if (phase === 'boundary' || value === null) throw new Error('Secure storage unavailable'); await originalSave(value); };
+  try {
+    await mount(); await Renderer.act(() => shop.checkStatus());
+    expect(saved).not.toBeNull(); expect(shop.order?.status).toBe('prepared'); expect(shop.hasPurchase).toBe(true);
+    if (phase === 'boundary') expect(api.reconcile).not.toHaveBeenCalled();
+    expect(api.create).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+  } finally { storage.save = originalSave; }
 });
 
 test('permissions and error copy alone are not misclassified as an HTTP authentication failure', async () => {

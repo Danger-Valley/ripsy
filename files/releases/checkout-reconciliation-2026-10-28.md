@@ -3,6 +3,12 @@
 Implementation only; not included in published Android/TestFlight 1.0.0 (69).
 Implementation commit: `e53de52`.
 
+Native delivery follow-up: build 70 includes this client change on Android and
+internal TestFlight. The production route was also observed with an invalid
+dummy receipt, without a real purchase or operator backend deployment. See
+`1.0.0-70.md`; verification/no-build statements below describe the implementation
+phase, not that later native delivery.
+
 ## Scope
 
 Direct figure purchases already combine token/SOL payment, any SOL exchange and all selected Core mints in one transaction. This change resolves a stranded local checkout after access to its original anonymous player ID is lost. It does not repair a payment/mint atomicity gap, transfer orders or implement another payment.

@@ -402,3 +402,20 @@ deployment, native rebuild/upload, dependency or production configuration change
 was made. Deploy backend before new clients; build 69 does not include this fix.
 Full contract: `files/releases/checkout-reconciliation-2026-10-28.md` and
 `WEB_PARITY_HANDOFF.md`.
+
+## Native release 1.0.0 (70) — 2026-10-28
+
+Delivers checkout reconciliation client implementation `e53de52` from baseline
+`2941e25`. Signed Android arm64 APK is published to the existing Download channel;
+public bytes/hash and version 70 page label are verified. iOS 70 is independently
+VALID/internal IN_BETA_TESTING with automatic tester notification. Fresh 791
+mobile tests/56 suites, native TypeScript, eight-model contracts and both-platform
+preflight pass. Original APK/IPA/archive and matching R8 mapping/dSYMs are retained.
+
+An in-memory stateless session/invalid-receipt probe confirms the production
+reconcile route is present; no actual order or chain operation was invoked, and
+no backend deployment was performed by this task. No env/key/authority/catalog,
+dependency, update-minimum or web deployment change. Physical-device, push and
+paid-flow testing are not implied. Bounded local-private-value/package scans pass;
+dependency advisory work remains open. Build 69 and the source-only delivery
+notes above are historical; see `files/releases/1.0.0-70.md` for the current delivery.

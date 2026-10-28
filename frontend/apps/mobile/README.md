@@ -13,7 +13,8 @@ these receipts, and session repair renews HTTP without launching Seeker.
 
 Deploy the new backend reconciliation route before releasing updated clients.
 Missing retained receipts remain blocked for support; never clear app storage to
-work around an unknown payment. This source fix is not in published build 69.
+work around an unknown payment. Build 69 does not include the fix; native build
+70 delivers the client change (see `files/releases/1.0.0-70.md`).
 See `files/releases/checkout-reconciliation-2026-10-28.md` for verification and
 the complete rollout/safety contract. Packs are not changed by this fix.
 

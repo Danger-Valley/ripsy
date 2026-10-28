@@ -11,7 +11,22 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
-## Direct-figure stranded checkout reconciliation (2026-10-28, source only)
+## Native release 70 delivery (2026-10-28)
+
+Native 1.0.0 (70) delivers the checkout reconciliation client below. Signed
+Android arm64 APK is published to the existing Download channel; unauthenticated
+APK SHA-256 and page label 70 are verified. App Store Connect confirms iOS 70
+VALID/internal IN_BETA_TESTING with automatic tester notification. All 791 mobile
+tests, native TypeScript, eight-model contracts and both-platform preflight pass.
+Production recognizes the new reconciliation route for an invalid dummy receipt;
+this is route-presence evidence, not a real checkout/payment verification. No
+backend/web deployment, env/key/catalog/authority or update-minimum change was
+performed by this release task. Web deployment is not verified; browser general
+session repair remains unported. Physical wallet/push/payment validation remains
+pending. Full evidence: `files/releases/1.0.0-70.md`. This supersedes only the
+earlier source-only/build-69 delivery status, not the safety contract below.
+
+## Direct-figure stranded checkout reconciliation (2026-10-28, implementation)
 
 Implementation commit: `e53de52`.
 

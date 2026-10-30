@@ -18,7 +18,9 @@ permanent 75-point native drawing headroom. Visibility, focus, foreground,
 Reduce Motion and popup gates remove the controller and cancel its timer; no
 catch-up on resume. Optional trigger failure keeps idle but stops further hops.
 Bundled/verified remote models use the same contract. Army/pack and current web
-portraits are unchanged; this is source-only, not in published native build 70.
+portraits are unchanged. iOS TestFlight 71 includes these hops; the unchanged
+published Android build 70 does not. Unobstructed native visual checks are still
+pending; release packaging alone is not visual proof.
 
 ## Native drawing bounds
 

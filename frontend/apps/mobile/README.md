@@ -2,6 +2,16 @@
 
 Bare React Native Community CLI application for iOS and Android. This is a native client: it does not use Expo or render the web application.
 
+## Latest platform delivery (2026-10-30)
+
+iOS TestFlight 1.0.0 (71) includes independently timed Shop jumps from `6571bc0`;
+App Store Connect confirms VALID/internal IN_BETA_TESTING and automatic tester
+notification. Android remains build 70: no new APK was requested/published in
+this task. 796 mobile tests, TypeScript, eight-model contracts and iOS preflight
+pass. Signatures, exact IPA and matching dSYMs are verified; physical/paid and
+unobstructed jump/landing visual validation remain pending. No external beta
+review or App Store production submission. Evidence: `files/releases/1.0.0-71.md`.
+
 ## Saved checkout after session loss
 
 Direct figure payment and Core mint remain one atomic transaction. A saved order

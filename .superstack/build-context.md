@@ -419,3 +419,28 @@ dependency, update-minimum or web deployment change. Physical-device, push and
 paid-flow testing are not implied. Bounded local-private-value/package scans pass;
 dependency advisory work remains open. Build 69 and the source-only delivery
 notes above are historical; see `files/releases/1.0.0-70.md` for the current delivery.
+
+## iOS TestFlight 1.0.0 (71) — 2026-10-30
+
+Delivers source `6571bc0` with independently timed native Shop ambient jumps.
+The requested release is iOS-only: Debug/Release iOS numbers are 71; Android
+remains 70, with no new APK/Download publication. App Store Connect build
+`5f004980-73bd-4977-ad8e-179d20e58339` is independently confirmed VALID/internal
+IN_BETA_TESTING with automatic tester notification. External beta review and
+App Store production submission were not performed.
+
+Fresh 796 native tests/56 suites, native TypeScript, eight-model contracts and
+iOS release preflight pass. Archive and exact uploaded IPA signatures, all five
+bundled Rive digests and bounded 19-pattern private-value scans pass. Official
+cached framework symbols from build 70 were reused only after exact UUID matches
+against the new binaries; the app's new generated dSYM also matches. IPA/archive,
+logs and matching symbols are retained in ignored build output. Upload recovered
+one network-part retry automatically and was independently verified after Apple
+processing, not merely after transfer reached 100%.
+
+No backend/web deployment, env/key/authority/catalog/update-minimum/dependency or
+pack-policy change. The Railway monitor remains paused. Physical-device, real
+wallet/payment, push delivery and unobstructed visual jump/landing checks remain
+unverified; dependency-advisory reachability work is still open. Earlier
+source-only hop notes are superseded only for iOS. Evidence:
+`files/releases/1.0.0-71.md` and `WEB_PARITY_HANDOFF.md`.

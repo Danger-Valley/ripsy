@@ -7,6 +7,19 @@ The file contains one `Artboard` with two state machines:
 - `State Machine Back` — local pieces facing away from the player.
 - `State Machine Front` — opponent pieces facing the player.
 
+## Shop-only ambient jumps (2026-10-30)
+
+Purchase-card previews keep Front/No Weapon idle and occasionally trigger the
+authored `Jump Forward` (750 ms), without moving the card or resetting/replaying
+the machine. Each ready controller uses its own 3–7 second timeout with an
+ID-derived phase and fresh random jitter after every hop. Never share a list
+interval or use gameplay/sound callbacks. Preserve the same 300-point frame and
+permanent 75-point native drawing headroom. Visibility, focus, foreground,
+Reduce Motion and popup gates remove the controller and cancel its timer; no
+catch-up on resume. Optional trigger failure keeps idle but stops further hops.
+Bundled/verified remote models use the same contract. Army/pack and current web
+portraits are unchanged; this is source-only, not in published native build 70.
+
 ## Native drawing bounds
 
 Both current assets expose a 1000 × 1000 artboard. Keep the nominal Rive wrapper square at the existing board size, but give the actual native `RiveView` permanent vertical headroom: `top = bottom = -0.25 × size`, with unchanged width, centered `Fit.Contain`, and visible wrapper overflow. The native viewport becomes `size × (1.5 × size)` while the square artboard's scale and center remain unchanged. This prevents the native drawing surface from cutting off jump poses above its original square without resizing the figure or expanding cell hit targets. Keep these bounds identical through idle, all directional jumps and landing; never resize/remount just when a trigger starts. Recheck the fit assumption if future assets have non-square artboards. No Rive binary or authored timeline was changed for this fix.

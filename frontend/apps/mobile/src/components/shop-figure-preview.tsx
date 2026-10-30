@@ -13,6 +13,13 @@ const bundled: Record<string, { variant: number; source: number }> = {
   ore: { variant: 5, source: require('../assets/figures/ore.riv') },
 };
 
+// Separate per-model phases plus fresh jitter on every hop, not one shared
+// interval for the list. All delays exceed the authored 750 ms jump/landing.
+function nextJumpDelay(id: string) {
+  const phase = [...id].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) % 1500, 0);
+  return 3000 + phase + Math.floor(Math.random() * 2500);
+}
+
 /** Decorative only: never shares a controller, inputs or actions with a battle. */
 export const ShopFigurePreview = memo(function ShopFigurePreviewView({ figure, definition, active }: {
   figure: ShopFigure; definition?: DisplayFigure; active: boolean;
@@ -47,23 +54,23 @@ function AnimatedPreview({ figure, definition, portrait }: { figure: ShopFigure;
 
   return <>
     <Portrait source={portrait} hidden={ready && !failed} />
-    {!failed && (source !== undefined ? <BundledPreview source={source} ready={ready} onReady={onReady} onFailure={onFailure} />
+    {!failed && (source !== undefined ? <BundledPreview id={figure.id} source={source} ready={ready} onReady={onReady} onFailure={onFailure} />
       : animation ? <>
         <RemoteAnimation animation={animation} variant={figure.variant} onReady={onRemoteReady} onFailure={onFailure} />
-        {remoteFile && <IdlePreview file={remoteFile} ready={ready} onReady={onReady} onFailure={onFailure} />}
+        {remoteFile && <IdlePreview id={figure.id} file={remoteFile} ready={ready} onReady={onReady} onFailure={onFailure} />}
       </> : null)}
   </>;
 }
 
-function BundledPreview({ source, ready, onReady, onFailure }: {
-  source: number; ready: boolean; onReady(): void; onFailure(): void;
+function BundledPreview({ id, source, ready, onReady, onFailure }: {
+  id: string; source: number; ready: boolean; onReady(): void; onFailure(): void;
 }) {
   const { riveFile, error } = useRiveFile(source);
   useEffect(() => { if (error) onFailure(); }, [error, onFailure]);
-  return riveFile && !error ? <IdlePreview file={riveFile} ready={ready} onReady={onReady} onFailure={onFailure} /> : null;
+  return riveFile && !error ? <IdlePreview id={id} file={riveFile} ready={ready} onReady={onReady} onFailure={onFailure} /> : null;
 }
 
-function IdlePreview({ file, ready, onReady, onFailure }: { file: RiveFile; ready: boolean; onReady(): void; onFailure(): void }) {
+function IdlePreview({ id, file, ready, onReady, onFailure }: { id: string; file: RiveFile; ready: boolean; onReady(): void; onFailure(): void }) {
   const { riveViewRef: reportedView, setHybridRef } = useRive();
   const stableView = useRef(reportedView);
   if (stableView.current !== reportedView) {
@@ -79,6 +86,18 @@ function IdlePreview({ file, ready, onReady, onFailure }: { file: RiveFile; read
   useEffect(() => {
     if (!view) return;
     let current = true;
+    let jumpTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleJump = () => {
+      jumpTimer = setTimeout(() => {
+        if (!current) return;
+        try {
+          // The same unarmed Front machine returns to idle itself. Do not
+          // reset/play again, move the card, or involve battle/sound actions.
+          view.triggerInput('Jump Forward');
+          scheduleJump();
+        } catch { /* Optional hops stop; keep a working idle/portrait. */ }
+      }, nextJumpDelay(id));
+    };
     const configure = async () => {
       try {
         view.setNumberInputValue('Weapon', 0);
@@ -88,16 +107,17 @@ function IdlePreview({ file, ready, onReady, onFailure }: { file: RiveFile; read
         // Reassert No Weapon before replacing the portrait with the live view.
         view.setNumberInputValue('Weapon', 0);
         onReady();
+        scheduleJump();
       } catch { if (current) onFailure(); }
     };
     configure();
-    return () => { current = false; };
-  }, [view, file, onReady, onFailure]);
+    return () => { current = false; clearTimeout(jumpTimer); };
+  }, [id, view, file, onReady, onFailure]);
 
   return <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
     style={[styles.fill, !ready && styles.hidden]}>
     <RiveView file={file} stateMachineName="State Machine Front" autoPlay={false} fit={Fit.Contain}
-      hybridRef={hybridRef} onError={onFailure} style={styles.fill} />
+      hybridRef={hybridRef} onError={onFailure} style={[styles.fill, styles.rive]} />
   </View>;
 }
 
@@ -105,5 +125,8 @@ const styles = StyleSheet.create({
   frame: { position: 'absolute', width: 300, height: 300, bottom: 24 },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   portrait: { width: 300, height: 300, resizeMode: 'contain' },
+  // Permanent native drawing headroom, as on the board. Fit remains width-
+  // limited, so idle size/center never change at takeoff or landing.
+  rive: { top: -75, bottom: -75 },
   hidden: { opacity: 0 },
 });

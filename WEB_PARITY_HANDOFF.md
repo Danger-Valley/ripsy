@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-10-28
+Last updated: 2026-10-30
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -10,6 +10,39 @@ This is the living implementation handoff for an agent finishing the RIPSY web c
 Update this file in the same commit whenever a backend, protocol, mobile gameplay, lineup, board, Rive animation, timer, invitation, recovery, or result-flow change affects web parity. Do not mark an item complete from memory: verify the current web implementation and its tests first.
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
+
+## Native Shop independent ambient jumps (2026-10-30, source only)
+
+Visible purchase-card models now occasionally fire their authored `Jump Forward`
+on the already configured, unarmed `State Machine Front`, then return to idle.
+Each controller owns one self-rescheduling timeout: 3000 ms + a stable ID-derived
+0..1499 ms phase + fresh 0..2499 ms random jitter for every jump, including the
+first. Do not use a shared interval, synchronized animation restart, battle
+controller, sound/haptic action, container translation or reset/play per hop.
+Scheduling starts only after both Weapon writes and initial playback succeed;
+unrelated quantity/price rerenders and equivalent Nitro wrappers keep the timer.
+An unavailable optional trigger stops hops while retaining the working idle.
+
+The existing focus/foreground/viewport/Reduce Motion/popup gates still unmount
+the preview; cleanup cancels its timer, including pending initialization. Never
+catch up missed hops on resume. Native Rive has permanent 75-point top/bottom
+headroom inside the same 300-point portrait frame, preserving width-limited
+Contain scale and center throughout idle/takeoff/landing. Do not change the
+card, plinth, prices, checkout, Army or pack/reward portraits.
+
+Current browser Shop still uses static `next/image` product portraits. Web idle
+and ambient jumping are **not ported**; a future implementation must retain the
+same independent scheduling, visibility/motion gates and verified-art fallback.
+796 mobile tests/56 suites with open-handle detection, native TypeScript,
+focused ESLint and all eight model digest/geometry/timing/input contracts pass.
+Both-platform production-mode Metro bundles pass. A temporary iOS Simulator
+copy rendered the current Shop, but a persistent system Open in RIPSY dialog
+and unavailable Simulator UI control prevented an unobstructed motion pass;
+do not count the recording as visual jump/landing verification. Physical
+Seeker/Android and unobstructed iOS visual checks remain pending.
+No Rive asset, native bridge/dependency, backend/env/catalog/payment change or
+new signed APK/TestFlight publication accompanies this source change. Build 70
+remains the published version and does not include these hops.
 
 ## Native release 70 delivery (2026-10-28)
 
@@ -704,7 +737,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Server-delivered figure catalog/resources (2026-10-08) | Implemented/tested locally; release/device verification pending | Backend-only registry and v4 catalog/manifest; native/web accept unknown IDs/variants, API portraits and downloaded verified Rives. Native cache/offline preload and stable per-board file continuity covered by tests; web error recovery/visual checks pending. Build 56 requires one initial update; future compatible registrations need asset/backend deployment only. The onchain pack engine was retired and replaced by backend packs on 2026-10-16. |
 | Backend packs and contract retirement (2026-10-16; funding update 2026-10-20) | Backend deployed; native/web compatibility tested; paid device verification pending | Old program closed with 2.550678160 SOL refunded and source retained. Standard SKR payment + buyer SOL delivery budget, post-finality server draw, fixed Core delivery with atomic unused-SOL refund; one buyer approval. Legacy receipts stay sponsored. 10 SKR and 40/40/20 unchanged. Admin saves price/chances/pause without transactions. Existing shared pack clients work without a native rebuild. |
 | Illustrated Figure Shop (2026-10-02) | Port/verify | Actual-figure castle/plinth showcase, authoritative price/availability, explicit Seeker explanation, separate wallet modal, exact price + estimated fees review and reconnectable immutable purchase recovery. Keep free fig1 out of purchase cards; existing web mint logic is not proof of the new UI parity. |
-| Shop idle figure previews (2026-10-27) | Native source implemented/tested; web port pending | Front-facing, unarmed real Rive in visible native purchase cards only; PNG during loading/error/reduced motion/background/blur/popups. Preserve verified remote cache, stable controller and unchanged checkout. Inspected web product art remains static `next/image`; do not mark it done from native tests. |
+| Shop idle previews and independent jumps (2026-10-30) | Native source implemented/tested; new build and web port pending | Front-facing, unarmed real Rive in visible native purchase cards; independent 3–7 second per-model jittered Jump Forward timers, no reset/replay per hop. PNG during loading/error/reduced motion/background/blur/popups; cancel timers when inactive. Preserve verified cache, headroom, stable controller and unchanged checkout. Inspected web product art remains static `next/image`; do not mark it done from native tests. |
 | Buy with SOL recovery (2026-10-10) | Backend deployed; native build 58 delivered; web deployment/device paid validation pending | Typed insufficient-token response offers an explicit CTA in the native purchase popup and web recovery area. Same saved request switches to SOL mode before HTTP, shows original token price plus SOL input/fees/total and still requires approval. Backend composes swap and purchase atomically, verifies route/signers/output and fences delayed prepared-order writes. Pack odds, existing purchases and Seeker eligibility are unchanged. |
 | Native Buy -> wallet signing (2026-10-12) | Native build 59 delivered; web retains quote confirmation | New native figure/pack/SOL buys prepare and sign under one lock without a second quote popup. Restore/poll never sign automatically; prepared recovery uses explicit Continue in wallet. Web continues its existing separate review because it does not pass the optional direct signer. Backend transaction rules/odds unchanged; physical paid verification pending. |
 | Explicit checkout entry and abandoned drafts (2026-10-12) | Native source implemented; shared storage applies to web; popup UI port pending | Entering native Shop never opens checkout automatically. Restore/poll retains signed or submitted/paid recovery behind Continue purchase; unsigned no-order/prepared drafts and terminal figure receipts are cleared. Web retains inline confirmation, with the same shared storage cleanup. |
@@ -790,6 +823,8 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 - [ ] Production Vercel build and all tests pass.
 
 ## Change ledger
+
+- 2026-10-30 — native Shop preview-only ambient Jump Forward with independent per-ID phases and fresh per-hop jitter, ready-only scheduling, canceled timers on inactivity/error/unmount and permanent native drawing headroom. No battle/controller/playback restart or purchase changes. 796 mobile tests/56 suites, native TypeScript, focused lint and all eight model contracts pass. Web remains static; signed release delivery is not part of this task.
 
 - 2026-10-27 — migrated native Seeker connection/proofs/raw purchase signing to official Seeker Connect 0.2.0 and its native button, using Kinbay's transport approach without Expo or its vault policy. Kept player-session repair, exact-buyer saved-order recovery and server-owned submission; added explicit wrong-cache reconnect, signature/message preservation and configuration/concurrency/error tests. 758 native tests/56 suites, 217 backend/31 web tests, all app typechecks, focused lint, both Metro bundles and full local Android debug APK build pass. Physical Seeker/visual/paid validation and a new release remain pending; no web port, production deployment, key/env/authority or balance change.
 

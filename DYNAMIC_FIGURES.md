@@ -1,5 +1,97 @@
 # Adding server-delivered fighters
 
+## Admin registration — 2026-11-02 (source implementation, not deployed)
+
+After the one-time backend/web rollout, use **Shop control room → Add a figure**:
+
+1. Sign in with the existing configured administrative wallet. Customer sessions
+   cannot upload, verify, discard or publish figures.
+2. Enter the name, description, unused permanent ID, existing store currency and
+   positive price; choose the Rive and PNG. No arbitrary payment mint, variant,
+   resource URL or metadata JSON is accepted from the browser.
+3. **Check files & preview** validates the binaries and saves one 30-minute draft.
+   This does not publish, mint, change prices of other figures or touch the pack.
+4. Review the actual uploaded PNG, exact price, permanent ID and file hashes.
+   Check the confirmation and press **Publish figure**. Name, ID, files and
+   currency are immutable; the server assigns the next unused variant, up to 255.
+   The figure is purchasable on all devices, with no Seeker restriction. Its pack
+   chance remains zero unless separately included through pack administration.
+5. A failed/lost response offers **Reload saved upload** (GET), never automatic
+   publication retry. Publication IDs are idempotent; a committed publication is
+   recovered as success. Edits/files survive request errors and re-authentication
+   on the same page. Browser reload can recover a server draft, not unsaved files.
+
+Admin API (existing in-memory admin bearer, never a customer token):
+
+- `GET /shop/admin/figures`: revision, own pending draft, published figures,
+  allowed currencies, quota and upload limits.
+- `POST /shop/admin/figures/draft`: stable requestId, listing fields and bounded
+  Base64 file bytes; creates the verified draft only (17-MiB request cap).
+- `DELETE /shop/admin/figures/draft`: exact own requestId, discard only the draft.
+- `POST /shop/admin/figures/publish`: requestId and expectedRevision, publish
+  precisely the saved draft. No file replacement or other prices are accepted.
+
+Other JSON endpoints retain their 4-KiB cap. Authentication happens before the
+upload body is consumed; the upload lock precedes reading the larger body.
+
+Uploads are bounded: Rive ≤8 MiB, static 8-bit RGB/RGBA PNG ≤4 MiB, dimensions
+≤2048×2048. PNG chunks/CRC/decompression are checked. The Rive is parsed in a
+separate process with a 5-second timeout, 96-MiB V8 heap limit and no inherited
+credentials or external asset fetching. Missing external assets are rejected;
+required resources must be embedded. Artboard, timelines, durations, Front/Back
+machines and typed inputs must match `figure-animation-contract.json`, which the
+eight-model asset checker also verifies. This tests structural compatibility,
+not an artist's visual quality or a physical-device animation QA pass.
+
+Persistence uses the **existing Redis**, not Railway's ephemeral filesystem or a
+new object-storage account. `${REDIS_KEY_PREFIX}:shop:figure-registry:v1` contains
+the append-only published registrations/audit identity; sibling `:asset:` keys
+hold content-addressed Rive/PNG/generated Core metadata, with no TTL. One draft
+at most is allowed, with a 30-minute TTL. A fenced Redis Lua commit publishes all
+three resources and the registration together, consuming the exact verified
+draft; conflicts never overwrite a published blob. Published raw-byte quota is
+64 MiB total, plus one pending ≤12-MiB raw upload. Base64 adds about one third
+overhead, plus registry/JSON/runtime overhead: provision Redis memory and monitor
+it before approaching the quota. This is a bounded initial asset store, not an
+unlimited CDN. Do not remove, evict, expire or rewrite these permanent keys.
+
+**Operator recovery requirement:** include the registry and every asset key in
+Redis persistence/backups and test restoration together. Losing Redis now loses
+the canonical bytes and metadata of admin-published collectibles, not just cached
+shop settings. This implementation does not create/configure backups or change
+Redis eviction/persistence settings. Confirm backup/recovery and capacity policy
+before enabling production uploads; move to durable object storage before the
+bounded store no longer fits operational needs.
+
+Public `GET`/`HEAD /shop/figure-assets/<sha256>.(riv|png|json)` serves exact verified
+bytes, correct MIME, `nosniff`, ETag/304 and immutable caching, without redirects
+or customer sign-in. `SHOP_FIGURE_ASSET_ORIGIN` optionally sets a pure HTTPS origin
+(default `https://api.ripsy.fun`); it must route to this backend. Once metadata
+URIs are minted, preserve their domain and paths indefinitely. Do not use a
+temporary deployment URL. Existing eight figures retain their original URLs,
+identities, prices and metadata. No NFT is minted by registration itself.
+
+Backend startup and shop requests refresh the combined built-in + Redis registry;
+replicas/background pack workers also refresh every five seconds, and lineup
+validation refreshes before ownership checks. Mint metadata, inventory identity,
+shop quoting and resource delivery all use the same registration. Existing
+receipts keep their saved metadata, quote and reward; no saved pack table changes.
+
+Verification: 241 backend tests (including a real isolated Redis 8.2.9 Lua,
+TTL, RDB-save/restart, resource hash/HEAD/ETag and lease-loss integration), 818
+mobile and 32 web tests pass. Browser fixtures at 375/768/1280 px verify labels,
+first-invalid focus, preserved files, explicit review/confirmation, unknown-result
+recovery, one publish, unchanged dirty prices and zero initial pack weight.
+The browser API is a local fixture, not the production service. No deployment,
+production registration, paid purchase, on-chain transaction or new signed app
+build accompanies this source change. Initial backend/web deploy is still needed;
+the startup/private-PNG enhancement below also needs its one-time native release.
+Web production compilation/static generation also passes, with warnings for the
+pre-existing optional Privy Farcaster module and disk-full build-cache writes;
+neither warning is claimed fixed here. Local test captures are excluded from
+Vercel's verified dry-run input list. No new shipping raster was created, and
+the admin form preserves the incumbent Toy Box design.
+
 ## Startup synchronization — 2026-11-02
 
 Native startup and a genuine return to foreground check the public manifest
@@ -40,8 +132,8 @@ platform's best-effort image prefetch rather than verified private PNG storage.
 Existing build 72 already supports unknown figures on demand; these new startup
 and PNG-cache improvements require **one** new native release plus the backend
 manifest update. Neither has been deployed/uploaded by this implementation task.
-After that, compatible fighters require only public resources and a backend
-registry deployment, not another mobile build. Rive files must package the assets
+After the admin rollout above, compatible fighters can be published through
+admin without another source deploy or mobile build. Rive files must package the assets
 required by contract 1; arbitrary downloaded code/new gameplay is not supported.
 Core metadata stays published for mint/inventory recognition; its name/description
 and portrait are delivered to the UI through the manifest, not downloaded as code.
@@ -65,7 +157,7 @@ Packs remain globally paused and their existing 10-SKR / Jup 40%, BONK 40%, ORE 
 
 The earlier Railway deployment pause is historical, not the current registration state. A read-only production manifest check on 2026-11-02 returns all eight registered IDs, including Alien/Robot/Skull. The current server has no `portrait` descriptors yet; that new manifest enhancement remains undeployed. Historical publication evidence: `files/releases/figures-alien-robot-skull-2026-10-21.md`.
 
-The mobile and web clients now accept server-issued figure IDs and visual variants. The authoritative registry is `backend/src/figure-registry.json`. The shared `FIGURES` constant is only an offline/legacy bootstrap, not the registration allowlist.
+The mobile and web clients now accept server-issued figure IDs and visual variants. The authoritative registry combines `backend/src/figure-registry.json` with append-only Redis admin registrations. The shared client `FIGURES` constant is only an offline/legacy bootstrap, not the registration allowlist.
 
 Build 56 cannot acquire the dynamic loader through configuration alone; later releases including build 72 already contain it. See the startup enhancement rollout above for the one-time release needed for its new PNG-cache bridge.
 
@@ -79,7 +171,7 @@ Build 56 cannot acquire the dynamic loader through configuration alone; later re
 - The board loads each required remote model once and keeps its loaded file alive across moves/attacks/traps. Foreground refreshes do not reset unchanged definitions/controllers. A newly encountered opponent variant forces a catalog refresh.
 - Offline computer lineups preserve generic variant IDs. Saving an army pre-downloads its remote models. If a resource is unavailable, do not silently substitute a different collectible.
 
-## Register a new fighter
+## Source-managed registration (operator fallback, not the admin workflow)
 
 1. Choose a new permanent slug (lowercase letters, digits, underscores or hyphens; starts with a letter, max 64 characters) and an unused integer variant 6..255. Never reuse or remap published IDs/variants. Variant 1 is always the free RIPSY 001. Keep historical registrations/assets available.
 2. Prepare a compatible Rive, preview PNG and canonical Core metadata. Publish them at `https://www.ripsy.fun/figures/<id>.riv`, `<id>.png` and `<id>.json`. Metadata must have the canonical name, preview URL and Figure trait. The metadata URI and collection remain part of official inventory recognition.

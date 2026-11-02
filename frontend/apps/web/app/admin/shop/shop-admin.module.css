@@ -50,5 +50,22 @@
 .audit { padding-left: 24px; }
 .audit > li { margin-bottom: 24px; }
 .footer { color: var(--foreground); font-size: 14px; text-align: center; padding: 16px; }
+.figureForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.formWide { grid-column: 1 / -1; }
+.page textarea, .page select { width: 100%; min-height: 48px; padding: 12px; border: 1px solid var(--muted-foreground); border-radius: 12px; background: var(--input); color: var(--foreground); font: inherit; }
+.page textarea { resize: vertical; }
+.page input[type=file] { font-size: 14px; overflow: hidden; }
+.page input[type=file]::file-selector-button { font: inherit; min-height: 32px; margin-right: 12px; }
+.page textarea:focus-visible, .page select:focus-visible, .page button:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
+.page textarea[aria-invalid=true] { border-color: var(--destructive); }
+.storage { color: var(--muted-foreground); font-size: 14px; }
+.figureAlert { border: 1px solid var(--destructive); }
+.figurePreview { display: grid; grid-template-columns: minmax(160px, 240px) minmax(0, 1fr); gap: 32px; margin-top: 24px; }
+.portraitPreview { display: flex; align-items: flex-start; justify-content: center; background: var(--background); border-radius: 16px; padding: 16px; }
+.portraitPreview img { width: 100%; height: auto; max-height: 320px; object-fit: contain; }
+.figureFacts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 24px; }
+.figureFacts dt { color: var(--muted-foreground); }
+.figureFacts dd { margin: 0; overflow-wrap: anywhere; font-weight: 700; }
+@media (max-width: 700px) { .figureForm, .figurePreview { grid-template-columns: minmax(0, 1fr); } .portraitPreview img { max-width: 200px; max-height: 220px; } .figureFacts { grid-template-columns: minmax(0, 1fr); gap: 4px; } .figureFacts dd { margin-bottom: 12px; } }
 @media (min-width: 960px) { .columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 28px; } }
 @media (max-width: 600px) { .page { padding-left: 16px; padding-right: 16px; } .header { align-items: flex-start; flex-direction: column; gap: 12px; } .card { padding: 20px; } .sectionHeader { flex-wrap: wrap; } .figure { grid-template-columns: 48px minmax(0, 1fr); gap: 12px; } .figure img { width: 48px; height: 64px; } .chance { grid-template-columns: minmax(0, 1fr) 112px; gap: 12px; } .review { padding: 16px; } }

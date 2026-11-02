@@ -494,3 +494,29 @@ release plus backend deployment is still needed for these enhancements; then
 future compatible fighters require only resources/registry deployment. Browser
 prewarming remains unported. No signed build/publication/deployment performed.
 Full contract and registration: `DYNAMIC_FIGURES.md`, `WEB_PARITY_HANDOFF.md`.
+
+## Admin fighter registration — 2026-11-02 (source only)
+
+The existing web control room now uploads name/description/permanent ID,
+Rive/PNG and exact existing-currency price; server validation precedes an actual
+portrait review and explicit Publish. All-device figures append to the durable
+Redis registry with monotonic variants and content-addressed public resources;
+they never enter a pack automatically. Atomic fenced publication, idempotency,
+30-minute single draft, bounded binary parser process and unknown-result GET
+recovery preserve existing prices, pack settings, receipts and collectibles.
+
+Storage is the existing Redis, limited to 64 MiB published raw bytes plus one
+12-MiB raw draft (Base64/JSON add memory). It now owns permanent collectible
+metadata too: confirm capacity, non-eviction and backup/restore policy before
+production uploads. No Redis settings, backups or production state were changed.
+Existing eight static identities/resources stay intact. One-time backend/web
+rollout remains necessary; future compatible admin additions need no redeploy
+or new mobile build. Startup/private-PNG improvements still need one native
+release; browser idle/hops remain unported.
+
+241 backend / 818 mobile / 32 web tests pass, including disposable real Redis
+8.2.9 Lua, TTL, RDB/restart, resource integrity and HTTP caching tests, and local
+browser fixture widths 375/768/1280 with lost-response recovery. Backend staging
+and Vercel dry-run exclude secrets/native/local evidence; workspace install
+lockfile dry-run includes the pinned Rive runtime. No signed app build, provider
+change, production registration/deploy, wallet payment or on-chain action.

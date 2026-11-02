@@ -11,6 +11,41 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
+## Admin-created fighters (2026-11-02, source only)
+
+`/admin/shop` now extends the incumbent control room with name/description/ID,
+Rive/PNG and exact currency/price inputs, server verification, actual PNG review
+and an explicit publication confirmation. Existing admin-wallet sessions guard
+all new endpoints. Lost write responses recover through GET, not automatic POST;
+idempotency and Redis fencing prevent duplicate/partial registration. Existing
+dirty price edits survive registry refresh; admin images use canonical imageUrl
+rather than assuming a static `/figures/<id>.png`. Pack editor includes a new
+eligible figure at zero weight only; no existing pack settings/receipts change.
+
+Backend registry now appends durable Redis registrations to the static eight,
+assigning permanent monotonic variants. Refresh at startup/shop requests, 5-second
+replica/background polling and pre-lineup ownership validation. Public immutable
+`/shop/figure-assets/<sha256>.riv|png|json` routes serve verified bytes without
+redirects. Shared manifest/catalog already support unknown variants on native
+and web; mint metadata and official inventory recognition now use the published
+resource URLs too. Old catalogs keep their caps; the free starter is unchanged.
+No web idle/hop animation port is implied (browser shop still uses portraits).
+
+Storage is bounded existing Redis (64 MiB published raw bytes + one 30-minute
+≤12 MiB raw draft; Base64/JSON add memory), not ephemeral disk or a new CDN.
+Registry/assets/metadata need durable Redis backup and stable public domain for
+issued NFTs. No backup/eviction policy is changed by this implementation. Initial
+backend/web rollout and operator recovery/capacity confirmation remain required.
+See `DYNAMIC_FIGURES.md` for endpoint/validation/storage contracts and limits.
+
+Verified: 241 backend, 818 mobile and 32 web tests; real disposable Redis Lua,
+TTL, RDB/restart and asset HTTP integrity checks; isolated browser fixture at
+375/768/1280 px including file validation errors, lost saved/published responses,
+confirmation, preserved edits, zero initial weight and session expiry. Browser
+fixture is not full production API E2E; no physical phone download/payment QA,
+production deploy/registration or signed native build. One-time startup/private
+PNG enhancement release remains separate from existing build 72 support.
+
 ## Native release 72 delivery (2026-11-02)
 
 Android and iOS 1.0.0 (72) deliver source `cf4f21a`, including the Shop ancestor

@@ -1,6 +1,6 @@
 import { decimalToUnits, unitsToDecimal, type AdminPrices, type AdminPriceCurrency } from '@rps/core/shop-admin';
 import type { ShopCatalog, TokenPayment } from '@rps/core/shop';
-import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS, registeredFigureUrls } from './figure-registry.js';
 import { shopCatalog, type ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
 import type { ShopRedis } from './shop-service.js';
@@ -32,7 +32,7 @@ export class ShopPricingService {
     const token = FIGURE_TOKEN_PAYMENTS[id];
     const override = sameCurrency(state.currencies?.[id] ?? legacyCurrency(id), currency(id)) ? state.amounts[id] : undefined;
     return token ? { price: '0', tokenPayment: { ...token, amount: override ?? token.amount } }
-      : { price: override ?? this.config.prices[id] ?? null };
+      : { price: override ?? this.config.prices[id] ?? FIGURES.find(f => f.id === id)?.priceLamports ?? null };
   }
   async payment(id: string) { return this.quote(id, await this.state()); }
   async catalog(): Promise<ShopCatalog> {
@@ -52,7 +52,7 @@ export class ShopPricingService {
     ) })), figures: FIGURES.filter(f => f.purchasable).map(f => {
       const q = this.quote(f.id, state); const amount = q.tokenPayment?.amount ?? q.price;
       const decimals = q.tokenPayment?.decimals ?? 9;
-      return { id: f.id, name: f.name, imageUrl: `${this.config.publicOrigin}/figures/${f.id}.png`,
+      return { id: f.id, name: f.name, imageUrl: registeredFigureUrls(f, this.config.publicOrigin).png,
         symbol: q.tokenPayment?.symbol ?? 'SOL', decimals, mint: q.tokenPayment?.mint ?? null,
         amount, price: amount ? unitsToDecimal(amount, decimals) : '', packEligible: !f.seekerExclusive };
     }) };

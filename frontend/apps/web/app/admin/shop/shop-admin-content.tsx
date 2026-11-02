@@ -11,6 +11,7 @@ import { useBrowserWallet } from '../../hooks/use-browser-wallet';
 import { adminRequest, AdminApiError, changedPrices, chanceWeight, usdEstimate } from './admin-client';
 import styles from './shop-admin.module.css';
 import { BackendPackEditor } from './backend-pack-editor';
+import { FigureRegistrationEditor } from './figure-registration-editor';
 
 type AdminSession = { token: string; address: string; expiresAt: number };
 const JOB_KEY = 'ripsy.admin.publication.v1'; // Public request ID only, never the admin credential.
@@ -106,6 +107,7 @@ export function ShopAdminContent() {
     const next = await protectedRequest<AdminSnapshot>('settings');
     setData(next);
     if (reset) { applyPrices(next.prices); applyPack(next); }
+    else setPrices(previous => ({ ...Object.fromEntries(next.prices.figures.map(f => [f.id, f.price])), ...previous }));
     return next;
   };
   useEffect(() => {
@@ -199,19 +201,22 @@ export function ShopAdminContent() {
         {wallet.isConnected && wallet.address !== config.address && <p role="alert">This is not the administrative wallet. Switch accounts to continue.</p>}</>}
     </section>
     {authed && !data && <section className={styles.card}><h2>Store settings</h2><p>Loading current prices and edition...</p><button disabled={disabled} onClick={() => void perform('Loading settings...', () => load(true))}>Load settings</button></section>}
-    {authed && data && <>
+    <div hidden={!authed || !data}>
       <section className={`${styles.card} ${styles.rates}`} aria-label="USD reference rates">
         <div><strong>USD equivalents</strong><p>{ratesError ?? (rates?.fetchedAt && rateNow < rates.expiresAt
           ? <>Mainnet rates from <a href="https://developers.jup.ag/docs/price" target="_blank" rel="noreferrer">Jupiter</a>, retrieved <time dateTime={new Date(rates.fetchedAt).toISOString()}>{new Date(rates.fetchedAt).toLocaleTimeString()}</time>.</>
           : ratesLoading ? 'Loading market rates...' : 'Rates expired or unavailable. Refresh to get current estimates.')}</p><small>Approximate values, excluding fees. Payment stays in the listed token. Rates refresh automatically without resetting your edits.</small></div>
         <button type="button" disabled={ratesLoading} aria-busy={ratesLoading} onClick={() => setRatesRefresh(n => n + 1)}>{ratesLoading ? 'Refreshing rates...' : 'Refresh USD rates'}</button>
       </section>
+      <FigureRegistrationEditor active={authed && Boolean(data)} disabled={disabled} request={protectedRequest} onPublished={() => load(false)} />
+    </div>
+    {authed && data && <>
       <div className={styles.columns}>
         <section className={styles.card} aria-labelledby="prices-title"><div className={styles.sectionHeader}><div><h2 id="prices-title">Figure prices</h2><p>Live pricing revision {data.prices.revision}</p></div><button disabled={disabled} onClick={() => applyPrices(data.prices)}>Reset edits</button></div>
           <p>Saving changes the price for new purchases on every device. Currency, recipient and figure identity are locked. RIPSY 001 stays free.</p>
           <form onSubmit={event => { event.preventDefault(); setReviewPrices(true); }}>
             <div className={styles.figures}>{data.prices.figures.map(f => <div key={f.id} className={styles.figure}>
-              <Image src={`/figures/${f.id}.png`} alt="" width={64} height={80} unoptimized />
+              <Image src={f.imageUrl} alt="" width={64} height={80} unoptimized />
               <div><label htmlFor={`price-${f.id}`}>{f.name} <span className={styles.currency}>{f.symbol}</span></label><p>Current: {f.price || 'Not priced'} {f.price && f.symbol}{f.price && <span className={styles.usd}> {usd(f.price, f.mint, f.decimals)}</span>}</p>
               <input id={`price-${f.id}`} type="text" inputMode="decimal" value={prices[f.id] ?? ''} disabled={disabled || reviewPrices} onChange={event => setPrices(p => ({ ...p, [f.id]: event.target.value }))} aria-invalid={Boolean(edits.errors[f.id])} aria-describedby={`usd-${f.id} help-${f.id}`} />
               <small id={`usd-${f.id}`} className={styles.usd} data-testid={`usd-${f.id}`}>{usd(prices[f.id] ?? '', f.mint, f.decimals)}</small>

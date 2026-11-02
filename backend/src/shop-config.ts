@@ -1,6 +1,6 @@
 import { publicKey } from '@metaplex-foundation/umi';
 import { DEFAULT_SOLANA_MOBILE_STORE_URL, MAX_FIGURE_PURCHASE_QUANTITY, isSafeShopExternalUrl, type ShopCatalog, type ShopCluster } from '@rps/core/shop';
-import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS, registeredFigureUrls } from './figure-registry.js';
 
 export interface ShopConfig {
   enabled: boolean;
@@ -56,10 +56,10 @@ export function shopCatalog(config: ShopConfig): ShopCatalog {
     figures: FIGURES.filter(figure => figure.purchasable).map(figure => ({
       id: figure.id, name: figure.name, variant: figure.variant,
       description: figure.description, seekerExclusive: figure.seekerExclusive,
-      imageUrl: `${config.publicOrigin}/figures/${figure.id}.png`,
-      priceLamports: FIGURE_TOKEN_PAYMENTS[figure.id] ? '0' : config.prices[figure.id] ?? null,
+      imageUrl: registeredFigureUrls(figure, config.publicOrigin).png,
+      priceLamports: FIGURE_TOKEN_PAYMENTS[figure.id] ? '0' : config.prices[figure.id] ?? figure.priceLamports ?? null,
       ...(FIGURE_TOKEN_PAYMENTS[figure.id] ? { tokenPayment: FIGURE_TOKEN_PAYMENTS[figure.id] } : {}),
-      available: config.enabled && (FIGURE_TOKEN_PAYMENTS[figure.id] ? config.cluster === 'mainnet-beta' : Boolean(config.prices[figure.id])),
+      available: config.enabled && (FIGURE_TOKEN_PAYMENTS[figure.id] ? config.cluster === 'mainnet-beta' : Boolean(config.prices[figure.id] ?? figure.priceLamports)),
     })),
   };
 }

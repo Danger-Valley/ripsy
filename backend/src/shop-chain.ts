@@ -4,7 +4,7 @@ import { base58 } from '@metaplex-foundation/umi/serializers';
 import { createV1, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import { mplToolbox, transferSol, setComputeUnitLimit, setComputeUnitPrice } from '@metaplex-foundation/mpl-toolbox';
 import { figureOrderAssets, validateFigureQuantity, type FigureId, type MintOrder, type TokenPayment } from '@rps/core/shop';
-import { FIGURES, FIGURE_TOKEN_PAYMENTS } from './figure-registry.js';
+import { FIGURES, FIGURE_TOKEN_PAYMENTS, registeredFigureUrls } from './figure-registry.js';
 import type { ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
 import { shopTokenBalance, shopTokenPayment } from './shop-token-payment.js';
@@ -72,7 +72,7 @@ export function createShopChain(config: ShopConfig, runtime?: Umi): ShopChain {
         .add(assets.reduce((builder, nextAsset) => builder.add(createV1(umi, {
           asset: nextAsset, payer: buyer, owner: buyer.publicKey, authority: umi.identity,
           collection: collection.publicKey, name: figure.name,
-          uri: `${config.publicOrigin}/figures/${figureId}.json`,
+          uri: registeredFigureUrls(figure, config.publicOrigin).metadata,
         })), transactionBuilder())).add(funding?.after ?? transactionBuilder());
       let builder = compose();
       for (const maxAccounts of [16, 12] as const) {

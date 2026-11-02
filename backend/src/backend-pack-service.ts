@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { publicKey } from '@metaplex-foundation/umi';
 import { isTerminalPack, parsePackOrder, type PackDrop, type PackOrder } from '@rps/core/packs';
-import { FIGURES } from './figure-registry.js';
+import { FIGURES, registeredFigureUrls } from './figure-registry.js';
 import { ShopError } from './shop-error.js';
 import type { ShopRedis } from './shop-service.js';
 import type { BackendPackSettingsService } from './backend-pack-settings.js';
@@ -69,7 +69,7 @@ export class BackendPackService {
       const rewards = catalog.drops.map(drop => {
         const figure = FIGURES.find(f => f.id === drop.figureId && f.purchasable && !f.seekerExclusive);
         if (!figure) throw new ShopError('Pack delivery is temporarily unavailable.', 503);
-        return { figureId: figure.id, name: figure.name, uri: `${this.origin}/figures/${figure.id}.json` };
+        return { figureId: figure.id, name: figure.name, uri: registeredFigureUrls(figure, this.origin).metadata };
       });
       // Private seed is stored only on the server; neither it nor delivery bytes
       // are included in the public order. Result entropy is entirely separate.

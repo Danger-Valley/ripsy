@@ -3,11 +3,14 @@ import { sendJson } from './http-json.js';
 import type { ShopAdminAuth } from './shop-admin-auth.js';
 import type { ShopAdminService } from './shop-admin.js';
 import type { ShopPricingService } from './shop-pricing.js';
+import type { FigureAdminService } from './figure-admin.js';
+import { handleFigureAdmin } from './figure-admin-http.js';
 
 interface AdminHttpDependencies {
   auth: ShopAdminAuth; service: ShopAdminService; prices: ShopPricingService;
+  figures?: FigureAdminService;
   verifyPlayer(authorization: string | undefined): string;
-  readBody(request: IncomingMessage): Promise<Record<string, unknown>>;
+  readBody(request: IncomingMessage, maxBytes?: number): Promise<Record<string, unknown>>;
 }
 /** Caller applies exact-origin CORS, no-store, OPTIONS and safe error JSON. */
 export async function handleShopAdmin(request: IncomingMessage, response: ServerResponse, path: string, d: AdminHttpDependencies) {
@@ -19,6 +22,7 @@ export async function handleShopAdmin(request: IncomingMessage, response: Server
     await sendJson(response, 200, path.endsWith('/challenge') ? d.auth.challenge(playerId) : d.auth.verify(playerId, await d.readBody(request))); return;
   }
   const admin = await d.auth.authenticate(request.headers.authorization);
+  if (d.figures && await handleFigureAdmin(request, response, path, admin, d.figures, d.readBody)) return;
   if (request.method === 'GET' && path === '/shop/admin/usd-rates') { await sendJson(response, 200, d.service.usdRates()); return; }
   if (request.method === 'DELETE' && path === '/shop/admin/session') { await d.auth.logout(request.headers.authorization); response.writeHead(204).end(); return; }
   if (request.method === 'GET' && path === '/shop/admin/settings') { await sendJson(response, 200, d.service.snapshot()); return; }

@@ -22,7 +22,7 @@ import {
   setComputeUnitPrice,
 } from "@metaplex-foundation/mpl-toolbox";
 import { MPL_CORE_PROGRAM_ID } from "@metaplex-foundation/mpl-core";
-import { FIGURES } from "./figure-registry.js";
+import { FIGURES, registeredFigureUrls } from "./figure-registry.js";
 import {
   INITIAL_PACK,
   PACK_PAYMENT,
@@ -181,7 +181,7 @@ export function createPackChain(
         if (
           !figure ||
           d.name !== figure.name ||
-          d.uri !== `${config.publicOrigin}/figures/${figure.id}.json`
+          d.uri !== registeredFigureUrls(figure, config.publicOrigin).metadata
         )
           throw new ShopError("Update the app for this pack edition.", 409);
         return { figureId: figure.id, weight: d.weight };

@@ -30,6 +30,9 @@ import { ShopUsdRatesService } from './shop-usd-rates.js';
 import { createPackAdminChain } from './pack-admin-chain.js';
 import { handleShopAdmin } from './shop-admin-http.js';
 import { readAppRequestMetadata, apiRouteFamily } from './app-request-metadata.js';
+import { FigureAdminService } from './figure-admin.js';
+import { serveFigureResource } from './figure-admin-http.js';
+import { readJsonBody, BodyTooLargeError } from './http-body.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -52,6 +55,9 @@ subscriber.on('error', () => diagnose({ level: 'error', event: 'redis.error', cl
 
 await Promise.all([commandClient.connect(), subscriber.connect()]);
 
+const figureAdmin = new FigureAdminService(commandClient as unknown as ShopRedis,
+  process.env.SHOP_FIGURE_ASSET_ORIGIN ?? 'https://api.ripsy.fun', keyPrefix);
+await figureAdmin.refresh();
 const shopConfig = loadShopConfig(process.env);
 const walletVerification = new WalletVerificationService(commandClient as unknown as ShopRedis, shopConfig.publicOrigin, keyPrefix);
 const figureInventory = new FigureInventoryService(
@@ -66,7 +72,7 @@ const figureInventory = new FigureInventoryService(
 const store = new RedisGameStore(commandClient as unknown as RedisCommands, {
   gameTtlSeconds,
   keyPrefix,
-  validateFigureLineup: (playerId, variants, assetIds) => figureInventory.validateLineup(playerId, variants, assetIds),
+  validateFigureLineup: async (playerId, variants, assetIds) => { await figureAdmin.refresh(); await figureInventory.validateLineup(playerId, variants, assetIds); },
 });
 const pushStore = new RedisPushInstallationStore(
   commandClient as unknown as RedisCommands,
@@ -91,6 +97,8 @@ const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, 
 const packs = new BackendPackService(commandClient as unknown as ShopRedis, backendPackSettings, createBackendPackChain(shopConfig),
   backendPacksEnabled, shopConfig.publicOrigin, keyPrefix, createPackChain(shopConfig, false));
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
+const figureRefreshTimer = setInterval(() => { void figureAdmin.refresh().catch(() => diagnose({ level: 'warn', event: 'figures.refresh_failed' })); }, 5000);
+figureRefreshTimer.unref();
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
   const appMetadata = readAppRequestMetadata(request.headers);
@@ -106,8 +114,10 @@ const server = createServer(async (request, response) => {
     response.setHeader('content-type', 'application/json');
     if (request.method === 'OPTIONS') { response.writeHead(204).end(); return; }
     try {
+      if (await serveFigureResource(request, response, requestUrl.pathname, figureAdmin)) return;
+      await figureAdmin.refresh();
       if (requestUrl.pathname.startsWith('/shop/admin/')) {
-        await handleShopAdmin(request, response, requestUrl.pathname, { auth: adminAuth, service: shopAdmin, prices: pricing, verifyPlayer: verifyBearerSession, readBody: readJsonBody }); return;
+        await handleShopAdmin(request, response, requestUrl.pathname, { auth: adminAuth, service: shopAdmin, prices: pricing, figures: figureAdmin, verifyPlayer: verifyBearerSession, readBody: readJsonBody }); return;
       }
       if (request.method === 'GET' && requestUrl.pathname === '/shop/figures') {
         response.writeHead(200).end(JSON.stringify(figureManifest(shopConfig.publicOrigin))); return;
@@ -303,28 +313,8 @@ function verifyBearerSession(authorization: string | undefined) {
   }
 }
 
-async function readJsonBody(request: import('node:http').IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of request) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += buffer.length;
-    if (size > 4 * 1024) throw new BodyTooLargeError();
-    chunks.push(buffer);
-  }
-  const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('A JSON object is required');
-  return value as Record<string, unknown>;
-}
-
 function isValidFid(value: string) {
   return value.length >= 10 && value.length <= 256 && /^[A-Za-z0-9_:-]+$/.test(value);
-}
-
-class BodyTooLargeError extends Error {
-  constructor() {
-    super('Request body is too large');
-  }
 }
 
 class AuthenticationError extends Error {
@@ -338,6 +328,7 @@ server.listen(port, '0.0.0.0', () => {
 });
 
 async function shutdown(signal: string) {
+  clearInterval(figureRefreshTimer);
   diagnose({ level: 'info', event: 'server.shutdown', signal });
   gameSockets.close();
   clearInterval(clockInterval);

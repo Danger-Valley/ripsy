@@ -1,0 +1,232 @@
+{
+  "bounds": {
+    "minX": 0,
+    "minY": 0,
+    "maxX": 1000,
+    "maxY": 1000
+  },
+  "timings": [
+    [
+      "Flagstoke",
+      1,
+      60
+    ],
+    [
+      "No Weapon",
+      1,
+      60
+    ],
+    [
+      "Scissors",
+      1,
+      60
+    ],
+    [
+      "Stone",
+      1,
+      60
+    ],
+    [
+      "Paper",
+      1,
+      60
+    ],
+    [
+      "Clipping",
+      180,
+      60
+    ],
+    [
+      "Idle Back Weapon Revealed",
+      60,
+      60
+    ],
+    [
+      "Idle Back",
+      60,
+      60
+    ],
+    [
+      "Idle",
+      60,
+      60
+    ],
+    [
+      "Jump Forward",
+      45,
+      60
+    ],
+    [
+      "Jump Right",
+      38,
+      60
+    ],
+    [
+      "Jump Left",
+      38,
+      60
+    ],
+    [
+      "Attack Prepare Back",
+      16,
+      60
+    ],
+    [
+      "Attack Prepare",
+      16,
+      60
+    ],
+    [
+      "Attack Scissors Front",
+      90,
+      60
+    ],
+    [
+      "Attack Scissors Back",
+      90,
+      60
+    ],
+    [
+      "Attack Paper Back",
+      60,
+      60
+    ],
+    [
+      "Attack Paper Front",
+      60,
+      60
+    ],
+    [
+      "Attack Stone Back",
+      43,
+      60
+    ],
+    [
+      "Attack Stone Front",
+      43,
+      60
+    ],
+    [
+      "Trap Front",
+      47,
+      60
+    ],
+    [
+      "Trap Back",
+      47,
+      60
+    ],
+    [
+      "Trap Back Idle",
+      1,
+      60
+    ],
+    [
+      "Fall In Trap Back",
+      47,
+      60
+    ],
+    [
+      "Fall In Trap Front",
+      47,
+      60
+    ],
+    [
+      "Death",
+      40,
+      60
+    ]
+  ],
+  "machines": [
+    [
+      "State Machine Back",
+      [
+        [
+          "WeaponVisible",
+          56
+        ],
+        [
+          "Weapon",
+          56
+        ],
+        [
+          "Jump Forward",
+          58
+        ],
+        [
+          "Jump Right",
+          58
+        ],
+        [
+          "Jump Left",
+          58
+        ],
+        [
+          "Attack Prepare",
+          58
+        ],
+        [
+          "Attack",
+          58
+        ],
+        [
+          "Trap Idle",
+          58
+        ],
+        [
+          "Trap Activate",
+          58
+        ],
+        [
+          "Fall In Trap",
+          58
+        ],
+        [
+          "Death",
+          58
+        ]
+      ]
+    ],
+    [
+      "State Machine Front",
+      [
+        [
+          "Weapon",
+          56
+        ],
+        [
+          "Jump Forward",
+          58
+        ],
+        [
+          "Jump Right",
+          58
+        ],
+        [
+          "Jump Left",
+          58
+        ],
+        [
+          "Attack Prepare",
+          58
+        ],
+        [
+          "Attack",
+          58
+        ],
+        [
+          "Trap Activate",
+          58
+        ],
+        [
+          "Fall In Trap",
+          58
+        ],
+        [
+          "Death",
+          58
+        ]
+      ]
+    ]
+  ]
+}

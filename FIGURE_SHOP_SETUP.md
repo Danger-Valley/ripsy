@@ -1,5 +1,17 @@
 # Figure shop: setup and release checklist
 
+## Adding fighters through admin (2026-11-02, source only)
+
+The control room now has an authenticated upload → verify → preview → explicit
+Publish workflow for compatible Rive/PNG figures, names, descriptions, permanent
+IDs and existing-currency prices. It uses a bounded persistent Redis registry
+and immutable public asset routes, without minting or automatic pack inclusion.
+See `DYNAMIC_FIGURES.md` for exact limits, stable-domain and backup/capacity
+requirements, endpoints and one-time rollout. Backend/web deployment is still
+required; this task does not change production catalog, prices, secrets or packs.
+The older product/pricing rollout notes below are historical; the live manifest
+and admin price settings are authoritative.
+
 ## Implemented scope
 
 Home → Figure shop exists on native and at `/shop` on web. The catalog contains

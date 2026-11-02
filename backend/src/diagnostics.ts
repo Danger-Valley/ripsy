@@ -4,6 +4,7 @@ export type BackendDiagnosticEvent =
   | { level: 'info'; event: 'server.shutdown'; signal: string }
   | { level: 'info'; event: 'session.issued'; renewed: boolean }
   | { level: 'warn'; event: 'session.rejected' }
+  | { level: 'warn'; event: 'figures.refresh_failed' }
   | { level: 'error'; event: 'redis.error'; client: 'commands' | 'subscriber' }
   | { level: 'info'; event: 'socket.connected'; openSockets: number }
   | { level: 'info'; event: 'socket.authenticated'; openSockets: number }

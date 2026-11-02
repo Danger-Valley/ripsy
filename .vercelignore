@@ -10,6 +10,7 @@ frontend/apps/mobile/ios
 .aws
 .codex
 .agents
+.impeccable
 backend
 onchain
 files

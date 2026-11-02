@@ -13,16 +13,18 @@ child.on('close', code => {
   try {
     const data = JSON.parse(output);
     const files = data.files.map(file => file.path);
-    const unsafe = files.find(path => /(^|\/)(\.env[^/]*|\.git|\.aws|\.codex|\.railway|keys)(\/|$)/.test(path) ||
+    const unsafe = files.find(path => /(^|\/)(\.env[^/]*|\.git|\.aws|\.codex|\.railway|\.impeccable|keys)(\/|$)/.test(path) ||
       /^(backend|onchain|files|tmp|frontend\/apps\/mobile)(\/|$)/.test(path) ||
       /\.(p8|p12|jks|keystore)$|keypair[^/]*\.json$/i.test(path));
     if (unsafe) throw new Error(`Unsafe deployment path: ${unsafe}`);
     for (const path of ['package.json', 'package-lock.json', 'scripts/apply-patches.mjs',
       'frontend/apps/web/package.json', 'frontend/tsconfig.base.json', 'frontend/packages/core/src/packs.ts',
       'frontend/packages/core/src/figure-manifest.ts',
+      'frontend/packages/core/src/admin-figures.ts',
       'frontend/packages/core/src/shop-admin.ts', 'frontend/apps/web/app/admin/shop/page.tsx',
       'frontend/apps/web/app/admin/shop/shop-admin-content.tsx',
       'frontend/apps/web/app/admin/shop/backend-pack-editor.tsx',
+      'frontend/apps/web/app/admin/shop/figure-registration-editor.tsx',
       ...figures.flatMap(({ id, purchasable }) => (purchasable ? ['json', 'png', 'riv'] : ['png', 'riv']).map(ext => `frontend/apps/web/public/figures/${id}.${ext}`))])
       if (!files.includes(path)) throw new Error(`Required web input missing: ${path}`);
     console.log(JSON.stringify({ verified: true, sourceFiles: files.length, sourceBytes: data.totalSize,

@@ -46,6 +46,7 @@ for (const { id, animation, portrait } of registry) {
     instance.delete();
   }
   const contract = { bounds: board.bounds, timings, machines };
+  assert.deepEqual(contract, JSON.parse(fs.readFileSync('backend/src/figure-animation-contract.json', 'utf8')), `${id} server upload validation contract`);
   assert.deepEqual(board.bounds, { minX: 0, minY: 0, maxX: 1000, maxY: 1000 }, `${id} drawing geometry`);
   if (baseline) assert.deepEqual(contract, baseline, `${id} must preserve authored timing/state contracts`);
   else baseline = contract;

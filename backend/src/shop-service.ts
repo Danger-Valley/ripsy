@@ -60,7 +60,7 @@ export class ShopService {
       }
       // Saved requests retain their exact original currency/quote, including
       // legacy SOL fig2 receipts. New SKR payments below remain mainnet-only.
-      const quote = this.pricing ? await this.pricing.payment(figureId) : { price: FIGURE_TOKEN_PAYMENTS[figureId] ? '0' : this.config.prices[figureId], tokenPayment: FIGURE_TOKEN_PAYMENTS[figureId] };
+      const quote = this.pricing ? await this.pricing.payment(figureId) : { price: FIGURE_TOKEN_PAYMENTS[figureId] ? '0' : this.config.prices[figureId] ?? FIGURES.find(f => f.id === figureId)?.priceLamports, tokenPayment: FIGURE_TOKEN_PAYMENTS[figureId] };
       let total: ReturnType<typeof figureQuantityPrice>;
       try { total = figureQuantityPrice({ priceLamports: quote.price ?? null, tokenPayment: quote.tokenPayment }, quantity); }
       catch (error) { throw new ShopError((error as Error).message); }

@@ -1,6 +1,6 @@
 import { FigureVariant } from '@rps/core';
 import { FIGURE_SLOTS, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
-import { FIGURES, figureVariantForId } from './figure-registry.js';
+import { FIGURES, figureVariantForId, registeredFigureUrls } from './figure-registry.js';
 import { ShopError } from './shop-error.js';
 import type { ShopRedis } from './shop-service.js';
 
@@ -171,7 +171,8 @@ function parseAsset(value: unknown, collection: string, publicOrigin: string): O
   const byTrait = FIGURES.find(candidate => candidate.purchasable && figure?.value === candidate.id);
   let metadataPath = '';
   try { metadataPath = new URL(jsonUri).pathname; } catch {}
-  const byUri = FIGURES.find(candidate => candidate.purchasable && metadataPath === `/figures/${candidate.id}.json`);
+  const byUri = FIGURES.find(candidate => candidate.purchasable && (candidate.resources
+    ? jsonUri === candidate.resources.metadata : metadataPath === `/figures/${candidate.id}.json`));
   if (byTrait && byUri && byTrait.id !== byUri.id) return null;
   const definition = byTrait ?? byUri;
   if (!definition || definition.id === 'fig1') return null;
@@ -182,6 +183,6 @@ function parseAsset(value: unknown, collection: string, publicOrigin: string): O
     variant: definition.variant,
     // The app's fighter name is canonical even for NFTs minted before a rename.
     name: definition.name,
-    imageUrl: typeof links.image === 'string' ? links.image : `${publicOrigin}/figures/${definition.id}.png`,
+    imageUrl: definition.resources?.png ?? (typeof links.image === 'string' ? links.image : registeredFigureUrls(definition, publicOrigin).png),
   };
 }

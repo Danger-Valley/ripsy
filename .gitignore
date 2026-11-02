@@ -21,3 +21,6 @@ dist/
 /-
 .vercel
 .env*
+
+# Local browser review evidence, not application assets.
+frontend/apps/web/.impeccable/review/

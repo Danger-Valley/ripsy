@@ -520,3 +520,35 @@ browser fixture widths 375/768/1280 with lost-response recovery. Backend staging
 and Vercel dry-run exclude secrets/native/local evidence; workspace install
 lockfile dry-run includes the pinned Rive runtime. No signed app build, provider
 change, production registration/deploy, wallet payment or on-chain action.
+
+## Native release73 + verified backend/admin autodeploy — 2026-11-02
+
+Both platforms now deliver product source2780fa3, startup/foreground server
+figure preloading and independently versioned private PNG cache support. Signed
+Android73 is public on existing seeker-latest/Download with anonymous SHA/label
+verified; iOS73 build f9b821cb-2c60-4938-828d-f2446cb34a34 independently reports
+VALID/internal IN_BETA_TESTING, automatic tester notification true. Matching
+local dSYMs, distribution signatures, exact IPA/APK and bounded27-pattern local
+private-value/bundled-Rive scans pass. Fresh818 mobile tests/59suites with open-
+handle detection, native TypeScript, all eight model contracts and both-platform
+preflight pass. Prior signed artifacts remain; no store production submission,
+physical-device download/offline/payment or push-delivery proof is implied.
+
+Backend2780fa3 already auto-deployed successfully as86bafac6-4a10-41be-959b-
+5a9cd96c6b37 through existing GitHub integration, so no duplicate manual upload
+was made. Live health, all16 public PNG/Rive hashes, original prices, guarded
+admin routes and disabled buyer-prepaid pack checks pass; web admin form is
+also live through its autodeploy. No env/key/authority or Redis configuration
+changed. Documentation/version push can trigger the same existing auto pipeline;
+its completion must be observed separately, not inferred from Git push.
+
+Read-only Redis volume backup and schedule lists are empty. User declined
+enabling Railway backups due to planned migration; no backup/settings mutation.
+Existing application persistence is Redis; Firebase is FCM, and no MongoDB/
+Firestore/Supabase DB integration is present. Existing eight figure assets were
+not moved; only the newly introduced admin upload code stores future new files
+in Redis. Durable catalog/order DB plus separate object storage is an open
+architecture decision, not implemented or permission to create/migrate/delete.
+No additional fighter was published. Dependency advisory triage also remains
+open; neither release delivery nor credential rotation closes all security work.
+Evidence: files/releases/1.0.0-73.md, DYNAMIC_FIGURES.md, WEB_PARITY_HANDOFF.md.

@@ -1,6 +1,31 @@
 # Adding server-delivered fighters
 
-## Admin registration — 2026-11-02 (source implementation, not deployed)
+## Rollout and storage decision — 2026-11-02
+
+Native 1.0.0 (73) now delivers the startup/private-PNG enhancement below on both
+platforms: public signed Android APK/hash/Download label verified, and iOS73
+independently VALID/internal IN_BETA_TESTING. Backend feature source `2780fa3`
+already auto-deployed successfully as `86bafac6-4a10-41be-959b-5a9cd96c6b37`;
+the live manifest has all eight existing IDs and portrait descriptors, and all
+16 PNG/Rive length/hash checks pass. The existing web autodeploy also exposes
+the admin form. No extra figure, draft or pack reward was published by the
+operator. Old eight resource URLs and existing prices remain unchanged.
+Delivery evidence and limitations: `files/releases/1.0.0-73.md`.
+
+The user explicitly declined enabling Railway backups because a platform move
+is planned. Read-only API confirms no existing Redis backup/schedule; nothing
+was enabled or changed. The new admin upload code currently stores new files
+and registrations in Redis, while the pre-existing eight files remain on public
+web hosting. Redis is also the existing application data store; Firebase is
+used for FCM, not a configured Firestore database. MongoDB/Supabase are not
+connected in this codebase. Long-term asset storage should be separated from
+Redis: durable catalog/order database plus object storage for file bytes. The
+destination, migration and live workflow changes remain undecided/unimplemented;
+do not infer permission to provision a database, copy/delete data or enable
+backups. Treat this as an open architectural/recovery issue before relying on
+admin uploads for permanent collectibles, not as completed long-term storage.
+
+## Admin registration — implementation notes (2026-11-02)
 
 After the one-time backend/web rollout, use **Shop control room → Add a figure**:
 
@@ -82,10 +107,10 @@ TTL, RDB-save/restart, resource hash/HEAD/ETag and lease-loss integration), 818
 mobile and 32 web tests pass. Browser fixtures at 375/768/1280 px verify labels,
 first-invalid focus, preserved files, explicit review/confirmation, unknown-result
 recovery, one publish, unchanged dirty prices and zero initial pack weight.
-The browser API is a local fixture, not the production service. No deployment,
-production registration, paid purchase, on-chain transaction or new signed app
-build accompanies this source change. Initial backend/web deploy is still needed;
-the startup/private-PNG enhancement below also needs its one-time native release.
+The browser API is a local fixture, not a production upload test. These checks
+do not establish production registration, paid purchase, on-chain execution or
+signed delivery. Confirmed backend/web activation and native release73 evidence
+are recorded above; no operator-created extra fighter accompanies that rollout.
 Web production compilation/static generation also passes, with warnings for the
 pre-existing optional Privy Farcaster module and disk-full build-cache writes;
 neither warning is claimed fixed here. Local test captures are excluded from
@@ -129,9 +154,9 @@ persisted with the manifest.
 
 Rolling rollout: old servers without `portrait` remain compatible and use the
 platform's best-effort image prefetch rather than verified private PNG storage.
-Existing build 72 already supports unknown figures on demand; these new startup
-and PNG-cache improvements require **one** new native release plus the backend
-manifest update. Neither has been deployed/uploaded by this implementation task.
+Existing build72 already supports unknown figures on demand; the startup and
+PNG-cache improvement's one-time native/backend rollout is now delivered by
+release73 and the backend activation recorded above.
 After the admin rollout above, compatible fighters can be published through
 admin without another source deploy or mobile build. Rive files must package the assets
 required by contract 1; arbitrary downloaded code/new gameplay is not supported.

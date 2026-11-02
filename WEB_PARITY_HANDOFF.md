@@ -11,7 +11,40 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
-## Admin-created fighters (2026-11-02, source only)
+## Native release73 and backend/admin activation (2026-11-02)
+
+Android/iOS 1.0.0 (73) deliver product source `2780fa3`, including startup/
+foreground manifest restoration/prefetch, bounded retries, exact Rive/private
+PNG validation and shared cache budgets. Existing build72 already supported
+unknown figures on demand. Public APK/hash and normal Download label73 are
+verified; Apple independently confirms73 VALID/internal IN_BETA_TESTING with
+automatic tester notification. Fresh818 tests/59suites with open-handle
+detection, native TypeScript, eight-model contracts and both-platform preflight
+pass; exact packages, signatures, local matching symbols and bounded private-
+value scans pass. No real wallet/purchase, physical-device cache/offline, push
+delivery, external beta review or store production submission is implied.
+
+The backend source already auto-deployed through existing GitHub integration as
+`86bafac6-4a10-41be-959b-5a9cd96c6b37` SUCCESS, so no duplicate manual deployment
+was made. Health, all16 public figure resources, original prices, guarded admin
+routes and disabled buyer-prepaid pack checks pass. The public admin form is
+also present through web autodeploy. No env/key/authority/Redis settings or pack
+policy changed. Release documentation pushes may trigger the existing backend
+autodeploy again; observe it rather than uploading a duplicate manually.
+
+Storage remains an explicit open design issue: the new admin upload path uses
+bounded Redis for new bytes/metadata/registrations; original eight assets stay
+on their old hosting. The user declined Railway backups due to an upcoming
+platform move; no schedule was enabled. Current backend has Redis persistence
+and Firebase FCM, not MongoDB/Firestore/Supabase. Future architecture should use
+a durable catalog/order DB and separate object storage; target, migration and
+live workflow changes are not decided/implemented. Do not treat source/admin
+activation as durable-storage/recovery readiness. Web startup prewarming and
+Shop idle/hops are still unported. Evidence: `files/releases/1.0.0-73.md` and
+`DYNAMIC_FIGURES.md`. This supersedes the source-only delivery statuses below,
+not the stated behavior, test limits or open storage/security work.
+
+## Admin-created fighters (2026-11-02, implementation record)
 
 `/admin/shop` now extends the incumbent control room with name/description/ID,
 Rive/PNG and exact currency/price inputs, server verification, actual PNG review
@@ -33,9 +66,10 @@ No web idle/hop animation port is implied (browser shop still uses portraits).
 
 Storage is bounded existing Redis (64 MiB published raw bytes + one 30-minute
 ≤12 MiB raw draft; Base64/JSON add memory), not ephemeral disk or a new CDN.
-Registry/assets/metadata need durable Redis backup and stable public domain for
-issued NFTs. No backup/eviction policy is changed by this implementation. Initial
-backend/web rollout and operator recovery/capacity confirmation remain required.
+Registry/assets/metadata need durable storage/recovery and a stable public domain
+for issued NFTs. No backup/eviction policy is changed by this implementation.
+Activation is recorded above; long-term storage and recovery remain open after
+the user declined Railway backups for the planned migration.
 See `DYNAMIC_FIGURES.md` for endpoint/validation/storage contracts and limits.
 
 Verified: 241 backend, 818 mobile and 32 web tests; real disposable Redis Lua,

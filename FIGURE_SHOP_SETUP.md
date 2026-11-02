@@ -1,14 +1,16 @@
 # Figure shop: setup and release checklist
 
-## Adding fighters through admin (2026-11-02, source only)
+## Adding fighters through admin (2026-11-02)
 
 The control room now has an authenticated upload → verify → preview → explicit
 Publish workflow for compatible Rive/PNG figures, names, descriptions, permanent
-IDs and existing-currency prices. It uses a bounded persistent Redis registry
+IDs and existing-currency prices. It currently uses a bounded Redis registry
 and immutable public asset routes, without minting or automatic pack inclusion.
-See `DYNAMIC_FIGURES.md` for exact limits, stable-domain and backup/capacity
-requirements, endpoints and one-time rollout. Backend/web deployment is still
-required; this task does not change production catalog, prices, secrets or packs.
+Backend/web activation and native73 delivery are verified; see `DYNAMIC_FIGURES.md`
+and `files/releases/1.0.0-73.md`. User declined Railway backups because migration
+is planned. A durable DB plus object storage remains an open design/recovery
+issue; no new storage service or migration is implemented. Existing catalog,
+prices, secrets and packs were not changed by the release operation.
 The older product/pricing rollout notes below are historical; the live manifest
 and admin price settings are authoritative.
 

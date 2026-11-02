@@ -444,3 +444,30 @@ wallet/payment, push delivery and unobstructed visual jump/landing checks remain
 unverified; dependency-advisory reachability work is still open. Earlier
 source-only hop notes are superseded only for iOS. Evidence:
 `files/releases/1.0.0-71.md` and `WEB_PARITY_HANDOFF.md`.
+
+## Native release 1.0.0 (72) — 2026-11-02
+
+Both platforms deliver source `cf4f21a`: the full upper native Shop drawing
+canvas now fits inside a 400-point rounded showcase, preserving the 300-point
+figure, floor, independent hop timers, motion/visibility gates and checkout.
+Android also gains the ambient jumps absent from APK 70. Web portraits remain
+static; no web/backend deployment or env/key/authority/catalog/pack-policy/
+update-minimum/dependency change was performed.
+
+Signed arm64 Android 72 is published to the existing `seeker-latest` channel.
+Anonymous APK bytes/hash and the normal Download-page label 72 are verified.
+APK SHA-256 `4a33b20e96f5494e127d08f316a512ef5cf1fe27a29c66b395899190592b3f5e`.
+App Store Connect build `16ae8946-516e-4ab0-b9cf-4d870712a926` independently
+reports VALID/internal IN_BETA_TESTING, automatic tester notification enabled;
+external review and production submission were not performed.
+
+Fresh 797 mobile tests/56 suites with open-handle detection, native TypeScript,
+all eight model contracts and both-platform release preflight pass. Package
+signatures, exact uploaded IPA, retained R8 mapping, matching app/framework dSYMs,
+five bundled Rive digests and bounded 19-pattern local-private-value scans pass.
+Isolated native Simulator recordings verify complete jumps for all seven Shop
+models on iPhone and Seeker/BONK on iPad, using locally staged remote-only Rives
+in a fixture; this is not a production-cache/auth, physical-device, paid-wallet
+or push-delivery pass. Those checks and dependency-advisory reachability remain
+separate. Earlier source-only/71-only delivery statuses are superseded by this
+release. Evidence: `files/releases/1.0.0-72.md` and `WEB_PARITY_HANDOFF.md`.

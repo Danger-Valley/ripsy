@@ -2,15 +2,19 @@
 
 Bare React Native Community CLI application for iOS and Android. This is a native client: it does not use Expo or render the web application.
 
-## Latest platform delivery (2026-10-30)
+## Latest platform delivery (2026-11-02)
 
-iOS TestFlight 1.0.0 (71) includes independently timed Shop jumps from `6571bc0`;
-App Store Connect confirms VALID/internal IN_BETA_TESTING and automatic tester
-notification. Android remains build 70: no new APK was requested/published in
-this task. 796 mobile tests, TypeScript, eight-model contracts and iOS preflight
-pass. Signatures, exact IPA and matching dSYMs are verified; physical/paid and
-unobstructed jump/landing visual validation remain pending. No external beta
-review or App Store production submission. Evidence: `files/releases/1.0.0-71.md`.
+Android and iOS 1.0.0 (72) deliver the Shop jump ancestor-clearance correction
+from `cf4f21a`, preserving figure size, floor and independent jump timers.
+The signed arm64 APK is published at `https://ripsy.fun/download`; public bytes,
+hash and page label 72 are independently verified. App Store Connect confirms
+VALID/internal IN_BETA_TESTING with automatic tester notification. All 797
+mobile tests, TypeScript, eight-model contracts and both-platform preflight pass;
+package signatures, exact uploaded IPA, R8 mapping and matching dSYMs are verified.
+Isolated native Simulator recordings verify full jumps for all seven Shop models
+on iPhone and Seeker/BONK on iPad; real-device, production cache/auth, paid purchase
+and push delivery remain unverified. Web art is still static. No external beta
+review or App Store production submission. Evidence: `files/releases/1.0.0-72.md`.
 
 ## Saved checkout after session loss
 

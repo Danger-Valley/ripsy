@@ -18,19 +18,20 @@ permanent 75-point native drawing headroom. Visibility, focus, foreground,
 Reduce Motion and popup gates remove the controller and cancel its timer; no
 catch-up on resume. Optional trigger failure keeps idle but stops further hops.
 Bundled/verified remote models use the same contract. Army/pack and current web
-portraits are unchanged. iOS TestFlight 71 includes these hops; the unchanged
-published Android build 70 does not. Unobstructed native visual checks are still
-pending; release packaging alone is not visual proof.
+portraits are unchanged. Android and iOS release 72 include these hops and the
+ancestor-clearance correction below. Isolated native Simulator recordings cover
+full takeoff/apex/landing; real-device checks remain separate. Release packaging
+alone is not visual proof.
 
 ## Native drawing bounds
 
-Shop ancestor correction (2026-11-02, source only): the rounded showcase must
+Shop ancestor correction (2026-11-02, delivered in native release 72): the rounded showcase must
 also contain the full upper drawing surface. `ShopFigureShowcase` reserves 400
 points for a 300-point preview, 24-point bottom offset and 75-point overscan,
 leaving 1 point above the native view. The former 248-point parent still clipped
 heads despite the native overscan. Keep scale, floor, timing and rounded clipping;
-use the same showcase height for viewport measurement. iOS 71/Android 70 lack
-this correction and require a new native release. All seven canonical models'
+use the same showcase height for viewport measurement. The published Android
+APK and internal iOS TestFlight 72 now contain this correction. All seven canonical models'
 jumps are visually verified in an isolated iPhone Simulator scene with current
 JS (remote-only models staged locally); iPad also verifies Seeker/BONK. This is
 not a real-device or production cache/auth/purchase test.

@@ -1,6 +1,6 @@
 # Firebase commerce persistence — 2026-11-02
 
-## Provisioned; production cutover pending verification
+## Provisioned and production cutover verified
 
 The user selected Firebase for figure bytes, catalog and orders, enabled Blaze,
 and explicitly approved Frankfurt. Resources now exist in project `ripsy-app`:
@@ -18,8 +18,8 @@ and explicitly approved Frankfurt. Resources now exist in project `ripsy-app`:
   through the official Firebase tooling. Recovery `packOrders.pendingAt` index
   is deployed. No mobile/web Firebase data SDK or new auth flow is introduced.
 
-This record initially accompanies disabled-by-default source. It is not evidence
-of production migration until the cutover results are recorded below. GitHub
+This record initially accompanied disabled-by-default source; the verified
+production cutover is recorded below. GitHub
 pushes auto-deploy this repository: do not manually upload a duplicate source.
 
 ## Runtime contract
@@ -115,6 +115,47 @@ authenticated/admin claims, is denied. Admin SDK bypasses rules, so IAM and
 backend validation/fencing still matter. Review and verify the rules before
 broadly sharing the app; this is not an exhaustive security audit.
 
-## Production result
+## Production result — verified 2026-11-02, 14:08 UTC
 
-Pending controlled cutover and live verification. No completion is claimed here.
+Firebase activation deployment `8ffc8f53-f87d-47df-9d08-e1be5ca59fff` is SUCCESS,
+source `7da4ec3d8c5396ad33f80dd50771f87416c229da`; maintenance deployment
+`8f95e5ed-196b-469e-9571-39b0cab03efb` is REMOVED. No duplicate manual source
+upload was used. Documentation-only pushes may subsequently auto-deploy the
+same behavior; observe those, never rerun migration for them.
+
+- Exact source namespace `ripsy:production` retained. All **18 figure orders +
+  1 pack order** copied, with all nested receipt/quote/owner/signed/recovery
+  fields matching the source. Two source reads match
+  `25c18ae69a54f04afef3ef54809ef8e081131cd643b2ae8ccd0de768bcf664ed`.
+  Verified target records hash:
+  `4923c84df28612b0b11a6eff71301ea45f13fe6c2f8031dc014a1a7a0fa933e0`.
+- Three settings/catalog records plus migration seal. No admin-published
+  registrations or pending upload existed. All **24 original Rive/PNG/metadata
+  files, 4,044,268 bytes**, are archived and digest/length-verified in Storage.
+  Original public URLs, Core metadata URIs, figure IDs and variants stay intact.
+- Fresh checks from the **actual active container** verify Firestore readiness,
+  target/namespace, 18+1 order counts, all24 Storage files, price revision1,
+  pack version2/amount10000000 and global PACK_ENABLED=false. This is an
+  in-container Firestore/Storage read, not an FCM auth/delivery or payment test.
+- Live health200: Redis connected, push configured, `commerce=firestore`,
+  `commerceReady=true`; maintenance=false, SHOP_ENABLED=true.
+- Full public manifest and catalog versions1/2/3/4 are **byte-identical** to
+  pre-migration responses, with counts8 and1/3/4/7. All existing prices remain
+  unchanged, including Alien/Robot/Skull 450000000 SKR base units, decimals6.
+  Shop/admin guard check and disabled buyer-funded pack check both PASS, with
+  no transactions/payments sent and the same 40/40/20 Jup/BONK/ORE table.
+- Source Redis commerce keys were not cleared or rewritten. Redis deployment
+  remains `78c67da8-efb1-417a-8d25-4ab1e8934975` SUCCESS. No Redis config/image/
+  volume/namespace, Railway backup, mint authority or treasury change occurred.
+- Dedicated key was supplied through stdin only. Other backend variables were
+  compared and preserved. Temporary SSH used only the approved host fingerprint
+  and is revoked/cleaned after verification; other SSH keys/config are untouched.
+  Twelve private integration objects were removed from the four exact test
+  namespaces; no production files were deleted. No fixture was published into
+  the app, no native build was needed, and no real purchase/onchain action ran.
+
+Verification: backend237 tests (235 pass, real-Redis and opt-in cloud suites
+skipped in the normal run), plus **9/9 explicit real Firebase checks** including
+the production-style colon namespace; backend and web TypeScript, clean scoped
+backend-only install/runtime imports, and32/32 web tests pass. Published native
+build73 remains unchanged. Current clients/admin use the existing API contracts.

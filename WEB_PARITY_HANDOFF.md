@@ -11,7 +11,7 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
-## Firebase commerce persistence (2026-11-02, cutover pending)
+## Firebase commerce persistence (2026-11-02, active and verified)
 
 User-approved Firestore Enterprise Native `ripsy-commerce` and private Firebase
 Storage are provisioned in Frankfurt. Client deny-all rules and recovery index
@@ -31,8 +31,23 @@ Web admin, shared hooks and native clients need no new build for this storage
 switch. Current web animation/session-repair gaps remain unchanged. Tests use
 mocked chain operations, not real payments. See
 `files/releases/firebase-commerce-2026-11-02.md` for rollout, proof limits and
-the eventual production result. This supersedes the earlier undecided database
+the production result. This supersedes the earlier undecided database
 destination note, not the prohibition on Railway backups or checkout safety.
+
+Verified cutover: activation `8ffc8f53-f87d-47df-9d08-e1be5ca59fff` SUCCESS on
+source7da4ec3, `COMMERCE_STORAGE=firebase`, maintenance=false. Exact production
+namespace `ripsy:production` is preserved (the colon is valid, never stripped).
+18 direct orders +1 pack order and all nested snapshots were copied and checked;
+24 original files/4,044,268 bytes were archived and verified, and actual-container
+Firestore/Storage reads pass. Source Redis remains unchanged; it is not an active
+commerce replica. Health200 reports firestore ready, Redis connected and push
+configured. Manifest8 and catalogs1/2/3/4 (1/3/4/7 entries) exactly match pre-copy
+response bytes, prices and existing URLs. Guarded admin/disabled buyer-funded
+pack live scripts pass without payments; PACK_ENABLED=false/table unchanged.
+Backend237 checks (235 pass/2 opt-in skips),9/9 explicit Firebase integration,
+backend/web TypeScript, clean backend-only install/imports and32 web tests pass.
+No app fixture, paid operation, onchain change or new mobile build was performed.
+Documentation autodeploys do not rerun migration or change these contracts.
 
 ## Native release73 and backend/admin activation (2026-11-02)
 

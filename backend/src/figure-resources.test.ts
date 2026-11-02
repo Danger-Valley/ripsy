@@ -12,7 +12,8 @@ import { parseGameState, Piece, toIdx } from '@rps/core';
 import { createGameRecord, joinGame, submitLineup, movePiece, gameView, parseGameRecord } from './game-engine.js';
 
 const manifest = figureManifest('https://www.ripsy.fun');
-const future = { ...manifest.figures[2]!, id: 'future-fighter', variant: 42, name: 'Future fighter', imageUrl: 'https://www.ripsy.fun/future.png' };
+const future = { ...manifest.figures[2]!, id: 'future-fighter', variant: 42, name: 'Future fighter', imageUrl: 'https://www.ripsy.fun/future.png',
+  portrait: { ...manifest.figures[2]!.portrait!, url: 'https://www.ripsy.fun/future.png' } };
 test('Alien, Robot and Skull register compatible resources and canonical metadata at exactly 450 SKR', () => {
   const catalog = shopCatalog({ ...loadShopConfig({}), enabled: true, cluster: 'mainnet-beta' });
   for (const [id, name, variant] of [['alien', 'Alien', 6], ['robot', 'Robot', 7], ['skull', 'Skull', 8]] as const) {
@@ -48,6 +49,31 @@ test('published animation digests and sizes match actual shipped resources', () 
     const bytes = readFileSync(new URL(`../../frontend/apps/web/public/figures/${f.id}.riv`, import.meta.url));
     assert.equal(bytes.length, f.animation.bytes);
     assert.equal(createHash('sha256').update(bytes).digest('hex'), f.animation.sha256);
+  }
+});
+test('manifest publishes independently versioned, exact PNG resources and accepts legacy manifests', () => {
+  for (const figure of manifest.figures) {
+    const png = readFileSync(new URL(`../../frontend/apps/web/public/figures/${figure.id}.png`, import.meta.url));
+    assert.equal(figure.portrait?.bytes, png.length);
+    assert.equal(figure.portrait?.sha256, createHash('sha256').update(png).digest('hex'));
+    assert.equal(figure.portrait?.url, figure.imageUrl);
+    assert.ok(figure.imageUrl.endsWith(`?v=${figure.portrait!.sha256}`));
+  }
+  const legacy = { schema: 1, figures: manifest.figures.map(f => { const copy = { ...f }; delete copy.portrait; return copy; }) };
+  assert.equal(parseFigureManifest(legacy).figures.length, manifest.figures.length);
+  const old = FIGURES[0]!.portrait;
+  try {
+    FIGURES[0]!.portrait = { bytes: 100, sha256: 'c'.repeat(64) };
+    const changed = figureManifest('https://www.ripsy.fun').figures[0]!;
+    assert.notEqual(changed.imageUrl, manifest.figures[0]!.imageUrl);
+    assert.deepEqual(changed.animation, manifest.figures[0]!.animation);
+  } finally { FIGURES[0]!.portrait = old; }
+});
+test('malformed portrait descriptors cannot replace a known-good catalog', () => {
+  for (const portrait of [null, {}, { ...future.portrait, url: 'http://example.test/f.png' },
+    { ...future.portrait, url: 'https://example.test/different.png' }, { ...future.portrait, sha256: 'bad' },
+    { ...future.portrait, bytes: 0 }, { ...future.portrait, bytes: 10.5 }, { ...future.portrait, bytes: 4 * 1024 * 1024 + 1 }]) {
+    assert.throws(() => parseFigureManifest({ ...manifest, figures: [...manifest.figures, { ...future, portrait }] }));
   }
 });
 test('client accepts an unknown server fighter, price, inventory and pack result', () => {

@@ -1,6 +1,7 @@
 [
   {
     "id": "fig1",
+    "portrait": { "sha256": "bcec7a04ce0ffc83d0596a2f5913d966d61f3160266a77a62864c6acfe343f10", "bytes": 82345 },
     "name": "RIPSY 001",
     "variant": 1,
     "description": "The original RIPSY fighter. Free in every army.",
@@ -13,6 +14,7 @@
   },
   {
     "id": "fig2",
+    "portrait": { "sha256": "7fd529815beb7d02eb8ba15ec04714320bc060e42da88a3013845427a30744e4", "bytes": 57796 },
     "name": "Seeker fighter",
     "variant": 2,
     "description": "A new face for your collection. The same fighting spirit.",
@@ -31,6 +33,7 @@
   },
   {
     "id": "bonk",
+    "portrait": { "sha256": "11eed2a4f6f85c92b107a66d71d6bf3edad17639658d48e781ad032f118bb6b1", "bytes": 89794 },
     "name": "BONK",
     "variant": 3,
     "description": "Bring a little BONK to the battlefield.",
@@ -49,6 +52,7 @@
   },
   {
     "id": "jup",
+    "portrait": { "sha256": "5a71dabbf474c10fdedb48d2183b35481a307a44cac9f17c4f6a3c851503f8bd", "bytes": 117027 },
     "name": "Jup",
     "variant": 4,
     "description": "A new fighter joins your orbit.",
@@ -67,6 +71,7 @@
   },
   {
     "id": "ore",
+    "portrait": { "sha256": "b710cf7bfe16692dd7b63c8303a04e5a470fae3f57a1d8aab2785bdbffcf5c1c", "bytes": 92936 },
     "name": "ORE",
     "variant": 5,
     "description": "Strike gold on the battlefield.",
@@ -85,6 +90,7 @@
   },
   {
     "id": "alien",
+    "portrait": { "sha256": "44c3c35e118aa953ab8e3f7f62b19eace63f0a46782cfef4d919f11fad11fc26", "bytes": 79000 },
     "name": "Alien",
     "variant": 6,
     "description": "An out-of-this-world addition to your army.",
@@ -103,6 +109,7 @@
   },
   {
     "id": "robot",
+    "portrait": { "sha256": "397ed0e3402ee2f5f5ba146f6fdd0062183a5d3163462bb4d23e712b543720c5", "bytes": 85433 },
     "name": "Robot",
     "variant": 7,
     "description": "Built for battle. Ready for your army.",
@@ -121,6 +128,7 @@
   },
   {
     "id": "skull",
+    "portrait": { "sha256": "925bded8013205fe6da4b33a827d219b28be08a9111e3ad509fb320a7c4d57d3", "bytes": 102080 },
     "name": "Skull",
     "variant": 8,
     "description": "A fearless fighter with a mischievous grin.",

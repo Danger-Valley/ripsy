@@ -3,13 +3,7 @@ import { useRiveFile, type RiveFile } from '@rive-app/react-native';
 import type { FigureDefinition } from '@rps/core/figure-manifest';
 import { cacheFigureAnimation } from './asset-cache';
 
-export const bundledHashes: Record<number, string> = {
-  1: 'b44ee60dcabf2893b0409abd2193a5e68a32af0211c400417508524a7f3ff0ba',
-  2: '7ebfc2d64675e7882f4dfb7b2e6d8d23a03e1442756876cc0605ec0d33584668',
-  3: '26a1faafefac4102b17c41d2738ac5509602313eb5f94168fe36d722a8f1d75f',
-  4: 'fe42caa994fa8b88066d37a35e60917208e8bd394113e278e1e4212e930255ad',
-  5: '68dfc42ecf16277df605a0acfc574f608014acdaae3260565f989cc9010f3520',
-};
+export { bundledHashes } from './bundled-resources';
 export function RemoteAnimation({ animation, variant, onReady, onFailure, retry = 0 }: {
   animation: FigureDefinition['animation']; variant: number;
   onReady(variant: number, hash: string, file: RiveFile): void;

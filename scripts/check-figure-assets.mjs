@@ -12,11 +12,16 @@ RuntimeLoader.setWasmFallbackUrl(null);
 const runtime = await RuntimeLoader.awaitInstance();
 let baseline;
 const registry = JSON.parse(fs.readFileSync('backend/src/figure-registry.json', 'utf8'));
-for (const { id, animation } of registry) {
+for (const { id, animation, portrait } of registry) {
   const native = fs.readFileSync(`frontend/apps/web/public/figures/${id}.riv`);
   assert.equal(native.length, animation.bytes, `${id} published length`);
   assert.equal(createHash('sha256').update(native).digest('hex'), animation.sha256, `${id} published digest`);
-  fs.accessSync(`frontend/apps/web/public/figures/${id}.png`);
+  const png = fs.readFileSync(`frontend/apps/web/public/figures/${id}.png`);
+  assert.ok(portrait, `${id} needs a verified PNG descriptor`);
+  assert.equal(png.length, portrait.bytes, `${id} PNG length`);
+  assert.equal(createHash('sha256').update(png).digest('hex'), portrait.sha256, `${id} PNG digest`);
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10], `${id} PNG signature`);
+  assert.ok(png.readUInt32BE(16) > 0 && png.readUInt32BE(16) <= 2048 && png.readUInt32BE(20) > 0 && png.readUInt32BE(20) <= 2048, `${id} PNG bounds`);
   const bundled = `frontend/apps/mobile/src/assets/figures/${id}.riv`;
   if (fs.existsSync(bundled)) {
     assert.deepEqual(native, fs.readFileSync(bundled), `${id} native/web Rive bytes`);

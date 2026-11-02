@@ -16,6 +16,18 @@ on iPhone and Seeker/BONK on iPad; real-device, production cache/auth, paid purc
 and push delivery remain unverified. Web art is still static. No external beta
 review or App Store production submission. Evidence: `files/releases/1.0.0-72.md`.
 
+## Server-delivered fighters at startup (2026-11-02, source only)
+
+Root startup/foreground refreshes the public manifest and preloads missing
+compatible Rives and verified PNGs without opening Shop/Army or blocking Home.
+Known bundled resources are reused; downloaded files live in the bounded private
+native cache. Cached names restore offline, partial failures retain the working
+catalog, and image/name-only refreshes preserve Rive controllers. Existing build
+72 already loads unknown fighters on demand; one new native build and backend
+manifest deployment enable these startup/PNG-cache improvements. Subsequent
+compatible additions need assets/backend registry only, not mobile imports or
+another app update. See root `DYNAMIC_FIGURES.md` for limits and registration.
+
 ## Saved checkout after session loss
 
 Direct figure payment and Core mint remain one atomic transaction. A saved order

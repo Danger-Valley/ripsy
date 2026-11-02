@@ -8,6 +8,7 @@ interface Registration {
   tokenPayment?: TokenPayment;
   priceLamports?: string;
   animation: { sha256: string; bytes: number };
+  portrait?: { sha256: string; bytes: number };
 }
 /** Backend-owned allowlist. Never recycle an ID or variant once published. */
 export const FIGURES: Registration[] = JSON.parse(
@@ -17,6 +18,7 @@ if (!Array.isArray(FIGURES)) throw new Error('Invalid figure registry');
 // Validate before starting the server, not during a user's purchase.
 parseFigureManifest({ schema: 1, figures: FIGURES.map(f => ({
   ...f, imageUrl: `https://registry.invalid/figures/${f.id}.png`,
+  ...(f.portrait ? { portrait: { ...f.portrait, url: `https://registry.invalid/figures/${f.id}.png` } } : {}),
   animation: { ...f.animation, contract: 1, url: `https://registry.invalid/figures/${f.id}.riv` },
 })) });
 parseShopCatalog({ cluster: 'mainnet-beta', treasury: null, collection: null,

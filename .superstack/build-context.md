@@ -471,3 +471,26 @@ in a fixture; this is not a production-cache/auth, physical-device, paid-wallet
 or push-delivery pass. Those checks and dependency-advisory reachability remain
 separate. Earlier source-only/71-only delivery statuses are superseded by this
 release. Evidence: `files/releases/1.0.0-72.md` and `WEB_PARITY_HANDOFF.md`.
+
+## Startup server-figure resource synchronization — 2026-11-02 (source only)
+
+Extends the already-delivered on-demand dynamic loader: native root startup and
+foreground warm missing compatible Rives and independently versioned PNGs using
+the public manifest, without opening Shop/Army or blocking navigation. Optional
+schema-1 portrait descriptors, exact hash/length checks, private shared 96-MiB
+LRU, 64-MiB preload selection, two workers, bundle skipping, paused queues and
+bounded manifest retries preserve offline-first use. Cached names restore before
+network; invalid data cannot remap identities or erase the known-good manifest.
+Stale PNG completion and failed revalidation cannot select an obsolete local
+file; PNG/name-only changes preserve Rive descriptors/controllers. No wallet,
+checkout, price, gameplay, on-chain or dependency change.
+
+818 mobile / 230 backend / 32 web tests, all typechecks, focused lint, eight-model
+PNG/Rive checks, both production Metro bundles and native Android Kotlin / iOS
+bridge object compilation pass. A local Foundation harness exercises actual iOS
+cache guards without network. No connected Android device or installed AVD
+system.img; physical download/offline QA remains unverified. One new native
+release plus backend deployment is still needed for these enhancements; then
+future compatible fighters require only resources/registry deployment. Browser
+prewarming remains unported. No signed build/publication/deployment performed.
+Full contract and registration: `DYNAMIC_FIGURES.md`, `WEB_PARITY_HANDOFF.md`.

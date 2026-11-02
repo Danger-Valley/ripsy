@@ -33,10 +33,18 @@
 @implementation RipsyFigureCache
 RCT_EXPORT_MODULE(RipsyFigureCache)
 + (BOOL)requiresMainQueueSetup { return NO; }
-- (BOOL)validFile:(NSURL *)url hash:(NSString *)hash size:(NSUInteger)size {
+- (BOOL)validFile:(NSURL *)url hash:(NSString *)hash size:(NSUInteger)size extension:(NSString *)extension {
   if ([[NSFileManager.defaultManager attributesOfItemAtPath:url.path error:nil][NSFileSize] unsignedLongLongValue] != size) return NO;
   NSData *data = [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:nil];
   if (!data || data.length != size) return NO;
+  if ([extension isEqualToString:@"png"]) {
+    const unsigned char png[] = {137,80,78,71,13,10,26,10};
+    if (data.length < 24 || ![[data subdataWithRange:NSMakeRange(0, 8)] isEqualToData:[NSData dataWithBytes:png length:8]]) return NO;
+    const unsigned char *b = data.bytes;
+    uint32_t width = ((uint32_t)b[16] << 24) | ((uint32_t)b[17] << 16) | ((uint32_t)b[18] << 8) | b[19];
+    uint32_t height = ((uint32_t)b[20] << 24) | ((uint32_t)b[21] << 16) | ((uint32_t)b[22] << 8) | b[23];
+    if (!width || !height || width > 2048 || height > 2048) return NO;
+  }
   unsigned char digest[CC_SHA256_DIGEST_LENGTH];
   CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
   NSMutableString *actual = [NSMutableString string];
@@ -45,11 +53,19 @@ RCT_EXPORT_MODULE(RipsyFigureCache)
 }
 RCT_EXPORT_METHOD(getAnimation:(NSString *)urlString sha256:(NSString *)hash bytes:(double)bytes
                   resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  [self cacheResource:urlString hash:hash bytes:bytes extension:@"riv" resolver:resolve rejecter:reject];
+}
+RCT_EXPORT_METHOD(getPortrait:(NSString *)urlString sha256:(NSString *)hash bytes:(double)bytes
+                  resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  [self cacheResource:urlString hash:hash bytes:bytes extension:@"png" resolver:resolve rejecter:reject];
+}
+- (void)cacheResource:(NSString *)urlString hash:(NSString *)hash bytes:(double)bytes extension:(NSString *)extension
+             resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject {
   NSURL *url = [NSURL URLWithString:urlString];
   NSRegularExpression *pattern = [NSRegularExpression regularExpressionWithPattern:@"^[a-f0-9]{64}$" options:0 error:nil];
   if (![url.scheme isEqualToString:@"https"] || !url.host.length || url.user || url.password
       || [pattern numberOfMatchesInString:hash options:0 range:NSMakeRange(0, hash.length)] != 1
-      || bytes < 8 || bytes > 8388608 || floor(bytes) != bytes) {
+      || !isfinite(bytes) || bytes < 8 || bytes > ([extension isEqualToString:@"png"] ? 4194304 : 8388608) || floor(bytes) != bytes) {
     reject(@"FIGURE_DOWNLOAD", @"Invalid fighter download.", nil); return;
   }
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
@@ -57,7 +73,7 @@ RCT_EXPORT_METHOD(getAnimation:(NSString *)urlString sha256:(NSString *)hash byt
     NSURL *root = [[fm URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject URLByAppendingPathComponent:@"figure-cache-v1" isDirectory:YES];
     [fm createDirectoryAtURL:root withIntermediateDirectories:YES attributes:nil error:nil];
     [root setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
-    NSURL *target = [root URLByAppendingPathComponent:[hash stringByAppendingString:@".riv"]];
+    NSURL *target = [root URLByAppendingPathComponent:[hash stringByAppendingPathExtension:extension]];
     void (^finish)(void) = ^{
       [fm setAttributes:@{NSFileModificationDate:NSDate.date} ofItemAtPath:target.path error:nil];
       NSArray<NSURL *> *files = [fm contentsOfDirectoryAtURL:root includingPropertiesForKeys:@[NSURLFileSizeKey, NSURLContentModificationDateKey] options:0 error:nil];
@@ -74,14 +90,14 @@ RCT_EXPORT_METHOD(getAnimation:(NSString *)urlString sha256:(NSString *)hash byt
       }
       resolve(target.absoluteString);
     };
-    if ([self validFile:target hash:hash size:(NSUInteger)bytes]) { finish(); return; }
+    if ([self validFile:target hash:hash size:(NSUInteger)bytes extension:extension]) { finish(); return; }
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url]; request.timeoutInterval = 30;
     NSURLSessionConfiguration *config = NSURLSessionConfiguration.ephemeralSessionConfiguration;
     config.timeoutIntervalForResource = 45;
     RipsyFigureDownload *download = [RipsyFigureDownload new]; download.expected = (NSUInteger)bytes;
     download.completion = ^(NSURL *location, NSHTTPURLResponse *http, NSError *error) {
       BOOL good = !error && http.statusCode == 200 && [http.URL.scheme isEqualToString:@"https"]
-        && location && [self validFile:location hash:hash size:(NSUInteger)bytes];
+        && location && [self validFile:location hash:hash size:(NSUInteger)bytes extension:extension];
       if (good) {
         [fm removeItemAtURL:target error:nil];
         good = [fm moveItemAtURL:location toURL:target error:nil];

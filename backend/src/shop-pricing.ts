@@ -4,6 +4,7 @@ import { FIGURES, FIGURE_TOKEN_PAYMENTS, registeredFigureUrls } from './figure-r
 import { shopCatalog, type ShopConfig } from './shop-config.js';
 import { ShopError } from './shop-error.js';
 import type { ShopRedis } from './shop-service.js';
+import type { CommercePersistence } from './commerce-persistence.js';
 
 interface PriceState { revision: number; amounts: Record<string, string>; currencies?: Record<string, AdminPriceCurrency>; audit: AdminPrices['audit'] }
 const INITIAL: PriceState = { revision: 0, amounts: {}, audit: [] };
@@ -23,9 +24,9 @@ redis.call('SET', KEYS[1], ARGV[2]); return 1`;
 
 export class ShopPricingService {
   private key: string;
-  constructor(private redis: ShopRedis, private config: ShopConfig, prefix = 'ripsy') { this.key = `${prefix}:shop:admin:prices`; }
+  constructor(private redis: ShopRedis, private config: ShopConfig, prefix = 'ripsy', private durable?: CommercePersistence) { this.key = `${prefix}:shop:admin:prices`; }
   private async state(): Promise<PriceState> {
-    const raw = await this.redis.get(this.key);
+    const raw = this.durable ? await this.durable.setting('prices') : await this.redis.get(this.key);
     return raw ? JSON.parse(raw) as PriceState : structuredClone(INITIAL);
   }
   private quote(id: string, state: PriceState): { price: string | null; tokenPayment?: TokenPayment } {
@@ -79,7 +80,8 @@ export class ShopPricingService {
     const next: PriceState = { revision: state.revision + 1, amounts: { ...state.amounts }, currencies: { ...state.currencies },
       audit: [{ at: Date.now(), address, revision: state.revision + 1, changes }, ...state.audit].slice(0, 200) };
     for (const [id, change] of Object.entries(changes)) { next.amounts[id] = change.after; next.currencies![id] = currency(id); }
-    const saved = await this.redis.eval(PRICE_CAS, { keys: [this.key], arguments: [String(state.revision), JSON.stringify(next)] });
+    const saved = this.durable ? Number(await this.durable.saveSetting('prices', state.revision, JSON.stringify(next)))
+      : await this.redis.eval(PRICE_CAS, { keys: [this.key], arguments: [String(state.revision), JSON.stringify(next)] });
     if (Number(saved) !== 1) throw new ShopError('Prices changed in another session. Reload before saving.', 409);
     return this.get();
   }

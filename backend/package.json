@@ -10,6 +10,7 @@
     "test": "node --import tsx --test src/*.test.ts"
   },
   "dependencies": {
+    "@google-cloud/firestore": "9.1.0",
     "@metaplex-foundation/mpl-core": "^1.10.0",
     "@metaplex-foundation/mpl-toolbox": "^0.11.5",
     "@metaplex-foundation/umi": "^1.6.0",

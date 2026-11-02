@@ -90,7 +90,7 @@ export function createFirebaseMessaging(environment: NodeJS.ProcessEnv): Messagi
   const rawServiceAccount = environment.FIREBASE_SERVICE_ACCOUNT_JSON;
   const projectId = environment.FIREBASE_PROJECT_ID;
   if (!rawServiceAccount && !projectId) return null;
-  if (getApps().length === 0) {
+  if (!getApps().some(app => app.name === '[DEFAULT]')) {
     if (rawServiceAccount) {
       const serviceAccount = JSON.parse(rawServiceAccount) as ServiceAccount;
       initializeApp({ credential: cert(serviceAccount), projectId: projectId ?? serviceAccount.projectId });

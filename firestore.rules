@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// RIPSY commerce database: ripsy-commerce (Enterprise Native, europe-west3).
+// Assumed backend-only model, scoped to commerce/{namespace}/:
+// - settings/{prices|pack|registry|draft|migration}: structured payload maps for
+//   catalog registrations, revisions, exact prices/currencies and bounded audit
+//   history; one metadata-only draft; and a verified migration/cutover marker.
+// - shopOrders/{id}, packOrders/{id}: immutable order IDs and structured receipt
+//   payload maps (player/buyer identities, exact quotes/transactions/signatures,
+//   statuses and private recovery/paid-entitlement state), plus recovery/lease
+//   metadata. Paid receipts must not be discarded by a client.
+// - leases/{id}: backend transaction fencing tokens and expiry metadata.
+// Client schema assumptions cannot grant access: all names, IDs, fields, types,
+// sizes and ownership values are denied, including future schema versions.
+// Binary Rive/PNG/generated metadata files belong in private Cloud Storage,
+// never in Firestore documents.
+//
+// There are deliberately NO direct mobile/web Firestore queries or writes.
+// Existing HTTP session, buyer-wallet and admin-wallet checks remain on the
+// backend. A Firebase sign-in or custom admin claim grants no database access.
+// Public catalog responses are projected through the backend, not this Rules
+// layer: a public figure must never make an order or private draft readable.
+//
+// Admin/server SDKs bypass Security Rules. The runtime service account therefore
+// needs narrowly scoped IAM, and backend code must validate every create/update,
+// preserve ownership/quotes and fence retries itself. Client domain validators
+// or ownership helpers would not protect those server writes; no client payload
+// is permitted here. This recursive fallback also denies unknown collections,
+// collection-group queries and orphaned/nested subcollections.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

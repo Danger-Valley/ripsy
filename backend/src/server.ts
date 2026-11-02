@@ -33,6 +33,7 @@ import { readAppRequestMetadata, apiRouteFamily } from './app-request-metadata.j
 import { FigureAdminService } from './figure-admin.js';
 import { serveFigureResource } from './figure-admin-http.js';
 import { readJsonBody, BodyTooLargeError } from './http-body.js';
+import { createFirebaseCommerce } from './firebase-commerce.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
@@ -46,6 +47,7 @@ if (!configuredSessionSecret && process.env.NODE_ENV === 'production') {
 const sessionManager = new SessionManager(configuredSessionSecret ?? 'ripsy-local-development-secret-change-me', sessionTtlSeconds);
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,http://localhost:3100').split(',').map(value => value.trim()).filter(Boolean));
 const diagnose = createBackendDiagnostics();
+const commerceMaintenance = process.env.COMMERCE_MAINTENANCE === 'true';
 const mobileUpdatePolicy = loadMobileUpdatePolicy(process.env);
 
 const commandClient = createClient({ url: redisUrl });
@@ -55,8 +57,9 @@ subscriber.on('error', () => diagnose({ level: 'error', event: 'redis.error', cl
 
 await Promise.all([commandClient.connect(), subscriber.connect()]);
 
+const commerce = await createFirebaseCommerce(process.env, keyPrefix);
 const figureAdmin = new FigureAdminService(commandClient as unknown as ShopRedis,
-  process.env.SHOP_FIGURE_ASSET_ORIGIN ?? 'https://api.ripsy.fun', keyPrefix);
+  process.env.SHOP_FIGURE_ASSET_ORIGIN ?? 'https://api.ripsy.fun', keyPrefix, undefined, commerce);
 await figureAdmin.refresh();
 const shopConfig = loadShopConfig(process.env);
 const walletVerification = new WalletVerificationService(commandClient as unknown as ShopRedis, shopConfig.publicOrigin, keyPrefix);
@@ -87,15 +90,15 @@ try {
 }
 const pushNotifier = new PushNotifier(pushStore, firebaseMessaging);
 const seekerVerification = new SeekerVerificationService(commandClient as unknown as ShopRedis, createSeekerTokenChecker(shopConfig.seekerRpcUrl), shopConfig.publicOrigin, keyPrefix);
-const pricing = new ShopPricingService(commandClient as unknown as ShopRedis, shopConfig, keyPrefix);
+const pricing = new ShopPricingService(commandClient as unknown as ShopRedis, shopConfig, keyPrefix, commerce);
 const adminAuth = new ShopAdminAuth(commandClient as unknown as ShopRedis, shopConfig.publicOrigin, process.env.SHOP_ADMIN_WALLET, keyPrefix);
 const backendPacksEnabled = process.env.PACK_ENGINE === 'backend' && process.env.PACK_ENABLED === 'true' && shopConfig.enabled && shopConfig.cluster === 'mainnet-beta';
-const backendPackSettings = new BackendPackSettingsService(commandClient as unknown as ShopRedis, keyPrefix, backendPacksEnabled);
+const backendPackSettings = new BackendPackSettingsService(commandClient as unknown as ShopRedis, keyPrefix, backendPacksEnabled, commerce);
 const shopAdmin = new ShopAdminService(commandClient as unknown as ShopRedis, shopConfig, pricing, createPackAdminChain(shopConfig, adminAuth.address), keyPrefix,
   new ShopUsdRatesService(commandClient as unknown as ShopRedis, process.env.JUPITER_API_KEY, keyPrefix), backendPackSettings);
-const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification, pricing);
+const shop = new ShopService(commandClient as unknown as ShopRedis, shopConfig, createShopChain(shopConfig), keyPrefix, seekerVerification, pricing, commerce);
 const packs = new BackendPackService(commandClient as unknown as ShopRedis, backendPackSettings, createBackendPackChain(shopConfig),
-  backendPacksEnabled, shopConfig.publicOrigin, keyPrefix, createPackChain(shopConfig, false));
+  backendPacksEnabled, shopConfig.publicOrigin, keyPrefix, createPackChain(shopConfig, false), undefined, commerce);
 diagnose({ level: 'info', event: pushNotifier.enabled ? 'push.enabled' : 'push.disabled' });
 const figureRefreshTimer = setInterval(() => { void figureAdmin.refresh().catch(() => diagnose({ level: 'warn', event: 'figures.refresh_failed' })); }, 5000);
 figureRefreshTimer.unref();
@@ -114,6 +117,7 @@ const server = createServer(async (request, response) => {
     response.setHeader('content-type', 'application/json');
     if (request.method === 'OPTIONS') { response.writeHead(204).end(); return; }
     try {
+      if (commerceMaintenance && !(request.method === 'GET' && (requestUrl.pathname === '/shop/figures' || requestUrl.pathname === '/shop/catalog' || requestUrl.pathname.startsWith('/shop/figure-assets/')))) throw new ShopError('The shop is briefly paused for maintenance. Your saved purchase is safe; please check again shortly.', 503);
       if (await serveFigureResource(request, response, requestUrl.pathname, figureAdmin)) return;
       await figureAdmin.refresh();
       if (requestUrl.pathname.startsWith('/shop/admin/')) {
@@ -210,12 +214,15 @@ const server = createServer(async (request, response) => {
     return;
   }
   if (request.url === '/health') {
-    const ready = await store.isReady();
+    const redisReady = await store.isReady();
+    const commerceReady = commerce ? await commerce.assertReady().then(() => true, () => false) : true;
+    const ready = redisReady && commerceReady;
     response.writeHead(ready ? 200 : 503, { 'content-type': 'application/json' });
     response.end(JSON.stringify({
       ok: ready,
-      redis: ready ? 'connected' : 'unavailable',
+      redis: redisReady ? 'connected' : 'unavailable',
       push: pushNotifier.enabled ? 'configured' : 'disabled',
+      commerce: commerce ? 'firestore' : 'redis', commerceReady,
     }));
     return;
   }
@@ -280,7 +287,7 @@ const clockInterval = setInterval(() => {
 clockInterval.unref();
 let packRecoveryRunning = false;
 const packRecoveryInterval = setInterval(() => {
-  if (packRecoveryRunning) return;
+  if (packRecoveryRunning || commerceMaintenance) return;
   packRecoveryRunning = true;
   void packs.recoverDue(() => diagnose({ level: 'error', event: 'pack.recovery_delayed' }))
     .catch(() => diagnose({ level: 'error', event: 'pack.recovery_failed' }))

@@ -3,6 +3,7 @@ import { decimalToUnits, type AdminPackSettings } from '@rps/core/shop-admin';
 import type { ShopRedis } from './shop-service.js';
 import { ShopError } from './shop-error.js';
 import { FIGURES } from './figure-registry.js';
+import type { CommercePersistence } from './commerce-persistence.js';
 
 export const DEFAULT_BACKEND_PACK: PackCatalog = {
   name: 'Fighter pack', engine: 'backend', available: true, version: 1,
@@ -18,9 +19,9 @@ redis.call('SET', KEYS[1], ARGV[2]); return 1`;
 /** One durable snapshot and audit per save. Never reinterpret existing orders. */
 export class BackendPackSettingsService {
   private key: string;
-  constructor(private redis: ShopRedis, prefix = 'ripsy', readonly globalEnabled = true) { this.key = `${prefix}:shop:admin:backend-pack`; }
+  constructor(private redis: ShopRedis, prefix = 'ripsy', readonly globalEnabled = true, private durable?: CommercePersistence) { this.key = `${prefix}:shop:admin:backend-pack`; }
   async get(): Promise<AdminPackSettings> {
-    const raw = await this.redis.get(this.key);
+    const raw = this.durable ? await this.durable.setting('pack') : await this.redis.get(this.key);
     const value: AdminPackSettings = raw ? JSON.parse(raw) : { catalog: structuredClone(DEFAULT_BACKEND_PACK), audit: [] };
     parsePackCatalog(value.catalog);
     if (value.catalog.engine !== 'backend') throw new ShopError('Pack settings are unavailable.', 503);
@@ -46,7 +47,9 @@ export class BackendPackSettingsService {
     if (current.catalog.version !== input.expectedVersion) throw new ShopError('Pack settings changed in another session. Reload before saving.', 409);
     const next: AdminPackSettings = { catalog,
       audit: [{ at: Date.now(), address: admin, before: current.catalog, after: catalog }, ...current.audit].slice(0, 200) };
-    if (Number(await this.redis.eval(PACK_SETTINGS_CAS, { keys: [this.key], arguments: [String(input.expectedVersion), JSON.stringify(next)] })) !== 1)
+    const saved = this.durable ? Number(await this.durable.saveSetting('pack', Number(input.expectedVersion), JSON.stringify(next)))
+      : Number(await this.redis.eval(PACK_SETTINGS_CAS, { keys: [this.key], arguments: [String(input.expectedVersion), JSON.stringify(next)] }));
+    if (saved !== 1)
       throw new ShopError('Pack settings changed in another session. Reload before saving.', 409);
     return next;
   }

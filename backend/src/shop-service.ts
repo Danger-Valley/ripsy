@@ -8,6 +8,7 @@ import { ShopError } from './shop-error.js';
 import type { SeekerGate } from './seeker-verification.js';
 import type { ShopPricingService } from './shop-pricing.js';
 import { writePreparedOrder } from './shop-order-fence.js';
+import type { CommercePersistence, OrderWriter } from './commerce-persistence.js';
 export { ShopError } from './shop-error.js';
 
 export interface ShopRedis {
@@ -19,7 +20,7 @@ interface StoredOrder { playerId: string; order: MintOrder; signed?: string }
 const retention = 60 * 60 * 24 * 90;
 
 export class ShopService {
-  constructor(private redis: ShopRedis, private config: ShopConfig, private chain: ShopChain, private prefix = 'ripsy', private seeker?: SeekerGate, private pricing?: ShopPricingService) {}
+  constructor(private redis: ShopRedis, private config: ShopConfig, private chain: ShopChain, private prefix = 'ripsy', private seeker?: SeekerGate, private pricing?: ShopPricingService, private durable?: CommercePersistence) {}
 
   async liveCatalog(version = 3) {
     const catalog = this.pricing ? await this.pricing.catalog() : shopCatalog(this.config);
@@ -52,11 +53,11 @@ export class ShopService {
     if (typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(input.idempotencyKey)) throw new ShopError('Invalid purchase request ID');
     const figureId = input.figureId;
     const id = createHash('sha256').update(`${playerId}:${input.idempotencyKey}`).digest('hex');
-    return this.lock(id, async commit => {
-      const existing = await this.read(id, playerId, false);
+    return this.lock(id, async (commit, writer) => {
+      const existing = await this.read(id, playerId, false, writer);
       if (existing) {
         if (existing.order.buyer !== buyer || existing.order.figureId !== figureId || figureOrderQuantity(existing.order) !== quantity) throw new ShopError('Purchase request already used', 409);
-        return this.refresh(existing);
+        return this.refresh(existing, writer);
       }
       // Saved requests retain their exact original currency/quote, including
       // legacy SOL fig2 receipts. New SKR payments below remain mainnet-only.
@@ -91,7 +92,7 @@ export class ShopService {
   }
 
   async get(playerId: string, id: string) {
-    return this.lock(id, async () => this.refresh((await this.read(id, playerId))!));
+    return this.lock(id, async (_, writer) => this.refresh((await this.read(id, playerId, true, writer))!, writer));
   }
 
   async reconcile(playerId: string, id: string, input: Record<string, unknown>): Promise<MintOrder> {
@@ -99,7 +100,7 @@ export class ShopService {
     // public chain outcome. It grants no GET/submit access, wallet binding or
     // order ownership. Never call refresh(): it may re-broadcast signed bytes.
     if (!/^[a-f0-9]{64}$/.test(id) || typeof input.transaction !== 'string' || !input.transaction || input.transaction.length > 1644) throw new ShopError('Purchase receipt not found', 404);
-    const raw = await this.redis.get(`${this.prefix}:shop:order:${id}`);
+    const raw = this.durable ? await this.durable.order('shop', id) : await this.redis.get(`${this.prefix}:shop:order:${id}`);
     if (!raw) throw new ShopError('Purchase receipt not found', 404);
     const stored = JSON.parse(raw) as StoredOrder;
     const expected = Buffer.from(stored.order.transaction), supplied = Buffer.from(input.transaction);
@@ -128,9 +129,9 @@ export class ShopService {
 
   async submit(playerId: string, id: string, signed: unknown) {
     if (typeof signed !== 'string') throw new ShopError('A signed purchase is required');
-    return this.lock(id, async () => {
-      const stored = (await this.read(id, playerId))!;
-      const order = await this.refresh(stored);
+    return this.lock(id, async (_, writer) => {
+      const stored = (await this.read(id, playerId, true, writer))!;
+      const order = await this.refresh(stored, writer);
       if (isTerminalMint(order)) return order;
       const signature = this.chain.validateSigned(order, signed);
       if (order.signature && signature !== order.signature) throw new ShopError('A different transaction is already pending', 409);
@@ -139,16 +140,16 @@ export class ShopService {
       stored.signed = signed;
       // Persist BEFORE touching the chain. Any replica can recover the exact
       // signed bytes after a lost response, crash or mobile app restart.
-      await this.write(stored);
+      await this.write(stored, writer);
       try { await this.chain.send(signed); } catch {
         // Transport failure is ambiguous. Keep this purchase pending and query
         // its recorded signature; never manufacture a replacement transaction.
       }
-      return this.refresh(stored);
+      return this.refresh(stored, writer);
     });
   }
 
-  private async refresh(stored: StoredOrder): Promise<MintOrder> {
+  private async refresh(stored: StoredOrder, writer?: OrderWriter): Promise<MintOrder> {
     const order = stored.order;
     if (isTerminalMint(order)) return order;
     const state = await this.chain.status(order);
@@ -157,7 +158,7 @@ export class ShopService {
       order.error = state === 'failed' ? 'The transaction failed. The figure price was not charged; network fees may apply.'
         : state === 'expired' ? 'This purchase expired without confirmation. You can start a new purchase.' : null;
       delete stored.signed;
-      await this.write(stored);
+      await this.write(stored, writer);
     } else if (stored.signed) {
       // Re-broadcast only identical bytes, so retries cannot mint or charge twice.
       await this.chain.send(stored.signed).catch(() => undefined);
@@ -165,9 +166,9 @@ export class ShopService {
     return order;
   }
 
-  private async read(id: string, playerId: string, required = true): Promise<StoredOrder | null> {
+  private async read(id: string, playerId: string, required = true, writer?: OrderWriter): Promise<StoredOrder | null> {
     if (!/^[a-f0-9]{64}$/.test(id)) throw new ShopError('Purchase not found', 404);
-    const value = await this.redis.get(`${this.prefix}:shop:order:${id}`);
+    const value = writer ? await writer.read() : await this.redis.get(`${this.prefix}:shop:order:${id}`);
     if (!value) { if (required) throw new ShopError('Purchase not found', 404); return null; }
     const stored = JSON.parse(value) as StoredOrder;
     if (stored.playerId !== playerId) throw new ShopError('Purchase not found', 404);
@@ -175,12 +176,17 @@ export class ShopService {
     return stored;
   }
 
-  private async write(stored: StoredOrder) {
+  private async write(stored: StoredOrder, writer?: OrderWriter) {
+    if (this.durable) {
+      if (!writer) throw new Error('Durable order write requires its transaction fence');
+      await writer.save(JSON.stringify(stored), false, retention); return;
+    }
     await this.redis.set(`${this.prefix}:shop:order:${stored.order.id}`, JSON.stringify(stored), { EX: retention });
   }
 
-  private async lock<T>(id: string, operation: (commit: (stored: StoredOrder) => Promise<void>) => Promise<T>): Promise<T> {
+  private async lock<T>(id: string, operation: (commit: (stored: StoredOrder) => Promise<void>, writer?: OrderWriter) => Promise<T>): Promise<T> {
     if (!/^[a-f0-9]{64}$/.test(id)) throw new ShopError('Purchase not found', 404);
+    if (this.durable) return this.durable.withOrder('shop', id, writer => operation(stored => writer.save(JSON.stringify(stored), false, retention), writer));
     const key = `${this.prefix}:shop:lock:${id}`;
     const token = randomUUID();
     if (!await this.redis.set(key, token, { NX: true, EX: 120 })) throw new ShopError('Purchase is updating. Try again in a moment.', 409);

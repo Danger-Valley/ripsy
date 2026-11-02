@@ -1,5 +1,19 @@
 # Adding server-delivered fighters
 
+## Firebase persistence — provisioned, cutover pending (2026-11-02)
+
+The user now selected Firebase and approved Blaze/Frankfurt. Firestore
+`ripsy-commerce` and private `ripsy-app.firebasestorage.app` are provisioned;
+deny-all client rules and the recovery index are deployed. New optional backend
+adapters put structured catalog/order state in Firestore and Rive/PNG/Core
+metadata bytes in immutable Cloud Storage, not oversized database documents.
+Original URLs, IDs, variants, prices, auth, paid recovery and pack policy remain
+unchanged. Redis remains the default until a frozen-source migration verifies
+and seals the target. No production activation is implied by this source note.
+See `files/releases/firebase-commerce-2026-11-02.md` for configuration, copy/
+verification/cutover, rollback limits and results. This supersedes the earlier
+undecided-destination note; the Redis details below describe the legacy source.
+
 ## Rollout and storage decision — 2026-11-02
 
 Native 1.0.0 (73) now delivers the startup/private-PNG enhancement below on both

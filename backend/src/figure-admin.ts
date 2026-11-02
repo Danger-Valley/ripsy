@@ -6,6 +6,7 @@ import { BUILTIN_FIGURES, FIGURES, installAdminFigures, validateRegistrations, t
 import type { ShopRedis } from './shop-service.js';
 import { ShopError } from './shop-error.js';
 import { decodeFigureUpload, validateFigurePng, validateFigureRive } from './figure-upload-validation.js';
+import type { CommercePersistence } from './commerce-persistence.js';
 
 interface Published { registration: Registration; requestId: string; publishedAt: number; publishedBy: string; metadata: { sha256: string; bytes: number } }
 interface State { schema: 1; revision: number; usedBytes: number; entries: Published[] }
@@ -32,8 +33,8 @@ if redis.call('GET',KEYS[1]) ~= ARGV[1] then return 0 end
 redis.call('SET',KEYS[2],ARGV[2],'EX',ARGV[3]);return 1`;
 const RELEASE_LOCK = "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end";
 
-/** Bounded, durable, append-only registrations + assets in the existing Redis.
- * No ephemeral filesystem, provider account, deploy, signing or mint operation.
+/** Bounded append-only registrations; optional Firestore + immutable Storage.
+ * No signing, mint or ownership operation.
  * A single 30-minute draft limits temporary upload storage to at most 12 MiB.
  */
 export class FigureAdminService {
@@ -41,7 +42,7 @@ export class FigureAdminService {
   private refreshing: Promise<void> | null = null;
   private key: string; private draftKey: string; private lockKey: string;
   constructor(private redis: ShopRedis, readonly assetOrigin: string, prefix = 'ripsy',
-    private validateRive: (bytes: Buffer) => Promise<void> = validateFigureRive) {
+    private validateRive: (bytes: Buffer) => Promise<void> = validateFigureRive, private durable?: CommercePersistence) {
     const url = new URL(assetOrigin);
     if (url.protocol !== 'https:' || url.origin !== assetOrigin || url.username || url.password) throw new Error('SHOP_FIGURE_ASSET_ORIGIN must be an HTTPS origin');
     this.key = `${prefix}:shop:figure-registry:v1`; this.draftKey = `${this.key}:draft`; this.lockKey = `${this.key}:lock`;
@@ -49,7 +50,7 @@ export class FigureAdminService {
   refresh(): Promise<void> {
     if (this.refreshing) return this.refreshing;
     this.refreshing = (async () => {
-      const raw = await this.redis.get(this.key);
+      const raw = this.durable ? await this.durable.setting('registry') : await this.redis.get(this.key);
       if (raw === this.lastRaw) return;
       const state = raw ? JSON.parse(raw) as State : empty();
       if (state.schema !== 1 || !Array.isArray(state.entries) || state.revision !== state.entries.length || state.entries.length > 255 - BUILTIN_FIGURES.length
@@ -74,7 +75,7 @@ export class FigureAdminService {
     return this.refreshing;
   }
   private async readDraft(): Promise<Draft | null> {
-    const raw = await this.redis.get(this.draftKey); if (!raw) return null;
+    const raw = this.durable ? await this.durable.draft() : await this.redis.get(this.draftKey); if (!raw) return null;
     const draft = JSON.parse(raw) as Draft;
     if (draft.view.expiresAt <= Date.now()) return null;
     return draft;
@@ -126,15 +127,19 @@ export class FigureAdminService {
         previewDataUrl: '' };
       const draft: Draft = { owner: admin, view, fingerprint, riveBase64: rive.toString('base64'), pngBase64: png.toString('base64'),
         payment: currency.mint ? { tokenPayment: { mint: currency.mint, symbol: currency.symbol, decimals: currency.decimals, amount } } : { priceLamports: amount } };
-      if (Number(await this.redis.eval(DRAFT_SAVE, { keys: [this.lockKey, this.draftKey], arguments: [owner, JSON.stringify(draft), String(FIGURE_UPLOAD_LIMITS.draftSeconds)] })) !== 1) throw new ShopError('Upload timed out. Reload before retrying.', 409);
+      if (this.durable) await this.durable.saveDraft(owner, JSON.stringify(draft));
+      else if (Number(await this.redis.eval(DRAFT_SAVE, { keys: [this.lockKey, this.draftKey], arguments: [owner, JSON.stringify(draft), String(FIGURE_UPLOAD_LIMITS.draftSeconds)] })) !== 1) throw new ShopError('Upload timed out. Reload before retrying.', 409);
       return this.snapshot(admin);
     });
   }
   async discard(admin: string, requestId: unknown) {
-    return this.lock(async () => {
+    return this.lock(async owner => {
       const draft = await this.readDraft();
       if (draft && (draft.owner !== admin || draft.view.requestId !== requestId)) throw new ShopError('This draft changed. Reload before discarding it.', 409);
-      if (draft) await this.redis.eval("if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end", { keys: [this.draftKey], arguments: [JSON.stringify(draft)] });
+      if (draft) {
+        if (this.durable) await this.durable.discardDraft(owner, draft.fingerprint);
+        else await this.redis.eval("if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end", { keys: [this.draftKey], arguments: [JSON.stringify(draft)] });
+      }
       return this.snapshot(admin);
     });
   }
@@ -161,6 +166,14 @@ export class FigureAdminService {
       if (usedBytes > FIGURE_UPLOAD_LIMITS.storage) throw new ShopError('Figure storage is full.', 409);
       const entry: Published = { registration, requestId: view.requestId, publishedAt: Date.now(), publishedBy: admin, metadata: { sha256: metadataHash, bytes: metadata.length } };
       const next: State = { schema: 1, revision: this.state.revision + 1, usedBytes, entries: [...this.state.entries, entry] };
+      if (this.durable) {
+        await this.durable.publishFigures(owner, this.state.revision, draft.fingerprint, JSON.stringify(next), [
+          { filename: `${view.riveSha256}.riv`, bytes: Buffer.from(draft.riveBase64, 'base64') },
+          { filename: `${view.pngSha256}.png`, bytes: Buffer.from(draft.pngBase64, 'base64') },
+          { filename: `${metadataHash}.json`, bytes: metadata },
+        ]);
+        return this.snapshot(admin);
+      }
       const result = Number(await this.redis.eval(FIGURE_PUBLISH_CAS, { keys: [this.key, this.draftKey, this.lockKey,
         this.blob(`${view.riveSha256}.riv`), this.blob(`${view.pngSha256}.png`), this.blob(`${metadataHash}.json`)],
         arguments: [owner, String(this.state.revision), view.requestId, draft.fingerprint, JSON.stringify(next), metadata.toString('base64')] }));
@@ -173,14 +186,15 @@ export class FigureAdminService {
     await this.refresh(); const [hash, ext] = filename.split('.');
     const entry = this.state.entries.find(e => ext === 'riv' ? e.registration.animation.sha256 === hash : ext === 'png' ? e.registration.portrait!.sha256 === hash : e.metadata.sha256 === hash);
     if (!entry) throw new ShopError('Figure resource not found.', 404);
-    const value = await this.redis.get(this.blob(filename));
+    const value = this.durable ? await this.durable.asset(filename) : await this.redis.get(this.blob(filename));
     if (!value) throw new ShopError('Figure resource temporarily unavailable.', 503);
-    const bytes = Buffer.from(value, 'base64'), size = ext === 'riv' ? entry.registration.animation.bytes : ext === 'png' ? entry.registration.portrait!.bytes : entry.metadata.bytes;
+    const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value, 'base64'), size = ext === 'riv' ? entry.registration.animation.bytes : ext === 'png' ? entry.registration.portrait!.bytes : entry.metadata.bytes;
     if (bytes.length !== size || sha(bytes) !== hash) throw new ShopError('Figure resource verification failed.', 503);
     return { bytes, hash: hash!, type: ext === 'png' ? 'image/png' : ext === 'json' ? 'application/json; charset=utf-8' : 'application/octet-stream' };
   }
   private blob(filename: string) { return `${this.key}:asset:${filename}`; }
   private async lock<T>(action: (owner: string) => Promise<T>): Promise<T> {
+    if (this.durable) return this.durable.withFigures(action);
     const owner = randomUUID();
     if (!await this.redis.set(this.lockKey, owner, { NX: true, EX: 60 })) throw new ShopError('Another figure upload is processing. Wait and reload.', 409);
     try { return await action(owner); }

@@ -7,6 +7,7 @@ import type { ShopRedis } from './shop-service.js';
 import type { BackendPackSettingsService } from './backend-pack-settings.js';
 import type { BackendPackChain, PackDelivery, PackReward } from './backend-pack-chain.js';
 import type { PackChain } from './pack-chain.js';
+import type { CommercePersistence, OrderWriter } from './commerce-persistence.js';
 
 interface Stored {
   engine?: 'backend-v1'; playerId: string; nonce: string; order: PackOrder;
@@ -36,14 +37,14 @@ export function backendPackResult(entropy: Uint8Array, drops: PackDrop[]): strin
 export class BackendPackService {
   constructor(private redis: ShopRedis, private settings: BackendPackSettingsService, private chain: BackendPackChain,
     private enabled: boolean, private origin: string, private prefix = 'ripsy', private legacy?: Pick<PackChain, 'status'>,
-    private entropy: () => Uint8Array = () => randomBytes(32)) {}
+    private entropy: () => Uint8Array = () => randomBytes(32), private durable?: CommercePersistence) {}
   async catalog() { return { ...await this.settings.catalog(this.enabled), deliveryPayment: 'buyer-prepaid' as const }; }
   async recoverDue(onError: (error: unknown) => void = () => undefined) {
-    const ids = await this.redis.eval("return redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',ARGV[1],'LIMIT',0,5)",
+    const ids = this.durable ? await this.durable.duePacks(Date.now()) : await this.redis.eval("return redis.call('ZRANGEBYSCORE',KEYS[1],'-inf',ARGV[1],'LIMIT',0,5)",
       { keys: [`${this.prefix}:packs:pending`], arguments: [String(Date.now())] }) as string[];
-    await Promise.all(ids.map(id => this.lock(id, async save => {
-      const raw = await this.redis.get(this.orderKey(id));
-      if (!raw) { await this.redis.eval("return redis.call('ZREM',KEYS[1],ARGV[1])", { keys: [`${this.prefix}:packs:pending`], arguments: [id] }); return; }
+    await Promise.all(ids.map(id => this.lock(id, async (save, writer) => {
+      const raw = writer ? await writer.read() : await this.redis.get(this.orderKey(id));
+      if (!raw) { if (!this.durable) await this.redis.eval("return redis.call('ZREM',KEYS[1],ARGV[1])", { keys: [`${this.prefix}:packs:pending`], arguments: [id] }); return; }
       const stored = JSON.parse(raw) as Stored;
       await save(stored); // Move retry time before RPC work, across replicas.
       await this.refresh(stored, save);
@@ -55,8 +56,8 @@ export class BackendPackService {
     let buyer: string;
     try { buyer = String(publicKey(input.buyer)); } catch { throw new ShopError('Invalid purchase account'); }
     const id = createHash('sha256').update(`${playerId}:${input.idempotencyKey}`).digest('hex');
-    return this.lock(id, async save => {
-      const existing = await this.read(id, playerId, false);
+    return this.lock(id, async (save, writer) => {
+      const existing = await this.read(id, playerId, false, writer);
       if (existing) {
         if (existing.order.buyer !== buyer) throw new ShopError('Purchase request already used', 409);
         return this.refresh(existing, save);
@@ -81,10 +82,10 @@ export class BackendPackService {
       return order;
     });
   }
-  get(playerId: string, id: string) { return this.lock(id, async save => this.refresh((await this.read(id, playerId))!, save)); }
+  get(playerId: string, id: string) { return this.lock(id, async (save, writer) => this.refresh((await this.read(id, playerId, true, writer))!, save)); }
   submit(playerId: string, id: string, signed: unknown) {
-    return this.lock(id, async save => {
-      const stored = (await this.read(id, playerId))!;
+    return this.lock(id, async (save, writer) => {
+      const stored = (await this.read(id, playerId, true, writer))!;
       const current = await this.refresh(stored, save);
       if (isTerminalPack(current) || stored.paid) return current;
       if (stored.engine !== 'backend-v1') throw new ShopError('This earlier pack cannot be approved. Check its status.', 409);
@@ -139,15 +140,16 @@ export class BackendPackService {
     return stored.order;
   }
   private orderKey(id: string) { return `${this.prefix}:packs:order:${id}`; }
-  private async read(id: string, playerId: string, required = true): Promise<Stored | null> {
-    const raw = await this.redis.get(this.orderKey(id));
+  private async read(id: string, playerId: string, required = true, writer?: OrderWriter): Promise<Stored | null> {
+    const raw = writer ? await writer.read() : await this.redis.get(this.orderKey(id));
     if (!raw) { if (required) throw new ShopError('Pack purchase not found', 404); return null; }
     const value = JSON.parse(raw) as Stored;
     if (value.playerId !== playerId) throw new ShopError('Pack purchase not found', 404);
     parsePackOrder(value.order); return value;
   }
-  private async lock<T>(id: string, action: (save: (stored: Stored) => Promise<void>) => Promise<T>): Promise<T> {
+  private async lock<T>(id: string, action: (save: (stored: Stored) => Promise<void>, writer?: OrderWriter) => Promise<T>): Promise<T> {
     if (!/^[a-f0-9]{64}$/.test(id)) throw new ShopError('Pack purchase not found', 404);
+    if (this.durable) return this.durable.withOrder('pack', id, writer => action(stored => writer.save(JSON.stringify(stored), !isTerminalPack(stored.order), isTerminalPack(stored.order) && !stored.paid ? 90 * 86400 : 0), writer));
     const lock = `${this.prefix}:packs:lock:${id}`, token = randomUUID();
     if (!await this.redis.set(lock, token, { NX: true, EX: 120 })) throw new ShopError('Purchase is updating. Check again shortly.', 409);
     try { return await action(async stored => {

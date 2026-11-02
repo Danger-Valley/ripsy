@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// RIPSY figure files are backend-managed private Cloud Storage objects.
+// Published objects use figures/{namespace}/{sha}.{riv|png|json}; draft objects
+// remain private too. The existing backend immutable asset route serves only
+// registered, digest/length-verified public bytes without bucket-wide access.
+// Never expose an unpublished file because its SHA-256 path is known.
+//
+// No direct Firebase client upload/download/list operation is required, even
+// for authenticated users or tokens with admin claims. Server SDKs use IAM and
+// bypass these rules: limit that identity and validate file bytes server-side.
+// Deny-all also covers future prefixes and nested objects by default.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{object=**} {
+      allow read, write: if false;
+    }
+  }
+}

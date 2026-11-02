@@ -1,0 +1,11 @@
+{
+  "firestore": {
+    "database": "ripsy-commerce",
+    "edition": "enterprise",
+    "location": "europe-west3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": { "rules": "storage.rules" },
+  "emulators": { "firestore": { "port": 8180 }, "singleProjectMode": true }
+}

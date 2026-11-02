@@ -11,6 +11,29 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
+## Firebase commerce persistence (2026-11-02, cutover pending)
+
+User-approved Firestore Enterprise Native `ripsy-commerce` and private Firebase
+Storage are provisioned in Frankfurt. Client deny-all rules and recovery index
+are deployed. Backend-only opt-in adapters preserve all existing HTTP/admin/
+manifest/catalog/immutable asset contracts, original IDs/variants/URLs/quotes,
+player ownership and saved payment/draw/delivery recovery. No Firebase client
+SDK, direct database access, Firebase Auth migration or web UI port is needed.
+Firestore stores structured catalog/order snapshots and transactional fences;
+Storage stores immutable bytes before registry commit. Redis remains for game/
+session/wallet/rate/cache state. No automatic fallback or paid-receipt expiry.
+
+Source defaults to Redis until explicit maintenance, exact copy + two source
+reads/target verification, sealed readiness marker and Firebase activation.
+GitHub autodeploy is not cutover completion. Public original-eight URLs stay
+stable; backend published-file routes proxy only registered verified bytes.
+Web admin, shared hooks and native clients need no new build for this storage
+switch. Current web animation/session-repair gaps remain unchanged. Tests use
+mocked chain operations, not real payments. See
+`files/releases/firebase-commerce-2026-11-02.md` for rollout, proof limits and
+the eventual production result. This supersedes the earlier undecided database
+destination note, not the prohibition on Railway backups or checkout safety.
+
 ## Native release73 and backend/admin activation (2026-11-02)
 
 Android/iOS 1.0.0 (73) deliver product source `2780fa3`, including startup/

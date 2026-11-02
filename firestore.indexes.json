@@ -1,0 +1,11 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "packOrders",
+      "queryScope": "COLLECTION",
+      "density": "SPARSE_ANY",
+      "fields": [{ "fieldPath": "pendingAt", "order": "ASCENDING" }]
+    }
+  ],
+  "fieldOverrides": []
+}

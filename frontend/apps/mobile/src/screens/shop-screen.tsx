@@ -19,7 +19,7 @@ import { ToyBadge, ToyDialog } from '../components/toy-dialog';
 import { StatusBanner } from '../components/status-banner';
 import { SeekerConnectAction } from '../components/seeker-connect-action';
 import { FigureQuantity } from '../components/figure-quantity';
-import { ShopFigurePreview } from '../components/shop-figure-preview';
+import { ShopFigureShowcase, shopFigureShowcaseHeight } from '../components/shop-figure-showcase';
 import { useShopPreviewMotion, useShopPreviewViewport } from '../hooks/use-shop-previews';
 import { figurePortrait, useFigureCatalog } from '../figures/catalog';
 import { colors, spacing } from '../theme';
@@ -27,8 +27,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
 const scenery = require('../assets/ui/battle-playground.png');
-const showcase = require('../assets/ui/toy-box-home-arena.png');
-const showcaseHeight = 248;
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
 type HandoffStage = 'preparing' | 'opening-wallet' | 'sending';
 const handoffTitles: Record<HandoffStage, string> = {
@@ -257,14 +255,9 @@ export function ShopScreen({ navigation, route }: Props) {
         {!shop.catalog && !error && <ToyHomePanel style={styles.skeleton}><View accessibilityLabel="Loading figures" accessibilityRole="progressbar" style={styles.skeletonArt} /><View style={styles.skeletonLine} /><View style={styles.skeletonPrice} /><View style={styles.skeletonButton} /><Text style={styles.note}>Unpacking the figure shop…</Text></ToyHomePanel>}
         {shop.catalog && figures.length === 0 && <ToyHomePanel style={styles.empty}><Image source={homeArt.shop} style={styles.emptyChest} /><Text style={styles.sectionTitle}>New fighters on the way</Text><Text style={styles.copy}>The shelves are empty for now. Your free army is always ready.</Text><ToyHomeButton compact onPress={() => openArmy()}>Open your army</ToyHomeButton></ToyHomePanel>}
         {figures.map(figure => <View key={figure.id} testID={`shop-card-${figure.id}`}
-          onLayout={event => previewViewport.onCardLayout(figure.id, event, showcaseHeight)}><ToyHomePanel style={styles.figureCard}>
-          <View style={styles.showcase}>
-            <Image pointerEvents="none" accessibilityElementsHidden source={showcase} style={styles.showcaseScenery} />
-            <View pointerEvents="none" style={styles.plinthBase} /><View pointerEvents="none" style={styles.plinthTop} />
-            <ShopFigurePreview figure={figure} definition={definitions.find(definition => definition.id === figure.id)}
-              active={previewMotion && !walletOpen && purchasePopup === null && previewViewport.visibleIds.includes(figure.id)} />
-            {figure.seekerExclusive && <View style={styles.exclusive}><Text style={styles.exclusiveText}>SEEKER EXCLUSIVE</Text></View>}
-          </View>
+          onLayout={event => previewViewport.onCardLayout(figure.id, event, shopFigureShowcaseHeight)}><ToyHomePanel style={styles.figureCard}>
+          <ShopFigureShowcase figure={figure} definition={definitions.find(definition => definition.id === figure.id)}
+            active={previewMotion && !walletOpen && purchasePopup === null && previewViewport.visibleIds.includes(figure.id)} />
           <View style={styles.cardCopy}>
             <View style={styles.figureHeading}><Text accessibilityRole="header" style={styles.figureName}>{figure.name}</Text>{!needsSolanaMobile(figure) && <View style={styles.priceTag}><Text style={styles.price} accessibilityLiveRegion="polite">{figure.priceLamports ? figurePaymentPrice(figureQuantityPrice(figure, quantityFor(figure)), shop.catalog!.cluster) : 'Not available'}</Text></View>}</View>
             <Text style={styles.copy}>{figure.description}</Text>
@@ -377,13 +370,6 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.75 },
   errorPanel: { gap: spacing.md },
   figureCard: { padding: 0 },
-  showcase: { height: showcaseHeight, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surfaceHighlight },
-  showcaseScenery: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
-  // Native molded plinths reuse the shared Toy Box material/role colors.
-  plinthBase: { position: 'absolute', bottom: 13, width: 180, height: 32, borderRadius: 90, backgroundColor: colors.accentShadow },
-  plinthTop: { position: 'absolute', bottom: 23, width: 180, height: 25, borderRadius: 90, backgroundColor: colors.accent },
-  exclusive: { position: 'absolute', top: spacing.md, right: spacing.md, borderRadius: 10, backgroundColor: colors.reward, padding: spacing.sm },
-  exclusiveText: { color: colors.ink, fontSize: 10, fontWeight: '900' },
   cardCopy: { padding: spacing.lg, gap: spacing.md },
   figureHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' },
   figureName: { color: colors.ink, fontFamily: homeFont, fontSize: 24 },

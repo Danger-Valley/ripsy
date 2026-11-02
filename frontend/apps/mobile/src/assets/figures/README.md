@@ -24,6 +24,17 @@ pending; release packaging alone is not visual proof.
 
 ## Native drawing bounds
 
+Shop ancestor correction (2026-11-02, source only): the rounded showcase must
+also contain the full upper drawing surface. `ShopFigureShowcase` reserves 400
+points for a 300-point preview, 24-point bottom offset and 75-point overscan,
+leaving 1 point above the native view. The former 248-point parent still clipped
+heads despite the native overscan. Keep scale, floor, timing and rounded clipping;
+use the same showcase height for viewport measurement. iOS 71/Android 70 lack
+this correction and require a new native release. All seven canonical models'
+jumps are visually verified in an isolated iPhone Simulator scene with current
+JS (remote-only models staged locally); iPad also verifies Seeker/BONK. This is
+not a real-device or production cache/auth/purchase test.
+
 Both current assets expose a 1000 × 1000 artboard. Keep the nominal Rive wrapper square at the existing board size, but give the actual native `RiveView` permanent vertical headroom: `top = bottom = -0.25 × size`, with unchanged width, centered `Fit.Contain`, and visible wrapper overflow. The native viewport becomes `size × (1.5 × size)` while the square artboard's scale and center remain unchanged. This prevents the native drawing surface from cutting off jump poses above its original square without resizing the figure or expanding cell hit targets. Keep these bounds identical through idle, all directional jumps and landing; never resize/remount just when a trigger starts. Recheck the fit assumption if future assets have non-square artboards. No Rive binary or authored timeline was changed for this fix.
 
 ## Timeline animations

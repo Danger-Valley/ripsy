@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-10-30
+Last updated: 2026-11-02
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -10,6 +10,49 @@ This is the living implementation handoff for an agent finishing the RIPSY web c
 Update this file in the same commit whenever a backend, protocol, mobile gameplay, lineup, board, Rive animation, timer, invitation, recovery, or result-flow change affects web parity. Do not mark an item complete from memory: verify the current web implementation and its tests first.
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
+
+## Native Shop jump clipping correction (2026-11-02, source only)
+
+The user's build-71 screenshot confirms that the outer 248-point rounded
+showcase, not just the native Rive drawing surface, clipped the jumping head.
+`ShopFigureShowcase` now owns the unchanged scenery/plinth/badge/preview markup
+and a 400-point showcase. Keep the model's 300 × 300 frame, 24-point floor
+offset and permanent 75-point native top/bottom overscan: the upper drawing
+surface starts at `400 - 24 - 300 - 75 = 1`, inside the clipped parent. Merely
+enlarging the child surface cannot fix clipping by an ancestor. Do not shrink
+the model, move its floor, let artwork overlap account/purchase controls or
+resize/remount only during a jump. The card becomes taller; scenery keeps its
+existing cover behavior and rounded clipping. The same exported height drives
+viewport measurement, so offscreen timers still stop at the correct boundary.
+
+Independent 3–7 second jump timing, idle, motion/accessibility gates, portrait
+fallback, bundled/verified remote loading and all checkout/gameplay behavior
+are unchanged. A regression test inspects the actual Shop ancestor, preview and
+Rive styles, preserves model size/floor and asserts that the upper canvas fits;
+scroll/popups still deactivate animation without purchase actions. Fresh 797
+mobile tests/56 suites with open-handle detection, native TypeScript, focused
+ESLint, layout scan and all eight model contracts pass. Browser Shop remains
+static `next/image`; this is not a web animation port. No Rive asset, native
+bridge/dependency, backend/config/catalog/authority or release-channel change.
+Published iOS 71 and Android 70 do not contain this correction; a new native
+build is required. Visual evidence and its limitations are recorded below.
+
+Native visual verification: the actual shared showcase and preview controllers
+were rendered with current JS in an existing Simulator binary on a disposable
+iPhone 18 Pro (iOS 27) and iPad Pro 13-inch (M5). Recorded full takeoff/apex/
+landing without cut-off heads for all seven purchasable models on iPhone;
+iPad recording covers Seeker/BONK. The three remote-only Rives were staged from
+the digest-checked canonical files through a fixture-only loader substitution,
+not newly bundled in production. This verifies native geometry/animation, not
+the production download/cache path, complete Shop/auth/checkout, physical-device
+performance or a new native release. The previous source-only attempt's system
+dialog limitation is closed for this isolated visual test, not for purchase QA.
+All production-mode iOS/Android Metro bundles also pass. Raw recordings/contact
+sheets are under `/private/tmp/ripsy-headroom.SgpUnz`; the six-second native
+Seeker excerpt is retained at
+`/Users/heymike/.codex/visualizations/2026/08/13/019ffb2c-bd2c-74f0-9913-ae1cfa62a450/ripsy-shop-headroom-20261102.mp4`.
+Only temporal/spatial cropping and encoding were used; animation frames were
+not invented/replaced. Temporary QA simulators are cleaned up after verification.
 
 ## iOS TestFlight 71 delivery (2026-10-30)
 
@@ -750,7 +793,7 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 | Server-delivered figure catalog/resources (2026-10-08) | Implemented/tested locally; release/device verification pending | Backend-only registry and v4 catalog/manifest; native/web accept unknown IDs/variants, API portraits and downloaded verified Rives. Native cache/offline preload and stable per-board file continuity covered by tests; web error recovery/visual checks pending. Build 56 requires one initial update; future compatible registrations need asset/backend deployment only. The onchain pack engine was retired and replaced by backend packs on 2026-10-16. |
 | Backend packs and contract retirement (2026-10-16; funding update 2026-10-20) | Backend deployed; native/web compatibility tested; paid device verification pending | Old program closed with 2.550678160 SOL refunded and source retained. Standard SKR payment + buyer SOL delivery budget, post-finality server draw, fixed Core delivery with atomic unused-SOL refund; one buyer approval. Legacy receipts stay sponsored. 10 SKR and 40/40/20 unchanged. Admin saves price/chances/pause without transactions. Existing shared pack clients work without a native rebuild. |
 | Illustrated Figure Shop (2026-10-02) | Port/verify | Actual-figure castle/plinth showcase, authoritative price/availability, explicit Seeker explanation, separate wallet modal, exact price + estimated fees review and reconnectable immutable purchase recovery. Keep free fig1 out of purchase cards; existing web mint logic is not proof of the new UI parity. |
-| Shop idle previews and independent jumps (2026-10-30) | Native implemented/tested; iOS 71 delivered; Android release and web port pending | Front-facing, unarmed real Rive in visible native purchase cards; independent 3–7 second per-model jittered Jump Forward timers, no reset/replay per hop. PNG during loading/error/reduced motion/background/blur/popups; cancel timers when inactive. Preserve verified cache, headroom, stable controller and unchanged checkout. Inspected web product art remains static `next/image`; do not mark it done from native tests. |
+| Shop idle previews, jumps and ancestor clearance (2026-11-02) | Hops delivered in iOS 71; clipping fix source-tested/Simulator-verified; new native release and web port pending | Front-facing, unarmed Rive; independent 3–7 second timers without reset/replay per hop. Reserve the entire upper native canvas inside the rounded ancestor (400-point showcase, unchanged 300-point figure/floor); use the same height for viewport gating. Keep PNG fallback, motion/popup guards and checkout unchanged. Current web art remains static `next/image`; do not mark it done from native tests. |
 | Buy with SOL recovery (2026-10-10) | Backend deployed; native build 58 delivered; web deployment/device paid validation pending | Typed insufficient-token response offers an explicit CTA in the native purchase popup and web recovery area. Same saved request switches to SOL mode before HTTP, shows original token price plus SOL input/fees/total and still requires approval. Backend composes swap and purchase atomically, verifies route/signers/output and fences delayed prepared-order writes. Pack odds, existing purchases and Seeker eligibility are unchanged. |
 | Native Buy -> wallet signing (2026-10-12) | Native build 59 delivered; web retains quote confirmation | New native figure/pack/SOL buys prepare and sign under one lock without a second quote popup. Restore/poll never sign automatically; prepared recovery uses explicit Continue in wallet. Web continues its existing separate review because it does not pass the optional direct signer. Backend transaction rules/odds unchanged; physical paid verification pending. |
 | Explicit checkout entry and abandoned drafts (2026-10-12) | Native source implemented; shared storage applies to web; popup UI port pending | Entering native Shop never opens checkout automatically. Restore/poll retains signed or submitted/paid recovery behind Continue purchase; unsigned no-order/prepared drafts and terminal figure receipts are cleared. Web retains inline confirmation, with the same shared storage cleanup. |
@@ -836,6 +879,8 @@ Legend: **Shared** means no duplicate client logic; **Done** means present in cu
 - [ ] Production Vercel build and all tests pass.
 
 ## Change ledger
+
+- 2026-11-02 — fixed Shop jump-head clipping at the ancestor boundary: 400-point rounded showcase contains the complete upper native canvas while preserving the 300-point figure, floor offset, jump timers and checkout. Centralized showcase/viewport height; actual ancestor/canvas geometry regression, offscreen/popup behavior, 797 mobile tests, native TypeScript/lint and eight-model contracts pass. Source only; no new APK/TestFlight or web port.
 
 - 2026-10-30 — delivered iOS-only TestFlight 1.0.0 (71), confirmed VALID/internal IN_BETA_TESTING with automatic notification. Independent shop jumps are included; Android remains published build 70 and web art remains static. Fresh 796 mobile tests/56 suites, native TypeScript, eight-model contracts, iOS preflight, exact IPA signatures/private-value checks and matching symbols pass. No visual/physical/paid pass, Android release, backend/web/env/catalog/authority or external beta-review change. Evidence: `files/releases/1.0.0-71.md`.
 

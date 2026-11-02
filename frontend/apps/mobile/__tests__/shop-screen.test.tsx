@@ -1,6 +1,7 @@
 import React from 'react';
 import { AccessibilityInfo, ActivityIndicator, AppState, Linking, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import Renderer from 'react-test-renderer';
+import { RiveView } from '@rive-app/react-native';
 import { useShop } from '@rps/game-client/use-shop';
 import { usePackShop } from '@rps/game-client/use-pack-shop';
 import { INITIAL_PACK, PACK_PAYMENT } from '@rps/core/packs';
@@ -252,10 +253,31 @@ test('only visible shop showcases animate, and an account popup stops them witho
   expect(preview().props.active).toBe(true);
   await press('Register'); expect(preview().props.active).toBe(false);
   await press('Close shop account'); expect(preview().props.active).toBe(true);
-  await Renderer.act(() => tree.root.findByProps({ testID: 'shop-scroll' }).props.onScroll({ nativeEvent: { contentOffset: { y: 400 } } }));
+  await Renderer.act(() => tree.root.findByProps({ testID: 'shop-scroll' }).props.onScroll({ nativeEvent: { contentOffset: { y: 500 } } }));
   expect(preview().props.active).toBe(false);
   expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
   expect(pack.prepare).not.toHaveBeenCalled(); expect(signShopTransaction).not.toHaveBeenCalled();
+});
+
+test('the rounded showcase contains the complete upper jump canvas without shrinking or lowering the figure', async () => {
+  jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  await mount();
+  await Renderer.act(() => {
+    tree.root.findByProps({ testID: 'shop-card-fig2' }).props.onLayout({ nativeEvent: { layout: { y: 100, height: 700 } } });
+    tree.root.findByProps({ testID: 'shop-scroll' }).props.onLayout({ nativeEvent: { layout: { height: 600 } } });
+  });
+  const showcase = StyleSheet.flatten(tree.root.findByProps({ testID: 'shop-showcase-fig2' }).props.style);
+  const preview = tree.root.findByProps({ testID: 'shop-preview-fig2' });
+  const frame = StyleSheet.flatten(preview.props.style);
+  const rive = StyleSheet.flatten(preview.findByType(RiveView).props.style);
+  expect(frame).toMatchObject({ width: 300, height: 300, bottom: 24 });
+  expect(rive).toMatchObject({ top: -75, bottom: -75, left: 0, right: 0 });
+  expect(showcase.overflow).toBe('hidden');
+  // The old 248-point parent clipped 151 points from the top of this surface,
+  // regardless of how much native overscan the child itself reserved.
+  expect(showcase.height - frame.bottom - frame.height + rive.top).toBeGreaterThanOrEqual(0);
+  expect(shop.prepare).not.toHaveBeenCalled(); expect(shop.confirm).not.toHaveBeenCalled();
+  expect(signShopTransaction).not.toHaveBeenCalled();
 });
 
 test.each(['figure-recovery', 'pack-recovery', 'seeker-wallet', 'email-account', 'session'] as const)('shop entry explains %s loading, guards purchase taps and unlocks without auto-signing', async loading => {

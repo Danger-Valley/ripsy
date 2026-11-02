@@ -37,7 +37,7 @@ test('Firestore + Storage: real transaction/fence/publication/restart and paymen
   assert.equal(credential.client_email, 'ripsy-commerce@ripsy-app.iam.gserviceaccount.com');
   const app = initializeApp({ projectId: 'ripsy-app', storageBucket: 'ripsy-app.firebasestorage.app', credential: cert(credential) }, `commerce-test-${randomUUID()}`);
   const db = getFirestore(app, 'ripsy-commerce');
-  const namespace = `itest-${randomUUID()}`, bucket = getStorage(app).bucket();
+  const namespace = `itest:${randomUUID()}`, bucket = getStorage(app).bucket();
   const store = new FirebaseCommerce(db, bucket, namespace);
   const replica = new FirebaseCommerce(db, bucket, namespace);
   const base = structuredClone(FIGURES);

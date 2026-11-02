@@ -34,6 +34,11 @@ identity. Never silently fall back to Redis or dual-write paid orders.
 
 The durable namespace is `commerce/{RIPSY_REDIS_PREFIX}` (`ripsy` by default):
 
+The actual production prefix is `ripsy:production`; preserve it exactly, including
+the colon, in Redis source reads and Firestore/Storage namespaces. Initial
+operator inspection rejected the colon before any data copy; the guard was
+corrected and the real integration fixture now exercises a colon namespace.
+
 - `settings/{prices,pack,registry}`: exact existing revisions, currencies,
   registration IDs/variants, disabled-pack settings and bounded audit history.
 - `settings/catalog`: immutable original-eight compatibility baseline and,

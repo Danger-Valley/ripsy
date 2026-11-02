@@ -24,7 +24,9 @@ export function commercePayload(raw: string): Payload {
 export class FirebaseCommerce implements CommercePersistence {
   readonly root: string;
   constructor(readonly db: Firestore, readonly bucket: Bucket, readonly namespace = 'ripsy') {
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(namespace)) throw new Error('Invalid commerce namespace');
+    // Existing production uses ripsy:production. ':' is valid in Firestore
+    // document IDs and Storage object names; preserve it, never rename keys.
+    if (!/^[A-Za-z0-9_:-]{1,64}$/.test(namespace)) throw new Error('Invalid commerce namespace');
     this.root = `commerce/${namespace}`;
   }
   private doc(path: string) { return this.db.doc(`${this.root}/${path}`); }

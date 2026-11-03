@@ -11,6 +11,10 @@ mobile:
   blockchain: solana-mainnet-wallet-identity-and-optional-core-shop
   transport: websocket
   state_store: redis
+  backend_commerce_store: cloud-firestore
+  figure_storage: firebase-cloud-storage-via-backend
+  release_version: 1.0.0
+  release_build: 74
   scaffold_repo: existing-bare-react-native-community-cli-app
   physical_device_tested: false
 ```
@@ -552,3 +556,27 @@ architecture decision, not implemented or permission to create/migrate/delete.
 No additional fighter was published. Dependency advisory triage also remains
 open; neither release delivery nor credential rotation closes all security work.
 Evidence: files/releases/1.0.0-73.md, DYNAMIC_FIGURES.md, WEB_PARITY_HANDOFF.md.
+
+## Native release 74 — 2026-11-03
+
+Android/iOS 1.0.0 (74) deliver source2075ad1 plus native counters; client product
+behavior is unchanged from73. APK704693034 is public on the existing Download
+channel with anonymous full-byte/SHA and normal page-label74 verification.
+Apple build697a2860-769d-4c29-83da-a7211651fe2c independently reports VALID,
+internal IN_BETA_TESTING and automatic tester notification enabled. Fresh818
+mobile tests/59suites with open-handle detection, mobile TypeScript, eight-model
+checks and both-platform release preflight pass. Strict signatures, exact IPA/
+APK, local matching symbols and bounded23-unique-pattern private-value guards
+pass. Old APKs/mappings/IPAs/archives stay local. No physical paid-wallet,
+offline/cache, push-delivery, external review or store production signoff.
+
+The prior server Firebase migration is already active: Firestore for structured
+catalog/order durability and private Cloud Storage for figures, behind unchanged
+HTTP authorization/APIs. Redis remains gameplay/session/cache state. This native
+release does not change those settings, rerun migration, publish a new figure or
+enable packs. Existing GitHub autodeploy may observe version/docs commits; no
+manual duplicate or provider operation is part of this request. Source notes
+about undecided storage in older dated entries are superseded by the verified
+Firebase report, not rewritten history. Physical_device_tested remains false.
+Evidence: files/releases/1.0.0-74.md and
+files/releases/firebase-commerce-2026-11-02.md.

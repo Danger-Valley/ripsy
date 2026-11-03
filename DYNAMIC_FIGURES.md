@@ -1,5 +1,11 @@
 # Adding server-delivered fighters
 
+Native 1.0.0 (74), released 2026-11-03, is now verified on the public Android
+Download channel and internal iOS TestFlight. It packages the same dynamic-
+figure client as 73; no new SDK or app update is required by the Firebase
+persistence cutover below. Fresh native checks pass; physical-device/offline
+and real-payment QA are not implied. Evidence: `files/releases/1.0.0-74.md`.
+
 ## Firebase persistence — active and verified (2026-11-02)
 
 The user now selected Firebase and approved Blaze/Frankfurt. Firestore

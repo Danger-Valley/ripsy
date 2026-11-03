@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-11-02
+Last updated: 2026-11-03
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -10,6 +10,25 @@ This is the living implementation handoff for an agent finishing the RIPSY web c
 Update this file in the same commit whenever a backend, protocol, mobile gameplay, lineup, board, Rive animation, timer, invitation, recovery, or result-flow change affects web parity. Do not mark an item complete from memory: verify the current web implementation and its tests first.
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
+
+## Native release 74 delivery (2026-11-03)
+
+Android/iOS 1.0.0 (74) deliver current source `2075ad1` plus synchronized build
+counters. Native product code is unchanged from 73; the Firebase cutover below
+is server-only and already compatible with the incumbent APIs. Public Android
+APK/hash and normal Download label 74 are verified; Apple independently confirms
+74 VALID/internal IN_BETA_TESTING with automatic tester notification enabled.
+Fresh 818 native tests/59 suites with open-handle detection, mobile TypeScript,
+eight-model contracts and both-platform preflight pass. Exact packages, strict
+distribution signatures, matching local symbols and bounded 23-unique-pattern
+local-private-value/bundled-Rive scans pass. Old signed artifacts remain.
+No real payment/onchain action, physical-device/offline/push delivery, external
+review or store production submission is implied. No backend/config/catalog or
+web behavior changed. Existing GitHub documentation/version autodeploy may run;
+do not upload a manual duplicate or rerun Firebase migration. Web animation,
+prewarming and general session-repair gaps remain as documented. Evidence:
+`files/releases/1.0.0-74.md`. This supersedes 73 as the current native delivery,
+not its feature contracts or the open security/physical-device verification.
 
 ## Firebase commerce persistence (2026-11-02, active and verified)
 

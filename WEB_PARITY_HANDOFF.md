@@ -11,15 +11,25 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
-## iPhone Duo adaptation (2026-11-04, source only; visual QA blocked)
+## iPhone Duo adaptation (2026-11-04, selected native QA; not published)
 
 Native now uses the current safe-area provider frame for Home/Army/Battle and
 independent side clearance outside capped Shop/Army/Battle content. Board art,
 hit targets and Rive movement coordinates resize together from a measured parent;
 do not key/remount the board, game hook or animation queue by viewport size.
 Home preserves room text/carousel page; Army preserves slot selection. Dialogs
-have their own provider because a native Modal need not share presenter geometry;
-all four inset edges update without resetting the flow. Full-bleed scenery stays.
+have their own provider because a native Modal need not share presenter geometry.
+Actual QA found that edge insets alone did not prevent a transparent Modal from
+straddling an interior fold. ToyDialog now uses ModalViewport with a native probe
+of active public local division regions, keeping one retained form/provider/push
+overlay inside the bottom/trailing continuous region. Full-modal keyboard
+avoidance/scrim remain outside that region; every inset edge updates without
+resetting flow. If keyboard avoidance removes the preferred pane entirely,
+choose the opposite nonempty continuous region; no available region stays
+fail-closed. Do not discard form input or remount it during that switch.
+No global window scan, cached pose or vendor patch. Full-bleed
+scenery stays. Web should likewise distinguish interior exclusions from edge
+safe areas rather than infer a device model; no web UI change is claimed.
 
 iOS 27.1+ additionally hosts the same React root in a UIKit overlay arrangement
 for active fold regions; older systems use the original hosting path. No game,
@@ -28,12 +38,19 @@ animation port; web has not been revalidated or marked complete by this task.
 Web implementations should similarly size their actual containing element and
 retain game/animation state during resizes rather than infer a device model.
 
-826 renderer tests, native TS/lint, eight-model contracts, twelve iOS bootstrap
-checks and a local Xcode27.2 Simulator Release build pass. No new TestFlight/APK
-release; 74 remains published. Visual/device checks are blocked by locked Mac /
-Xcode tool approval. In particular, transparent RN Modals may extend beyond the
-base arrangement pane: edge-safe dialogs are not proof of interior-fold safety.
-Do not claim full closed/open/half-fold signoff before actual native verification.
+830 renderer tests/60suites, native TS/lint, eight-model contracts and thirteen
+native script checks (including thirteen compiled actual geometry cases) pass.
+Local Xcode27.2 Simulator Release is installed/hash-matched. Actual open/active-
+half Home/Army/Shop, Army selection, local-computer lineup continuity and fixed
+collection dialog containment pass. The exact final build also retains the
+actual email field through vertical and horizontal folds with a visible keyboard
+and reachable Close. Its horizontal
+keyboard regression moves the form to the clear upper region without remount.
+Closed0° AX state/geometry persists but both display captures are black including
+system chrome; closed visual PASS,
+full physical-device/keyboard/accessibility/push matrices are not claimed.
+No new TestFlight/APK release;74 remains published. Wallet/order/server contracts
+are unchanged; preserved local pending checkout was not canceled or repaid.
 Scope, coverage and remaining test matrix:
 `files/releases/iphone-duo-preparation-2026-11-04.md`.
 

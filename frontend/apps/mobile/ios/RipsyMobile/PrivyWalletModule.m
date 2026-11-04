@@ -5,6 +5,7 @@
 #include "Audio/RipsyAudioModule.inc"
 #include "Figures/RipsyFigureCache.inc"
 #include "Updates/RipsyAppInfo.inc"
+#include "Layout/RipsyModalRegionProbe.inc"
 
 @interface RCT_EXTERN_MODULE(PrivyWallet, NSObject)
 

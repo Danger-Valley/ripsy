@@ -25,19 +25,31 @@ Wallet Adapter) is the external-wallet transport on Seeker. Multiplayer gameplay
 server-authoritative over the existing WebSocket backend and Redis architecture;
 the optional Metaplex Core shop does not move game rules on-chain.
 
-## iPhone Duo source preparation (2026-11-04)
+## iPhone Duo preparation and native QA (2026-11-04)
 
 Native responsive layout now tracks the actual SafeAreaProvider pane and each
 inset edge independently. iOS27.1+ uses a stable UIKit overlay arrangement around
 the existing React root; iOS17–27.0 keeps the old host. Build SDK27.1+ is required;
-the minimum supported iOS stays17. No Expo or dependency changes. 826 mobile
-tests/59suites, native TS/lint, eight-model contracts, twelve iOS bootstrap checks
-and a local Xcode27.2 Simulator Release build pass. No version bump/upload;
+the minimum supported iOS stays17. Transparent dialogs additionally use a local
+native division-region probe: one retained form/provider/push overlay inside a
+continuous region, full-modal keyboard avoidance/scrim outside. No global window
+queries, vendor patch, Expo or dependency changes. 830 mobile tests/60suites,
+native TS/lint, eight-model contracts, thirteen native script checks (including
+thirteen actual C geometry cases) and a local Xcode27.2 Simulator Release pass.
+No version bump/upload;
 release_version/release_build above continue to describe published74.
 
-Actual Duo visual/folding and physical-device QA are NOT complete: Mac locked /
-Xcode MCP awaiting approval. Transparent native Modals need explicit interior-
-fold verification; a local safe-area provider alone does not establish it.
+Actual Duo open/active-half Home/Army/Shop, slot retention and local-computer
+lineup checks now pass. Native QA reproduced a collection modal crossing the
+fold; the new local probe fixes it, confirmed by actual native event/AX geometry
+and independent inner-display screenshot. A keyboard-clipped empty preferred
+pane additionally falls back to the opposite nonempty continuous region without
+recreating the form; no-area stays fail-closed. Actual retained email input,
+visible keyboard and reachable Close pass through vertical/horizontal folds on
+the final exact local build. Closed0° state/geometry persists, but
+both screen captures are black including system UI: closed visual PASS is not
+claimed. Physical-device and full pose/keyboard/accessibility matrices remain
+open; this is not blanket Duo/store certification.
 See `files/releases/iphone-duo-preparation-2026-11-04.md`. This does not change
 wallet physical_device_tested, backend/commerce/pack policy or source rollout.
 

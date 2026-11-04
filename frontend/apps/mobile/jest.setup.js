@@ -4,6 +4,11 @@ jest.mock('@solana-mobile/seeker-connect-react-native', () => ({
     require('react').createElement(require('react-native').Text, null, 'Connect with Seeker')),
 }));
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
+// Behavior suites do not run UIKit. The real geometry bridge is exercised in
+// modal-viewport.test.tsx (unmocked) and native Simulator fold verification.
+jest.mock('./src/components/modal-viewport', () => ({
+  ModalViewport: ({ children }) => require('react').createElement(require('react-native').View, { style: { flex: 1 } }, children),
+}));
 jest.mock('react-native-keychain', () => ({
   ACCESSIBLE: { AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'AfterFirstUnlockThisDeviceOnly' },
   STORAGE_TYPE: { AES_GCM_NO_AUTH: 'KeystoreAESGCM_NoAuth' },

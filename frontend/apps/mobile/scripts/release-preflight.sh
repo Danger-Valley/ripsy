@@ -147,6 +147,11 @@ check_shop() {
 }
 
 check_ios() {
+  if node --test "${script_directory}/check-ios-modal-region.test.mjs"; then
+    pass "iOS modal fold-region geometry"
+  else
+    fail "iOS modal fold-region geometry"
+  fi
   local ios_sdk
   ios_sdk="$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || true)"
   if node -e '

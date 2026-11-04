@@ -2,14 +2,23 @@
 
 Bare React Native Community CLI application for iOS and Android. This is a native client: it does not use Expo or render the web application.
 
-## iPhone Duo preparation (2026-11-04, source only)
+## iPhone Duo preparation (2026-11-04, local native QA; not published)
 
 iOS builds now require Xcode/iOS SDK27.1+; deployment minimum stays iOS17.
 The same React root uses a UIKit overlay arrangement on27.1+, while responsive
 screens/board/dialogs measure their own pane and independent safe-area edges.
-Local Xcode27.2 Simulator Release build and826 mobile tests pass. Actual native
-closed/open/half-fold verification is still blocked by locked Mac/Xcode access;
-transparent dialogs need explicit fold QA. No new TestFlight/APK upload.
+Transparent dialogs additionally measure active local division regions through
+ModalViewport's native probe: do not replace this with global window dimensions
+or a safe-area provider alone. The same form survives geometry updates; scrim
+and keyboard avoidance stay full-modal, content/provider/push stay in one pane.
+If the keyboard removes that pane entirely, the same form moves to the nonempty
+opposite region; no available region stays fail-closed.
+Local Xcode27.2 Simulator Release,830 mobile tests and native geometry checks
+pass. Actual open/active-half Home/Army/Shop, local-lineup and fixed collection
+dialog checks pass. Actual email input/keyboard/Close survive vertical and
+horizontal folds on the exact final local build. Closed state/geometry persists
+but both Simulator captures are black, so closed visual and full physical/
+keyboard matrices are not signed off. No new TestFlight/APK upload.
 See root `files/releases/iphone-duo-preparation-2026-11-04.md` for remaining tests.
 
 ## Latest platform delivery (2026-11-02)

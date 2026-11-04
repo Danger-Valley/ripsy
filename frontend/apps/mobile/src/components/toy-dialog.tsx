@@ -5,6 +5,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { colors, spacing } from '../theme';
 import { homeFont, ToyHomeButton, ToyHomePanel } from './toy-home-controls';
 import { GamePushOverlay } from './game-push-banner';
+import { ModalViewport } from './modal-viewport';
 
 /** Shared native dialogs: scroll on short screens, never animate required choices. */
 export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close dialog', keyboard = false, testID, contentKey, children }: PropsWithChildren<{
@@ -29,24 +30,28 @@ export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close d
   }, [navigation]);
   return (
     <Modal visible={visible && focused} transparent animationType="none" onRequestClose={() => onClose?.()}>
-      <SafeAreaProvider>
-        <DialogContent title={title} icon={icon} onClose={onClose} closeLabel={closeLabel} keyboard={keyboard} testID={testID} contentKey={contentKey}>
-          {children}
-        </DialogContent>
-      </SafeAreaProvider>
+      <KeyboardAvoidingView accessibilityViewIsModal onAccessibilityEscape={() => onClose?.()} style={[styles.fill, styles.scrim]} behavior={keyboard && Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ModalViewport>
+          <SafeAreaProvider>
+            <DialogContent title={title} icon={icon} onClose={onClose} closeLabel={closeLabel} testID={testID} contentKey={contentKey}>
+              {children}
+            </DialogContent>
+          </SafeAreaProvider>
+        </ModalViewport>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 /** A modal has its own view geometry, which may differ from its presenter. */
-function DialogContent({ title, icon, onClose, closeLabel, keyboard, testID, contentKey, children }: PropsWithChildren<{
+function DialogContent({ title, icon, onClose, closeLabel, testID, contentKey, children }: PropsWithChildren<{
   title: string; icon?: ImageSourcePropType; onClose?: () => void; closeLabel: string;
-  keyboard: boolean; testID?: string; contentKey?: string;
+  testID?: string; contentKey?: string;
 }>) {
   const insets = useSafeAreaInsets();
   return (
-      <KeyboardAvoidingView accessibilityViewIsModal onAccessibilityEscape={() => onClose?.()} style={styles.fill} behavior={keyboard && Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView key={contentKey} onAccessibilityEscape={() => onClose?.()} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false} contentContainerStyle={[styles.backdrop, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg, paddingLeft: insets.left + spacing.lg, paddingRight: insets.right + spacing.lg }]}>
+      <View style={styles.fill}>
+        <ScrollView key={contentKey} style={styles.fill} onAccessibilityEscape={() => onClose?.()} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false} contentContainerStyle={[styles.backdrop, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg, paddingLeft: insets.left + spacing.lg, paddingRight: insets.right + spacing.lg }]}>
           <ToyHomePanel style={styles.card}>
             <View testID={testID} style={styles.body}>
               <View style={styles.header}>
@@ -59,7 +64,7 @@ function DialogContent({ title, icon, onClose, closeLabel, keyboard, testID, con
           </ToyHomePanel>
         </ScrollView>
         <GamePushOverlay onBeforeOpen={onClose} />
-      </KeyboardAvoidingView>
+      </View>
   );
 }
 
@@ -76,7 +81,8 @@ export function ToySectionHeading({ title, copy, icon }: { title: string; copy?:
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  backdrop: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, backgroundColor: colors.scrim },
+  scrim: { backgroundColor: colors.scrim },
+  backdrop: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.lg },
   card: { width: '100%', maxWidth: 460, alignSelf: 'center', padding: spacing.lg },
   body: { gap: spacing.lg },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

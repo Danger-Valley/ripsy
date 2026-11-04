@@ -14,7 +14,7 @@ mobile:
   backend_commerce_store: cloud-firestore
   figure_storage: firebase-cloud-storage-via-backend
   release_version: 1.0.0
-  release_build: 74
+  release_build: 75
   scaffold_repo: existing-bare-react-native-community-cli-app
   physical_device_tested: false
 ```
@@ -36,8 +36,8 @@ continuous region, full-modal keyboard avoidance/scrim outside. No global window
 queries, vendor patch, Expo or dependency changes. 830 mobile tests/60suites,
 native TS/lint, eight-model contracts, thirteen native script checks (including
 thirteen actual C geometry cases) and a local Xcode27.2 Simulator Release pass.
-No version bump/upload;
-release_version/release_build above continue to describe published74.
+The preparation task itself did not bump/upload a release. Subsequent native
+release75 below delivers this source; the local QA artifact retained counter74.
 
 Actual Duo open/active-half Home/Army/Shop, slot retention and local-computer
 lineup checks now pass. Native QA reproduced a collection modal crossing the
@@ -608,3 +608,27 @@ about undecided storage in older dated entries are superseded by the verified
 Firebase report, not rewritten history. Physical_device_tested remains false.
 Evidence: files/releases/1.0.0-74.md and
 files/releases/firebase-commerce-2026-11-02.md.
+
+## Native release 75 — 2026-11-04
+
+Android/iOS1.0.0(75) deliver source687f7bf (including c7bbfcd), the Duo pane/
+safe-area/board/state adaptation and native modal division/keyboard fallback.
+Android also receives the shared responsive JS. No wallet/payment/storage/API,
+dependency, Expo, backend/catalog/env/authority/pack-policy or update-minimum
+change. Existing Firebase persistence remains active and was not migrated again.
+
+Fresh830 native tests/60suites with default timeout/open-handle detection,
+TypeScript, eight-model contracts and both-platform preflight pass. Strict
+signatures, exact exported IPA, matching local symbols and bounded23-pattern
+local-private-value guards pass. Android APK710099331 has anonymous full-byte/
+SHA and ordinary Download-page75 label verification; old74 files remain local.
+Apple build9bcda34a-4b5a-459f-b661-4f3656fc80db independently reports VALID,
+internal IN_BETA_TESTING, automatic notification enabled and Uploads COMPLETE
+with no processing errors/warnings. No external review/production submission.
+
+The pre-release Duo Simulator tests above remain selected source QA, not proof
+on the signed75 physical build. Closed pixels, physical-device/offline/paid-wallet,
+full accessibility/push matrices, thin-positive-pane and dependency-advisory
+work remain open. Physical_device_tested staysfalse. Existing GitHub autodeploy
+may observe version/docs commits; no manual duplicate deployment was performed.
+Evidence: files/releases/1.0.0-75.md.

@@ -11,7 +11,25 @@ Update this file in the same commit whenever a backend, protocol, mobile gamepla
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
 
-## iPhone Duo adaptation (2026-11-04, selected native QA; not published)
+## Native release 75 delivery (2026-11-04)
+
+Android/iOS1.0.0(75) deliver source687f7bf, including the Duo adaptation below.
+Public Android APK bytes/hash and ordinary Download-page75 label are verified;
+Apple independently confirms75 VALID/internal IN_BETA_TESTING, automatic tester
+notification enabled and Build Uploads COMPLETE with zero processing errors/
+warnings. Fresh830 mobile tests/60suites, TypeScript, eight-model contracts and
+both-platform preflight pass; exact package signatures, matching local symbols
+and bounded23-pattern private-value/bundled-Rive guards pass. Old74 artifacts
+remain local. No production/external review or physical/paid-wallet signoff.
+
+No web port, backend/API/catalog/persistence/config change, migration rerun or
+manual duplicate deployment was performed. Existing GitHub version/docs
+autodeploy may run; web animation/prewarming/session-repair gaps remain open.
+Selected pre-release Duo source QA is not a closed-pixel/physical/all-pose pass
+on signed75. Scope and proof: `files/releases/1.0.0-75.md`.
+This supersedes74 as current native delivery, not the behavior/limitations below.
+
+## iPhone Duo adaptation (2026-11-04, selected pre-release native QA; delivered in75)
 
 Native now uses the current safe-area provider frame for Home/Army/Battle and
 independent side clearance outside capped Shop/Army/Battle content. Board art,
@@ -49,8 +67,9 @@ keyboard regression moves the form to the clear upper region without remount.
 Closed0° AX state/geometry persists but both display captures are black including
 system chrome; closed visual PASS,
 full physical-device/keyboard/accessibility/push matrices are not claimed.
-No new TestFlight/APK release;74 remains published. Wallet/order/server contracts
-are unchanged; preserved local pending checkout was not canceled or repaid.
+The adaptation task itself did not upload a release;75 above now delivers it.
+Wallet/order/server contracts are unchanged; preserved local pending checkout
+was not canceled or repaid.
 Scope, coverage and remaining test matrix:
 `files/releases/iphone-duo-preparation-2026-11-04.md`.
 

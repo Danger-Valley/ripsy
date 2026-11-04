@@ -2,7 +2,7 @@
 
 Bare React Native Community CLI application for iOS and Android. This is a native client: it does not use Expo or render the web application.
 
-## iPhone Duo preparation (2026-11-04, local native QA; not published)
+## iPhone Duo preparation (2026-11-04, included in75)
 
 iOS builds now require Xcode/iOS SDK27.1+; deployment minimum stays iOS17.
 The same React root uses a UIKit overlay arrangement on27.1+, while responsive
@@ -18,32 +18,35 @@ pass. Actual open/active-half Home/Army/Shop, local-lineup and fixed collection
 dialog checks pass. Actual email input/keyboard/Close survive vertical and
 horizontal folds on the exact final local build. Closed state/geometry persists
 but both Simulator captures are black, so closed visual and full physical/
-keyboard matrices are not signed off. No new TestFlight/APK upload.
+keyboard matrices are not signed off. Release75 below delivers this source;
+the preparation task's local Simulator artifact retained build74.
 See root `files/releases/iphone-duo-preparation-2026-11-04.md` for remaining tests.
 
-## Latest platform delivery (2026-11-02)
+## Latest platform delivery (2026-11-04)
 
-Android and iOS 1.0.0 (72) deliver the Shop jump ancestor-clearance correction
-from `cf4f21a`, preserving figure size, floor and independent jump timers.
-The signed arm64 APK is published at `https://ripsy.fun/download`; public bytes,
-hash and page label 72 are independently verified. App Store Connect confirms
-VALID/internal IN_BETA_TESTING with automatic tester notification. All 797
-mobile tests, TypeScript, eight-model contracts and both-platform preflight pass;
-package signatures, exact uploaded IPA, R8 mapping and matching dSYMs are verified.
-Isolated native Simulator recordings verify full jumps for all seven Shop models
-on iPhone and Seeker/BONK on iPad; real-device, production cache/auth, paid purchase
-and push delivery remain unverified. Web art is still static. No external beta
-review or App Store production submission. Evidence: `files/releases/1.0.0-72.md`.
+Android/iOS1.0.0(75) deliver source687f7bf, including the Duo responsive layout
+and modal/keyboard fixes above. The signed arm64 APK is published at
+`https://ripsy.fun/download`; anonymous full bytes/hash and normal page label75
+are independently verified. Apple confirms VALID/internal IN_BETA_TESTING,
+automatic notification and Uploads COMPLETE with no processing errors/warnings.
+Fresh830 tests/60suites, TypeScript, eight-model contracts and both-platform
+preflight pass. Package signatures, exact uploaded IPA, matching local symbols
+and bounded local-private-value guards pass. Old74 artifacts remain local.
+No backend/config/catalog/storage/pack-policy change or migration rerun.
+Pre-release Simulator source QA is not signed-build physical/offline/paid-wallet/
+push or all-pose certification; dependency/security work remains separate. No
+external beta review or App Store production submission. Web art remains static.
+Evidence: `files/releases/1.0.0-75.md`.
 
-## Server-delivered fighters at startup (2026-11-02, source only)
+## Server-delivered fighters at startup (2026-11-02, delivered since73)
 
 Root startup/foreground refreshes the public manifest and preloads missing
 compatible Rives and verified PNGs without opening Shop/Army or blocking Home.
 Known bundled resources are reused; downloaded files live in the bounded private
 native cache. Cached names restore offline, partial failures retain the working
-catalog, and image/name-only refreshes preserve Rive controllers. Existing build
-72 already loads unknown fighters on demand; one new native build and backend
-manifest deployment enable these startup/PNG-cache improvements. Subsequent
+catalog, and image/name-only refreshes preserve Rive controllers. Build72 already
+loads unknown fighters on demand;73 and later also deliver these startup/PNG-cache
+improvements with the already active backend manifest. Subsequent
 compatible additions need assets/backend registry only, not mobile imports or
 another app update. See root `DYNAMIC_FIGURES.md` for limits and registration.
 

@@ -1,8 +1,9 @@
 # iPhone Duo — implementation and native verification
 
 Date: 2026-11-04. Source preparation, local Simulator Release and selected actual
-open/active-fold workflows verified. **Not a published release or complete
-all-pose/physical-device signoff.**
+open/active-fold workflows verified. **This is pre-release source QA, not complete
+all-pose/physical-device signoff.** Subsequent Android/iOS1.0.0(75) delivers this
+source; signed-package and publication evidence is in `1.0.0-75.md`.
 
 ## Implementation
 
@@ -91,8 +92,9 @@ The final Simulator-only ad-hoc v4 artifact is installed/hash-matched:
 - Strict/deep local signature verification PASS. Its generated public native
   app/client IDs are nonempty and exactly match the expected native configuration.
 
-No version bump, APK/IPA publication or TestFlight upload; released native
-version remains 1.0.0 (74).
+No version bump, APK/IPA publication or TestFlight upload was performed by the
+preparation task. Its local artifact remains1.0.0(74); subsequent75 delivery is
+recorded separately in `1.0.0-75.md`, without changing these QA limits.
 
 ## Actual native Simulator QA
 

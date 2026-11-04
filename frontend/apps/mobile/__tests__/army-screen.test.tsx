@@ -3,6 +3,7 @@ import * as Native from 'react-native';
 import { Image, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../src/theme';
 import Renderer from 'react-test-renderer';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
 import { ShopClient } from '@rps/game-client/shop';
 import { FIGURE_SLOTS, type FigureInventory } from '@rps/core/shop';
@@ -35,6 +36,7 @@ let tree: Renderer.ReactTestRenderer;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(useSafeAreaFrame).mockImplementation(() => ({ x: 0, y: 0, ...jest.requireActual<typeof Native>('react-native').useWindowDimensions() }));
   jest.mocked(ShopClient).mockImplementation(() => api as unknown as ShopClient);
   jest.mocked(usePlayerIdentity).mockReturnValue({ isReady: true, playerId: 'player', sessionToken: 'token', error: null });
   jest.mocked(useSolanaWallet).mockReturnValue({ address: null, label: null, status: 'disconnected', error: null, isSupported: false, connect, disconnect });
@@ -43,6 +45,39 @@ beforeEach(() => {
   api.saveLoadout.mockImplementation(async slots => ({ ...inventory, slots }));
   api.clearWallet.mockResolvedValue(undefined);
   api.verifyWallet.mockResolvedValue(undefined);
+});
+
+test('uses the current pane and independent side insets, including inset-only changes without losing slot selection', async () => {
+  const frame = { x: 0, y: 0, width: 690, height: 850 };
+  const insets = { top: 0, bottom: 21, left: 0, right: 92 };
+  jest.mocked(useSafeAreaFrame).mockImplementation(() => frame);
+  jest.mocked(useSafeAreaInsets).mockImplementation(() => insets);
+  try {
+    await mount();
+    await press('All figures');
+    await Renderer.act(() => slot(3).props.onPress());
+    const selected = () => slot(3).props.accessibilityState.selected;
+    const widths = () => tree.root.findByProps({ testID: 'army-collection-grid' }).findAllByType(View).filter(node => node.props.testID === 'army-figure-card').map(node => StyleSheet.flatten(node.props.style).width);
+    const before = widths();
+    expect(before.length).toBeGreaterThan(0);
+    expect(selected()).toBe(true);
+    expect(StyleSheet.flatten(tree.root.findByProps({ testID: 'army-safe-viewport' }).props.style)).toMatchObject({ marginLeft: 0, marginRight: 92 });
+    // Bar moves sides without changing frame dimensions.
+    insets.left = 92; insets.right = 0;
+    await Renderer.act(() => tree.update(<ArmyScreen navigation={{ navigate, goBack, addListener, dispatch } as never} route={{ params: {} } as never} />));
+    expect(widths()).toEqual(before);
+    expect(selected()).toBe(true);
+    expect(StyleSheet.flatten(tree.root.findByProps({ testID: 'army-safe-viewport' }).props.style)).toMatchObject({ marginLeft: 92, marginRight: 0 });
+    // The provider can be one half of a much wider physical display.
+    frame.width = 350;
+    insets.left = 0;
+    await Renderer.act(() => tree.update(<ArmyScreen navigation={{ navigate, goBack, addListener, dispatch } as never} route={{ params: {} } as never} />));
+    expect(selected()).toBe(true);
+    expect(Math.max(...widths())).toBeLessThanOrEqual(350 - 55);
+    expect(api.saveLoadout).not.toHaveBeenCalled();
+  } finally {
+    jest.mocked(useSafeAreaInsets).mockImplementation(() => ({ top: 0, bottom: 0, left: 0, right: 0 }));
+  }
 });
 afterEach(async () => { if (tree) await Renderer.act(() => tree.unmount()); jest.restoreAllMocks(); });
 async function mount(params?: { expectedAssetId?: string }) {

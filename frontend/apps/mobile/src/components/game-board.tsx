@@ -67,6 +67,7 @@ interface Props {
 
 export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLineup, selected, availableMoves = [], interactionEnabled = false, combatAnimation, combatPhase, moveAnimation, moveProgress, trapAnimation, trapAnimationSequence = 0, showOpponentFormation = false, onCellPress, onMoveActionTriggered, onMoveDestinationReady, onTrapActionTriggered, onCombatActionTriggered }: Props) {
   const { width } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const { riveFile: figure1File } = useRiveFile(figure1Asset);
   const { riveFile: figure2File } = useRiveFile(figure2Asset);
   const { riveFile: bonkFile } = useRiveFile(bonkAsset);
@@ -96,7 +97,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
   }
   const assetsReady = [...neededVariants].filter(v => v > 0).every(v => Boolean(figureFiles[v]));
   const downloadFailed = [...neededVariants].some(v => !figureFiles[v] && (failedVariants[v] || !definitions.some(f => f.variant === v)));
-  const boardSize = Math.max(1, Math.min(width - 24, 620, maxSize));
+  const boardSize = Math.max(1, Math.min(containerWidth ?? width - 24, 620, maxSize));
   const playableSize = boardSize * BOARD_PLAYABLE_RATIO;
   const playableInset = (boardSize - playableSize) / 2;
   const cellSize = playableSize / WIDTH;
@@ -112,6 +113,9 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
 
   return (<>
     {remoteDefinitions.map(f => <RemoteAnimation key={`${f.variant}:${f.animation!.sha256}`} variant={f.variant} animation={f.animation!} onReady={onRemoteReady} onFailure={onRemoteFailure} retry={downloadRetry} />)}
+    <View testID="board-viewport" style={styles.boardViewport} onLayout={({ nativeEvent: { layout } }) => {
+      if (layout.width > 0) setContainerWidth(layout.width);
+    }}>
     <View accessible={false} style={[styles.board, { width: boardSize, height: boardSize }]} testID="game-board">
       <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.boardFrame}>
         <Image source={boardArenaAsset} style={styles.boardArenaArt} />
@@ -289,7 +293,7 @@ export function GameBoard({ maxSize = 620, state, ownOwner, isPlayer1, previewLi
         <Text accessibilityLiveRegion="polite" style={styles.loadingCopy}>{downloadFailed ? 'Could not load all fighters.' : 'Loading fighters...'}</Text>
         {downloadFailed && <Pressable accessibilityRole="button" accessibilityLabel="Retry loading fighters" onPress={() => { setFailedVariants({}); setDownloadRetry(n => n + 1); refreshFigureCatalog(true).catch(() => undefined); }} style={styles.retryModels}><Text style={styles.retryCopy}>Try again</Text></Pressable>}
       </View>}
-    </View></>
+    </View></View></>
   );
 }
 
@@ -541,6 +545,7 @@ function opponentOf(owner: Owner): Owner {
 }
 
 const styles = StyleSheet.create({
+  boardViewport: { width: '100%' },
   loadingPortrait: { resizeMode: 'contain' },
   loadingModels: { position: 'absolute', left: 20, right: 20, bottom: 8, zIndex: 100, elevation: 100, borderRadius: 14, padding: 10, backgroundColor: colors.kitPanel },
   loadingCopy: { color: colors.ink, textAlign: 'center' },

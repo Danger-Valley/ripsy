@@ -2,6 +2,16 @@
 
 Bare React Native Community CLI application for iOS and Android. This is a native client: it does not use Expo or render the web application.
 
+## iPhone Duo preparation (2026-11-04, source only)
+
+iOS builds now require Xcode/iOS SDK27.1+; deployment minimum stays iOS17.
+The same React root uses a UIKit overlay arrangement on27.1+, while responsive
+screens/board/dialogs measure their own pane and independent safe-area edges.
+Local Xcode27.2 Simulator Release build and826 mobile tests pass. Actual native
+closed/open/half-fold verification is still blocked by locked Mac/Xcode access;
+transparent dialogs need explicit fold QA. No new TestFlight/APK upload.
+See root `files/releases/iphone-duo-preparation-2026-11-04.md` for remaining tests.
+
 ## Latest platform delivery (2026-11-02)
 
 Android and iOS 1.0.0 (72) deliver the Shop jump ancestor-clearance correction

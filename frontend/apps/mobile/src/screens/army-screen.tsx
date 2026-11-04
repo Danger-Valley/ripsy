@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type PressableProps } from 'react-native';
 import { usePreventRemove } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ShopClient } from '@rps/game-client/shop';
 import { FIGURES, FIGURE_SLOTS, figureStoreMessage, type FigureInventory, type OwnedFigureAsset } from '@rps/core/shop';
 import { getGameWebSocketUrl } from '../config';
@@ -30,8 +30,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Army'>;
 export function ArmyScreen({ navigation, route }: Props) {
   const definitions = useFigureCatalog();
   const insets = useSafeAreaInsets();
-  const { width, fontScale } = useWindowDimensions();
-  const contentWidth = Math.min(width, 720);
+  const { fontScale } = useWindowDimensions();
+  const { width } = useSafeAreaFrame();
+  const contentWidth = Math.max(1, Math.min(width - insets.left - insets.right, 720));
   // Match the collection panel's gutters/border; wider text gets fewer columns.
   const collectionWidth = contentWidth - 28 - 2 * (spacing.md + 1.5);
   const figureColumns = Math.max(1, Math.min(4, Math.floor((collectionWidth + spacing.md) / (140 * Math.max(1, fontScale) + spacing.md))));
@@ -176,6 +177,7 @@ export function ArmyScreen({ navigation, route }: Props) {
   return (
     <View style={styles.screen}>
       <Image pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={scenery} style={styles.scenery} />
+      <View testID="army-safe-viewport" style={[styles.safeViewport, { marginLeft: insets.left, marginRight: insets.right }]}>
       <View testID="army-header" style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <ToyHomeButton small tone="white" accessibilityLabel="Back to home" onPress={() => navigation.goBack()}>‹</ToyHomeButton>
         <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} style={styles.title}>Your army</Text>
@@ -254,6 +256,7 @@ export function ArmyScreen({ navigation, route }: Props) {
         {isWaitingForMint && <StatusBanner message={indexingChecks < 10 ? 'Purchase complete. Your new figure will appear shortly…' : 'Purchase complete. Your collection is updating - try Refresh collection shortly.'} />}
         <Text style={styles.footerCopy}>For new games only. Your weapons stay unchanged.</Text>
       </ScrollView>
+      </View>
 
       <ToyDialog visible={walletOpen} title="Your collection" icon={homeArt.army} onClose={() => setWalletOpen(false)} closeLabel="Close collection settings" testID="army-wallet-dialog">
             {inventory ? <>
@@ -305,6 +308,7 @@ function ArmyControl({ children, focusRadius = 12, ...props }: PropsWithChildren
 function short(value: string) { return `${value.slice(0, 4)}…${value.slice(-4)}`; }
 
 const styles = StyleSheet.create({
+  safeViewport: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.background },
   scenery: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
   header: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 14, paddingBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 8 },

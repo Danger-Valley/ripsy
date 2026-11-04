@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, StyleSheet } from 'react-native';
 import { NavigationContext } from '@react-navigation/native';
 import Renderer from 'react-test-renderer';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { GamePushBanner, GamePushBannerContext } from '../src/components/game-push-banner';
 import { ToyDialog } from '../src/components/toy-dialog';
 
@@ -12,6 +13,12 @@ afterEach(async () => { if (tree) await Renderer.act(() => tree.unmount()); });
 test('does not render an invisible placeholder when there is no alert', async () => {
   await Renderer.act(async () => { tree = Renderer.create(<GamePushBanner notification={null} onOpen={jest.fn()} onDismiss={jest.fn()} />); });
   expect(tree.toJSON()).toBeNull();
+});
+test.each([[0, 96], [96, 0]])('keeps push actions outside asymmetric insets %s/%s', async (left, right) => {
+  await Renderer.act(() => { tree = Renderer.create(<SafeAreaInsetsContext.Provider value={{ top: 5, bottom: 0, left, right }}>
+    <GamePushBanner notification={notification} onOpen={jest.fn()} onDismiss={jest.fn()} />
+  </SafeAreaInsetsContext.Provider>); });
+  expect(StyleSheet.flatten(tree.root.findByProps({ testID: 'game-push-banner' }).props.style)).toMatchObject({ left: left + 12, right: right + 12, top: 13 });
 });
 test('opens the exact room and exposes an independent accessible dismiss action', async () => {
   const onOpen = jest.fn(); const onDismiss = jest.fn();

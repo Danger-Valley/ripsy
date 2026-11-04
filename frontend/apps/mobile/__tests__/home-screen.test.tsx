@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, StyleSheet, TextInput } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
+import * as SafeArea from 'react-native-safe-area-context';
 import { CELLS, Choice, Owner, Phase, Piece, type GameState } from '@rps/core';
 import { HomeScreen } from '../src/screens/home-screen';
 import { useNativeRipsyGame } from '../src/hooks/use-native-ripsy-game';
@@ -21,6 +22,8 @@ jest.mock('@react-navigation/native', () => ({
   useIsFocused: () => true,
 }));
 jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context/jest/mock').default,
+  useSafeAreaFrame: () => jest.requireActual('react-native').useWindowDimensions(),
   useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
 }));
 
@@ -196,6 +199,42 @@ test.each([320, 375, 768, 1280])('keeps the replacement hero proportional inside
     expect(logo.props.resizeMode).toBe('contain');
   } finally {
     dimensions.mockRestore();
+  }
+});
+
+test('folding and side-bar changes preserve room input and active room page inside the actual pane', async () => {
+  const frame = { x: 0, y: 0, width: 360, height: 760 };
+  const insets = { top: 0, bottom: 21, left: 0, right: 64 };
+  const safeArea = jest.requireMock<typeof SafeArea>('react-native-safe-area-context');
+  const frameMock = jest.spyOn(safeArea, 'useSafeAreaFrame').mockImplementation(() => frame);
+  const insetMock = jest.spyOn(safeArea, 'useSafeAreaInsets').mockImplementation(() => insets);
+  jest.mocked(useNativeRipsyGame).mockReturnValue({
+    ...jest.mocked(useNativeRipsyGame)('alice-player-id', 'alice-session-token'),
+    activeGames: ['active12', 'active34'].map(gameId => ({ ...createActiveGame(), gameId })),
+  });
+  const navigation = { navigate, addListener, setParams } as never;
+  const route = { params: {} } as never;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<HomeScreen navigation={navigation} route={route} />); });
+    const carousel = () => renderer.root.findByProps({ testID: 'active-games-carousel' });
+    await ReactTestRenderer.act(() => {
+      renderer.root.findByType(TextInput).props.onChangeText('abcd1234');
+      carousel().props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: carousel().props.snapToInterval, y: 0 } } });
+    });
+    for (const [width, left, right] of [[690, 0, 92], [690, 92, 0], [320, 0, 64]]) {
+      frame.width = width!; insets.left = left!; insets.right = right!;
+      await ReactTestRenderer.act(() => renderer.update(<HomeScreen navigation={navigation} route={route} />));
+      const content = Math.min(464, width! - Math.max(16, left! + 12) - Math.max(16, right! + 12));
+      expect(carousel().props.snapToInterval).toBe(content - 24 + 8);
+      expect(renderer.root.findByType(TextInput).props.value).toBe('abcd1234');
+      expect(renderer.root.findByProps({ accessibilityLabel: 'Game 2 of 2' })).toBeDefined();
+      expect(createGame).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    }
+  } finally {
+    if (renderer) await ReactTestRenderer.act(() => renderer.unmount());
+    frameMock.mockRestore(); insetMock.mockRestore();
   }
 });
 

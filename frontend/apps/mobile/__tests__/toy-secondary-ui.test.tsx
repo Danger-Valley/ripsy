@@ -1,12 +1,14 @@
 import React from 'react';
-import { Animated, Linking, Modal, ScrollView, StyleSheet, Text } from 'react-native';
+import { Animated, Linking, Modal, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import Renderer from 'react-test-renderer';
+import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Choice } from '@rps/core';
 import { BattleResultPanel, JoinGate, LineupPanel, WaitingPanel, WeaponChoiceModal } from '../src/components/battle-panels';
 import { BattleGuideDialog, SettingsDialog } from '../src/components/settings-dialogs';
 import { ToyDialog } from '../src/components/toy-dialog';
 import { ToyHomeButton } from '../src/components/toy-home-controls';
 import type { PushPermissionState } from '../src/push-notifications';
+import { spacing } from '../src/theme';
 
 let tree: Renderer.ReactTestRenderer;
 const choose = jest.fn();
@@ -31,6 +33,41 @@ test('shared dialogs respect safe areas, scroll, keyboard and native dismiss', a
   expect(StyleSheet.flatten(scroll.props.contentContainerStyle).paddingTop).toBeGreaterThanOrEqual(16);
   await Renderer.act(() => modal.props.onRequestClose()); expect(close).toHaveBeenCalledTimes(1);
   await press('Close test'); expect(close).toHaveBeenCalledTimes(2);
+});
+test('dialog geometry comes from its own modal provider, not the presenting pane', async () => {
+  const presenter = { top: 64, right: 100, bottom: 34, left: 11 };
+  await mount(<SafeAreaInsetsContext.Provider value={presenter}>
+    <ToyDialog visible title="Account" keyboard onClose={close}><TextInput value="kept@example.test" /></ToyDialog>
+  </SafeAreaInsetsContext.Provider>);
+  expect(tree.root.findByType(Modal).findByType(SafeAreaProvider)).toBeDefined();
+  const style = StyleSheet.flatten(tree.root.findByType(ScrollView).props.contentContainerStyle);
+  // The Jest modal provider's own insets are zero, unlike the presenter above.
+  expect(style).toMatchObject({ paddingTop: spacing.lg, paddingBottom: spacing.lg, paddingLeft: spacing.lg, paddingRight: spacing.lg });
+});
+test('open dialog updates each inset independently without replacing the dialog or entered email', async () => {
+  const insets = { top: 9, bottom: 21, left: 0, right: 90 };
+  const mock = jest.mocked(useSafeAreaInsets);
+  const original = mock.getMockImplementation()!;
+  mock.mockImplementation(() => insets);
+  function Content() {
+    const [email, setEmail] = React.useState('');
+    return <TextInput value={email} onChangeText={setEmail} />;
+  }
+  try {
+    await mount(<ToyDialog visible title="Account" keyboard onClose={close}><Content /></ToyDialog>);
+    const modal = tree.root.findByType(Modal);
+    await Renderer.act(() => tree.root.findByType(TextInput).props.onChangeText('kept@example.test'));
+    for (const [left, right] of [[90, 0], [0, 120], [0, 0]]) {
+      insets.left = left!; insets.right = right!;
+      await Renderer.act(() => tree.update(<ToyDialog visible title="Account" keyboard onClose={close}><Content /></ToyDialog>));
+      expect(tree.root.findByType(Modal)).toBe(modal);
+      expect(tree.root.findByType(TextInput).props.value).toBe('kept@example.test');
+      expect(StyleSheet.flatten(tree.root.findByType(ScrollView).props.contentContainerStyle)).toMatchObject({
+        paddingTop: 9 + spacing.lg, paddingBottom: 21 + spacing.lg, paddingLeft: left! + spacing.lg, paddingRight: right! + spacing.lg,
+      });
+      expect(close).not.toHaveBeenCalled();
+    }
+  } finally { mock.mockImplementation(original); }
 });
 test.each([['Choose rock', Choice.Rock], ['Choose paper', Choice.Paper], ['Choose scissors', Choice.Scissors]])('whole weapon card submits only %s on explicit tap', async (label, choice) => {
   await mount(<WeaponChoiceModal isOpen busy={false} onChoose={choose} />);

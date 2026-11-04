@@ -143,6 +143,33 @@ test('caps the complete board to the available height and keeps the grid and hit
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
+test('resizes from its actual parent without changing selection, hit geometry or Rive instances', async () => {
+  const onPress = jest.fn();
+  const state = createState();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<GameBoard state={state} ownOwner={Owner.P0} isPlayer1={false}
+      selected={{ x: 0, y: 6 }} interactionEnabled onCellPress={onPress} />);
+  });
+  try {
+    const pieces = renderer.root.findAllByProps({ testID: 'rive-view' });
+    for (const width of [310, 580, 240, 580]) {
+      await ReactTestRenderer.act(() => renderer.root.findByProps({ testID: 'board-viewport' }).props.onLayout({ nativeEvent: { layout: { width, height: width } } }));
+      const board = StyleSheet.flatten(renderer.root.findByProps({ testID: 'game-board' }).props.style);
+      expect(board.width).toBe(width);
+      expect(board.height).toBe(width);
+      const cells = renderer.root.findAll(node => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Row '));
+      for (const cell of cells) {
+        const style = StyleSheet.flatten(cell.props.style);
+        expect(style.width).toBeCloseTo(width * 0.84 / WIDTH);
+        expect(style.height).toBe(style.width);
+      }
+      expect(renderer.root.findAllByProps({ testID: 'rive-view' })).toEqual(pieces);
+      expect(onPress).not.toHaveBeenCalled();
+    }
+  } finally { await ReactTestRenderer.act(() => renderer.unmount()); }
+});
+
 test('announces selected pieces and legal move targets', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {

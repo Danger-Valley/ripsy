@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Platform, ScrollView, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccessibilityInfo, Animated, Easing, Platform, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { canMoveTo, Choice, FigureVariant, HEIGHT, isMovablePiece, Owner, Phase, Piece, toIdx, WIDTH, type GameState } from '@rps/core';
 import { GameBoard, type LineupPiece } from '../components/game-board';
@@ -69,11 +69,12 @@ function BattleScreen({ game, gameId, isComputer, navigation, onAnimationStateCh
   playerId: string;
   sessionToken?: string;
 }) {
-  const { height } = useWindowDimensions();
+  const { height, width } = useSafeAreaFrame();
   const insets = useSafeAreaInsets();
   // Fit the active board + clocks + status in a portrait viewport. On short
   // screens keep playable cells usable and allow vertical scrolling instead.
-  const boardMaxSize = Math.max(340, height - insets.top - insets.bottom - 260);
+  const boardMaxSize = Math.max(1, Math.min(width - insets.left - insets.right - 2 * spacing.md,
+    Math.max(340, height - insets.top - insets.bottom - 260)));
   const { joinGame } = game;
   const playSound = useBattleSounds();
   const animation = useGameAnimationQueue(game.gameState, playSound);

@@ -116,6 +116,12 @@ test('finishes when the single artwork settles, including failures, exactly once
   await Renderer.act(() => artwork.props.onLoadEnd());
   expect(ready).toHaveBeenCalledTimes(1);
 });
+test('splash keeps full-bleed art while loading text follows asymmetric side insets', async () => {
+  jest.mocked(useSafeAreaInsets).mockReturnValue({ top: 0, bottom: 21, left: 0, right: 96 });
+  await Renderer.act(() => { tree = Renderer.create(<StartupSplash />); });
+  expect(StyleSheet.flatten(tree.root.findByProps({ testID: 'startup-loading' }).props.style)).toMatchObject({ left: 24, right: 120, bottom: 53 });
+  expect(StyleSheet.flatten(tree.root.findByType(Image).props.style)).toMatchObject({ left: 0, top: 0 });
+});
 
 test('a missing native image callback cannot hold startup indefinitely', async () => {
   jest.useFakeTimers();

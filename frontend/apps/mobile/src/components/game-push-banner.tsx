@@ -25,7 +25,7 @@ export function GamePushBanner({ notification, onOpen, onDismiss }: BannerProps)
   const [focused, setFocused] = useState<'open' | 'dismiss' | null>(null);
   if (!notification) return null;
   return (
-    <View pointerEvents="box-none" style={[styles.position, { top: insets.top + spacing.sm }]} testID="game-push-banner">
+    <View pointerEvents="box-none" style={[styles.position, { top: insets.top + spacing.sm, left: insets.left + spacing.md, right: insets.right + spacing.md }]} testID="game-push-banner">
       <View style={styles.banner} accessibilityLiveRegion="polite">
         <Pressable
           accessibilityRole="button"

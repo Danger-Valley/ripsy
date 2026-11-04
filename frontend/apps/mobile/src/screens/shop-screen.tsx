@@ -224,6 +224,7 @@ export function ShopScreen({ navigation, route }: Props) {
   return (
     <View style={styles.screen}>
       <Image pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={scenery} style={styles.scenery} />
+      <View testID="shop-safe-viewport" style={[styles.safeViewport, { marginLeft: insets.left, marginRight: insets.right }]}>
       <View testID="shop-header" style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <ToyHomeButton small tone="white" accessibilityLabel="Back from figure shop" onPress={() => navigation.goBack()}>‹</ToyHomeButton>
         <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} style={styles.title}>Figure shop</Text>
@@ -271,6 +272,7 @@ export function ShopScreen({ navigation, route }: Props) {
         </ToyHomePanel></View>)}
         <Text style={styles.footerNote}>Each figure can fill one army slot. Your fighters’ look changes, not their weapons.</Text>
       </ScrollView>
+      </View>
       <ToyDialog visible={walletOpen || purchasePopup !== null}
         title={walletOpen ? wallet.isSupported ? 'Your purchase account' : privy.address ? 'Your account' : 'Sign in with email' : directSigning ? handoffTitle : purchaseTitle}
         icon={homeArt.shop} keyboard={walletOpen}
@@ -351,6 +353,7 @@ export function ShopScreen({ navigation, route }: Props) {
 function short(value: string) { return value.slice(0, 4) + '…' + value.slice(-4); }
 
 const styles = StyleSheet.create({
+  safeViewport: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.background },
   scenery: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
   header: { width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 14, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

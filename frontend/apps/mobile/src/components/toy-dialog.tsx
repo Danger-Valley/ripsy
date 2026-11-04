@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState, type PropsWithChildren } from 'react';
 import { NavigationContext } from '@react-navigation/native';
 import { Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '../theme';
 import { homeFont, ToyHomeButton, ToyHomePanel } from './toy-home-controls';
 import { GamePushOverlay } from './game-push-banner';
@@ -18,7 +18,6 @@ export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close d
   /** Reset content scroll when a flow advances, without remounting the native window. */
   contentKey?: string;
 }>) {
-  const insets = useSafeAreaInsets();
   const navigation = useContext(NavigationContext);
   const [focused, setFocused] = useState(() => navigation?.isFocused() ?? true);
   useEffect(() => {
@@ -30,8 +29,24 @@ export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close d
   }, [navigation]);
   return (
     <Modal visible={visible && focused} transparent animationType="none" onRequestClose={() => onClose?.()}>
+      <SafeAreaProvider>
+        <DialogContent title={title} icon={icon} onClose={onClose} closeLabel={closeLabel} keyboard={keyboard} testID={testID} contentKey={contentKey}>
+          {children}
+        </DialogContent>
+      </SafeAreaProvider>
+    </Modal>
+  );
+}
+
+/** A modal has its own view geometry, which may differ from its presenter. */
+function DialogContent({ title, icon, onClose, closeLabel, keyboard, testID, contentKey, children }: PropsWithChildren<{
+  title: string; icon?: ImageSourcePropType; onClose?: () => void; closeLabel: string;
+  keyboard: boolean; testID?: string; contentKey?: string;
+}>) {
+  const insets = useSafeAreaInsets();
+  return (
       <KeyboardAvoidingView accessibilityViewIsModal onAccessibilityEscape={() => onClose?.()} style={styles.fill} behavior={keyboard && Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView key={contentKey} onAccessibilityEscape={() => onClose?.()} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false} contentContainerStyle={[styles.backdrop, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}>
+        <ScrollView key={contentKey} onAccessibilityEscape={() => onClose?.()} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false} contentContainerStyle={[styles.backdrop, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg, paddingLeft: insets.left + spacing.lg, paddingRight: insets.right + spacing.lg }]}>
           <ToyHomePanel style={styles.card}>
             <View testID={testID} style={styles.body}>
               <View style={styles.header}>
@@ -45,7 +60,6 @@ export function ToyDialog({ visible, title, icon, onClose, closeLabel = 'Close d
         </ScrollView>
         <GamePushOverlay onBeforeOpen={onClose} />
       </KeyboardAvoidingView>
-    </Modal>
   );
 }
 

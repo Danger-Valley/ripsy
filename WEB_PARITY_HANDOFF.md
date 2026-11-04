@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-11-03
+Last updated: 2026-11-04
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -10,6 +10,32 @@ This is the living implementation handoff for an agent finishing the RIPSY web c
 Update this file in the same commit whenever a backend, protocol, mobile gameplay, lineup, board, Rive animation, timer, invitation, recovery, or result-flow change affects web parity. Do not mark an item complete from memory: verify the current web implementation and its tests first.
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
+
+## iPhone Duo adaptation (2026-11-04, source only; visual QA blocked)
+
+Native now uses the current safe-area provider frame for Home/Army/Battle and
+independent side clearance outside capped Shop/Army/Battle content. Board art,
+hit targets and Rive movement coordinates resize together from a measured parent;
+do not key/remount the board, game hook or animation queue by viewport size.
+Home preserves room text/carousel page; Army preserves slot selection. Dialogs
+have their own provider because a native Modal need not share presenter geometry;
+all four inset edges update without resetting the flow. Full-bleed scenery stays.
+
+iOS 27.1+ additionally hosts the same React root in a UIKit overlay arrangement
+for active fold regions; older systems use the original hosting path. No game,
+server, wallet, order or data contract changes. This is not a browser layout or
+animation port; web has not been revalidated or marked complete by this task.
+Web implementations should similarly size their actual containing element and
+retain game/animation state during resizes rather than infer a device model.
+
+826 renderer tests, native TS/lint, eight-model contracts, twelve iOS bootstrap
+checks and a local Xcode27.2 Simulator Release build pass. No new TestFlight/APK
+release; 74 remains published. Visual/device checks are blocked by locked Mac /
+Xcode tool approval. In particular, transparent RN Modals may extend beyond the
+base arrangement pane: edge-safe dialogs are not proof of interior-fold safety.
+Do not claim full closed/open/half-fold signoff before actual native verification.
+Scope, coverage and remaining test matrix:
+`files/releases/iphone-duo-preparation-2026-11-04.md`.
 
 ## Native release 74 delivery (2026-11-03)
 

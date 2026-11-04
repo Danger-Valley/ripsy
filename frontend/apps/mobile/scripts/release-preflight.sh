@@ -147,6 +147,16 @@ check_shop() {
 }
 
 check_ios() {
+  local ios_sdk
+  ios_sdk="$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || true)"
+  if node -e '
+    const [major, minor] = (process.argv[1] || "").split(".").map(Number);
+    process.exit(major > 27 || (major === 27 && minor >= 1) ? 0 : 1);
+  ' "${ios_sdk}"; then
+    pass "iPhone Duo SDK support (${ios_sdk}; iOS deployment minimum remains 17)"
+  else
+    fail "iPhone Duo arrangement support requires the iOS 27.1 SDK or later (Xcode 27.1+)"
+  fi
   if node "${script_directory}/check-ios-audio-bridge.mjs" "${mobile_directory}/ios/RipsyMobile/Audio/RipsyAudioModule.inc"; then
     pass "iOS audio bridge argument conversion"
   else

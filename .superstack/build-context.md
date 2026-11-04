@@ -25,6 +25,22 @@ Wallet Adapter) is the external-wallet transport on Seeker. Multiplayer gameplay
 server-authoritative over the existing WebSocket backend and Redis architecture;
 the optional Metaplex Core shop does not move game rules on-chain.
 
+## iPhone Duo source preparation (2026-11-04)
+
+Native responsive layout now tracks the actual SafeAreaProvider pane and each
+inset edge independently. iOS27.1+ uses a stable UIKit overlay arrangement around
+the existing React root; iOS17–27.0 keeps the old host. Build SDK27.1+ is required;
+the minimum supported iOS stays17. No Expo or dependency changes. 826 mobile
+tests/59suites, native TS/lint, eight-model contracts, twelve iOS bootstrap checks
+and a local Xcode27.2 Simulator Release build pass. No version bump/upload;
+release_version/release_build above continue to describe published74.
+
+Actual Duo visual/folding and physical-device QA are NOT complete: Mac locked /
+Xcode MCP awaiting approval. Transparent native Modals need explicit interior-
+fold verification; a local safe-area provider alone does not establish it.
+See `files/releases/iphone-duo-preparation-2026-11-04.md`. This does not change
+wallet physical_device_tested, backend/commerce/pack policy or source rollout.
+
 ## Fighter pack program deployment
 
 ```yaml

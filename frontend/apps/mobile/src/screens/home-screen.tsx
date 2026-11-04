@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Image, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Phase } from '@rps/core';
 import { ActiveGameCard } from '../components/active-game-card';
 import { HomePortraitImage } from '../components/home-portrait';
@@ -29,10 +29,11 @@ export function HomeScreen({ navigation, route }: Props) {
   const listActiveGames = game.listGames;
   const isGameConnected = game.isConnected;
   const push = usePushNotifications(sessionToken);
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: viewportWidth } = useSafeAreaFrame();
   const leftGutter = Math.max(16, insets.left + 12);
   const rightGutter = Math.max(16, insets.right + 12);
-  const heroWidth = Math.min(464, windowWidth - leftGutter - rightGutter) + 32;
+  const contentWidth = Math.max(1, Math.min(464, viewportWidth - leftGutter - rightGutter));
+  const heroWidth = contentWidth + 32;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [roomCode, setRoomCode] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -41,9 +42,13 @@ export function HomeScreen({ navigation, route }: Props) {
   const createGameInFlight = useRef(false);
   const hasCheckedRestoredGame = useRef(false);
   const restoredGameId = route.params?.restoreGameId;
-  const gamesViewportWidth = Math.min(Math.max(0, windowWidth - 56), 440);
-  const activeGameCardWidth = Math.max(240, gamesViewportWidth);
+  const activeGameCardWidth = Math.max(1, contentWidth - 24);
   const activeGameSnapInterval = activeGameCardWidth + 8;
+  const gamesCarousel = useRef<ComponentRef<typeof ScrollView>>(null);
+  useEffect(() => {
+    // Keep the same room selected when folding changes the snap distance.
+    gamesCarousel.current?.scrollTo({ x: activeGamePage * activeGameSnapInterval, animated: false });
+  }, [activeGamePage, activeGameSnapInterval]);
 
   const refreshGames = useCallback(async (showSpinner = false) => {
     if (!isGameConnected) return;
@@ -159,6 +164,7 @@ export function HomeScreen({ navigation, route }: Props) {
               {game.activeGames.length > 0 ? (
                 <>
                   <ScrollView
+                    ref={gamesCarousel}
                     accessibilityLabel="Active games"
                     contentContainerStyle={styles.carousel}
                     decelerationRate="fast"

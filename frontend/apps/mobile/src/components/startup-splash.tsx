@@ -42,7 +42,7 @@ export function StartupSplash({ onArtworkReady }: { onArtworkReady?: () => void 
         accessible
         style={[styles.artwork, imageSize]}
       />
-      <View testID="startup-loading" style={[styles.loading, { bottom: insets.bottom + 32 }]}>
+      <View testID="startup-loading" style={[styles.loading, { bottom: insets.bottom + 32, left: insets.left + 24, right: insets.right + 24 }]}>
         <Text maxFontSizeMultiplier={1.6} style={styles.caption}>Opening the toy box…</Text>
         <ActivityIndicator accessibilityLabel="Loading RIPSY" accessibilityRole="progressbar" color={colors.ink} size="large" />
       </View>

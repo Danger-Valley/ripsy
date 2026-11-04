@@ -70,6 +70,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
+  override func createRootViewController() -> UIViewController {
+    if #available(iOS 27.1, *) {
+      // UIKit keeps the same React tree in one usable region when a fold is
+      // active. Closed/flat displays use the full surface; no geometry-driven
+      // root replacement or game/session restoration is involved.
+      let arrangement = UIArrangementViewController()
+      let background = UIViewController()
+      background.view.backgroundColor = UIColor(red: 72 / 255, green: 209 / 255, blue: 240 / 255, alpha: 1)
+      background.view.isUserInteractionEnabled = false
+      arrangement.setViewController(background, for: .secondary)
+      arrangement.updateArrangement(.overlay)
+      return arrangement
+    }
+    return super.createRootViewController()
+  }
+
+  override func setRootView(_ rootView: UIView, toRootViewController rootViewController: UIViewController) {
+    if #available(iOS 27.1, *),
+      let arrangement = rootViewController as? UIArrangementViewController {
+      let primary = UIViewController()
+      primary.view = rootView
+      arrangement.setViewController(primary, for: .primary)
+      return
+    }
+    super.setRootView(rootView, toRootViewController: rootViewController)
+  }
+
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     self.bundleURL()
   }

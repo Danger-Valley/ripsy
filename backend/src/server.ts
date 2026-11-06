@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { createClient } from 'redis';
 import { RedisGameStore, type RedisCommands } from './redis-game-store.js';
 import { SessionManager } from './session.js';
-import { sendJson } from './http-json.js';
+import { sendJson, sendShopErrorJson } from './http-json.js';
 import { createBackendDiagnostics } from './diagnostics.js';
 import {
   createFirebaseMessaging,
@@ -48,6 +48,7 @@ const sessionManager = new SessionManager(configuredSessionSecret ?? 'ripsy-loca
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,http://localhost:3100').split(',').map(value => value.trim()).filter(Boolean));
 const diagnose = createBackendDiagnostics();
 const commerceMaintenance = process.env.COMMERCE_MAINTENANCE === 'true';
+const appPlatformJsonErrors = process.env.APP_PLATFORM_JSON_ERRORS === 'true';
 const mobileUpdatePolicy = loadMobileUpdatePolicy(process.env);
 
 const commandClient = createClient({ url: redisUrl });
@@ -209,7 +210,7 @@ const server = createServer(async (request, response) => {
       response.writeHead(404).end(JSON.stringify({ error: 'Shop endpoint not found' }));
     } catch (error) {
       const status = error instanceof BodyTooLargeError ? 413 : error instanceof AuthenticationError ? 401 : error instanceof ShopError ? error.status : 503;
-      response.writeHead(status).end(JSON.stringify({ error: error instanceof ShopError ? error.message : status === 503 ? 'The shop is temporarily unavailable. Try again shortly.' : error instanceof Error ? error.message : 'Invalid request', ...(error instanceof ShopError && error.recovery ? { recovery: error.recovery } : {}) }));
+      await sendShopErrorJson(response, status, { error: error instanceof ShopError ? error.message : status === 503 ? 'The shop is temporarily unavailable. Try again shortly.' : error instanceof Error ? error.message : 'Invalid request', ...(error instanceof ShopError && error.recovery ? { recovery: error.recovery } : {}) }, appPlatformJsonErrors);
     }
     return;
   }

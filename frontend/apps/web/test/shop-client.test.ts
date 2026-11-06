@@ -27,6 +27,11 @@ test('SOL recovery sends only a payment mode and surfaces only a validated serve
   assert.deepEqual(body, { figureId: 'jup', buyer: recovery.mint, idempotencyKey: 'persisted-key-12345', paymentMode: 'sol' });
   const invalid = new ShopClient('https://api.example.test', '', async () => new Response(JSON.stringify({ error: 'Not enough JUP', recovery: { ...recovery, balance: '1000000' } }), { status: 400 }));
   await assert.rejects(() => invalid.createPack(recovery.mint, 'persisted-key-12345', 'sol'), (e: unknown) => e instanceof ShopRequestError && e.recovery === null);
+  const hosted = new ShopClient('https://api.example.test', 'session', async () => new Response(JSON.stringify({ error: 'Your saved purchase needs attention.', recovery }), {
+    status: 409, headers: { 'x-ripsy-error-status': '503' },
+  }));
+  await assert.rejects(() => hosted.createPack(recovery.mint, 'persisted-key-12345', 'sol'), (e: unknown) => e instanceof ShopRequestError
+    && e.status === 409 && e.message === 'Your saved purchase needs attention.' && e.recovery?.required === '1000000');
 });
 
 test('default browser fetch keeps its global receiver, not a ShopClient receiver', async () => {

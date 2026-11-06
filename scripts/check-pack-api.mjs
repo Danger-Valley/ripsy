@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 const origin = 'https://api.ripsy.fun';
 const expectEnabled = process.argv.includes('--enabled');
 const backend = process.argv.includes('--backend');
+const appPlatformJsonErrors = process.argv.includes('--app-platform-json-errors');
 const expectedEdition = JSON.parse(readFileSync(new URL('../onchain/pack-config.json', import.meta.url), 'utf8'));
 const get = (path, options = {}) => fetch(`${origin}${path}`, {
   ...options, signal: AbortSignal.timeout(15000),
@@ -51,7 +52,8 @@ try {
       body: JSON.stringify({ buyer: 'BJomJVCbjz22kd84scx7X3eqMTBmuqZ4nhiFR7Cvm6dh',
         idempotencyKey: `readiness-${randomUUID()}` }),
     });
-    assert.equal(blocked.status, 503);
+    assert.equal(blocked.status, appPlatformJsonErrors ? 409 : 503);
+    if (appPlatformJsonErrors) assert.equal(blocked.headers.get('x-ripsy-error-status'), '503');
     assert.equal((await blocked.json()).error, 'Packs are not available yet.');
   }
   stage = 'legacy-catalog';

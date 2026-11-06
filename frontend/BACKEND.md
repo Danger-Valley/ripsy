@@ -62,6 +62,6 @@ The server replies with `result` or a typed `error`. Both sides validate message
 
 Railway hosts the long-lived WebSocket backend and Redis in the same project and region. The backend connects to the private Redis URL and exposes only its HTTP/WebSocket domain. No sticky sessions are required when the backend is scaled horizontally.
 
-Follow the repository's `RAILWAY_DEPLOYMENT.md` checklist for the Dockerfile, reference variables, health check, Vercel configuration, scaling, and smoke test.
+Follow `DIGITALOCEAN_DEPLOYMENT.md` for the production Dockerfile, private Valkey, runtime variables, health check, migration/rollback constraints and smoke tests. `RAILWAY_DEPLOYMENT.md` is historical.
 
 For production, also add rate limits, metrics, and structured logs.

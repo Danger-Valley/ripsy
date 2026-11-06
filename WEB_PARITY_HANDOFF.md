@@ -1,6 +1,6 @@
 # RIPSY Web Parity Handoff
 
-Last updated: 2026-11-04
+Last updated: 2026-11-06
 Baseline: `master` plus the collectible-army implementation documented below
 
 ## Purpose
@@ -10,6 +10,25 @@ This is the living implementation handoff for an agent finishing the RIPSY web c
 Update this file in the same commit whenever a backend, protocol, mobile gameplay, lineup, board, Rive animation, timer, invitation, recovery, or result-flow change affects web parity. Do not mark an item complete from memory: verify the current web implementation and its tests first.
 
 `MOBILE_IMPLEMENTATION_PLAN.md` tracks native/store delivery. This document tracks gameplay parity and should be the first document read before changing `frontend/apps/web`.
+
+## DigitalOcean backend migration (2026-11-06)
+
+Production HTTPS/WSS remain on `api.ripsy.fun`, now App Platform + private
+managed Valkey in AMS3. The same session secret, `ripsy:production` namespace,
+absolute expirations, Firebase commerce and client protocol are retained.
+Catalogs/update policy were byte-identical before cutover; existing session
+renewal and live two-client game/reconnect checks passed. No client URL or native
+release change is required. Deployment/rollback details: `DIGITALOCEAN_DEPLOYMENT.md`.
+
+App Platform replaces application 503 bodies with HTML 504. With runtime
+`APP_PLATFORM_JSON_ERRORS=true`, the shop error boundary sends its existing
+503 JSON payload as HTTP 409 plus `x-ripsy-error-status: 503`. Error messages and
+validated recovery fields remain intact; `/health` still uses real 503. Shared
+ShopClient parses non-OK JSON independently of 503, and existing hooks treat
+only 401 as authentication loss. Keep saved receipts/idempotency keys and
+explicit signing/retry rules on these transient 409 responses. Do not infer a
+new payment, cancel an order or reroll. Current web/shared-client tests cover
+typed 409 messages and recovery. Existing web UI parity gaps remain open.
 
 ## Native release 75 delivery (2026-11-04)
 

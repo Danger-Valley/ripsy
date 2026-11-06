@@ -1,5 +1,10 @@
 # Railway backend deployment
 
+Historical configuration: production moved to DigitalOcean on 2026-11-06.
+Use [DIGITALOCEAN_DEPLOYMENT.md](DIGITALOCEAN_DEPLOYMENT.md). The old backend
+is stopped/disconnected and its retained Redis is stale after cutover; do not
+restart it or revert DNS without reconciling current data.
+
 RIPSY runs on Railway as a long-lived backend service plus a Redis service in the same project and region. Vercel continues to host the web application.
 
 ## Current production
